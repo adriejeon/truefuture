@@ -1,6 +1,23 @@
 import { supabase } from '../lib/supabaseClient'
 
 /**
+ * 리디렉션 URL을 환경에 따라 반환하는 헬퍼 함수
+ * @returns {string} 환경에 맞는 리디렉션 URL
+ */
+const getRedirectUrl = () => {
+  // Localhost 환경인지 확인
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  
+  if (isLocalhost) {
+    // 로컬 개발 환경: 포트 번호 포함
+    return `http://localhost:5173`
+  } else {
+    // 프로덕션 환경: GitHub Pages 경로 포함
+    return `https://adriejeon.github.io/truefuture/`
+  }
+}
+
+/**
  * SocialLoginButtons 컴포넌트
  * 
  * Google과 Kakao 소셜 로그인 버튼을 제공하는 컴포넌트입니다.
@@ -18,12 +35,16 @@ function SocialLoginButtons() {
       return
     }
 
+    // 환경에 맞는 리디렉션 URL 가져오기
+    const redirectUrl = getRedirectUrl()
+    console.log('OAuth 리디렉션 URL:', redirectUrl)
+
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,
         options: {
-          // 로그인 완료 후 현재 도메인으로 리디렉션
-          redirectTo: window.location.origin,
+          // 로그인 완료 후 환경에 맞는 URL로 리디렉션
+          redirectTo: redirectUrl,
         },
       })
 
