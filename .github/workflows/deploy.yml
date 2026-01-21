@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -40,6 +40,10 @@ jobs:
         run: |
           cd frontend
           npm run build
+          
+      - name: List build output
+        run: |
+          ls -la frontend/dist/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
