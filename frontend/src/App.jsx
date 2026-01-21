@@ -41,7 +41,9 @@ function App() {
         ? `${birthDate}T${birthTime}:00`
         : `${birthDate}T00:00:00`
 
-      const response = await fetch('http://localhost:8787/api/calculate', {
+      // 프로덕션에서는 환경 변수 사용, 개발 환경에서는 localhost 사용
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+      const response = await fetch(`${apiUrl}/api/calculate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

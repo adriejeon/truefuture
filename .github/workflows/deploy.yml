@@ -35,12 +35,11 @@ jobs:
           npm ci
 
       - name: Build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://true-future-backend.adriejeon.workers.dev' }}
         run: |
           cd frontend
           npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
