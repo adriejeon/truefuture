@@ -39,14 +39,21 @@ function SocialLoginButtons() {
     const redirectUrl = getRedirectUrl()
     console.log('OAuth 리디렉션 URL:', redirectUrl)
 
+    // 프로바이더별로 options 객체 동적 생성
+    const options = {
+      // 로그인 완료 후 환경에 맞는 URL로 리디렉션
+      redirectTo: redirectUrl,
+    }
+
+    // 카카오인 경우에만 scopes 추가
+    if (provider === 'kakao') {
+      options.scopes = 'profile_nickname profile_image'
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,
-        options: {
-          // 로그인 완료 후 환경에 맞는 URL로 리디렉션
-          redirectTo: redirectUrl,
-          scopes: 'profile_nickname profile_image',
-        },
+        options: options,
       })
 
       if (error) {
