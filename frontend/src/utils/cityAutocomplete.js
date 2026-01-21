@@ -21,6 +21,7 @@ class CityAutocomplete {
     this.debounceTimer = null;
     this.searchResults = [];
     this.selectedIndex = -1;
+    this.isSelecting = false; // 도시 선택 중 플래그 (재검색 방지)
     
     this.init();
   }
@@ -47,12 +48,26 @@ class CityAutocomplete {
       }
     });
 
+    // 화면 크기 변경 및 스크롤 시 maxHeight 업데이트
+    this.handleResize = () => {
+      if (this.isDropdownVisible()) {
+        this.updateDropdownMaxHeight();
+      }
+    };
+    
+    window.addEventListener('resize', this.handleResize);
+    window.addEventListener('scroll', this.handleResize, true);
   }
 
   /**
    * 입력 처리 (디바운싱 적용)
    */
   handleInput(value) {
+    // 도시 선택 중이면 재검색하지 않음
+    if (this.isSelecting) {
+      return;
+    }
+
     // 디바운스 타이머 초기화
     clearTimeout(this.debounceTimer);
 
@@ -198,6 +213,9 @@ class CityAutocomplete {
    * 도시 선택 처리
    */
   selectCity(city) {
+    // 선택 중 플래그 설정 (재검색 방지)
+    this.isSelecting = true;
+
     const cityName = city.name || '';
     const countryName = city.countryName || '';
     const lat = city.lat || '';
@@ -231,6 +249,11 @@ class CityAutocomplete {
         timezone: timezone
       });
     }
+
+    // 짧은 딜레이 후 플래그 해제 (이벤트 처리 완료 대기)
+    setTimeout(() => {
+      this.isSelecting = false;
+    }, 100);
   }
 
   /**
@@ -238,6 +261,29 @@ class CityAutocomplete {
    */
   showDropdown() {
     this.dropdownElement.style.display = 'block';
+    
+    // 화면 하단까지의 거리를 계산하여 maxHeight 동적 설정
+    this.updateDropdownMaxHeight();
+  }
+
+  /**
+   * 드롭다운의 maxHeight를 화면 하단까지의 거리로 동적 설정
+   */
+  updateDropdownMaxHeight() {
+    const dropdownRect = this.dropdownElement.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - dropdownRect.top;
+    
+    // 여유 공간을 위해 약간의 패딩 추가 (20px)
+    const maxHeight = Math.max(100, spaceBelow - 20);
+    
+    // CSS의 기본 max-height보다 작으면 동적으로 설정
+    if (maxHeight < 300) {
+      this.dropdownElement.style.maxHeight = `${maxHeight}px`;
+    } else {
+      // 기본값 사용 (CSS에서 설정한 300px)
+      this.dropdownElement.style.maxHeight = '';
+    }
   }
 
   /**
@@ -253,6 +299,19 @@ class CityAutocomplete {
    */
   isDropdownVisible() {
     return this.dropdownElement.style.display === 'block';
+  }
+
+  /**
+   * 리소스 정리 (이벤트 리스너 제거)
+   */
+  destroy() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    if (this.handleResize) {
+      window.removeEventListener('resize', this.handleResize);
+      window.removeEventListener('scroll', this.handleResize, true);
+    }
   }
 }
 

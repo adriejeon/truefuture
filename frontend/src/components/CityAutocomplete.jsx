@@ -29,6 +29,7 @@ function CityAutocompleteComponent({ onCitySelect, className = '' }) {
     // 언마운트 시 정리
     return () => {
       if (autocompleteInstanceRef.current) {
+        autocompleteInstanceRef.current.destroy();
         autocompleteInstanceRef.current = null;
       }
     };
