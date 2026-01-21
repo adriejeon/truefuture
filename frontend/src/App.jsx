@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import CityAutocompleteComponent from './components/CityAutocomplete'
 import SocialLoginButtons from './components/SocialLoginButtons'
 import { supabase } from './lib/supabaseClient'
+import { detectInAppBrowser, redirectToExternalBrowser, getBrowserGuideMessage } from './utils/inAppBrowserDetector'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -17,6 +18,33 @@ function App() {
   const [interpretation, setInterpretation] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [inAppBrowserWarning, setInAppBrowserWarning] = useState(null)
+
+  // 인앱 브라우저 감지 및 처리
+  useEffect(() => {
+    const { isInApp, appName } = detectInAppBrowser()
+    
+    if (isInApp && appName) {
+      console.log(`인앱 브라우저 감지: ${appName}`)
+      
+      // 외부 브라우저로 리다이렉트 시도
+      const redirectSuccess = redirectToExternalBrowser(appName, window.location.href)
+      
+      // 리다이렉트가 실패하거나 지원되지 않는 경우 안내 메시지 표시
+      if (!redirectSuccess) {
+        const message = getBrowserGuideMessage(appName)
+        setInAppBrowserWarning({ appName, message })
+      } else {
+        // 리다이렉트 성공 시 잠시 후 안내 메시지 표시 (리다이렉트가 실패할 수 있으므로)
+        const timer = setTimeout(() => {
+          const message = getBrowserGuideMessage(appName)
+          setInAppBrowserWarning({ appName, message })
+        }, 2000)
+        
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [])
 
   // 인증 상태 확인
   useEffect(() => {
@@ -162,6 +190,33 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-3 sm:p-4 md:p-6" style={{ position: 'relative', zIndex: 1 }}>
       <div className="w-full max-w-2xl" style={{ position: 'relative', zIndex: 1 }}>
+        {/* 인앱 브라우저 안내 메시지 */}
+        {inAppBrowserWarning && (
+          <div className="mb-4 sm:mb-6 p-4 sm:p-5 bg-yellow-900/50 border-2 border-yellow-600 rounded-lg shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm sm:text-base font-semibold text-yellow-200 mb-2">
+                  {inAppBrowserWarning.appName} 인앱 브라우저 감지
+                </h3>
+                <p className="text-xs sm:text-sm text-yellow-100 leading-relaxed mb-3">
+                  {inAppBrowserWarning.message}
+                </p>
+                <button
+                  onClick={() => setInAppBrowserWarning(null)}
+                  className="text-xs sm:text-sm text-yellow-300 hover:text-yellow-200 underline"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-6 sm:mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 px-2">
           내 진짜 미래 확인하기
         </h1>

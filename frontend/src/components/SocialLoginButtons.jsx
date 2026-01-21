@@ -45,9 +45,15 @@ function SocialLoginButtons() {
       redirectTo: redirectUrl,
     }
 
-    // 카카오인 경우에만 scopes 추가
+    // 카카오인 경우에만 scopes와 queryParams 추가
+    // queryParams를 사용하여 account_email을 명시적으로 제외
     if (provider === 'kakao') {
-      options.scopes = 'profile_nickname,profile_image'    }
+      options.scopes = 'profile_nickname,profile_image'
+      // queryParams로 scope를 명시적으로 지정하여 Supabase가 자동으로 추가하는 account_email을 제외
+      options.queryParams = {
+        scope: 'profile_nickname,profile_image'
+      }
+    }
 
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
