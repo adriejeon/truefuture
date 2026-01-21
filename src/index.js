@@ -25,8 +25,8 @@ function getCorsHeaders(request) {
     'http://localhost:8080',
   ];
 
-  // GitHub Pages 도메인 체크 (예: username.github.io)
-  const isGitHubPages = origin && /^https:\/\/[a-zA-Z0-9-]+\.github\.io$/.test(origin);
+  // GitHub Pages 도메인 체크 (예: username.github.io 또는 username.github.io/truefuture/)
+  const isGitHubPages = origin && /^https:\/\/[a-zA-Z0-9-]+\.github\.io(\/.*)?$/.test(origin);
   
   // 허용된 도메인인지 확인
   const isAllowed = allowedOrigins.some(allowed => {

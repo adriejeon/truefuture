@@ -42,7 +42,11 @@ function App() {
         : `${birthDate}T00:00:00`
 
       // 프로덕션에서는 환경 변수 사용, 개발 환경에서는 localhost 사용
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+      // GitHub Pages에서는 Cloudflare Workers URL 사용
+      const apiUrl = import.meta.env.VITE_API_URL || 
+        (window.location.hostname === 'localhost' 
+          ? 'http://localhost:8787' 
+          : 'https://true-future-backend.adriejeon.workers.dev');
       const response = await fetch(`${apiUrl}/api/calculate`, {
         method: 'POST',
         headers: {
