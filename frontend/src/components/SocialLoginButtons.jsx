@@ -45,6 +45,7 @@ function SocialLoginButtons() {
         options: {
           // 로그인 완료 후 환경에 맞는 URL로 리디렉션
           redirectTo: redirectUrl,
+          scopes: 'profile_nickname profile_image',
         },
       })
 
