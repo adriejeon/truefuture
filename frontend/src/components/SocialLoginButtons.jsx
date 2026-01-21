@@ -47,8 +47,7 @@ function SocialLoginButtons() {
 
     // 카카오인 경우에만 scopes 추가
     if (provider === 'kakao') {
-      options.scopes = 'profile_nickname profile_image'
-    }
+      options.scopes = 'profile_nickname,profile_image'    }
 
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
