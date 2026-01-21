@@ -17,3 +17,7 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Build outputs
+frontend/dist/
+dist/
