@@ -12,6 +12,12 @@ function SocialLoginButtons() {
    * @param {string} provider - 'google' 또는 'kakao'
    */
   const handleSocialLogin = async (provider) => {
+    if (!supabase) {
+      console.error('Supabase 클라이언트가 초기화되지 않았습니다.')
+      alert('로그인 기능을 사용할 수 없습니다. 환경 설정을 확인해주세요.')
+      return
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,

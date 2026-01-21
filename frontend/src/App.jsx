@@ -20,6 +20,12 @@ function App() {
 
   // 인증 상태 확인
   useEffect(() => {
+    if (!supabase) {
+      console.error('Supabase 클라이언트가 초기화되지 않았습니다.')
+      setLoadingAuth(false)
+      return
+    }
+
     // 현재 세션 확인
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
@@ -39,6 +45,10 @@ function App() {
 
   // 로그아웃 함수
   const handleLogout = async () => {
+    if (!supabase) {
+      console.error('Supabase 클라이언트가 초기화되지 않았습니다.')
+      return
+    }
     try {
       await supabase.auth.signOut()
       setUser(null)
