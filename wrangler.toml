@@ -1,0 +1,33 @@
+name = "true-future-backend"
+main = "src/index.js"
+compatibility_date = "2024-12-19"
+# compatibility_flags = ["nodejs_compat"]  # astronomy-engine은 순수 JS이므로 불필요
+
+# 환경 변수 설정 방법:
+# 
+# 방법 1: 로컬 개발용 (.dev.vars 파일 사용)
+#   - 프로젝트 루트에 .dev.vars 파일 생성
+#   - 형식: KEY=value (한 줄에 하나씩)
+#   - 예시:
+#     GEMINI_API_KEY=your_api_key_here
+#     SUPABASE_URL=https://your-project.supabase.co
+#     SUPABASE_ANON_KEY=your_anon_key_here
+#
+# 방법 2: 프로덕션 배포용 (Wrangler Secrets 사용 - 권장)
+#   - 명령어로 설정:
+#     wrangler secret put GEMINI_API_KEY
+#     wrangler secret put SUPABASE_URL
+#     wrangler secret put SUPABASE_ANON_KEY
+#   - 각 명령어 실행 시 값을 입력하라는 프롬프트가 나타남
+#   - 이 방법이 가장 안전함 (환경 변수가 코드에 노출되지 않음)
+#
+# 방법 3: wrangler.toml에 직접 설정 (비권장 - 보안 위험)
+#   [vars]
+#   GEMINI_API_KEY = "your_api_key"
+#   SUPABASE_URL = "https://your-project.supabase.co"
+#   SUPABASE_ANON_KEY = "your_anon_key"
+#   주의: 이 방법은 Git에 커밋되면 안 됩니다!
+
+[env.production]
+name = "true-future-backend"
+# compatibility_flags = ["nodejs_compat"]  # astronomy-engine은 순수 JS이므로 불필요

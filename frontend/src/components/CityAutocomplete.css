@@ -1,0 +1,109 @@
+/* 도시 자동완성 스타일 */
+
+.city-autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+  z-index: 10001; /* 드롭다운이 다른 요소 위에 표시되도록 매우 높게 설정 */
+  overflow: visible; /* 드롭다운이 잘리지 않도록 */
+}
+
+.city-autocomplete-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: rgb(51, 65, 85); /* slate-700 */
+  border: 1px solid rgb(71, 85, 105); /* slate-600 */
+  border-radius: 0.5rem;
+  color: white;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.city-autocomplete-input:focus {
+  outline: none;
+  border-color: rgb(59, 130, 246); /* blue-500 */
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.city-autocomplete-input::placeholder {
+  color: rgb(148, 163, 184); /* slate-400 */
+}
+
+/* 드롭다운 목록 */
+.city-autocomplete-dropdown {
+  position: absolute !important; /* absolute positioning으로 부모 컨테이너 기준 배치 */
+  top: 100% !important; /* 입력 필드 바로 아래 */
+  left: 0 !important;
+  right: 0 !important;
+  margin-top: 0.25rem !important; /* 입력 필드와 약간의 간격 */
+  background-color: rgb(30, 41, 59) !important; /* slate-800 */
+  border: 1px solid rgb(51, 65, 85) !important; /* slate-700 */
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3),
+              0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 10001 !important; /* 버튼보다 위에 표시되도록 매우 높은 z-index 설정 */
+  list-style: none;
+  padding: 0.5rem 0;
+  margin: 0;
+}
+
+/* 드롭다운 스크롤바 스타일링 */
+.city-autocomplete-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.city-autocomplete-dropdown::-webkit-scrollbar-track {
+  background: rgb(30, 41, 59);
+  border-radius: 4px;
+}
+
+.city-autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: rgb(51, 65, 85);
+  border-radius: 4px;
+}
+
+.city-autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgb(71, 85, 105);
+}
+
+/* 드롭다운 아이템 */
+.city-autocomplete-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  color: rgb(226, 232, 240); /* slate-200 */
+  transition: background-color 0.15s ease;
+  font-size: 0.95rem;
+}
+
+.city-autocomplete-item:hover,
+.city-autocomplete-item.highlighted {
+  background-color: rgb(51, 65, 85); /* slate-700 */
+  color: white;
+}
+
+.city-autocomplete-item:first-child {
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+.city-autocomplete-item:last-child {
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 640px) {
+  .city-autocomplete-input {
+    font-size: 16px; /* iOS 줌 방지 */
+  }
+  
+  .city-autocomplete-dropdown {
+    max-height: 250px;
+  }
+  
+  .city-autocomplete-item {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9rem;
+  }
+}

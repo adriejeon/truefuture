@@ -1,0 +1,16 @@
+{
+  "name": "true-future-backend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.59.2"
+  },
+  "type": "module",
+  "dependencies": {
+    "astronomy-engine": "^2.1.19"
+  }
+}
