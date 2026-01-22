@@ -36,9 +36,9 @@ jobs:
 
       - name: Build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://true-future-backend.adriejeon.workers.dev' }}
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://mxcdrqdcadnccpuntdxw.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14Y2RycWRjYWRuY2NwdW50ZHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4OTg0MjEsImV4cCI6MjA4NDQ3NDQyMX0.oRinKPw_vW5UravmANECxtgTtkC7Pni1AKxQ5EYYQ5w' }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
           cd frontend
           npm run build
