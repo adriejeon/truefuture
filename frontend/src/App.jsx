@@ -116,31 +116,24 @@ function App() {
         ? `${birthDate}T${birthTime}:00`
         : `${birthDate}T00:00:00`
 
-      // 프로덕션에서는 환경 변수 사용, 개발 환경에서는 localhost 사용
-      // GitHub Pages에서는 Cloudflare Workers URL 사용
-      const apiUrl = import.meta.env.VITE_API_URL || 
-        (window.location.hostname === 'localhost' 
-          ? 'http://localhost:8787' 
-          : 'https://true-future-backend.adriejeon.workers.dev');
-      const response = await fetch(`${apiUrl}/api/calculate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Supabase Edge Function 호출로 변경
+      // Gemini API를 서버 사이드에서 호출하여 CORS 및 지역 차단 문제 해결
+      const { data, error: functionError } = await supabase.functions.invoke('get-fortune', {
+        body: {
           birthDate: birthDateTime,
           lat: cityData.lat,
           lng: cityData.lng,
           reportType: 'daily'
-        }),
+        }
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || '서버 오류가 발생했습니다.')
+      if (functionError) {
+        throw new Error(functionError.message || '서버 오류가 발생했습니다.')
       }
 
-      const data = await response.json()
+      if (!data || data.error) {
+        throw new Error(data?.error || '서버 오류가 발생했습니다.')
+      }
       
       // 축약된 JSON 키를 읽기 쉬운 형식으로 변환
       // 백엔드 응답 형식: {s: "요약", a: ["행동1", "행동2", "행동3"], k: ["키워드1", "키워드2"]}
