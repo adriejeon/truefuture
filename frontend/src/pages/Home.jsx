@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import SocialLoginButtons from '../components/SocialLoginButtons'
 import PageTitle from '../components/PageTitle'
@@ -18,6 +18,9 @@ function Home() {
   const [fromCache, setFromCache] = useState(false)
   const [fortuneDate, setFortuneDate] = useState('')
   const [loadingCache, setLoadingCache] = useState(false)
+  
+  // 로컬스토리지 확인 로직이 한 번만 실행되도록 보장하는 플래그
+  const hasCheckedStorage = useRef(false)
 
   // 인앱 브라우저 감지 및 처리
   useEffect(() => {
@@ -135,8 +138,14 @@ function Home() {
       return
     }
 
+    // 이미 로컬스토리지 확인을 완료했다면 중복 실행 방지
+    if (hasCheckedStorage.current) {
+      return
+    }
+
     // 로딩이 완료되었는데도 유저가 없으면 로그아웃 상태로 간주하여 로컬스토리지 초기화
     if (!user) {
+      hasCheckedStorage.current = true // 플래그 설정하여 이후 실행 방지
       localStorage.removeItem('daily_fortune')
       setInterpretation('')
       setFromCache(false)
@@ -144,7 +153,9 @@ function Home() {
       return
     }
 
-    // 로그인된 사용자: 로컬스토리지에서 오늘의 운세 확인
+    // 로그인된 사용자: 로컬스토리지에서 오늘의 운세 확인 (한 번만 실행)
+    hasCheckedStorage.current = true // 플래그 설정하여 중복 실행 방지
+    
     console.log('\n🔄 [useEffect 실행] 로컬스토리지 확인 중...')
     
     setLoadingCache(true)
@@ -163,6 +174,13 @@ function Home() {
     }
     
     setLoadingCache(false)
+  }, [user, loadingAuth])
+
+  // 사용자 변경 시 플래그 리셋 (로그아웃 후 다른 계정으로 로그인하는 경우 대비)
+  useEffect(() => {
+    if (!loadingAuth && !user) {
+      hasCheckedStorage.current = false
+    }
   }, [user, loadingAuth])
 
   const handleSubmit = async (formData) => {

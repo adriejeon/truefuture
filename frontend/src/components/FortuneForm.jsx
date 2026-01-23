@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import CityAutocompleteComponent from './CityAutocomplete'
 
 function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
@@ -11,14 +11,15 @@ function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
     timezone: ''
   })
 
-  const handleCitySelect = (selectedCity) => {
+  // useCallback으로 핸들러 함수 메모이제이션 (컴포넌트 재렌더링 시 함수 재생성 방지)
+  const handleCitySelect = useCallback((selectedCity) => {
     setCityData({
       name: selectedCity.name,
       lat: selectedCity.lat,
       lng: selectedCity.lng,
       timezone: selectedCity.timezone
     })
-  }
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
