@@ -15,6 +15,9 @@ function Home() {
   const [interpretation, setInterpretation] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [fromCache, setFromCache] = useState(false)
+  const [fortuneDate, setFortuneDate] = useState('')
+  const [loadingCache, setLoadingCache] = useState(false)
 
   // 인앱 브라우저 감지 및 처리
   useEffect(() => {
@@ -39,12 +42,154 @@ function Home() {
     }
   }, [])
 
+  // 한국 시간대 기준 현재 시간 가져오기
+  const getKoreaTime = () => {
+    const now = new Date()
+    // UTC 시간에 9시간(9 * 60 * 60 * 1000 밀리초)을 더함
+    const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000))
+    return koreaTime
+  }
+
+  // 오늘 날짜 (YYYY-MM-DD) 가져오기 - 한국 시간대 기준
+  const getTodayDate = () => {
+    const koreaTime = getKoreaTime()
+    // YYYY-MM-DD 형식으로 변환
+    const year = koreaTime.getUTCFullYear()
+    const month = String(koreaTime.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(koreaTime.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // 현재 시간이 00:01 ~ 23:59 사이인지 확인
+  const isWithinDailyFortuneTime = () => {
+    const koreaTime = getKoreaTime()
+    const hour = koreaTime.getUTCHours()
+    const minute = koreaTime.getUTCMinutes()
+    
+    // 00:00 ~ 00:00 사이는 운세 뽑기 불가
+    if (hour === 0 && minute < 1) {
+      return false
+    }
+    
+    return true // 00:01 ~ 23:59
+  }
+
+  // 로컬스토리지에서 오늘의 운세 확인
+  const getTodayFortuneFromStorage = () => {
+    try {
+      const stored = localStorage.getItem('daily_fortune')
+      
+      if (!stored) {
+        return null
+      }
+
+      const fortuneData = JSON.parse(stored)
+      const todayDate = getTodayDate()
+
+      // 저장된 운세의 날짜가 오늘인지 확인
+      if (fortuneData.date === todayDate) {
+        return fortuneData
+      } else {
+        // 다른 날짜의 운세이므로 삭제
+        localStorage.removeItem('daily_fortune')
+        return null
+      }
+    } catch (err) {
+      console.error('로컬스토리지 읽기 에러:', err)
+      return null
+    }
+  }
+
+  // 로컬스토리지에 오늘의 운세 저장
+  const saveTodayFortuneToStorage = (fortuneData) => {
+    try {
+      const todayDate = getTodayDate()
+
+      const dataToSave = {
+        date: todayDate,
+        interpretation: fortuneData.interpretation,
+        chart: fortuneData.chart,
+        transitChart: fortuneData.transitChart,
+        aspects: fortuneData.aspects,
+        transitMoonHouse: fortuneData.transitMoonHouse,
+        createdAt: new Date().toISOString(),
+      }
+
+      localStorage.setItem('daily_fortune', JSON.stringify(dataToSave))
+      
+      console.log('\n' + '='.repeat(60))
+      console.log('💾 로컬스토리지 저장 완료')
+      console.log('='.repeat(60))
+      console.log('저장된 날짜:', todayDate)
+      console.log('저장된 해석 길이:', fortuneData.interpretation?.length || 0, '글자')
+      console.log('='.repeat(60) + '\n')
+    } catch (err) {
+      console.error('❌ 로컬스토리지 저장 에러:', err)
+    }
+  }
+
+  // 페이지 로드 시 로컬스토리지에서 오늘의 운세 확인
+  useEffect(() => {
+    // 인증 상태가 로딩 중이면 대기 (새로고침 시 세션 복구 중 데이터 삭제 방지)
+    if (loadingAuth) {
+      return
+    }
+
+    // 로딩이 완료되었는데도 유저가 없으면 로그아웃 상태로 간주하여 로컬스토리지 초기화
+    if (!user) {
+      localStorage.removeItem('daily_fortune')
+      setInterpretation('')
+      setFromCache(false)
+      setFortuneDate('')
+      return
+    }
+
+    // 로그인된 사용자: 로컬스토리지에서 오늘의 운세 확인
+    console.log('\n🔄 [useEffect 실행] 로컬스토리지 확인 중...')
+    
+    setLoadingCache(true)
+    const storedFortune = getTodayFortuneFromStorage()
+    
+    if (storedFortune) {
+      console.log('✅ 오늘의 운세 발견! (날짜: ' + storedFortune.date + ')')
+      setInterpretation(storedFortune.interpretation)
+      setFromCache(true)
+      setFortuneDate(storedFortune.date)
+    } else {
+      console.log('💫 오늘의 운세가 아직 없습니다.')
+      setInterpretation('')
+      setFromCache(false)
+      setFortuneDate('')
+    }
+    
+    setLoadingCache(false)
+  }, [user, loadingAuth])
+
   const handleSubmit = async (formData) => {
     // 로그인 체크
     if (!user) {
       setError('로그인이 필요합니다. 먼저 로그인해주세요.')
       return
     }
+
+    // 00:01 ~ 23:59 사이인지 확인
+    if (!isWithinDailyFortuneTime()) {
+      setError('오늘의 운세는 00시 1분부터 확인하실 수 있습니다.')
+      return
+    }
+
+    // 이미 오늘의 운세를 뽑았는지 확인 (로컬스토리지)
+    const existingFortune = getTodayFortuneFromStorage()
+    if (existingFortune) {
+      console.log('⚠️ [운세 요청 차단] 이미 오늘의 운세를 확인했습니다.')
+      setError('오늘의 운세를 이미 확인하셨습니다. 내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다.')
+      setInterpretation(existingFortune.interpretation)
+      setFromCache(true)
+      setFortuneDate(existingFortune.date)
+      return
+    }
+
+    console.log('🚀 [새 운세 요청] 오늘의 운세 생성 시작')
 
     setLoading(true)
     setError('')
@@ -70,12 +215,27 @@ function Home() {
         body: requestBody
       })
 
+      console.log('📥 Edge Function 응답:', { data, error: functionError })
+
       if (functionError) {
-        throw new Error(functionError.message || '서버 오류가 발생했습니다.')
+        console.error('❌ Edge Function 에러:', functionError)
+        throw new Error(functionError.message || `서버 오류가 발생했습니다. (${functionError.name || 'Unknown'})`)
       }
 
-      if (!data || data.error) {
-        throw new Error(data?.error || '서버 오류가 발생했습니다.')
+      if (!data) {
+        console.error('❌ 응답 데이터 없음')
+        throw new Error('서버로부터 응답을 받지 못했습니다.')
+      }
+
+      if (data.error) {
+        console.error('❌ 서버 에러:', data.error)
+        throw new Error(data.error || '서버 오류가 발생했습니다.')
+      }
+
+      // AI 해석 실패 체크
+      if (data.interpretation && typeof data.interpretation === 'object' && data.interpretation.error) {
+        console.error('❌ AI 해석 실패:', data.interpretation)
+        throw new Error(data.interpretation.message || 'AI 해석 중 오류가 발생했습니다.')
       }
 
       // 디버깅: 받은 응답 로그
@@ -83,44 +243,126 @@ function Home() {
       console.log('📥 API 응답 받은 데이터')
       console.log('='.repeat(60))
       
+      // 1. Natal Chart (출생 차트)
       if (data.chart) {
-        console.log('계산된 차트 데이터:')
-        console.log('  행성 7개 위치:')
-        if (data.chart.planets) {
-          const planetNames = {
-            sun: '태양(Sun)', moon: '달(Moon)', mercury: '수성(Mercury)', venus: '금성(Venus)',
-            mars: '화성(Mars)', jupiter: '목성(Jupiter)', saturn: '토성(Saturn)',
-          }
-          Object.entries(data.chart.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name
-            console.log(`    ${displayName.padEnd(20)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (하우스 ${planet.house})`)
-          })
-        }
-        console.log('  포르투나(Fortune):')
-        if (data.chart.fortuna) {
-          console.log(`    별자리: ${data.chart.fortuna.sign}`)
-          console.log(`    별자리 내 각도: ${data.chart.fortuna.degreeInSign.toFixed(2)}도`)
-          console.log(`    전체 경도: ${data.chart.fortuna.degree.toFixed(2)}도`)
-          console.log(`    하우스: ${data.chart.fortuna.house}`)
-        }
-        console.log('  상승점(Ascendant):')
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🌟 [Natal Chart - 출생 차트]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`출생 시간: ${data.chart.date}`)
+        console.log(`출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`)
+        
+        // 상승점
         if (data.chart.houses?.angles?.ascendant !== undefined) {
           const asc = data.chart.houses.angles.ascendant
           const ascSignIndex = Math.floor(asc / 30)
           const ascDegreeInSign = asc % 30
           const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
-          console.log(`    별자리: ${signs[ascSignIndex]}`)
-          console.log(`    별자리 내 각도: ${ascDegreeInSign.toFixed(2)}도`)
-          console.log(`    전체 경도: ${asc.toFixed(2)}도`)
+          console.log(`\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`)
+        }
+        
+        // 행성 위치
+        console.log('\n행성 위치:')
+        if (data.chart.planets) {
+          const planetNames = {
+            sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus',
+            mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn',
+          }
+          Object.entries(data.chart.planets).forEach(([name, planet]) => {
+            const displayName = planetNames[name] || name
+            console.log(`  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`)
+          })
+        }
+        
+        // 포르투나
+        if (data.chart.fortuna) {
+          console.log(`\nPart of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart.fortuna.house})`)
         }
       }
       
-      console.log('제미나이 Markdown 해석 결과:')
+      // 2. Transit Chart (현재 하늘)
+      if (data.transitChart) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🌠 [Transit Chart - 현재 하늘]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`현재 시간: ${data.transitChart.date}`)
+        
+        console.log('\n행성 위치:')
+        if (data.transitChart.planets) {
+          const planetNames = {
+            sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus',
+            mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn',
+          }
+          Object.entries(data.transitChart.planets).forEach(([name, planet]) => {
+            const displayName = planetNames[name] || name
+            console.log(`  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`)
+          })
+        }
+      }
+      
+      // 3. Transit Moon House
+      if (data.transitMoonHouse !== undefined) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🌙 [Transit Moon House]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`Transit Moon은 Natal 차트의 ${data.transitMoonHouse}번째 하우스에 위치합니다.`)
+      }
+      
+      // 4. Calculated Aspects (각도 관계)
+      if (data.aspects && Array.isArray(data.aspects) && data.aspects.length > 0) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🔮 [Calculated Aspects - 주요 각도 관계]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        data.aspects.forEach((aspect, index) => {
+          console.log(`  ${index + 1}. ${aspect.description}`)
+        })
+        console.log(`\n총 ${data.aspects.length}개의 Aspect 발견`)
+      } else if (data.aspects && Array.isArray(data.aspects) && data.aspects.length === 0) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🔮 [Calculated Aspects - 주요 각도 관계]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('  (오늘은 주요 Aspect가 형성되지 않았습니다)')
+      }
+      
+      // 5. 제미나이에게 전달한 프롬프트 (디버깅용)
+      if (data.userPrompt) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📝 [제미나이에게 전달한 User Prompt]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(data.userPrompt)
+      }
+      
+      if (data.systemInstruction) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📋 [제미나이에게 전달한 System Instruction]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(data.systemInstruction)
+      }
+      
+      // 6. 제미나이 해석 결과
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('✨ [제미나이 해석 결과]')
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       console.log(data.interpretation)
-      console.log('='.repeat(60) + '\n')
+      console.log('\n' + '='.repeat(60) + '\n')
       
       if (data.interpretation && typeof data.interpretation === 'string') {
+        const todayDate = getTodayDate()
+        
+        // 오늘의 운세를 로컬스토리지에 저장
+        saveTodayFortuneToStorage({
+          interpretation: data.interpretation,
+          chart: data.chart,
+          transitChart: data.transitChart,
+          aspects: data.aspects,
+          transitMoonHouse: data.transitMoonHouse,
+        })
+        
+        // 저장 후 상태 업데이트
         setInterpretation(data.interpretation)
+        setFromCache(false) // 새로 뽑은 운세
+        setFortuneDate(todayDate)
+        
+        console.log('✅ [운세 완료] 해석 결과 표시 및 로컬스토리지 저장 완료')
       } else {
         setInterpretation('결과를 불러올 수 없습니다.')
       }
@@ -226,13 +468,57 @@ function Home() {
                 <h2 className="text-xl sm:text-2xl font-bold text-center mb-4 sm:mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
                   오늘의 운세 확인하기
                 </h2>
-                <FortuneForm onSubmit={handleSubmit} loading={loading} reportType="daily" />
-                {error && (
-                  <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">
-                    {error}
+
+                {/* 로딩 중 */}
+                {loadingCache && (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-3"></div>
+                    <p className="text-slate-400 text-sm">오늘의 운세 확인 중...</p>
                   </div>
                 )}
-                {interpretation && (
+
+                {/* 로딩 중 */}
+                {loadingCache && (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-3"></div>
+                    <p className="text-slate-400 text-sm">오늘의 운세 확인 중...</p>
+                  </div>
+                )}
+
+                {/* 이미 오늘의 운세를 뽑은 경우 */}
+                {!loadingCache && interpretation && fromCache && (
+                  <div className="mb-4 sm:mb-6">
+                    <div className="p-4 bg-blue-900/30 border border-blue-600/50 rounded-lg mb-4">
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl">✨</div>
+                        <div className="flex-1">
+                          <p className="text-blue-200 text-sm sm:text-base mb-2">
+                            <strong>{fortuneDate}</strong> 오늘의 운세를 이미 확인하셨습니다.
+                          </p>
+                          <p className="text-blue-300/80 text-xs sm:text-sm">
+                            내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <FortuneResult title="오늘의 운세" interpretation={interpretation} />
+                  </div>
+                )}
+
+                {/* 아직 오늘의 운세를 뽑지 않은 경우 */}
+                {!loadingCache && !interpretation && (
+                  <>
+                    <FortuneForm onSubmit={handleSubmit} loading={loading} reportType="daily" />
+                    {error && (
+                      <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">
+                        {error}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* 새로 운세를 뽑은 경우 (캐시 아님) */}
+                {!loadingCache && interpretation && !fromCache && (
                   <FortuneResult title="오늘의 운세" interpretation={interpretation} />
                 )}
               </div>

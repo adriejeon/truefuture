@@ -3,12 +3,18 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-// astronomy-engine npm 패키지 import (Deno는 npm: 프로토콜 지원)
-import { MakeTime, Body, GeoVector, Ecliptic, SiderealTime } from "npm:astronomy-engine@2.1.19"
-
 // 타입 및 프롬프트 import
-import { FortuneType, UserData, CompatibilityData } from './types.ts'
-import { getSystemInstruction } from './geminiPrompts.ts'
+import { FortuneType, UserData, CompatibilityData, ChartData } from './types.ts'
+import { getSystemInstruction, generateDailyUserPrompt } from './geminiPrompts.ts'
+
+// 점성술 계산 유틸리티 import
+import {
+  calculateChart,
+  calculateAspects,
+  getTransitMoonHouseInNatalChart,
+  getSignFromLongitude,
+  PLANET_NAMES,
+} from './utils/astrologyCalculator.ts'
 
 // ========== CORS 헤더 설정 ==========
 const corsHeaders = {
@@ -17,233 +23,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// ========== 점성술 계산 관련 상수 ==========
-const SIGNS = [
-  'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
-]
-
-const PLANETS = {
-  sun: Body.Sun,
-  moon: Body.Moon,
-  mercury: Body.Mercury,
-  venus: Body.Venus,
-  mars: Body.Mars,
-  jupiter: Body.Jupiter,
-  saturn: Body.Saturn,
-}
-
-// ========== 점성술 계산 유틸리티 함수 ==========
-function normalizeDegrees(degrees: number): number {
-  return ((degrees % 360) + 360) % 360
-}
-
-function getSignFromLongitude(longitude: number): { sign: string; degreeInSign: number } {
-  const normalized = normalizeDegrees(longitude)
-  const signIndex = Math.floor(normalized / 30)
-  const degreeInSign = normalized % 30
-
-  return {
-    sign: SIGNS[signIndex],
-    degreeInSign: degreeInSign,
-  }
-}
-
-function getWholeSignHouse(longitude: number, ascendantLon: number): number {
-  const normalized = normalizeDegrees(longitude)
-  const ascNormalized = normalizeDegrees(ascendantLon)
-  
-  const ascSignIndex = Math.floor(ascNormalized / 30)
-  const planetSignIndex = Math.floor(normalized / 30)
-  
-  let house = planetSignIndex - ascSignIndex + 1
-  
-  if (house < 1) house += 12
-  if (house > 12) house -= 12
-  
-  return house
-}
-
-function calculateAscendant(date: Date, lat: number, lng: number, time: any): number {
-  // 정확한 상승점 계산
-  // 1. 그리니치 항성시(GMST) 계산 - astronomy-engine 사용
-  const gmst = SiderealTime(time) // 시간 단위로 반환
-  
-  // 2. 지방 항성시(LST) = GMST + (경도 / 15)
-  const lst = gmst + (lng / 15)
-  
-  // 3. RAMC (Right Ascension of MC) - 도 단위로 변환
-  const ramc = normalizeDegrees(lst * 15)
-  
-  // 4. 황도경사각 (obliquity of the ecliptic) - J2000 기준 약 23.44도
-  const obliquity = 23.4392911
-  const obliquityRad = obliquity * (Math.PI / 180)
-  const latRad = lat * (Math.PI / 180)
-  const ramcRad = ramc * (Math.PI / 180)
-  
-  // 5. 상승점 계산 공식
-  // tan(ASC) = cos(RAMC) / (-sin(RAMC) * cos(obliquity) - tan(lat) * sin(obliquity))
-  const numerator = Math.cos(ramcRad)
-  const denominator = -(Math.sin(ramcRad) * Math.cos(obliquityRad)) - (Math.tan(latRad) * Math.sin(obliquityRad))
-  
-  let ascendantRad = Math.atan2(numerator, denominator)
-  let ascendant = ascendantRad * (180 / Math.PI)
-  
-  // RAMC가 180-360도 범위일 때 180도 보정 필요
-  if (ramc >= 180) {
-    ascendant += 180
-  }
-  
-  return normalizeDegrees(ascendant)
-}
-
-function calculateFortuna(ascendant: number, moonLon: number, sunLon: number): number {
-  let fortuna = ascendant + moonLon - sunLon
-  return normalizeDegrees(fortuna)
-}
-
-function getPlanetLongitude(body: any, time: any): number {
-  try {
-    const vector = GeoVector(body, time, true)
-    const ecliptic = Ecliptic(vector)
-    // 중요: Ecliptic().elon은 이미 도(degrees) 단위입니다!
-    // 라디안 변환 (180/π)을 하면 안 됩니다.
-    const longitude = ecliptic.elon
-    
-    return normalizeDegrees(longitude)
-  } catch (error: any) {
-    console.error(`Error calculating planet longitude for ${body}:`, error)
-    throw new Error(`Failed to calculate planet longitude: ${error.message}`)
-  }
-}
-
-// ========== 점성술 차트 계산 ==========
-async function calculateChart(date: Date, lat: number, lng: number): Promise<any> {
-  try {
-    if (!(date instanceof Date) || isNaN(date.getTime())) {
-      throw new Error('Invalid date provided.')
-    }
-
-    if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
-      throw new Error('Invalid latitude.')
-    }
-
-    if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
-      throw new Error('Invalid longitude.')
-    }
-
-    // 디버깅: 입력 데이터 확인
-    console.log('\n' + '='.repeat(60))
-    console.log('🔍 calculateChart 함수 시작')
-    console.log('='.repeat(60))
-    console.log(`입력 날짜 (Date 객체): ${date.toISOString()}`)
-    console.log(`입력 날짜 (UTC): ${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')} ${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')}`)
-    console.log(`위도: ${lat}, 경도: ${lng}`)
-    console.log('='.repeat(60) + '\n')
-
-    const time = MakeTime(date)
-    
-    // 디버깅: MakeTime 결과 확인
-    console.log('MakeTime 생성 완료:', time)
-    
-    const ascendant = calculateAscendant(date, lat, lng, time)
-    const ascendantSignInfo = getSignFromLongitude(ascendant)
-
-    const planetsData: any = {}
-
-    // 디버깅: 각 행성 계산 과정 로그
-    console.log('\n' + '='.repeat(60))
-    console.log('🌟 행성 위치 계산 시작')
-    console.log('='.repeat(60))
-
-    for (const [planetName, body] of Object.entries(PLANETS)) {
-      try {
-        const longitude = getPlanetLongitude(body, time)
-        const signInfo = getSignFromLongitude(longitude)
-        const house = getWholeSignHouse(longitude, ascendant)
-
-        // 디버깅: 각 행성 계산 결과
-        console.log(`${planetName.padEnd(10)}: 경도 ${longitude.toFixed(4)}도 → ${signInfo.sign} ${signInfo.degreeInSign.toFixed(2)}도 (하우스 ${house})`)
-
-        planetsData[planetName] = {
-          sign: signInfo.sign,
-          degree: longitude,
-          degreeInSign: signInfo.degreeInSign,
-          house: house,
-        }
-      } catch (planetError: any) {
-        console.error(`❌ ${planetName} 계산 실패:`, planetError)
-        throw new Error(`Failed to calculate ${planetName} position: ${planetError.message}`)
-      }
-    }
-    
-    console.log('='.repeat(60) + '\n')
-
-    const moonLon = planetsData.moon.degree
-    const sunLon = planetsData.sun.degree
-    
-    // 검증: 태양 위치가 합리적인 범위인지 확인
-    const sunSignInfo = planetsData.sun
-    const month = date.getUTCMonth() + 1 // 1-12
-    const day = date.getUTCDate()
-    
-    // 10월 23일생의 태양은 Libra 말기 (210-240도) 또는 Scorpio 초기 (210-240도)여야 함
-    if (month === 10 && day >= 23) {
-      // 10월 23일 이후: 태양은 Scorpio (210-240도) 또는 Libra 말기 (180-210도)
-      if (sunSignInfo.sign === 'Leo' || (sunLon >= 120 && sunLon < 180)) {
-        console.error(`⚠️ 경고: 10월 ${day}일생인데 태양이 ${sunSignInfo.sign} ${sunSignInfo.degreeInSign.toFixed(2)}도로 계산됨. 예상: Scorpio 초기 또는 Libra 말기`)
-      }
-    }
-    
-    // 검증: 계산된 값이 0도 이상 360도 미만인지 확인
-    if (sunLon < 0 || sunLon >= 360) {
-      throw new Error(`Invalid sun longitude calculated: ${sunLon}`)
-    }
-    if (moonLon < 0 || moonLon >= 360) {
-      throw new Error(`Invalid moon longitude calculated: ${moonLon}`)
-    }
-    
-    const fortunaLon = calculateFortuna(ascendant, moonLon, sunLon)
-    const fortunaSignInfo = getSignFromLongitude(fortunaLon)
-    const fortunaHouse = getWholeSignHouse(fortunaLon, ascendant)
-
-    const midheaven = normalizeDegrees(ascendant + 90)
-
-    const result = {
-      date: date.toISOString(),
-      location: { lat, lng },
-      houses: {
-        system: 'Whole Sign',
-        angles: {
-          ascendant: ascendant,
-          midheaven: midheaven,
-        },
-      },
-      planets: planetsData,
-      fortuna: {
-        sign: fortunaSignInfo.sign,
-        degree: fortunaLon,
-        degreeInSign: fortunaSignInfo.degreeInSign,
-        house: fortunaHouse,
-      },
-    }
-
-    // 최종 검증 로그
-    console.log('\n' + '='.repeat(60))
-    console.log('✅ 차트 계산 완료')
-    console.log('='.repeat(60))
-    console.log(`태양: ${sunSignInfo.sign} ${sunSignInfo.degreeInSign.toFixed(2)}도 (전체 경도: ${sunLon.toFixed(4)}도)`)
-    console.log(`달: ${planetsData.moon.sign} ${planetsData.moon.degreeInSign.toFixed(2)}도 (전체 경도: ${moonLon.toFixed(4)}도)`)
-    console.log('='.repeat(60) + '\n')
-
-    return result
-  } catch (error: any) {
-    // 에러 발생 시 fallback 데이터를 반환하지 않고 에러를 그대로 throw
-    console.error('❌ 차트 계산 중 에러 발생:', error)
-    console.error('에러 스택:', error.stack)
-    throw new Error(`Chart calculation failed: ${error.message || 'Unknown error occurred during chart calculation.'}`)
-  }
-}
 
 // ========== AI 해석 관련 함수 ==========
 const GEMINI_MODEL = 'gemini-2.5-flash-lite'
@@ -296,7 +75,25 @@ function getReportTypeDescription(fortuneType: FortuneType): string {
   return descriptions[fortuneType] || '일반 운세'
 }
 
-function buildUserPrompt(chartData: any, fortuneType: FortuneType, compatibilityChartData?: any): string {
+function buildUserPrompt(
+  chartData: any, 
+  fortuneType: FortuneType, 
+  compatibilityChartData?: any,
+  transitChartData?: any,
+  aspects?: any[],
+  transitMoonHouse?: number
+): string {
+  // DAILY 운세의 경우 새로운 상세 프롬프트 사용
+  if (fortuneType === FortuneType.DAILY && transitChartData && aspects && transitMoonHouse !== undefined) {
+    return generateDailyUserPrompt(
+      chartData as ChartData,
+      transitChartData as ChartData,
+      aspects,
+      transitMoonHouse
+    )
+  }
+  
+  // 기존 방식 (LIFETIME, YEARLY, COMPATIBILITY)
   const reportTypeDesc = getReportTypeDescription(fortuneType)
   const compressedData = compressChartData(chartData)
   
@@ -308,52 +105,68 @@ function buildUserPrompt(chartData: any, fortuneType: FortuneType, compatibility
     prompt += `\n\n두 번째 사람:\n${compressedData2}`
   }
   
-  // 디버깅: 제미나이에 전달되는 내용 로그
-  console.log('\n' + '='.repeat(60))
-  console.log('📤 제미나이에 전달되는 내용')
-  console.log('='.repeat(60))
-  console.log('압축된 차트 데이터:')
-  console.log(`  ${compressedData}`)
-  if (fortuneType === FortuneType.COMPATIBILITY && compatibilityChartData) {
-    const compressedData2 = compressChartData(compatibilityChartData)
-    console.log('두 번째 사람 압축된 차트 데이터:')
-    console.log(`  ${compressedData2}`)
-  }
-  console.log()
-  console.log('전체 프롬프트:')
-  console.log(prompt)
-  console.log('='.repeat(60) + '\n')
-  
   return prompt
 }
 
 async function callGeminiAPI(modelName: string, apiKey: string, requestBody: any): Promise<any> {
   const endpoint = `${GEMINI_API_BASE_URL}/models/${modelName}:generateContent?key=${apiKey}`
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  })
+  console.log('📤 Gemini API 호출 시작')
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(
-      `Gemini API request failed: ${response.status} ${response.statusText}. ${errorText}`
-    )
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('\n' + '='.repeat(60))
+      console.error('❌ Gemini API 요청 실패')
+      console.error('='.repeat(60))
+      console.error('상태 코드:', response.status)
+      console.error('상태 텍스트:', response.statusText)
+      console.error('에러 응답:', errorText)
+      console.error('='.repeat(60) + '\n')
+      
+      // API 키 관련 에러인지 확인
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Gemini API 인증 실패: API 키가 유효하지 않거나 만료되었습니다.')
+      }
+      
+      throw new Error(
+        `Gemini API 요청 실패 (${response.status}): ${response.statusText}. ${errorText.substring(0, 200)}`
+      )
+    }
+
+    const apiResponse = await response.json()
+
+    if (apiResponse.error) {
+      console.error('\n' + '='.repeat(60))
+      console.error('❌ Gemini API 에러 응답')
+      console.error('='.repeat(60))
+      console.error('에러:', JSON.stringify(apiResponse.error, null, 2))
+      console.error('='.repeat(60) + '\n')
+      
+      throw new Error(
+        `Gemini API error: ${apiResponse.error.message || JSON.stringify(apiResponse.error)}`
+      )
+    }
+
+    console.log('✅ Gemini API 호출 성공')
+    return apiResponse
+  } catch (error: any) {
+    console.error('\n' + '='.repeat(60))
+    console.error('❌ Gemini API 호출 중 예외 발생')
+    console.error('='.repeat(60))
+    console.error('에러:', error.message)
+    console.error('스택:', error.stack)
+    console.error('='.repeat(60) + '\n')
+    throw error
   }
-
-  const apiResponse = await response.json()
-
-  if (apiResponse.error) {
-    throw new Error(
-      `Gemini API error: ${apiResponse.error.message || JSON.stringify(apiResponse.error)}`
-    )
-  }
-
-  return apiResponse
 }
 
 function parseGeminiResponse(apiResponse: any): string {
@@ -398,7 +211,10 @@ async function getInterpretation(
   chartData: any, 
   fortuneType: FortuneType, 
   apiKey: string,
-  compatibilityChartData?: any
+  compatibilityChartData?: any,
+  transitChartData?: any,
+  aspects?: any[],
+  transitMoonHouse?: number
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -416,7 +232,14 @@ async function getInterpretation(
       ],
     }
 
-    const userPrompt = buildUserPrompt(chartData, fortuneType, compatibilityChartData)
+    const userPrompt = buildUserPrompt(
+      chartData, 
+      fortuneType, 
+      compatibilityChartData,
+      transitChartData,
+      aspects,
+      transitMoonHouse
+    )
 
     const requestBody = {
       contents: [
@@ -438,27 +261,14 @@ async function getInterpretation(
     }
 
     const apiResponse = await callGeminiAPI(GEMINI_MODEL, apiKey, requestBody)
-    
-    // 디버깅: 제미나이 원본 응답 로그
-    console.log('\n' + '='.repeat(60))
-    console.log('📥 제미나이로부터 받은 원본 응답')
-    console.log('='.repeat(60))
-    console.log(JSON.stringify(apiResponse, null, 2))
-    console.log('='.repeat(60) + '\n')
-    
     const interpretationText = parseGeminiResponse(apiResponse)
-    
-    // 디버깅: 파싱된 제미나이 응답 로그
-    console.log('\n' + '='.repeat(60))
-    console.log('✅ 제미나이 Markdown 응답')
-    console.log('='.repeat(60))
-    console.log(interpretationText)
-    console.log('='.repeat(60) + '\n')
 
     return {
       success: true,
       fortuneType: fortuneType,
       interpretation: interpretationText,
+      userPrompt: userPrompt, // 제미나이에게 전달한 User Prompt
+      systemInstruction: systemInstructionText, // 제미나이에게 전달한 System Instruction
     }
   } catch (error: any) {
     return {
@@ -555,10 +365,10 @@ serve(async (req) => {
       }
 
       // 두 명의 차트 계산
-      let chartData1: any
-      let chartData2: any
+      let chartData1: ChartData
+      let chartData2: ChartData
       try {
-        chartData1 = await calculateChart(birthDateTime1, user1.lat, user1.lng)
+        chartData1 = await calculateChart(birthDateTime1, { lat: user1.lat, lng: user1.lng })
       } catch (chartError: any) {
         console.error('사용자1 차트 계산 실패:', chartError)
         return new Response(
@@ -573,7 +383,7 @@ serve(async (req) => {
       }
       
       try {
-        chartData2 = await calculateChart(birthDateTime2, user2.lat, user2.lng)
+        chartData2 = await calculateChart(birthDateTime2, { lat: user2.lat, lng: user2.lng })
       } catch (chartError: any) {
         console.error('사용자2 차트 계산 실패:', chartError)
         return new Response(
@@ -586,60 +396,6 @@ serve(async (req) => {
           }
         )
       }
-
-      // 디버깅: 궁합 차트 계산 결과 로그 출력
-      console.log('\n' + '='.repeat(60))
-      console.log('📊 궁합 차트 계산 결과')
-      console.log('='.repeat(60))
-      
-      // 사용자1 차트
-      console.log('사용자1 입력:')
-      console.log(`  생년월일시: ${user1.birthDate}`)
-      console.log(`  위치: 위도 ${user1.lat}, 경도 ${user1.lng}`)
-      console.log('사용자1 행성 위치:')
-      if (chartData1.planets) {
-        const planetNames: Record<string, string> = {
-          sun: '태양(Sun)', moon: '달(Moon)', mercury: '수성(Mercury)', venus: '금성(Venus)',
-          mars: '화성(Mars)', jupiter: '목성(Jupiter)', saturn: '토성(Saturn)',
-        }
-        Object.entries(chartData1.planets).forEach(([name, planet]: [string, any]) => {
-          const displayName = planetNames[name] || name
-          console.log(`    ${displayName.padEnd(20)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (하우스 ${planet.house})`)
-        })
-      }
-      if (chartData1.fortuna) {
-        console.log(`  포르투나: ${chartData1.fortuna.sign} ${chartData1.fortuna.degreeInSign.toFixed(2)}도 (하우스 ${chartData1.fortuna.house})`)
-      }
-      if (chartData1.houses?.angles?.ascendant !== undefined) {
-        const ascSign = getSignFromLongitude(chartData1.houses.angles.ascendant)
-        console.log(`  상승점: ${ascSign.sign} ${ascSign.degreeInSign.toFixed(2)}도`)
-      }
-      
-      console.log()
-      
-      // 사용자2 차트
-      console.log('사용자2 입력:')
-      console.log(`  생년월일시: ${user2.birthDate}`)
-      console.log(`  위치: 위도 ${user2.lat}, 경도 ${user2.lng}`)
-      console.log('사용자2 행성 위치:')
-      if (chartData2.planets) {
-        const planetNames: Record<string, string> = {
-          sun: '태양(Sun)', moon: '달(Moon)', mercury: '수성(Mercury)', venus: '금성(Venus)',
-          mars: '화성(Mars)', jupiter: '목성(Jupiter)', saturn: '토성(Saturn)',
-        }
-        Object.entries(chartData2.planets).forEach(([name, planet]: [string, any]) => {
-          const displayName = planetNames[name] || name
-          console.log(`    ${displayName.padEnd(20)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (하우스 ${planet.house})`)
-        })
-      }
-      if (chartData2.fortuna) {
-        console.log(`  포르투나: ${chartData2.fortuna.sign} ${chartData2.fortuna.degreeInSign.toFixed(2)}도 (하우스 ${chartData2.fortuna.house})`)
-      }
-      if (chartData2.houses?.angles?.ascendant !== undefined) {
-        const ascSign = getSignFromLongitude(chartData2.houses.angles.ascendant)
-        console.log(`  상승점: ${ascSign.sign} ${ascSign.degreeInSign.toFixed(2)}도`)
-      }
-      console.log('='.repeat(60) + '\n')
 
       // AI 해석 요청 (궁합)
       const apiKey = Deno.env.get('GEMINI_API_KEY')
@@ -716,15 +472,6 @@ serve(async (req) => {
       if (isNaN(birthDateTime.getTime())) {
         throw new Error('Invalid date format')
       }
-      
-      // 디버깅: 변환된 날짜 확인
-      console.log('\n' + '='.repeat(60))
-      console.log('📅 날짜 변환 확인')
-      console.log('='.repeat(60))
-      console.log(`원본 birthDate 문자열: ${birthDate}`)
-      console.log(`변환된 Date 객체: ${birthDateTime.toISOString()}`)
-      console.log(`UTC 시간: ${birthDateTime.getUTCFullYear()}-${String(birthDateTime.getUTCMonth() + 1).padStart(2, '0')}-${String(birthDateTime.getUTCDate()).padStart(2, '0')} ${String(birthDateTime.getUTCHours()).padStart(2, '0')}:${String(birthDateTime.getUTCMinutes()).padStart(2, '0')}:${String(birthDateTime.getUTCSeconds()).padStart(2, '0')}`)
-      console.log('='.repeat(60) + '\n')
     } catch (error) {
       return new Response(
         JSON.stringify({ 
@@ -737,10 +484,11 @@ serve(async (req) => {
       )
     }
 
-    // 1단계: 점성술 차트 계산
-    let chartData: any
+
+    // 1단계: Natal 차트 계산
+    let chartData: ChartData
     try {
-      chartData = await calculateChart(birthDateTime, lat, lng)
+      chartData = await calculateChart(birthDateTime, { lat, lng })
     } catch (chartError: any) {
       console.error('차트 계산 실패:', chartError)
       return new Response(
@@ -754,47 +502,28 @@ serve(async (req) => {
       )
     }
 
-    // 디버깅: 계산된 차트 데이터 로그 출력
-    console.log('\n' + '='.repeat(60))
-    console.log('📊 차트 계산 결과')
-    console.log('='.repeat(60))
-    console.log('입력 데이터:')
-    console.log(`  생년월일시: ${birthDate}`)
-    console.log(`  위치: 위도 ${lat}, 경도 ${lng}`)
-    console.log()
-    console.log('행성 7개 위치:')
-    if (chartData.planets) {
-      const planetNames: Record<string, string> = {
-        sun: '태양(Sun)',
-        moon: '달(Moon)',
-        mercury: '수성(Mercury)',
-        venus: '금성(Venus)',
-        mars: '화성(Mars)',
-        jupiter: '목성(Jupiter)',
-        saturn: '토성(Saturn)',
+    // DAILY 운세의 경우: Transit 차트 및 Aspect 계산
+    let transitChartData: ChartData | undefined
+    let aspects: any[] | undefined
+    let transitMoonHouse: number | undefined
+
+    if (fortuneType === FortuneType.DAILY) {
+      try {
+        // 현재 시간의 Transit 차트 계산
+        const now = new Date()
+        transitChartData = await calculateChart(now, { lat, lng })
+
+        // Aspect 계산
+        aspects = calculateAspects(chartData, transitChartData)
+
+        // Transit Moon이 Natal 차트의 몇 번째 하우스에 있는지 계산
+        transitMoonHouse = getTransitMoonHouseInNatalChart(chartData, transitChartData)
+
+      } catch (transitError: any) {
+        console.error('⚠️ Transit 차트 계산 실패 (기본 모드로 진행):', transitError)
+        // Transit 계산 실패 시에도 기본 운세는 제공
       }
-      Object.entries(chartData.planets).forEach(([name, planet]: [string, any]) => {
-        const displayName = planetNames[name] || name
-        console.log(`  ${displayName.padEnd(20)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (하우스 ${planet.house})`)
-      })
     }
-    console.log()
-    console.log('포르투나(Fortune) 위치:')
-    if (chartData.fortuna) {
-      console.log(`  별자리: ${chartData.fortuna.sign}`)
-      console.log(`  별자리 내 각도: ${chartData.fortuna.degreeInSign.toFixed(2)}도`)
-      console.log(`  전체 경도: ${chartData.fortuna.degree.toFixed(2)}도`)
-      console.log(`  하우스: ${chartData.fortuna.house}`)
-    }
-    console.log()
-    console.log('상승점(Ascendant) 위치:')
-    if (chartData.houses?.angles?.ascendant !== undefined) {
-      const ascSign = getSignFromLongitude(chartData.houses.angles.ascendant)
-      console.log(`  별자리: ${ascSign.sign}`)
-      console.log(`  별자리 내 각도: ${ascSign.degreeInSign.toFixed(2)}도`)
-      console.log(`  전체 경도: ${chartData.houses.angles.ascendant.toFixed(2)}도`)
-    }
-    console.log('='.repeat(60) + '\n')
 
     // 2단계: AI 해석 요청
     const apiKey = Deno.env.get('GEMINI_API_KEY')
@@ -808,12 +537,29 @@ serve(async (req) => {
       )
     }
 
-    const interpretation = await getInterpretation(chartData, fortuneType, apiKey)
+    const interpretation = await getInterpretation(
+      chartData, 
+      fortuneType, 
+      apiKey, 
+      undefined, 
+      transitChartData, 
+      aspects, 
+      transitMoonHouse
+    )
 
     if (!interpretation.success || interpretation.error) {
+      console.error('\n' + '='.repeat(60))
+      console.error('❌ AI 해석 실패')
+      console.error('='.repeat(60))
+      console.error('에러 메시지:', interpretation.message)
+      console.error('에러 상세:', interpretation.details)
+      console.error('='.repeat(60) + '\n')
+      
       return new Response(
         JSON.stringify({ 
-          error: `AI interpretation failed: ${interpretation.message || 'Unknown error'}` 
+          error: `AI 해석 실패: ${interpretation.message || 'Unknown error'}`,
+          details: interpretation.details,
+          errorType: 'AI_INTERPRETATION_FAILED'
         }),
         { 
           status: 500, 
@@ -823,13 +569,31 @@ serve(async (req) => {
     }
 
     // 성공 응답 반환
+    const responseData: any = {
+      success: true,
+      chart: chartData,
+      interpretation: interpretation.interpretation,
+      fortuneType: fortuneType,
+    }
+
+    // DAILY 운세의 경우 추가 정보 포함
+    if (fortuneType === FortuneType.DAILY && transitChartData) {
+      responseData.transitChart = transitChartData
+      responseData.aspects = aspects
+      responseData.transitMoonHouse = transitMoonHouse
+    }
+
+    // 제미나이에게 전달한 프롬프트 정보 포함 (디버깅용)
+    if (interpretation.userPrompt) {
+      responseData.userPrompt = interpretation.userPrompt
+    }
+    if (interpretation.systemInstruction) {
+      responseData.systemInstruction = interpretation.systemInstruction
+    }
+
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        chart: chartData,
-        interpretation: interpretation.interpretation,
-        fortuneType: fortuneType,
-      }),
+      JSON.stringify(responseData),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -837,10 +601,19 @@ serve(async (req) => {
     )
 
   } catch (error: any) {
-    console.error('Error in function:', error)
+    console.error('\n' + '='.repeat(60))
+    console.error('❌ Edge Function 에러 발생')
+    console.error('='.repeat(60))
+    console.error('에러 메시지:', error.message)
+    console.error('에러 스택:', error.stack)
+    console.error('에러 타입:', error.name)
+    console.error('='.repeat(60) + '\n')
+    
     return new Response(
       JSON.stringify({ 
-        error: `Internal server error: ${error.message}` 
+        error: `서버 오류: ${error.message || '알 수 없는 오류가 발생했습니다.'}`,
+        errorType: error.name || 'UNKNOWN_ERROR',
+        details: process.env.DENO_ENV === 'development' ? error.stack : undefined
       }),
       { 
         status: 500, 

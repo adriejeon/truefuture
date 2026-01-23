@@ -25,3 +25,49 @@ export interface FortuneRequest {
   userData?: UserData
   compatibilityData?: CompatibilityData
 }
+
+// 위치 정보 타입
+export interface Location {
+  lat: number
+  lng: number
+}
+
+// 행성 위치 정보 타입
+export interface PlanetPosition {
+  sign: string
+  degree: number
+  degreeInSign: number
+  house: number
+}
+
+// 차트 데이터 타입
+export interface ChartData {
+  date: string
+  location: Location
+  houses: {
+    system: string
+    angles: {
+      ascendant: number
+      midheaven: number
+    }
+  }
+  planets: {
+    sun: PlanetPosition
+    moon: PlanetPosition
+    mercury: PlanetPosition
+    venus: PlanetPosition
+    mars: PlanetPosition
+    jupiter: PlanetPosition
+    saturn: PlanetPosition
+  }
+  fortuna: PlanetPosition
+}
+
+// Aspect 정보 타입
+export interface Aspect {
+  type: string // 'Conjunction', 'Opposition', 'Square', 'Trine'
+  orb: number
+  transitPlanet: string
+  natalPlanet: string
+  description: string
+}
