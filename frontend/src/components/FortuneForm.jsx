@@ -44,32 +44,37 @@ function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
     <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 mb-6 sm:mb-8" style={{ overflow: 'visible', position: 'relative', zIndex: 1 }}>
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700" style={{ overflow: 'visible', position: 'relative', zIndex: 50 }}>
         <div className="space-y-3 sm:space-y-4" style={{ overflow: 'visible', position: 'relative', zIndex: 1 }}>
-          <div>
-            <label htmlFor="birthDate" className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2">
-              생년월일
-            </label>
-            <input
-              type="date"
-              id="birthDate"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              required
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
-            />
-          </div>
+          {/* 생년월일과 태어난 시간을 반응형으로 배치: 모바일은 세로, 데스크탑은 가로 */}
+          <div className="flex flex-col md:flex-row md:gap-4 space-y-3 md:space-y-0">
+            <div className="flex-1 w-full min-w-0">
+              <label htmlFor="birthDate" className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2">
+                생년월일
+              </label>
+              <input
+                type="date"
+                id="birthDate"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                required
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
+                style={{ maxWidth: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
 
-          <div>
-            <label htmlFor="birthTime" className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2">
-              태어난 시간
-            </label>
-            <input
-              type="time"
-              id="birthTime"
-              value={birthTime}
-              onChange={(e) => setBirthTime(e.target.value)}
-              required
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
-            />
+            <div className="flex-1 w-full min-w-0">
+              <label htmlFor="birthTime" className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2">
+                태어난 시간
+              </label>
+              <input
+                type="time"
+                id="birthTime"
+                value={birthTime}
+                onChange={(e) => setBirthTime(e.target.value)}
+                required
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
+                style={{ maxWidth: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
           </div>
 
           <div style={{ position: 'relative', zIndex: 10002 }}>
