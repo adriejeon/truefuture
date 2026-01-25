@@ -21,12 +21,17 @@ import {
 } from "./types.ts";
 import {
   getSystemInstruction,
-  generateDailyUserPrompt,
   getLifetimePrompt_Nature,
   getLifetimePrompt_Love,
   getLifetimePrompt_MoneyCareer,
   getLifetimePrompt_HealthTotal,
 } from "./geminiPrompts.ts";
+
+// 차트 포맷팅 유틸리티 import
+import {
+  generateDailyUserPrompt,
+  generateYearlyUserPrompt,
+} from "./utils/chartFormatter.ts";
 
 // 점성술 계산 유틸리티 import
 import {
@@ -35,6 +40,10 @@ import {
   getTransitMoonHouseInNatalChart,
   getSignFromLongitude,
   PLANET_NAMES,
+  calculateSolarReturnDateTime,
+  getActiveSolarReturnYear,
+  calculateProfection,
+  getSolarReturnOverlays,
 } from "./utils/astrologyCalculator.ts";
 
 // ========== CORS 헤더 설정 ==========
@@ -157,6 +166,9 @@ function buildUserPrompt(
   transitChartData?: any,
   aspects?: any[],
   transitMoonHouse?: number,
+  solarReturnChartData?: any,
+  profectionData?: any,
+  solarReturnOverlay?: any,
 ): string {
   // DAILY 운세의 경우 새로운 상세 프롬프트 사용
   if (
@@ -173,7 +185,22 @@ function buildUserPrompt(
     );
   }
 
-  // 기존 방식 (LIFETIME, YEARLY, COMPATIBILITY)
+  // YEARLY 운세의 경우 Solar Return 프롬프트 사용
+  if (
+    fortuneType === FortuneType.YEARLY &&
+    solarReturnChartData &&
+    profectionData &&
+    solarReturnOverlay
+  ) {
+    return generateYearlyUserPrompt(
+      chartData as ChartData,
+      solarReturnChartData as ChartData,
+      profectionData,
+      solarReturnOverlay,
+    );
+  }
+
+  // 기존 방식 (LIFETIME, COMPATIBILITY)
   const reportTypeDesc = getReportTypeDescription(fortuneType);
   const compressedData = compressChartData(chartData);
 
@@ -358,6 +385,9 @@ async function getInterpretation(
   transitChartData?: any,
   aspects?: any[],
   transitMoonHouse?: number,
+  solarReturnChartData?: any,
+  profectionData?: any,
+  solarReturnOverlay?: any,
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -394,6 +424,9 @@ async function getInterpretation(
       transitChartData,
       aspects,
       transitMoonHouse,
+      solarReturnChartData,
+      profectionData,
+      solarReturnOverlay,
     );
 
     const requestBody = {
@@ -889,6 +922,64 @@ serve(async (req) => {
       }
     }
 
+    // YEARLY 운세의 경우: Solar Return 차트 및 Profection 계산
+    let solarReturnChartData: ChartData | undefined;
+    let profectionData: any | undefined;
+    let solarReturnOverlay: any | undefined;
+
+    if (fortuneType === FortuneType.YEARLY) {
+      try {
+        const now = new Date();
+        const birthDateTime = new Date(birthDate);
+        
+        // 1. 현재 적용 중인 Solar Return 연도 결정
+        const solarReturnYear = getActiveSolarReturnYear(birthDateTime, now);
+        console.log(`📅 Solar Return Year: ${solarReturnYear}`);
+        
+        // 2. Natal 태양의 황경
+        const natalSunLongitude = chartData.planets.sun.degree;
+        
+        // 3. Solar Return 날짜/시간 계산
+        const solarReturnDateTime = calculateSolarReturnDateTime(
+          birthDateTime,
+          solarReturnYear,
+          natalSunLongitude,
+        );
+        console.log(`🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`);
+        
+        // 4. Solar Return 차트 계산
+        solarReturnChartData = await calculateChart(solarReturnDateTime, { lat, lng });
+        
+        // 5. Profection 계산
+        const natalAscSign = getSignFromLongitude(chartData.houses.angles.ascendant).sign;
+        profectionData = calculateProfection(
+          birthDateTime,
+          solarReturnDateTime,
+          natalAscSign,
+        );
+        
+        // 6. Solar Return Overlay 계산
+        solarReturnOverlay = getSolarReturnOverlays(chartData, solarReturnChartData);
+        
+        console.log(`✅ YEARLY 운세 데이터 계산 완료`);
+      } catch (yearlyError: any) {
+        console.error(
+          "⚠️ YEARLY 운세 계산 실패:",
+          yearlyError,
+        );
+        // YEARLY 계산 실패 시 에러 반환
+        return new Response(
+          JSON.stringify({
+            error: `YEARLY 운세 계산 실패: ${yearlyError.message || "Unknown error"}`,
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
     // 2단계: AI 해석 요청
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
@@ -909,6 +1000,9 @@ serve(async (req) => {
       transitChartData,
       aspects,
       transitMoonHouse,
+      solarReturnChartData,
+      profectionData,
+      solarReturnOverlay,
     );
 
     if (!interpretation.success || interpretation.error) {
@@ -945,6 +1039,13 @@ serve(async (req) => {
       responseData.transitChart = transitChartData;
       responseData.aspects = aspects;
       responseData.transitMoonHouse = transitMoonHouse;
+    }
+
+    // YEARLY 운세의 경우 추가 정보 포함
+    if (fortuneType === FortuneType.YEARLY && solarReturnChartData) {
+      responseData.solarReturnChart = solarReturnChartData;
+      responseData.profectionData = profectionData;
+      responseData.solarReturnOverlay = solarReturnOverlay;
     }
 
     // 제미나이에게 전달한 프롬프트 정보 포함 (디버깅용)

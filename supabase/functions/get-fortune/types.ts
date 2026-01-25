@@ -71,3 +71,25 @@ export interface Aspect {
   natalPlanet: string
   description: string
 }
+
+// Profection 정보 타입
+export interface ProfectionData {
+  age: number              // 만 나이
+  profectionHouse: number  // 활성화된 하우스 (1-12)
+  profectionSign: string   // 프로펙션 별자리
+  lordOfTheYear: string    // 올해의 지배 행성
+}
+
+// Solar Return Overlay 정보 타입
+export interface SolarReturnOverlay {
+  solarReturnAscendantInNatalHouse: number  // SR Asc가 Natal 차트의 몇 번째 하우스에 있는지
+  planetsInNatalHouses: {                   // SR 행성들이 Natal 차트의 어느 하우스에 있는지
+    sun: number
+    moon: number
+    mercury: number
+    venus: number
+    mars: number
+    jupiter: number
+    saturn: number
+  }
+}

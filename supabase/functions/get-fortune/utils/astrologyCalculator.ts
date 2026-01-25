@@ -3,8 +3,8 @@
  * astronomy-engine을 사용하여 차트 계산 및 Aspect 분석을 수행합니다.
  */
 
-import { MakeTime, Body, GeoVector, Ecliptic, SiderealTime } from "npm:astronomy-engine@2.1.19"
-import type { ChartData, Location, PlanetPosition, Aspect } from '../types.ts'
+import { MakeTime, Body, GeoVector, Ecliptic, SiderealTime, SearchSunLongitude } from "npm:astronomy-engine@2.1.19"
+import type { ChartData, Location, PlanetPosition, Aspect, ProfectionData, SolarReturnOverlay } from '../types.ts'
 
 // ========== 상수 정의 ==========
 export const SIGNS = [
@@ -293,4 +293,198 @@ export function getTransitMoonHouseInNatalChart(natalChart: ChartData, transitCh
   const natalAscendant = natalChart.houses.angles.ascendant
   
   return getWholeSignHouse(transitMoonLongitude, natalAscendant)
+}
+
+// ========== Solar Return & Profection 계산 함수 ==========
+
+/**
+ * 별자리의 지배 행성(Ruler) 반환
+ */
+export function getSignRuler(sign: string): string {
+  const rulers: Record<string, string> = {
+    'Aries': 'Mars',
+    'Taurus': 'Venus',
+    'Gemini': 'Mercury',
+    'Cancer': 'Moon',
+    'Leo': 'Sun',
+    'Virgo': 'Mercury',
+    'Libra': 'Venus',
+    'Scorpio': 'Mars',      // 고전 점성술: Mars (현대: Pluto)
+    'Sagittarius': 'Jupiter',
+    'Capricorn': 'Saturn',
+    'Aquarius': 'Saturn',   // 고전 점성술: Saturn (현대: Uranus)
+    'Pisces': 'Jupiter',    // 고전 점성술: Jupiter (현대: Neptune)
+  }
+  
+  return rulers[sign] || 'Unknown'
+}
+
+/**
+ * Solar Return 날짜/시간 계산
+ * 태양이 Natal 태양과 정확히 같은 황경에 위치하는 시점을 찾습니다.
+ * 
+ * @param birthDate - 사용자의 출생 날짜
+ * @param targetYear - 계산할 연도 (현재 년도 또는 특정 년도)
+ * @param natalSunLongitude - Natal 태양의 황경
+ * @returns Solar Return 날짜/시간
+ */
+export function calculateSolarReturnDateTime(
+  birthDate: Date,
+  targetYear: number,
+  natalSunLongitude: number
+): Date {
+  try {
+    // 대략적인 생일 날짜 계산 (targetYear의 생일)
+    const birthMonth = birthDate.getUTCMonth()
+    const birthDay = birthDate.getUTCDate()
+    
+    // 검색 시작일: targetYear의 생일 2일 전
+    const searchStartDate = new Date(Date.UTC(targetYear, birthMonth, birthDay - 2))
+    
+    // 검색 종료일: targetYear의 생일 2일 후
+    const searchEndDate = new Date(Date.UTC(targetYear, birthMonth, birthDay + 2))
+    
+    const startTime = MakeTime(searchStartDate)
+    const endTime = MakeTime(searchEndDate)
+    
+    // astronomy-engine의 SearchSunLongitude를 사용하여 정확한 시점 찾기
+    const solarReturnTime = SearchSunLongitude(natalSunLongitude, startTime, 5)
+    
+    if (!solarReturnTime) {
+      throw new Error('Solar Return time not found in the search window')
+    }
+    
+    // AstroTime을 Date로 변환
+    const solarReturnDate = new Date(solarReturnTime.date)
+    
+    console.log(`✅ Solar Return 계산 완료: ${solarReturnDate.toISOString()}`)
+    
+    return solarReturnDate
+  } catch (error: any) {
+    console.error('❌ Solar Return 계산 실패:', error)
+    throw new Error(`Solar Return calculation failed: ${error.message}`)
+  }
+}
+
+/**
+ * 현재 적용 중인 Solar Return 연도 결정
+ * 현재 날짜가 올해 생일 이전이면 작년 Solar Return, 이후면 올해 Solar Return
+ * 
+ * @param birthDate - 사용자의 출생 날짜
+ * @param now - 현재 날짜
+ * @returns Solar Return 연도
+ */
+export function getActiveSolarReturnYear(birthDate: Date, now: Date): number {
+  const currentYear = now.getUTCFullYear()
+  const birthMonth = birthDate.getUTCMonth()
+  const birthDay = birthDate.getUTCDate()
+  
+  // 올해의 생일
+  const birthdayThisYear = new Date(Date.UTC(currentYear, birthMonth, birthDay))
+  
+  // 현재가 올해 생일 이전이면 작년의 Solar Return 사용
+  if (now < birthdayThisYear) {
+    return currentYear - 1
+  }
+  
+  // 생일 이후면 올해의 Solar Return 사용
+  return currentYear
+}
+
+/**
+ * Annual Profection 계산
+ * 
+ * @param birthDate - 사용자의 출생 날짜
+ * @param targetDate - 계산 기준 날짜 (보통 Solar Return 날짜)
+ * @param natalAscSign - Natal 차트의 상승궁 별자리
+ * @returns Profection 데이터
+ */
+export function calculateProfection(
+  birthDate: Date,
+  targetDate: Date,
+  natalAscSign: string
+): ProfectionData {
+  try {
+    // 만 나이 계산
+    let age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
+    
+    // 생일이 지났는지 체크
+    const birthdayThisYear = new Date(
+      Date.UTC(
+        targetDate.getUTCFullYear(),
+        birthDate.getUTCMonth(),
+        birthDate.getUTCDate()
+      )
+    )
+    
+    if (targetDate < birthdayThisYear) {
+      age -= 1
+    }
+    
+    // Profection House 계산 (Age를 12로 나눈 나머지 + 1)
+    const profectionHouse = (age % 12) + 1
+    
+    // Profection Sign 계산 (Natal Asc Sign에서 profectionHouse - 1만큼 이동)
+    const natalAscIndex = SIGNS.indexOf(natalAscSign)
+    if (natalAscIndex === -1) {
+      throw new Error(`Invalid natal ascendant sign: ${natalAscSign}`)
+    }
+    
+    const profectionSignIndex = (natalAscIndex + (profectionHouse - 1)) % 12
+    const profectionSign = SIGNS[profectionSignIndex]
+    
+    // Lord of the Year (Profection Sign의 지배 행성)
+    const lordOfTheYear = getSignRuler(profectionSign)
+    
+    console.log(`✅ Profection 계산 완료: Age ${age}, House ${profectionHouse}, Sign ${profectionSign}, Lord ${lordOfTheYear}`)
+    
+    return {
+      age,
+      profectionHouse,
+      profectionSign,
+      lordOfTheYear,
+    }
+  } catch (error: any) {
+    console.error('❌ Profection 계산 실패:', error)
+    throw new Error(`Profection calculation failed: ${error.message}`)
+  }
+}
+
+/**
+ * Solar Return 차트의 행성들이 Natal 차트의 어느 하우스에 위치하는지 계산 (Overlay)
+ * 
+ * @param natalChart - Natal 차트
+ * @param solarReturnChart - Solar Return 차트
+ * @returns Solar Return Overlay 정보
+ */
+export function getSolarReturnOverlays(
+  natalChart: ChartData,
+  solarReturnChart: ChartData
+): SolarReturnOverlay {
+  try {
+    const natalAscendant = natalChart.houses.angles.ascendant
+    
+    // SR Ascendant가 Natal 차트의 몇 번째 하우스에 있는지
+    const solarReturnAscendant = solarReturnChart.houses.angles.ascendant
+    const solarReturnAscendantInNatalHouse = getWholeSignHouse(solarReturnAscendant, natalAscendant)
+    
+    // SR 행성들이 Natal 차트의 몇 번째 하우스에 있는지
+    const planetsInNatalHouses: any = {}
+    
+    for (const [planetKey, planetData] of Object.entries(solarReturnChart.planets)) {
+      const planetLongitude = planetData.degree
+      const natalHouse = getWholeSignHouse(planetLongitude, natalAscendant)
+      planetsInNatalHouses[planetKey] = natalHouse
+    }
+    
+    console.log(`✅ Solar Return Overlay 계산 완료`)
+    
+    return {
+      solarReturnAscendantInNatalHouse,
+      planetsInNatalHouses,
+    }
+  } catch (error: any) {
+    console.error('❌ Solar Return Overlay 계산 실패:', error)
+    throw new Error(`Solar Return Overlay calculation failed: ${error.message}`)
+  }
 }
