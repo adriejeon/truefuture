@@ -20,6 +20,12 @@ export function useAuth() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const newUser = session?.user ?? null
       
+      // 로그아웃 감지: 사용자가 null이 되었을 때 생년월일 정보 초기화
+      if (!newUser) {
+        localStorage.removeItem('birth_info_me')
+        localStorage.removeItem('birth_info_partner')
+      }
+      
       // 중복 상태 업데이트 방지: 동일한 유저 ID면 상태 업데이트 안 함
       setUser((currentUser) => {
         if (currentUser?.id === newUser?.id) {
@@ -47,6 +53,10 @@ export function useAuth() {
       await supabase.auth.signOut()
       // 로그아웃 시에는 명시적으로 상태 업데이트
       setUser(null)
+      
+      // 로그아웃 시 생년월일 정보 초기화
+      localStorage.removeItem('birth_info_me')
+      localStorage.removeItem('birth_info_partner')
     } catch (error) {
       console.error('로그아웃 오류:', error.message)
     }

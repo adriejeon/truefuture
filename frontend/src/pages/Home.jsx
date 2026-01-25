@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import SocialLoginButtons from '../components/SocialLoginButtons'
 import PageTitle from '../components/PageTitle'
-import FortuneForm from '../components/FortuneForm'
+import BirthInputForm from '../components/BirthInputForm'
 import FortuneResult from '../components/FortuneResult'
 import UserInfo from '../components/UserInfo'
 import { useAuth } from '../hooks/useAuth'
@@ -18,9 +18,32 @@ function Home() {
   const [fromCache, setFromCache] = useState(false)
   const [fortuneDate, setFortuneDate] = useState('')
   const [loadingCache, setLoadingCache] = useState(false)
+  const [myData, setMyData] = useState(null)
   
   // 로컬스토리지 확인 로직이 한 번만 실행되도록 보장하는 플래그
   const hasCheckedStorage = useRef(false)
+
+  // 나의 정보 변경 핸들러
+  const handleMyDataChange = useCallback((data) => {
+    setMyData(data)
+  }, [])
+
+  // 데이터를 API 형식으로 변환하는 함수
+  const convertToApiFormat = (data) => {
+    if (!data || !data.birthDate || !data.birthTime || !data.cityData?.lat || !data.cityData?.lng) {
+      return null
+    }
+
+    // YYYY.MM.DD HH:mm 형식을 ISO 형식으로 변환
+    const dateStr = data.birthDate.replace(/\./g, '-')
+    const birthDateTime = `${dateStr}T${data.birthTime}:00`
+
+    return {
+      birthDate: birthDateTime,
+      lat: data.cityData.lat,
+      lng: data.cityData.lng
+    }
+  }
 
   // 인앱 브라우저 감지 및 처리
   useEffect(() => {
@@ -183,10 +206,19 @@ function Home() {
     }
   }, [user, loadingAuth])
 
-  const handleSubmit = async (formData) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
     // 로그인 체크
     if (!user) {
       setError('로그인이 필요합니다. 먼저 로그인해주세요.')
+      return
+    }
+
+    // 데이터 변환
+    const formData = convertToApiFormat(myData)
+    if (!formData) {
+      setError('모든 정보를 입력해주세요.')
       return
     }
 
@@ -481,66 +513,91 @@ function Home() {
             </div>
 
             {/* 오늘의 운세 */}
-            <div className="mb-6 sm:mb-8">
-              <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 md:p-8 shadow-xl border border-slate-700">
-                <h2 className="text-xl sm:text-2xl font-bold text-center mb-4 sm:mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-                  오늘의 운세 확인하기
-                </h2>
-
-                {/* 로딩 중 */}
-                {loadingCache && (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-3"></div>
-                    <p className="text-slate-400 text-sm">오늘의 운세 확인 중...</p>
-                  </div>
-                )}
-
-                {/* 로딩 중 */}
-                {loadingCache && (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-3"></div>
-                    <p className="text-slate-400 text-sm">오늘의 운세 확인 중...</p>
-                  </div>
-                )}
-
-                {/* 이미 오늘의 운세를 뽑은 경우 */}
-                {!loadingCache && interpretation && fromCache && (
-                  <div className="mb-4 sm:mb-6">
-                    <div className="p-4 bg-blue-900/30 border border-blue-600/50 rounded-lg mb-4">
-                      <div className="flex items-start gap-3">
-                        <div className="text-2xl">✨</div>
-                        <div className="flex-1">
-                          <p className="text-blue-200 text-sm sm:text-base mb-2">
-                            <strong>{fortuneDate}</strong> 오늘의 운세를 이미 확인하셨습니다.
-                          </p>
-                          <p className="text-blue-300/80 text-xs sm:text-sm">
-                            내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <FortuneResult title="오늘의 운세" interpretation={interpretation} />
-                  </div>
-                )}
-
-                {/* 아직 오늘의 운세를 뽑지 않은 경우 */}
-                {!loadingCache && !interpretation && (
-                  <>
-                    <FortuneForm onSubmit={handleSubmit} loading={loading} reportType="daily" />
-                    {error && (
-                      <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">
-                        {error}
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* 새로 운세를 뽑은 경우 (캐시 아님) */}
-                {!loadingCache && interpretation && !fromCache && (
-                  <FortuneResult title="오늘의 운세" interpretation={interpretation} />
-                )}
+            {/* 로딩 중 */}
+            {loadingCache && (
+              <div className="mb-6 sm:mb-8 text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-3"></div>
+                <p className="text-slate-400 text-sm">오늘의 운세 확인 중...</p>
               </div>
-            </div>
+            )}
+
+            {/* 이미 오늘의 운세를 뽑은 경우 */}
+            {!loadingCache && interpretation && fromCache && (
+              <div className="mb-6 sm:mb-8">
+                <div className="p-4 bg-blue-900/30 border border-blue-600/50 rounded-lg mb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl">✨</div>
+                    <div className="flex-1">
+                      <p className="text-blue-200 text-sm sm:text-base mb-2">
+                        <strong>{fortuneDate}</strong> 오늘의 운세를 이미 확인하셨습니다.
+                      </p>
+                      <p className="text-blue-300/80 text-xs sm:text-sm">
+                        내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <FortuneResult title="오늘의 운세" interpretation={interpretation} />
+              </div>
+            )}
+
+            {/* 아직 오늘의 운세를 뽑지 않은 경우 */}
+            {!loadingCache && !interpretation && (
+              <>
+                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
+                  <BirthInputForm 
+                    title="🌅 오늘의 운세"
+                    storageKey="birth_info_me"
+                    onDataChange={handleMyDataChange}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-sm sm:text-base bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3"
+                    style={{ zIndex: 1, position: 'relative' }}
+                  >
+                    {loading ? (
+                      <>
+                        <svg
+                          className="animate-spin h-4 w-4 sm:h-5 sm:w-5 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        <span>미래를 계산하는 중...</span>
+                      </>
+                    ) : (
+                      <span>진짜미래 확인하기</span>
+                    )}
+                  </button>
+                </form>
+                {error && (
+                  <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">
+                    {error}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 새로 운세를 뽑은 경우 (캐시 아님) */}
+            {!loadingCache && interpretation && !fromCache && (
+              <FortuneResult title="오늘의 운세" interpretation={interpretation} />
+            )}
           </>
         )}
       </div>

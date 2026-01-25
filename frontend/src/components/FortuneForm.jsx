@@ -1,15 +1,15 @@
-import { useState, useCallback } from 'react'
-import CityAutocompleteComponent from './CityAutocomplete'
+import { useState, useCallback } from "react";
+import CityAutocompleteComponent from "./CityAutocomplete";
 
-function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
-  const [birthDate, setBirthDate] = useState('')
-  const [birthTime, setBirthTime] = useState('')
+function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
+  const [birthDate, setBirthDate] = useState("");
+  const [birthTime, setBirthTime] = useState("");
   const [cityData, setCityData] = useState({
-    name: '',
+    name: "",
     lat: null,
     lng: null,
-    timezone: ''
-  })
+    timezone: "",
+  });
 
   // useCallback으로 핸들러 함수 메모이제이션 (컴포넌트 재렌더링 시 함수 재생성 방지)
   const handleCitySelect = useCallback((selectedCity) => {
@@ -17,37 +17,50 @@ function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
       name: selectedCity.name,
       lat: selectedCity.lat,
       lng: selectedCity.lng,
-      timezone: selectedCity.timezone
-    })
-  }, [])
+      timezone: selectedCity.timezone,
+    });
+  }, []);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!cityData.lat || !cityData.lng) {
-      return
+      return;
     }
 
-    const birthDateTime = birthTime 
+    const birthDateTime = birthTime
       ? `${birthDate}T${birthTime}:00`
-      : `${birthDate}T00:00:00`
+      : `${birthDate}T00:00:00`;
 
     onSubmit({
       birthDate: birthDateTime,
       lat: cityData.lat,
       lng: cityData.lng,
-      reportType: reportType
-    })
-  }
+      reportType: reportType,
+    });
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 mb-6 sm:mb-8" style={{ overflowX: 'hidden', position: 'relative', zIndex: 1, width: '100%', maxWidth: '100%' }}>
-      <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700" style={{ overflowX: 'hidden', position: 'relative', zIndex: 50, width: '100%', maxWidth: '100%' }}>
-        <div className="space-y-3 sm:space-y-4" style={{ overflowX: 'hidden', position: 'relative', zIndex: 1, width: '100%' }}>
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
+      style={{ overflow: "visible", position: "relative", zIndex: 1 }}
+    >
+      <div
+        className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
+        style={{ overflow: "visible", position: "relative", zIndex: 50 }}
+      >
+        <div
+          className="space-y-3 sm:space-y-4"
+          style={{ overflow: "visible", position: "relative", zIndex: 1 }}
+        >
           {/* 생년월일과 태어난 시간을 반응형으로 배치: 모바일은 세로, 데스크탑은 가로 */}
-          <div className="flex flex-col md:flex-row md:gap-4 space-y-3 md:space-y-0" style={{ width: '100%', maxWidth: '100%' }}>
-            <div className="flex-1 w-full min-w-0" style={{ width: '100%', maxWidth: '100%' }}>
-              <label htmlFor="birthDate" className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2">
+          <div className="flex flex-col md:flex-row md:gap-4 space-y-3 md:space-y-0">
+            <div className="flex-1 w-full min-w-0">
+              <label
+                htmlFor="birthDate"
+                className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2"
+              >
                 생년월일
               </label>
               <input
@@ -57,12 +70,14 @@ function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
                 onChange={(e) => setBirthDate(e.target.value)}
                 required
                 className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
-                style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', WebkitAppearance: 'none' }}
               />
             </div>
 
-            <div className="flex-1 w-full min-w-0" style={{ width: '100%', maxWidth: '100%' }}>
-              <label htmlFor="birthTime" className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2">
+            <div className="flex-1 w-full min-w-0">
+              <label
+                htmlFor="birthTime"
+                className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2"
+              >
                 태어난 시간
               </label>
               <input
@@ -72,21 +87,21 @@ function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
                 onChange={(e) => setBirthTime(e.target.value)}
                 required
                 className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
-                style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', WebkitAppearance: 'none' }}
               />
             </div>
           </div>
 
-          <div style={{ position: 'relative', zIndex: 10002 }}>
-            <label htmlFor="cityInput" className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2">
+          <div style={{ position: "relative", zIndex: 10002 }}>
+            <label
+              htmlFor="cityInput"
+              className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2"
+            >
               태어난 도시
             </label>
-            <CityAutocompleteComponent 
-              onCitySelect={handleCitySelect}
-            />
+            <CityAutocompleteComponent onCitySelect={handleCitySelect} />
             {cityData.name && (
               <p className="mt-2 text-xs text-slate-400 break-words">
-                선택된 도시: {cityData.name} 
+                선택된 도시: {cityData.name}
                 {cityData.timezone && ` (${cityData.timezone})`}
               </p>
             )}
@@ -98,7 +113,7 @@ function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
         type="submit"
         disabled={loading}
         className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-sm sm:text-base bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3"
-        style={{ zIndex: 1, position: 'relative' }}
+        style={{ zIndex: 1, position: "relative" }}
       >
         {loading ? (
           <>
@@ -130,7 +145,7 @@ function FortuneForm({ onSubmit, loading, reportType = 'daily' }) {
         )}
       </button>
     </form>
-  )
+  );
 }
 
-export default FortuneForm
+export default FortuneForm;
