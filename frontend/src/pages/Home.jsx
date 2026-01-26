@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import SocialLoginButtons from '../components/SocialLoginButtons'
 import PageTitle from '../components/PageTitle'
 import BirthInputForm from '../components/BirthInputForm'
@@ -11,6 +11,7 @@ import { detectInAppBrowser, redirectToExternalBrowser, getBrowserGuideMessage }
 
 function Home() {
   const { user, loadingAuth, logout } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [inAppBrowserWarning, setInAppBrowserWarning] = useState(null)
   const [interpretation, setInterpretation] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,6 +20,8 @@ function Home() {
   const [fortuneDate, setFortuneDate] = useState('')
   const [loadingCache, setLoadingCache] = useState(false)
   const [myData, setMyData] = useState(null)
+  const [shareId, setShareId] = useState(null) // 공유 ID 상태 추가
+  const [isSharedFortune, setIsSharedFortune] = useState(false) // 공유된 운세인지 여부
   
   // 로컬스토리지 확인 로직이 한 번만 실행되도록 보장하는 플래그
   const hasCheckedStorage = useRef(false)
@@ -67,6 +70,60 @@ function Home() {
       }
     }
   }, [])
+
+  // URL에 공유 ID가 있는 경우 운세 조회
+  useEffect(() => {
+    const sharedId = searchParams.get('id')
+    
+    if (sharedId) {
+      console.log('🔗 공유된 운세 ID 발견:', sharedId)
+      loadSharedFortune(sharedId)
+    }
+  }, [searchParams])
+
+  // 공유된 운세 조회 함수
+  const loadSharedFortune = async (id) => {
+    setLoading(true)
+    setError('')
+    
+    try {
+      // URL에 id 파라미터를 추가하여 GET 요청
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const response = await fetch(`${supabaseUrl}/functions/v1/get-fortune?id=${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('운세를 불러올 수 없습니다.')
+      }
+
+      const data = await response.json()
+
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      console.log('✅ 공유된 운세 조회 성공:', data)
+      
+      setInterpretation(data.interpretation)
+      setIsSharedFortune(true)
+      setShareId(id)
+      
+      // URL에서 id 파라미터 제거 (깔끔한 URL 유지)
+      // setSearchParams({})
+    } catch (err) {
+      console.error('❌ 공유된 운세 조회 실패:', err)
+      setError(err.message || '운세를 불러오는 중 오류가 발생했습니다.')
+      
+      // 에러 발생 시 URL에서 id 파라미터 제거
+      setSearchParams({})
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // 한국 시간대 기준 현재 시간 가져오기
   const getKoreaTime = () => {
@@ -138,6 +195,7 @@ function Home() {
         transitChart: fortuneData.transitChart,
         aspects: fortuneData.aspects,
         transitMoonHouse: fortuneData.transitMoonHouse,
+        shareId: fortuneData.shareId, // share_id 추가
         createdAt: new Date().toISOString(),
       }
 
@@ -173,6 +231,7 @@ function Home() {
       setInterpretation('')
       setFromCache(false)
       setFortuneDate('')
+      setShareId(null) // shareId도 초기화
       return
     }
 
@@ -189,11 +248,16 @@ function Home() {
       setInterpretation(storedFortune.interpretation)
       setFromCache(true)
       setFortuneDate(storedFortune.date)
+      // shareId도 복원
+      if (storedFortune.shareId) {
+        setShareId(storedFortune.shareId)
+      }
     } else {
       console.log('💫 오늘의 운세가 아직 없습니다.')
       setInterpretation('')
       setFromCache(false)
       setFortuneDate('')
+      setShareId(null)
     }
     
     setLoadingCache(false)
@@ -292,6 +356,19 @@ function Home() {
       console.log('\n' + '='.repeat(60))
       console.log('📥 API 응답 받은 데이터')
       console.log('='.repeat(60))
+      
+      // share_id 저장
+      console.log('🔍 [Home] API 응답 전체:', data)
+      console.log('🔍 [Home] API 응답 data.share_id:', data.share_id, '타입:', typeof data.share_id)
+      if (data.share_id && data.share_id !== 'undefined' && data.share_id !== null && data.share_id !== 'null') {
+        console.log('🔗 Share ID 저장:', data.share_id)
+        setShareId(data.share_id)
+      } else {
+        console.warn('⚠️ [Home] share_id가 응답에 없거나 유효하지 않습니다.')
+        console.warn('  - data.share_id 값:', data.share_id)
+        console.warn('  - data.share_id 타입:', typeof data.share_id)
+        setShareId(null) // 명시적으로 null 설정
+      }
       
       // 1. Natal Chart (출생 차트)
       if (data.chart) {
@@ -398,13 +475,21 @@ function Home() {
       if (data.interpretation && typeof data.interpretation === 'string') {
         const todayDate = getTodayDate()
         
-        // 오늘의 운세를 로컬스토리지에 저장
+        // share_id가 있으면 상태에 저장 (먼저 저장하여 로컬스토리지 저장 시 사용)
+        const currentShareId = data.share_id
+        if (currentShareId) {
+          setShareId(currentShareId)
+          console.log('🔗 Share ID 저장:', currentShareId)
+        }
+        
+        // 오늘의 운세를 로컬스토리지에 저장 (shareId 포함)
         saveTodayFortuneToStorage({
           interpretation: data.interpretation,
           chart: data.chart,
           transitChart: data.transitChart,
           aspects: data.aspects,
           transitMoonHouse: data.transitMoonHouse,
+          shareId: currentShareId, // share_id도 함께 저장
         })
         
         // 저장 후 상태 업데이트
@@ -467,19 +552,56 @@ function Home() {
 
         <PageTitle />
 
-        {/* 로그인하지 않은 경우: 로그인 버튼만 표시 */}
-        {!user ? (
+        {/* 공유된 운세 표시 (로그인 불필요) */}
+        {isSharedFortune && interpretation && (
           <div className="mb-6 sm:mb-8">
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 md:p-8 shadow-xl border border-slate-700 mb-4 sm:mb-6">
-              <p className="text-center text-slate-300 mb-4 sm:mb-6 text-base sm:text-lg px-2">
-                로그인 후 생년월일시간을 입력하고 운세를 확인하실 수 있습니다
-              </p>
-              <SocialLoginButtons />
+            <div className="p-4 bg-purple-900/30 border border-purple-600/50 rounded-lg mb-4">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">🔮</div>
+                <div className="flex-1">
+                  <p className="text-purple-200 text-sm sm:text-base mb-2">
+                    친구가 공유한 운세입니다.
+                  </p>
+                  <p className="text-purple-300/80 text-xs sm:text-sm">
+                    나도 내 운세를 확인하려면 로그인해주세요!
+                  </p>
+                </div>
+              </div>
             </div>
+            <FortuneResult 
+              title="공유된 운세" 
+              interpretation={interpretation} 
+              shareId={shareId}
+            />
+            
+            {/* 로그인 버튼 (공유 운세 하단) */}
+            {!user && (
+              <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+                <p className="text-center text-slate-300 mb-4 text-sm sm:text-base">
+                  나도 내 운세를 확인하고 싶다면?
+                </p>
+                <SocialLoginButtons />
+              </div>
+            )}
           </div>
-        ) : (
+        )}
+
+        {/* 기존 로직: 공유된 운세가 아닌 경우에만 표시 */}
+        {!isSharedFortune && (
           <>
-            <UserInfo user={user} onLogout={logout} />
+            {/* 로그인하지 않은 경우: 로그인 버튼만 표시 */}
+            {!user ? (
+              <div className="mb-6 sm:mb-8">
+                <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 md:p-8 shadow-xl border border-slate-700 mb-4 sm:mb-6">
+                  <p className="text-center text-slate-300 mb-4 sm:mb-6 text-base sm:text-lg px-2">
+                    로그인 후 생년월일시간을 입력하고 운세를 확인하실 수 있습니다
+                  </p>
+                  <SocialLoginButtons />
+                </div>
+              </div>
+            ) : (
+              <>
+                <UserInfo user={user} onLogout={logout} />
             
             <div className="mb-6 sm:mb-8">
               <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 md:p-8 shadow-xl border border-slate-700 mb-4 sm:mb-6">
@@ -537,7 +659,11 @@ function Home() {
                     </div>
                   </div>
                 </div>
-                <FortuneResult title="오늘의 운세" interpretation={interpretation} />
+                <FortuneResult 
+                  title="오늘의 운세" 
+                  interpretation={interpretation} 
+                  shareId={shareId}
+                />
               </div>
             )}
 
@@ -596,7 +722,13 @@ function Home() {
 
             {/* 새로 운세를 뽑은 경우 (캐시 아님) */}
             {!loadingCache && interpretation && !fromCache && (
-              <FortuneResult title="오늘의 운세" interpretation={interpretation} />
+              <FortuneResult 
+                title="오늘의 운세" 
+                interpretation={interpretation} 
+                shareId={shareId}
+              />
+            )}
+              </>
             )}
           </>
         )}

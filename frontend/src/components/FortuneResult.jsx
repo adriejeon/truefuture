@@ -2,7 +2,12 @@ import { useState, useMemo, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { parseMarkdownToSections } from '../utils/markdownParser'
 
-function FortuneResult({ title, interpretation }) {
+function FortuneResult({ title, interpretation, shareId }) {
+  // 디버깅: shareId 확인
+  useEffect(() => {
+    console.log(`[FortuneResult] ${title} - shareId:`, shareId)
+  }, [shareId, title])
+
   // Markdown 파싱: ## 헤더를 아코디언으로 처리
   const { intro, accordionSections } = useMemo(() => {
     return parseMarkdownToSections(interpretation)
@@ -30,11 +35,93 @@ function FortuneResult({ title, interpretation }) {
     })
   }
 
+  // 카카오톡 공유하기
+  const handleKakaoShare = () => {
+    console.log('🔗 [카카오톡 공유] 시작')
+    console.log('  - Kakao 초기화 여부:', window.Kakao?.isInitialized())
+    console.log('  - shareId:', shareId)
+    
+    if (!window.Kakao || !window.Kakao.isInitialized()) {
+      alert('카카오톡 공유 기능을 사용할 수 없습니다.')
+      return
+    }
+
+    if (!shareId) {
+      alert('공유할 운세 정보가 없습니다.')
+      console.error('❌ shareId가 null입니다.')
+      return
+    }
+
+    // 현재 도메인 가져오기 (Cloudflare Pages: truefuture.pages.dev)
+    const currentDomain = window.location.origin
+    
+    // URL 생성 (로컬/배포 모두 루트 경로)
+    const shareUrl = `${currentDomain}/?id=${shareId}`
+    
+    // 이미지 URL (로컬/배포 모두 /assets/truefuture.png)
+    const imageUrl = `${currentDomain}/assets/truefuture.png`
+
+    console.log('  - shareUrl:', shareUrl)
+    console.log('  - imageUrl:', imageUrl)
+
+    try {
+      window.Kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: {
+          title: '진짜미래 - 당신의 운세를 확인해보세요',
+          description: 'AI가 분석한 서양 점성술 결과입니다.',
+          imageUrl: imageUrl,
+          link: {
+            mobileWebUrl: shareUrl,
+            webUrl: shareUrl,
+          },
+        },
+        buttons: [
+          {
+            title: '결과 확인하기',
+            link: {
+              mobileWebUrl: shareUrl,
+              webUrl: shareUrl,
+            },
+          },
+        ],
+      })
+      
+      console.log('✅ 카카오톡 공유 완료')
+    } catch (error) {
+      console.error('❌ 카카오톡 공유 실패:', error)
+      alert('카카오톡 공유 중 오류가 발생했습니다: ' + error.message)
+    }
+  }
+
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700" style={{ overflow: 'visible', position: 'relative', zIndex: 50 }}>
-      <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
-        {title}
-      </h2>
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
+          {title}
+        </h2>
+        
+        {/* 카카오톡 공유 버튼 */}
+        {shareId ? (
+          <button
+            onClick={handleKakaoShare}
+            className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold rounded-lg transition-colors text-sm"
+            title="카카오톡으로 공유하기"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3C6.48 3 2 6.58 2 11c0 2.76 1.88 5.18 4.67 6.53-.2.72-.66 2.32-.76 2.69-.12.45.16.44.38.32.16-.09 2.59-1.73 3-2.01C10.15 18.83 11.05 19 12 19c5.52 0 10-3.58 10-8s-4.48-8-10-8z"/>
+            </svg>
+            <span className="hidden sm:inline">공유하기</span>
+          </button>
+        ) : (
+          <div className="text-xs text-slate-500">
+            {/* 디버깅용: shareId가 없을 때 표시 */}
+            {process.env.NODE_ENV === 'development' && (
+              <span>shareId: {String(shareId)}</span>
+            )}
+          </div>
+        )}
+      </div>
       
       {/* Intro (서론) - 아코디언 바깥 상단에 표시 */}
       {intro && (

@@ -11,6 +11,7 @@ declare global {
 }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // 타입 및 프롬프트 import
 import {
@@ -51,7 +52,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 // ========== AI 해석 관련 함수 ==========
@@ -657,7 +658,88 @@ serve(async (req) => {
   }
 
   try {
-    // POST 요청만 허용
+    // Supabase 클라이언트 초기화
+    // Supabase Edge Functions는 자동으로 다음 환경 변수를 제공:
+    // - SUPABASE_URL
+    // - SUPABASE_ANON_KEY
+    // - SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("❌ Supabase 환경 변수가 설정되지 않았습니다.");
+      console.error("SUPABASE_URL:", supabaseUrl ? "설정됨" : "누락");
+      console.error("SUPABASE_SERVICE_ROLE_KEY:", supabaseServiceKey ? "설정됨" : "누락");
+      return new Response(
+        JSON.stringify({ error: "서버 설정 오류: Supabase 환경 변수가 필요합니다." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // GET 요청: 공유된 운세 조회
+    if (req.method === "GET") {
+      // req.url이 상대 경로일 수 있으므로 절대 URL로 변환
+      let url: URL;
+      try {
+        url = new URL(req.url);
+      } catch {
+        // 상대 경로인 경우 절대 URL로 변환
+        const baseUrl = supabaseUrl.replace(/\/rest\/v1$/, '');
+        url = new URL(req.url, baseUrl);
+      }
+      const shareId = url.searchParams.get("id");
+
+      if (!shareId) {
+        return new Response(
+          JSON.stringify({ error: "id 파라미터가 필요합니다." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // Supabase에서 운세 조회
+      const { data, error } = await supabase
+        .from("fortune_results")
+        .select("*")
+        .eq("id", shareId)
+        .single();
+
+      if (error || !data) {
+        console.error("❌ 운세 조회 실패:", error);
+        return new Response(
+          JSON.stringify({ error: "운세를 찾을 수 없습니다." }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // 성공 응답 반환
+      return new Response(
+        JSON.stringify({
+          success: true,
+          interpretation: data.fortune_text,
+          userInfo: data.user_info,
+          fortuneType: data.fortune_type || "daily",
+          createdAt: data.created_at,
+          isShared: true, // 공유된 운세임을 표시
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // POST 요청만 허용 (운세 생성)
     if (req.method !== "POST") {
       return new Response(JSON.stringify({ error: "Method not allowed" }), {
         status: 405,
@@ -818,7 +900,47 @@ serve(async (req) => {
         );
       }
 
+      // Supabase에 운세 저장
+      let shareId: string | undefined;
+      try {
+        console.log("💾 [COMPATIBILITY] 운세 저장 시작...");
+        const { data: insertData, error: insertError } = await supabase
+          .from("fortune_results")
+          .insert({
+            user_info: {
+              user1: {
+                birthDate: user1.birthDate,
+                lat: user1.lat,
+                lng: user1.lng,
+              },
+              user2: {
+                birthDate: user2.birthDate,
+                lat: user2.lat,
+                lng: user2.lng,
+              },
+            },
+            fortune_text: interpretation.interpretation,
+            fortune_type: fortuneType,
+          })
+          .select("id")
+          .single();
+
+        if (insertError) {
+          console.error("❌ [COMPATIBILITY] 운세 저장 실패:", insertError);
+          console.error("에러 상세:", JSON.stringify(insertError, null, 2));
+        } else if (insertData) {
+          shareId = insertData.id;
+          console.log("✅ [COMPATIBILITY] 운세 저장 성공:", shareId);
+        } else {
+          console.warn("⚠️ [COMPATIBILITY] insertData가 null입니다.");
+        }
+      } catch (saveError: any) {
+        console.error("❌ [COMPATIBILITY] 운세 저장 중 예외 발생:", saveError);
+        console.error("에러 스택:", saveError.stack);
+      }
+
       // 성공 응답 반환
+      console.log(`📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || 'null'}`);
       return new Response(
         JSON.stringify({
           success: true,
@@ -826,6 +948,7 @@ serve(async (req) => {
           chart2: chartData2,
           interpretation: interpretation.interpretation,
           fortuneType: fortuneType,
+          share_id: shareId || null, // 공유 ID 추가 (null로 명시)
         }),
         {
           status: 200,
@@ -1026,12 +1149,46 @@ serve(async (req) => {
       );
     }
 
+    // Supabase에 운세 저장
+    let shareId: string | undefined;
+    try {
+      console.log(`💾 [${fortuneType}] 운세 저장 시작...`);
+      const { data: insertData, error: insertError } = await supabase
+        .from("fortune_results")
+        .insert({
+          user_info: {
+            birthDate: birthDate,
+            lat: lat,
+            lng: lng,
+          },
+          fortune_text: interpretation.interpretation,
+          fortune_type: fortuneType,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        console.error(`❌ [${fortuneType}] 운세 저장 실패:`, insertError);
+        console.error("에러 상세:", JSON.stringify(insertError, null, 2));
+      } else if (insertData) {
+        shareId = insertData.id;
+        console.log(`✅ [${fortuneType}] 운세 저장 성공:`, shareId);
+      } else {
+        console.warn(`⚠️ [${fortuneType}] insertData가 null입니다.`);
+      }
+    } catch (saveError: any) {
+      console.error(`❌ [${fortuneType}] 운세 저장 중 예외 발생:`, saveError);
+      console.error("에러 스택:", saveError.stack);
+    }
+
     // 성공 응답 반환
+    console.log(`📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || 'null'}`);
     const responseData: any = {
       success: true,
       chart: chartData,
       interpretation: interpretation.interpretation,
       fortuneType: fortuneType,
+      share_id: shareId || null, // 공유 ID 추가 (null로 명시)
     };
 
     // DAILY 운세의 경우 추가 정보 포함

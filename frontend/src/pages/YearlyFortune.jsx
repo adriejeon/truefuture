@@ -1,25 +1,70 @@
-import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useCallback, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageTitle from '../components/PageTitle'
 import BirthInputForm from '../components/BirthInputForm'
 import BottomNavigation from '../components/BottomNavigation'
 import UserInfo from '../components/UserInfo'
 import FortuneResult from '../components/FortuneResult'
+import SocialLoginButtons from '../components/SocialLoginButtons'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabaseClient'
+import { loadSharedFortune, formatBirthDate, formatLocation } from '../utils/sharedFortune'
 
 function YearlyFortune() {
   const { user, loadingAuth, logout } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [interpretation, setInterpretation] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [myData, setMyData] = useState(null)
+  const [shareId, setShareId] = useState(null)
+  const [isSharedFortune, setIsSharedFortune] = useState(false)
+  const [sharedUserInfo, setSharedUserInfo] = useState(null)
 
   // 나의 정보 변경 핸들러
   const handleMyDataChange = useCallback((data) => {
     setMyData(data)
   }, [])
+
+  // URL에 공유 ID가 있는 경우 운세 조회
+  useEffect(() => {
+    const sharedId = searchParams.get('id')
+    
+    if (sharedId) {
+      console.log('🔗 공유된 1년 운세 ID 발견:', sharedId)
+      loadShared(sharedId)
+    }
+  }, [searchParams])
+
+  // 공유된 운세 조회 함수
+  const loadShared = async (id) => {
+    setLoading(true)
+    setError('')
+    
+    try {
+      const data = await loadSharedFortune(id)
+      
+      console.log('✅ 공유된 1년 운세 조회 성공:', data)
+      
+      setInterpretation(data.interpretation)
+      setIsSharedFortune(true)
+      setShareId(id)
+      setSharedUserInfo(data.userInfo)
+    } catch (err) {
+      console.error('❌ 공유된 1년 운세 조회 실패:', err)
+      setError(err.message || '운세를 불러오는 중 오류가 발생했습니다.')
+      setSearchParams({})
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 로그인 필요 액션 처리
+  const handleRequireLogin = () => {
+    alert('로그인이 필요합니다.')
+    navigate('/')
+  }
 
   // 데이터를 API 형식으로 변환하는 함수
   const convertToApiFormat = (data) => {
@@ -41,6 +86,12 @@ function YearlyFortune() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
+    // 공유 링크로 들어온 경우 로그인 필요
+    if (isSharedFortune && !user) {
+      handleRequireLogin()
+      return
+    }
+    
     const formData = convertToApiFormat(myData)
 
     if (!formData) {
@@ -51,6 +102,7 @@ function YearlyFortune() {
     setLoading(true)
     setError('')
     setInterpretation('')
+    setShareId(null)
 
     try {
       const requestBody = {
@@ -84,6 +136,19 @@ function YearlyFortune() {
       console.log('\n' + '='.repeat(60))
       console.log('📥 API 응답 받은 데이터')
       console.log('='.repeat(60))
+      
+      // share_id 저장
+      console.log('🔍 [YearlyFortune] API 응답 전체:', data)
+      console.log('🔍 [YearlyFortune] API 응답 data.share_id:', data.share_id, '타입:', typeof data.share_id)
+      if (data.share_id && data.share_id !== 'undefined' && data.share_id !== null && data.share_id !== 'null') {
+        console.log('🔗 Share ID 저장:', data.share_id)
+        setShareId(data.share_id)
+      } else {
+        console.warn('⚠️ [YearlyFortune] share_id가 응답에 없거나 유효하지 않습니다.')
+        console.warn('  - data.share_id 값:', data.share_id)
+        console.warn('  - data.share_id 타입:', typeof data.share_id)
+        setShareId(null) // 명시적으로 null 설정
+      }
       
       if (data.chart) {
         console.log('계산된 차트 데이터:')
@@ -145,6 +210,51 @@ function YearlyFortune() {
   }
 
   if (!user) {
+    // 공유 링크로 들어온 경우에는 결과 표시
+    if (isSharedFortune && interpretation) {
+      return (
+        <div className="w-full py-8 sm:py-12" style={{ position: 'relative', zIndex: 1 }}>
+          <div className="w-full max-w-2xl mx-auto px-3 sm:px-4 md:px-6 pb-20 sm:pb-24" style={{ position: 'relative', zIndex: 1 }}>
+            <PageTitle />
+            
+            {/* 공유된 운세 정보 표시 */}
+            <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="text-2xl">🔮</div>
+                <div className="flex-1">
+                  <p className="text-purple-200 text-sm sm:text-base mb-2">
+                    친구가 공유한 <strong>1년 운세</strong>입니다.
+                  </p>
+                  {sharedUserInfo && (
+                    <div className="text-xs sm:text-sm text-slate-300 space-y-1 mt-3 bg-slate-700/50 p-3 rounded">
+                      <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
+                      <p>📍 {formatLocation(sharedUserInfo.lat, sharedUserInfo.lng)}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 운세 결과 */}
+            <FortuneResult 
+              title="1년 운세" 
+              interpretation={interpretation} 
+              shareId={shareId}
+            />
+            
+            {/* 로그인 유도 */}
+            <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+              <p className="text-center text-slate-300 mb-4 text-sm sm:text-base">
+                나도 내 운세를 확인하고 싶다면?
+              </p>
+              <SocialLoginButtons />
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
+    // 로그인 필요
     navigate('/')
     return null
   }
@@ -204,7 +314,11 @@ function YearlyFortune() {
           </div>
         )}
         {interpretation && (
-          <FortuneResult title="1년 운세" interpretation={interpretation} />
+          <FortuneResult 
+            title="1년 운세" 
+            interpretation={interpretation} 
+            shareId={shareId}
+          />
         )}
       </div>
       {user && <BottomNavigation activeTab="yearly" />}
