@@ -9,7 +9,7 @@ import Footer from './components/Footer'
 
 function App() {
   return (
-    <BrowserRouter basename="/truefuture">
+    <BrowserRouter>
       <div className="min-h-screen bg-slate-900 text-white flex flex-col">
         <main className="flex-1 w-full">
           <Routes>
