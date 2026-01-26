@@ -52,14 +52,11 @@ function FortuneResult({ title, interpretation, shareId }) {
       return
     }
 
-    // 현재 도메인 가져오기 (Cloudflare Pages: truefuture.pages.dev)
-    const currentDomain = window.location.origin
+    // 현재 페이지 전체 URL 사용 (파라미터 포함)
+    const shareUrl = `${window.location.origin}/?id=${shareId}`
     
-    // URL 생성 (로컬/배포 모두 루트 경로)
-    const shareUrl = `${currentDomain}/?id=${shareId}`
-    
-    // 이미지 URL (로컬/배포 모두 /assets/truefuture.png)
-    const imageUrl = `${currentDomain}/assets/truefuture.png`
+    // 이미지 URL
+    const imageUrl = `${window.location.origin}/assets/truefuture.png`
 
     console.log('  - shareUrl:', shareUrl)
     console.log('  - imageUrl:', imageUrl)
@@ -76,6 +73,7 @@ function FortuneResult({ title, interpretation, shareId }) {
             webUrl: shareUrl,
           },
         },
+        // [중요] 클릭 가능한 버튼 추가
         buttons: [
           {
             title: '결과 확인하기',
