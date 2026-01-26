@@ -679,36 +679,27 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // URL 파싱
+    let url: URL;
+    try {
+      url = new URL(req.url);
+    } catch {
+      // 상대 경로인 경우 절대 URL로 변환
+      const baseUrl = supabaseUrl.replace(/\/rest\/v1$/, '');
+      url = new URL(req.url, baseUrl);
+    }
+    const id = url.searchParams.get("id");
 
-    // GET 요청: 공유된 운세 조회
-    if (req.method === "GET") {
-      // req.url이 상대 경로일 수 있으므로 절대 URL로 변환
-      let url: URL;
-      try {
-        url = new URL(req.url);
-      } catch {
-        // 상대 경로인 경우 절대 URL로 변환
-        const baseUrl = supabaseUrl.replace(/\/rest\/v1$/, '');
-        url = new URL(req.url, baseUrl);
-      }
-      const shareId = url.searchParams.get("id");
-
-      if (!shareId) {
-        return new Response(
-          JSON.stringify({ error: "id 파라미터가 필요합니다." }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
-
-      // Supabase에서 운세 조회
-      const { data, error } = await supabase
+    // [수정 포인트] ID가 있고 GET 요청이면 -> 인증 건너뛰기
+    if (req.method === "GET" && id) {
+      // Supabase Admin(Service Role) 클라이언트 생성
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // DB 조회 및 반환 로직 (Auth 검사 없이 진행)
+      const { data, error } = await supabaseAdmin
         .from("fortune_results")
-        .select("*")
-        .eq("id", shareId)
+        .select("fortune_text, user_info, fortune_type, created_at")
+        .eq("id", id)
         .single();
 
       if (error || !data) {
@@ -739,6 +730,18 @@ serve(async (req) => {
       );
     }
 
+    // 그 외 요청(운세 생성 POST)은 여기서부터 인증 검사 시작
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Authorization header가 필요합니다." }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // POST 요청만 허용 (운세 생성)
     if (req.method !== "POST") {
       return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -746,6 +749,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Supabase Admin 클라이언트 생성 (인증된 요청용)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 요청 본문 파싱
     const requestData = await req.json();
