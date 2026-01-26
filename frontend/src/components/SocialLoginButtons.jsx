@@ -5,16 +5,10 @@ import { supabase } from '../lib/supabaseClient'
  * @returns {string} 환경에 맞는 리디렉션 URL
  */
 const getRedirectUrl = () => {
-  // Localhost 환경인지 확인
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  
-  if (isLocalhost) {
-    // 로컬 개발 환경: 포트 번호 포함
-    return `http://localhost:5173`
-  } else {
-    // 프로덕션 환경: GitHub Pages 경로 포함
-    return `https://adriejeon.github.io/truefuture/`
-  }
+  // window.location.origin은 현재 브라우저 주소창의 "프로토콜 + 도메인 + 포트"를 가져옵니다.
+  // 로컬에서는 'http://localhost:5173'
+  // 배포 후에는 'https://truefuture.pages.dev'가 자동으로 됩니다.
+  return window.location.origin
 }
 
 /**
