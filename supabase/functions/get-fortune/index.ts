@@ -692,8 +692,20 @@ serve(async (req) => {
 
     // [수정 포인트] ID가 있고 GET 요청이면 -> 인증 건너뛰기
     if (req.method === "GET" && id) {
-      // Supabase Admin(Service Role) 클라이언트 생성
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+      // [수정] 공유 운세 조회용 Admin 클라이언트 (세션 감지 차단 및 헤더 강제 설정)
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false
+        },
+        global: {
+          headers: {
+            // 들어오는 요청의 토큰을 무시하고 Service Key로 덮어씌움
+            Authorization: `Bearer ${supabaseServiceKey}`
+          }
+        }
+      });
       
       // DB 조회 및 반환 로직 (Auth 검사 없이 진행)
       const { data, error } = await supabaseAdmin

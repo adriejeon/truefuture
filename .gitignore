@@ -13,6 +13,9 @@ npm-debug.log*
 .env
 .env.local
 .dev.vars
+# Legacy file names (without dot prefix)
+dev.vars
+frontend/env
 
 # OS
 .DS_Store
