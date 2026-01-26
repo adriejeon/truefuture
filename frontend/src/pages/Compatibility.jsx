@@ -284,61 +284,82 @@ function Compatibility() {
     )
   }
 
-  if (!user) {
-    // 공유 링크로 들어온 경우에는 결과 표시
-    if (isSharedFortune && interpretation) {
-      return (
-        <div className="w-full py-8 sm:py-12" style={{ position: 'relative', zIndex: 1 }}>
-          <div className="w-full max-w-2xl mx-auto px-3 sm:px-4 md:px-6 pb-20 sm:pb-24" style={{ position: 'relative', zIndex: 1 }}>
-            <PageTitle />
-            
-            {/* 공유된 운세 정보 표시 */}
-            <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="text-2xl">🔮</div>
-                <div className="flex-1">
-                  <p className="text-purple-200 text-sm sm:text-base mb-2">
-                    친구가 공유한 <strong>궁합</strong>입니다.
-                  </p>
-                  {sharedUserInfo && sharedUserInfo.user1 && sharedUserInfo.user2 && (
-                    <div className="text-xs sm:text-sm text-slate-300 space-y-3 mt-3">
-                      <div className="bg-blue-900/30 p-3 rounded">
-                        <p className="text-blue-300 font-semibold mb-2">💙 첫 번째 사람</p>
-                        <p>📅 {formatBirthDate(sharedUserInfo.user1.birthDate)}</p>
-                        <p>📍 {formatLocation(sharedUserInfo.user1.lat, sharedUserInfo.user1.lng)}</p>
-                      </div>
-                      <div className="bg-pink-900/30 p-3 rounded">
-                        <p className="text-pink-300 font-semibold mb-2">💗 두 번째 사람</p>
-                        <p>📅 {formatBirthDate(sharedUserInfo.user2.birthDate)}</p>
-                        <p>📍 {formatLocation(sharedUserInfo.user2.lat, sharedUserInfo.user2.lng)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+  // 공유 링크 확인 (URL에 id 파라미터가 있는지)
+  const sharedId = searchParams.get('id')
 
-            {/* 운세 결과 */}
-            <FortuneResult 
-              title="궁합" 
-              interpretation={interpretation} 
-              shareId={shareId}
-            />
-            
-            {/* 로그인 유도 */}
-            <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-              <p className="text-center text-slate-300 mb-4 text-sm sm:text-base">
-                나도 내 궁합을 확인하고 싶다면?
-              </p>
-              <SocialLoginButtons />
+  if (!user) {
+    // 공유 링크로 들어온 경우 (id 파라미터가 있음)
+    if (sharedId) {
+      // 로딩 중이거나 결과가 있는 경우 표시
+      if (loading) {
+        return (
+          <div className="w-full flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+              <p className="text-slate-400 text-sm sm:text-base">공유된 운세를 불러오는 중...</p>
             </div>
           </div>
-        </div>
-      )
+        )
+      }
+      
+      if (isSharedFortune && interpretation) {
+        return (
+          <div className="w-full py-8 sm:py-12" style={{ position: 'relative', zIndex: 1 }}>
+            <div className="w-full max-w-2xl mx-auto px-3 sm:px-4 md:px-6 pb-20 sm:pb-24" style={{ position: 'relative', zIndex: 1 }}>
+              <PageTitle />
+              
+              {/* 공유된 운세 정보 표시 */}
+              <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="text-2xl">🔮</div>
+                  <div className="flex-1">
+                    <p className="text-purple-200 text-sm sm:text-base mb-2">
+                      친구가 공유한 <strong>궁합</strong>입니다.
+                    </p>
+                    {sharedUserInfo && sharedUserInfo.user1 && sharedUserInfo.user2 && (
+                      <div className="text-xs sm:text-sm text-slate-300 space-y-3 mt-3">
+                        <div className="bg-blue-900/30 p-3 rounded">
+                          <p className="text-blue-300 font-semibold mb-2">💙 첫 번째 사람</p>
+                          <p>📅 {formatBirthDate(sharedUserInfo.user1.birthDate)}</p>
+                          <p>📍 {formatLocation(sharedUserInfo.user1.lat, sharedUserInfo.user1.lng)}</p>
+                        </div>
+                        <div className="bg-pink-900/30 p-3 rounded">
+                          <p className="text-pink-300 font-semibold mb-2">💗 두 번째 사람</p>
+                          <p>📅 {formatBirthDate(sharedUserInfo.user2.birthDate)}</p>
+                          <p>📍 {formatLocation(sharedUserInfo.user2.lat, sharedUserInfo.user2.lng)}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 운세 결과 */}
+              <FortuneResult 
+                title="궁합" 
+                interpretation={interpretation} 
+                shareId={shareId}
+              />
+              
+              {/* 로그인 유도 */}
+              <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+                <p className="text-center text-slate-300 mb-4 text-sm sm:text-base">
+                  나도 내 궁합을 확인하고 싶다면?
+                </p>
+                <SocialLoginButtons />
+              </div>
+            </div>
+          </div>
+        )
+      }
     }
     
-    // 로그인 필요
-    navigate('/')
+    // 공유 링크가 아니거나 로딩 실패한 경우에만 홈으로 리다이렉트
+    if (!sharedId && !loadingAuth) {
+      navigate('/')
+      return null
+    }
+    
     return null
   }
 
