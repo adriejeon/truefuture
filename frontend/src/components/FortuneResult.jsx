@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { parseMarkdownToSections } from '../utils/markdownParser'
 
-function FortuneResult({ title, interpretation, shareId }) {
+function FortuneResult({ title, interpretation, shareId, isShared = false }) {
   // 디버깅: shareId 확인
   useEffect(() => {
     console.log(`[FortuneResult] ${title} - shareId:`, shareId)
@@ -112,8 +112,8 @@ function FortuneResult({ title, interpretation, shareId }) {
           {title}
         </h2>
         
-        {/* 카카오톡 공유 버튼 */}
-        {shareId ? (
+        {/* 카카오톡 공유 버튼 - 공유된 운세가 아닐 때만 표시 */}
+        {!isShared && shareId ? (
           <button
             onClick={handleKakaoShare}
             className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold rounded-lg transition-colors text-sm"
@@ -124,14 +124,7 @@ function FortuneResult({ title, interpretation, shareId }) {
             </svg>
             <span className="hidden sm:inline">공유하기</span>
           </button>
-        ) : (
-          <div className="text-xs text-slate-500">
-            {/* 디버깅용: shareId가 없을 때 표시 */}
-            {process.env.NODE_ENV === 'development' && (
-              <span>shareId: {String(shareId)}</span>
-            )}
-          </div>
-        )}
+        ) : null}
       </div>
       
       {/* Intro (서론) - 아코디언 바깥 상단에 표시 */}

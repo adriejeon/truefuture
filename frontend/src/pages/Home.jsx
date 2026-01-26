@@ -572,6 +572,7 @@ function Home() {
               title="공유된 운세" 
               interpretation={interpretation} 
               shareId={shareId}
+              isShared={true}
             />
             
             {/* 로그인 버튼 (공유 운세 하단) */}

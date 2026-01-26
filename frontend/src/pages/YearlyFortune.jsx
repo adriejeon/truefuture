@@ -8,7 +8,7 @@ import FortuneResult from '../components/FortuneResult'
 import SocialLoginButtons from '../components/SocialLoginButtons'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabaseClient'
-import { loadSharedFortune, formatBirthDate, formatLocation } from '../utils/sharedFortune'
+import { loadSharedFortune, formatBirthDate } from '../utils/sharedFortune'
 
 function YearlyFortune() {
   const { user, loadingAuth, logout } = useAuth()
@@ -327,9 +327,8 @@ function YearlyFortune() {
                       친구가 공유한 <strong>1년 운세</strong>입니다.
                     </p>
                     {sharedUserInfo && (
-                      <div className="text-xs sm:text-sm text-slate-300 space-y-1 mt-3 bg-slate-700/50 p-3 rounded">
+                      <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
                         <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
-                        <p>📍 {formatLocation(sharedUserInfo.lat, sharedUserInfo.lng)}</p>
                       </div>
                     )}
                   </div>
@@ -341,6 +340,7 @@ function YearlyFortune() {
                 title="1년 운세" 
                 interpretation={interpretation} 
                 shareId={shareId}
+                isShared={true}
               />
               
               {/* 로그인 유도 */}

@@ -8,7 +8,7 @@ import FortuneResult from '../components/FortuneResult'
 import SocialLoginButtons from '../components/SocialLoginButtons'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabaseClient'
-import { loadSharedFortune, formatBirthDate, formatLocation } from '../utils/sharedFortune'
+import { loadSharedFortune, formatBirthDate } from '../utils/sharedFortune'
 
 function Compatibility() {
   const { user, loadingAuth, logout } = useAuth()
@@ -318,15 +318,13 @@ function Compatibility() {
                     </p>
                     {sharedUserInfo && sharedUserInfo.user1 && sharedUserInfo.user2 && (
                       <div className="text-xs sm:text-sm text-slate-300 space-y-3 mt-3">
-                        <div className="bg-blue-900/30 p-3 rounded">
+                        <div className="bg-blue-900/30 px-4 sm:px-6 py-3 rounded">
                           <p className="text-blue-300 font-semibold mb-2">💙 첫 번째 사람</p>
                           <p>📅 {formatBirthDate(sharedUserInfo.user1.birthDate)}</p>
-                          <p>📍 {formatLocation(sharedUserInfo.user1.lat, sharedUserInfo.user1.lng)}</p>
                         </div>
-                        <div className="bg-pink-900/30 p-3 rounded">
+                        <div className="bg-pink-900/30 px-4 sm:px-6 py-3 rounded">
                           <p className="text-pink-300 font-semibold mb-2">💗 두 번째 사람</p>
                           <p>📅 {formatBirthDate(sharedUserInfo.user2.birthDate)}</p>
-                          <p>📍 {formatLocation(sharedUserInfo.user2.lat, sharedUserInfo.user2.lng)}</p>
                         </div>
                       </div>
                     )}
@@ -339,6 +337,7 @@ function Compatibility() {
                 title="궁합" 
                 interpretation={interpretation} 
                 shareId={shareId}
+                isShared={true}
               />
               
               {/* 로그인 유도 */}
