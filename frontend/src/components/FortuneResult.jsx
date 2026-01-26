@@ -52,39 +52,51 @@ function FortuneResult({ title, interpretation, shareId }) {
       return
     }
 
-    // 현재 페이지 전체 URL 사용 (파라미터 포함)
-    const shareUrl = `${window.location.origin}/?id=${shareId}`
+    // [수정] URL API를 사용해서 현재 경로를 유지하면서 id만 교체
+    const url = new URL(window.location.href)
+    url.searchParams.set('id', shareId) // 기존 id가 있으면 덮어쓰고, 없으면 추가
+    const shareUrl = url.toString()
     
-    // 이미지 URL
-    const imageUrl = `${window.location.origin}/assets/truefuture.png`
+    // 이미지 URL (로컬 개발 시 외부 이미지 사용)
+    const isLocalhost = window.location.hostname === 'localhost'
+    const imageUrl = isLocalhost
+      ? 'https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png'
+      : `${window.location.origin}/assets/truefuture.png`
 
-    console.log('  - shareUrl:', shareUrl)
-    console.log('  - imageUrl:', imageUrl)
+    console.log('📍 [공유 URL 정보]')
+    console.log('  - 현재 페이지:', window.location.href)
+    console.log('  - 공유 URL:', shareUrl)
+    console.log('  - 이미지 URL:', imageUrl)
+    console.log('  - Origin:', window.location.origin)
 
-    try {
-      window.Kakao.Share.sendDefault({
-        objectType: 'feed',
-        content: {
-          title: '진짜미래 - 당신의 운세를 확인해보세요',
-          description: 'AI가 분석한 서양 점성술 결과입니다.',
-          imageUrl: imageUrl,
+    // 카카오 공유 설정 객체
+    const kakaoShareConfig = {
+      objectType: 'feed',
+      content: {
+        title: '진짜미래 - 당신의 운세를 확인해보세요',
+        description: 'AI가 분석한 서양 점성술 결과입니다.',
+        imageUrl: imageUrl,
+        link: {
+          mobileWebUrl: shareUrl,
+          webUrl: shareUrl,
+        },
+      },
+      // [중요] 클릭 가능한 버튼 추가
+      buttons: [
+        {
+          title: '결과 확인하기',
           link: {
             mobileWebUrl: shareUrl,
             webUrl: shareUrl,
           },
         },
-        // [중요] 클릭 가능한 버튼 추가
-        buttons: [
-          {
-            title: '결과 확인하기',
-            link: {
-              mobileWebUrl: shareUrl,
-              webUrl: shareUrl,
-            },
-          },
-        ],
-      })
-      
+      ],
+    }
+
+    console.log('📤 [카카오 공유 설정]', JSON.stringify(kakaoShareConfig, null, 2))
+
+    try {
+      window.Kakao.Share.sendDefault(kakaoShareConfig)
       console.log('✅ 카카오톡 공유 완료')
     } catch (error) {
       console.error('❌ 카카오톡 공유 실패:', error)
