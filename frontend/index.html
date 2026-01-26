@@ -2,16 +2,107 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="96x96"
+      href="/favicon/favicon-96x96.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/favicon/apple-touch-icon.png"
+    />
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes"
+    />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="theme-color" content="#000000" />
+
+    <!-- SEO Meta Tags -->
+    <title>진짜미래 - AI 점성술 운세</title>
+    <meta
+      name="description"
+      content="진짜미래에서 AI 기반 점성술로 당신의 운세를 확인하세요. 오늘의 운세, 타로, 사주, 별자리 운세를 무료로 제공합니다. 점성학의 지혜로 미래를 예측하세요."
+    />
+    <meta
+      name="keywords"
+      content="진짜미래, 점성학, 점성술, 운세, 오늘의운세, 타로, 사주, 별자리, AI운세, 무료운세, 점, 토정비결, 신년운세"
+    />
+    <meta name="author" content="진짜미래" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://truefuture.pages.dev" />
+    <meta property="og:title" content="진짜미래 - AI 점성술 운세" />
+    <meta
+      property="og:description"
+      content="진짜미래에서 AI 기반 점성술로 당신의 운세를 확인하세요. 오늘의 운세, 타로, 사주, 별자리 운세를 무료로 제공합니다."
+    />
+    <meta
+      property="og:image"
+      content="https://truefuture.pages.dev/assets/truefuture.png"
+    />
+    <meta property="og:locale" content="ko_KR" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://truefuture.pages.dev" />
+    <meta name="twitter:title" content="진짜미래 - AI 점성술 운세" />
+    <meta
+      name="twitter:description"
+      content="진짜미래에서 AI 기반 점성술로 당신의 운세를 확인하세요. 오늘의 운세, 타로, 사주, 별자리 운세를 무료로 제공합니다."
+    />
+    <meta
+      name="twitter:image"
+      content="https://truefuture.pages.dev/assets/truefuture.png"
+    />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://truefuture.pages.dev" />
+
     <title>진짜미래</title>
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "진짜미래",
+        "alternateName": "TrueFuture",
+        "url": "https://truefuture.pages.dev",
+        "description": "정확도 100% !! AI 기반 점성술로 당신의 운세를 확인하세요. 오늘의 운세, 궁합, 연애운, 직업운, 재회운 등의 운세를 제공합니다.",
+        "applicationCategory": "LifestyleApplication",
+        "operatingSystem": "Web",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "KRW"
+        },
+        "inLanguage": "ko-KR",
+        "keywords": "진짜미래, 점성학, 점성술, 운세, 오늘의운세, 별자리, AI운세, 무료운세, 연애운, 금전운, 재물운, 직업운, 취업운, 결혼운, 자녀운"
+      }
+    </script>
+
     <!-- 카카오톡 SDK -->
-    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" 
-            integrity="sha384-TiCUE00h649CAMonG018J2ujOgDKW/kVWlChEuu4jK2vxfAAD0eZxzCKakxg55G4" 
-            crossorigin="anonymous"></script>
+    <script
+      src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"
+      integrity="sha384-TiCUE00h649CAMonG018J2ujOgDKW/kVWlChEuu4jK2vxfAAD0eZxzCKakxg55G4"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body>
     <div id="root"></div>
