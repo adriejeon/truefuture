@@ -144,11 +144,16 @@ export function getPlanetLongitude(body: any, time: any): number {
 
 /**
  * 점성술 차트 계산
- * @param date - 계산할 날짜/시간
+ * @param date - 계산할 날짜/시간 (UTC)
  * @param location - 위치 정보 (위도, 경도)
+ * @param timezoneOffsetHours - 하우스 계산용 Timezone Offset (시간 단위, 예: 서울 = +9)
  * @returns 계산된 차트 데이터
  */
-export async function calculateChart(date: Date, location: Location): Promise<ChartData> {
+export async function calculateChart(
+  date: Date, 
+  location: Location,
+  timezoneOffsetHours: number = 0
+): Promise<ChartData> {
   try {
     const { lat, lng } = location
 
@@ -165,10 +170,21 @@ export async function calculateChart(date: Date, location: Location): Promise<Ch
       throw new Error('Invalid longitude.')
     }
 
+    // 행성 계산용: UTC 그대로 사용 (정확함)
     const time = MakeTime(date)
     
-    // 상승점 계산
-    const ascendant = calculateAscendant(date, lat, lng, time)
+    // 하우스 계산용: 현지 시간으로 변환
+    // 하우스 시스템은 "그 장소의 그 시간"을 기준으로 계산되므로,
+    // UTC 시간에 Timezone Offset을 더해서 현지 시간 기준으로 만들어줌
+    const localDateForHouses = new Date(date.getTime() + (timezoneOffsetHours * 60 * 60 * 1000))
+    const localTimeForHouses = MakeTime(localDateForHouses)
+    
+    if (timezoneOffsetHours !== 0) {
+      console.log(`🏠 하우스 계산용 시간 변환: UTC ${date.toISOString()} + ${timezoneOffsetHours}h = Local ${localDateForHouses.toISOString()}`)
+    }
+    
+    // 상승점 계산 (현지 시간 기준)
+    const ascendant = calculateAscendant(localDateForHouses, lat, lng, localTimeForHouses)
     const ascendantSignInfo = getSignFromLongitude(ascendant)
 
     // 행성 위치 계산
@@ -326,7 +342,7 @@ export function getSignRuler(sign: string): string {
  * @param birthDate - 사용자의 출생 날짜
  * @param targetYear - 계산할 연도 (현재 년도 또는 특정 년도)
  * @param natalSunLongitude - Natal 태양의 황경
- * @returns Solar Return 날짜/시간
+ * @returns Solar Return 날짜/시간 (UTC)
  */
 export function calculateSolarReturnDateTime(
   birthDate: Date,
@@ -354,10 +370,24 @@ export function calculateSolarReturnDateTime(
       throw new Error('Solar Return time not found in the search window')
     }
     
-    // AstroTime을 Date로 변환
-    const solarReturnDate = new Date(solarReturnTime.date)
+    // AstroTime을 순수 UTC Date로 변환
+    // astronomy-engine의 AstroTime.date는 JavaScript Date 객체이지만,
+    // 생성 시 로컬 타임존이 적용될 수 있으므로 명시적으로 UTC로 파싱
+    const astroDate = solarReturnTime.date
     
-    console.log(`✅ Solar Return 계산 완료: ${solarReturnDate.toISOString()}`)
+    // Date 객체를 UTC 기준으로 재구성
+    // getUTC* 메서드를 사용하여 UTC 값을 가져온 후 Date.UTC로 순수 UTC Date 생성
+    const solarReturnDate = new Date(Date.UTC(
+      astroDate.getUTCFullYear(),
+      astroDate.getUTCMonth(),
+      astroDate.getUTCDate(),
+      astroDate.getUTCHours(),
+      astroDate.getUTCMinutes(),
+      astroDate.getUTCSeconds(),
+      astroDate.getUTCMilliseconds()
+    ))
+    
+    console.log(`✅ Solar Return 계산 완료 (UTC): ${solarReturnDate.toISOString()}`)
     
     return solarReturnDate
   } catch (error: any) {
@@ -397,28 +427,39 @@ export function getActiveSolarReturnYear(birthDate: Date, now: Date): number {
  * @param birthDate - 사용자의 출생 날짜
  * @param targetDate - 계산 기준 날짜 (보통 Solar Return 날짜)
  * @param natalAscSign - Natal 차트의 상승궁 별자리
+ * @param isSolarReturn - Solar Return 차트 계산 여부 (true면 단순 연도 차이 사용)
  * @returns Profection 데이터
  */
 export function calculateProfection(
   birthDate: Date,
   targetDate: Date,
-  natalAscSign: string
+  natalAscSign: string,
+  isSolarReturn: boolean = true
 ): ProfectionData {
   try {
-    // 만 나이 계산
-    let age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
+    let age: number
     
-    // 생일이 지났는지 체크
-    const birthdayThisYear = new Date(
-      Date.UTC(
-        targetDate.getUTCFullYear(),
-        birthDate.getUTCMonth(),
-        birthDate.getUTCDate()
+    if (isSolarReturn) {
+      // Solar Return의 경우: 단순 연도 차이 (생일 도달 여부와 무관)
+      // targetDate가 Solar Return 시점이므로, 그 해에 도달하는 나이를 사용
+      age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
+      console.log(`📅 Profection 계산 (Solar Return 모드): targetYear ${targetDate.getUTCFullYear()} - birthYear ${birthDate.getUTCFullYear()} = ${age}세`)
+    } else {
+      // 일반 만 나이 계산 (생일이 지났는지 체크)
+      age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
+      
+      const birthdayThisYear = new Date(
+        Date.UTC(
+          targetDate.getUTCFullYear(),
+          birthDate.getUTCMonth(),
+          birthDate.getUTCDate()
+        )
       )
-    )
-    
-    if (targetDate < birthdayThisYear) {
-      age -= 1
+      
+      if (targetDate < birthdayThisYear) {
+        age -= 1
+      }
+      console.log(`📅 Profection 계산 (일반 모드): 만 나이 ${age}세`)
     }
     
     // Profection House 계산 (Age를 12로 나눈 나머지 + 1)

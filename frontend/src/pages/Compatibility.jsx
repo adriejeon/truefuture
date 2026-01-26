@@ -167,59 +167,99 @@ function Compatibility() {
         setShareId(null) // 명시적으로 null 설정
       }
       
+      // 1. 사용자1 Natal Chart (출생 차트)
       if (data.chart) {
-        console.log('사용자1 계산된 차트 데이터:')
-        console.log('  행성 7개 위치:')
-        if (data.chart.planets) {
-          const planetNames = {
-            sun: '태양(Sun)', moon: '달(Moon)', mercury: '수성(Mercury)', venus: '금성(Venus)',
-            mars: '화성(Mars)', jupiter: '목성(Jupiter)', saturn: '토성(Saturn)',
-          }
-          Object.entries(data.chart.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name
-            console.log(`    ${displayName.padEnd(20)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (하우스 ${planet.house})`)
-          })
-        }
-        if (data.chart.fortuna) {
-          console.log(`  포르투나: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(2)}도 (하우스 ${data.chart.fortuna.house})`)
-        }
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🌟 [사용자1 Natal Chart - 출생 차트]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`출생 시간: ${data.chart.date}`)
+        console.log(`출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`)
+        
+        // 상승점
         if (data.chart.houses?.angles?.ascendant !== undefined) {
           const asc = data.chart.houses.angles.ascendant
           const ascSignIndex = Math.floor(asc / 30)
           const ascDegreeInSign = asc % 30
           const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
-          console.log(`  상승점: ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(2)}도`)
+          console.log(`\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`)
+        }
+        
+        // 행성 위치
+        console.log('\n행성 위치:')
+        if (data.chart.planets) {
+          const planetNames = {
+            sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus',
+            mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn',
+          }
+          Object.entries(data.chart.planets).forEach(([name, planet]) => {
+            const displayName = planetNames[name] || name
+            console.log(`  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`)
+          })
+        }
+        
+        // 포르투나
+        if (data.chart.fortuna) {
+          console.log(`\nPart of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart.fortuna.house})`)
         }
       }
       
+      // 2. 사용자2 Natal Chart (출생 차트)
       if (data.chart2) {
-        console.log('사용자2 계산된 차트 데이터:')
-        console.log('  행성 7개 위치:')
-        if (data.chart2.planets) {
-          const planetNames = {
-            sun: '태양(Sun)', moon: '달(Moon)', mercury: '수성(Mercury)', venus: '금성(Venus)',
-            mars: '화성(Mars)', jupiter: '목성(Jupiter)', saturn: '토성(Saturn)',
-          }
-          Object.entries(data.chart2.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name
-            console.log(`    ${displayName.padEnd(20)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (하우스 ${planet.house})`)
-          })
-        }
-        if (data.chart2.fortuna) {
-          console.log(`  포르투나: ${data.chart2.fortuna.sign} ${data.chart2.fortuna.degreeInSign.toFixed(2)}도 (하우스 ${data.chart2.fortuna.house})`)
-        }
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🌟 [사용자2 Natal Chart - 출생 차트]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`출생 시간: ${data.chart2.date}`)
+        console.log(`출생 위치: 위도 ${data.chart2.location?.lat}, 경도 ${data.chart2.location?.lng}`)
+        
+        // 상승점
         if (data.chart2.houses?.angles?.ascendant !== undefined) {
           const asc = data.chart2.houses.angles.ascendant
           const ascSignIndex = Math.floor(asc / 30)
           const ascDegreeInSign = asc % 30
           const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
-          console.log(`  상승점: ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(2)}도`)
+          console.log(`\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`)
+        }
+        
+        // 행성 위치
+        console.log('\n행성 위치:')
+        if (data.chart2.planets) {
+          const planetNames = {
+            sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus',
+            mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn',
+          }
+          Object.entries(data.chart2.planets).forEach(([name, planet]) => {
+            const displayName = planetNames[name] || name
+            console.log(`  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`)
+          })
+        }
+        
+        // 포르투나
+        if (data.chart2.fortuna) {
+          console.log(`\nPart of Fortune: ${data.chart2.fortuna.sign} ${data.chart2.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart2.fortuna.house})`)
         }
       }
       
-      console.log('제미나이 Markdown 해석 결과:')
+      // 3. 제미나이에게 전달한 프롬프트 (디버깅용)
+      if (data.userPrompt) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📝 [제미나이에게 전달한 User Prompt]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(data.userPrompt)
+      }
+      
+      if (data.systemInstruction) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📋 [제미나이에게 전달한 System Instruction]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(data.systemInstruction)
+      }
+      
+      // 4. 제미나이 해석 결과
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('✨ [제미나이 해석 결과]')
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       console.log(data.interpretation)
-      console.log('='.repeat(60) + '\n')
+      console.log('\n' + '='.repeat(60) + '\n')
       
       if (data.interpretation && typeof data.interpretation === 'string') {
         setInterpretation(data.interpretation)

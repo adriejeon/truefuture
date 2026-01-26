@@ -805,23 +805,62 @@ serve(async (req) => {
         );
       }
 
-      // 두 명의 생년월일을 Date 객체로 변환
+      // 두 명의 생년월일을 Date 객체로 변환 (KST -> UTC)
       let birthDateTime1: Date;
       let birthDateTime2: Date;
       try {
-        birthDateTime1 = new Date(user1.birthDate);
-        birthDateTime2 = new Date(user2.birthDate);
+        // 사용자1: KST를 UTC로 변환 (Date.UTC 사용)
+        const dateMatch1 = user1.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+        if (!dateMatch1) {
+          throw new Error("Invalid date format for user1");
+        }
+        const [_, year1, month1, day1, hour1, minute1, second1] = dateMatch1;
+        
+        // Date.UTC로 타임스탬프 생성 후 9시간 차감
+        const tempUtcTimestamp1 = Date.UTC(
+          parseInt(year1),
+          parseInt(month1) - 1,
+          parseInt(day1),
+          parseInt(hour1),
+          parseInt(minute1),
+          parseInt(second1)
+        );
+        const kstToUtcTimestamp1 = tempUtcTimestamp1 - (9 * 60 * 60 * 1000);
+        birthDateTime1 = new Date(kstToUtcTimestamp1);
+        
+        // 사용자2: KST를 UTC로 변환 (Date.UTC 사용)
+        const dateMatch2 = user2.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+        if (!dateMatch2) {
+          throw new Error("Invalid date format for user2");
+        }
+        const [__, year2, month2, day2, hour2, minute2, second2] = dateMatch2;
+        
+        // Date.UTC로 타임스탬프 생성 후 9시간 차감
+        const tempUtcTimestamp2 = Date.UTC(
+          parseInt(year2),
+          parseInt(month2) - 1,
+          parseInt(day2),
+          parseInt(hour2),
+          parseInt(minute2),
+          parseInt(second2)
+        );
+        const kstToUtcTimestamp2 = tempUtcTimestamp2 - (9 * 60 * 60 * 1000);
+        birthDateTime2 = new Date(kstToUtcTimestamp2);
+        
         if (
           isNaN(birthDateTime1.getTime()) ||
           isNaN(birthDateTime2.getTime())
         ) {
           throw new Error("Invalid date format");
         }
+        
+        console.log(`🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`);
+        console.log(`🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`);
       } catch (error) {
         return new Response(
           JSON.stringify({
             error:
-              "Invalid birthDate format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)",
+              "Invalid birthDate format. Use ISO format (YYYY-MM-DDTHH:mm:ss)",
           }),
           {
             status: 400,
@@ -981,17 +1020,45 @@ serve(async (req) => {
     // 생년월일을 Date 객체로 변환
     let birthDateTime: Date;
     try {
-      // ISO 형식 문자열을 Date 객체로 변환
-      // 주의: new Date()는 로컬 시간대로 해석할 수 있으므로, UTC로 명시적으로 처리
-      birthDateTime = new Date(birthDate);
+      // 사용자 입력을 KST(한국 시간, GMT+9)로 간주하고 UTC로 변환
+      // 예: 1991-10-23T09:20:00 (KST) -> 1991-10-23T00:20:00Z (UTC)
+      
+      // ISO 형식 문자열 파싱: YYYY-MM-DDTHH:mm:ss
+      const dateMatch = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+      if (!dateMatch) {
+        throw new Error("Invalid date format. Expected YYYY-MM-DDTHH:mm:ss");
+      }
+      
+      const [_, year, month, day, hour, minute, second] = dateMatch;
+      
+      // [핵심 수정] Date.UTC()를 사용하여 로컬 타임존 영향 제거
+      // 1. 입력된 숫자를 일단 "UTC 기준 시간"으로 만듦 (예: UTC 09:20)
+      const tempUtcTimestamp = Date.UTC(
+        parseInt(year),
+        parseInt(month) - 1,  // JavaScript month는 0-based
+        parseInt(day),
+        parseInt(hour),
+        parseInt(minute),
+        parseInt(second)
+      );
+      
+      // 2. 거기서 9시간(KST Offset)을 뺌
+      // 원리: "UTC 09:20" - 9시간 = "UTC 00:20" (이게 바로 KST 09:20과 같은 절대 시간)
+      const kstToUtcTimestamp = tempUtcTimestamp - (9 * 60 * 60 * 1000);
+      
+      // 3. 최종 Date 객체 생성
+      birthDateTime = new Date(kstToUtcTimestamp);
+      
       if (isNaN(birthDateTime.getTime())) {
         throw new Error("Invalid date format");
       }
+      
+      console.log(`🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`);
     } catch (error) {
       return new Response(
         JSON.stringify({
           error:
-            "Invalid birthDate format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)",
+            "Invalid birthDate format. Use ISO format (YYYY-MM-DDTHH:mm:ss)",
         }),
         {
           status: 400,
@@ -1053,7 +1120,8 @@ serve(async (req) => {
     if (fortuneType === FortuneType.YEARLY) {
       try {
         const now = new Date();
-        const birthDateTime = new Date(birthDate);
+        // birthDateTime은 이미 위에서 KST -> UTC 변환됨 (line 982-1016에서 처리)
+        // 여기서는 이미 변환된 birthDateTime을 사용
         
         // 1. 현재 적용 중인 Solar Return 연도 결정
         const solarReturnYear = getActiveSolarReturnYear(birthDateTime, now);
@@ -1071,14 +1139,24 @@ serve(async (req) => {
         console.log(`🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`);
         
         // 4. Solar Return 차트 계산
-        solarReturnChartData = await calculateChart(solarReturnDateTime, { lat, lng });
+        // 하우스 계산을 위해 Timezone Offset을 전달 (경도 기반 계산)
+        // 경도 15도 = 1시간, 동경은 +, 서경은 -
+        const timezoneOffsetHours = Math.round(lng / 15);
+        console.log(`🌍 Timezone Offset (경도 ${lng}° 기준): ${timezoneOffsetHours}시간`);
         
-        // 5. Profection 계산
+        solarReturnChartData = await calculateChart(
+          solarReturnDateTime, 
+          { lat, lng },
+          timezoneOffsetHours  // 하우스 계산용 Timezone Offset
+        );
+        
+        // 5. Profection 계산 (Solar Return 모드: 단순 연도 차이 사용)
         const natalAscSign = getSignFromLongitude(chartData.houses.angles.ascendant).sign;
         profectionData = calculateProfection(
           birthDateTime,
           solarReturnDateTime,
           natalAscSign,
+          true  // isSolarReturn = true: 단순 연도 차이로 나이 계산
         );
         
         // 6. Solar Return Overlay 계산

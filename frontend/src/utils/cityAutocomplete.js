@@ -147,10 +147,6 @@ class CityAutocomplete {
   async searchCities(query) {
     // 중복 호출 방지: 이미 같은 쿼리로 검색 중이면 무시
     if (this.isSearching && this.lastSearchQuery === query) {
-      console.log(
-        "CityAutocomplete: 이미 같은 쿼리로 검색 중입니다. 중복 호출 방지:",
-        query,
-      );
       return;
     }
 
@@ -163,7 +159,6 @@ class CityAutocomplete {
       // GeoNames는 CORS를 지원하지 않으므로, 필요시 백엔드 프록시를 사용해야 할 수 있습니다
       const url = `https://secure.geonames.org/searchJSON?q=${encodeURIComponent(query)}&maxRows=10&username=${GEO_NAMES_USERNAME}&style=FULL`;
 
-      console.log("CityAutocomplete: API 호출 시작:", query);
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -174,31 +169,18 @@ class CityAutocomplete {
 
       // 검색이 완료되었지만, 쿼리가 변경되었거나 인스턴스가 destroy된 경우 무시
       if (this.lastSearchQuery !== query) {
-        console.log(
-          "CityAutocomplete: 쿼리가 변경되었습니다. 결과 무시:",
-          query,
-          "->",
-          this.lastSearchQuery,
-        );
         this.isSearching = false;
         return;
       }
 
       if (data.geonames && data.geonames.length > 0) {
-        console.log(
-          "CityAutocomplete: 검색 결과 받음:",
-          data.geonames.length,
-          "개",
-        );
         this.searchResults = data.geonames;
         this.displayResults(data.geonames);
       } else {
-        console.log("CityAutocomplete: 검색 결과 없음");
         this.searchResults = [];
         this.hideDropdown();
       }
     } catch (error) {
-      console.error("도시 검색 오류:", error);
       this.searchResults = [];
       this.hideDropdown();
     } finally {
@@ -210,15 +192,8 @@ class CityAutocomplete {
    * 검색 결과 표시
    */
   displayResults(results) {
-    console.log("CityAutocomplete: displayResults 호출됨", {
-      resultsCount: results?.length || 0,
-      hasDropdownElement: !!this.dropdownElement,
-      dropdownDisplay: this.dropdownElement?.style?.display,
-    });
-
     // 드롭다운 요소가 없으면 중단
     if (!this.dropdownElement) {
-      console.error("CityAutocomplete: dropdownElement가 null입니다.");
       return;
     }
 
@@ -228,7 +203,6 @@ class CityAutocomplete {
 
     // 결과가 없으면 숨기기
     if (!results || results.length === 0) {
-      console.log("CityAutocomplete: 결과가 없어 드롭다운 숨김");
       this.hideDropdown();
       return;
     }
@@ -261,7 +235,6 @@ class CityAutocomplete {
       this.dropdownElement.appendChild(item);
     });
 
-    console.log("CityAutocomplete: 드롭다운 아이템 추가 완료, 표시 시도");
     // 드롭다운 표시
     this.showDropdown();
   }
@@ -336,28 +309,11 @@ class CityAutocomplete {
    */
   showDropdown() {
     if (!this.dropdownElement) {
-      console.error(
-        "CityAutocomplete: showDropdown - dropdownElement가 null입니다.",
-      );
       return;
     }
 
-    console.log("CityAutocomplete: showDropdown 호출됨", {
-      hasChildren: this.dropdownElement.children.length > 0,
-      hasHiddenClass: this.dropdownElement.classList.contains(
-        "city-autocomplete-dropdown-hidden",
-      ),
-    });
-
     // 숨김 클래스 제거
     this.dropdownElement.classList.remove("city-autocomplete-dropdown-hidden");
-
-    console.log("CityAutocomplete: 드롭다운 표시됨", {
-      hasHiddenClass: this.dropdownElement.classList.contains(
-        "city-autocomplete-dropdown-hidden",
-      ),
-      computedDisplay: window.getComputedStyle(this.dropdownElement).display,
-    });
 
     // 화면 하단까지의 거리를 계산하여 maxHeight 동적 설정
     this.updateDropdownMaxHeight();

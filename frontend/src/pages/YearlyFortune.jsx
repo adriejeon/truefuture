@@ -150,41 +150,126 @@ function YearlyFortune() {
         setShareId(null) // 명시적으로 null 설정
       }
       
+      // 1. Natal Chart (출생 차트)
       if (data.chart) {
-        console.log('계산된 차트 데이터:')
-        console.log('  행성 7개 위치:')
-        if (data.chart.planets) {
-          const planetNames = {
-            sun: '태양(Sun)', moon: '달(Moon)', mercury: '수성(Mercury)', venus: '금성(Venus)',
-            mars: '화성(Mars)', jupiter: '목성(Jupiter)', saturn: '토성(Saturn)',
-          }
-          Object.entries(data.chart.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name
-            console.log(`    ${displayName.padEnd(20)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (하우스 ${planet.house})`)
-          })
-        }
-        console.log('  포르투나(Fortune):')
-        if (data.chart.fortuna) {
-          console.log(`    별자리: ${data.chart.fortuna.sign}`)
-          console.log(`    별자리 내 각도: ${data.chart.fortuna.degreeInSign.toFixed(2)}도`)
-          console.log(`    전체 경도: ${data.chart.fortuna.degree.toFixed(2)}도`)
-          console.log(`    하우스: ${data.chart.fortuna.house}`)
-        }
-        console.log('  상승점(Ascendant):')
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🌟 [Natal Chart - 출생 차트]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`출생 시간: ${data.chart.date}`)
+        console.log(`출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`)
+        
+        // 상승점
         if (data.chart.houses?.angles?.ascendant !== undefined) {
           const asc = data.chart.houses.angles.ascendant
           const ascSignIndex = Math.floor(asc / 30)
           const ascDegreeInSign = asc % 30
           const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
-          console.log(`    별자리: ${signs[ascSignIndex]}`)
-          console.log(`    별자리 내 각도: ${ascDegreeInSign.toFixed(2)}도`)
-          console.log(`    전체 경도: ${asc.toFixed(2)}도`)
+          console.log(`\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`)
+        }
+        
+        // 행성 위치
+        console.log('\n행성 위치:')
+        if (data.chart.planets) {
+          const planetNames = {
+            sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus',
+            mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn',
+          }
+          Object.entries(data.chart.planets).forEach(([name, planet]) => {
+            const displayName = planetNames[name] || name
+            console.log(`  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`)
+          })
+        }
+        
+        // 포르투나
+        if (data.chart.fortuna) {
+          console.log(`\nPart of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart.fortuna.house})`)
         }
       }
       
-      console.log('제미나이 Markdown 해석 결과:')
+      // 2. Solar Return Chart (솔라 리턴 차트)
+      if (data.solarReturnChart) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🌞 [Solar Return Chart - 솔라 리턴 차트]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`Solar Return 시간: ${data.solarReturnChart.date}`)
+        console.log(`위치: 위도 ${data.solarReturnChart.location?.lat}, 경도 ${data.solarReturnChart.location?.lng}`)
+        
+        // Solar Return 상승점
+        if (data.solarReturnChart.houses?.angles?.ascendant !== undefined) {
+          const asc = data.solarReturnChart.houses.angles.ascendant
+          const ascSignIndex = Math.floor(asc / 30)
+          const ascDegreeInSign = asc % 30
+          const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+          console.log(`\nSolar Return Ascendant: ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`)
+        }
+        
+        // Solar Return 행성 위치
+        console.log('\n행성 위치:')
+        if (data.solarReturnChart.planets) {
+          const planetNames = {
+            sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus',
+            mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn',
+          }
+          Object.entries(data.solarReturnChart.planets).forEach(([name, planet]) => {
+            const displayName = planetNames[name] || name
+            console.log(`  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (SR House ${planet.house})`)
+          })
+        }
+      }
+      
+      // 3. Profection 정보 (연주법)
+      if (data.profectionData) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📅 [Annual Profection - 연주법]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`나이: ${data.profectionData.age}세 (만 나이)`)
+        console.log(`활성화된 하우스 (Profection House): ${data.profectionData.profectionHouse}번째 하우스`)
+        console.log(`프로펙션 별자리 (Profection Sign): ${data.profectionData.profectionSign}`)
+        console.log(`올해의 주인 (Lord of the Year): ${data.profectionData.lordOfTheYear}`)
+        console.log(`\n💡 해석 힌트: 올해는 ${data.profectionData.profectionHouse}번째 하우스의 주제가 인생의 중심이 되며, ${data.profectionData.lordOfTheYear}가 1년의 길흉을 주관합니다.`)
+      }
+      
+      // 4. Solar Return Overlay 정보
+      if (data.solarReturnOverlay) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('🔮 [Solar Return Overlay - SR 행성의 Natal 하우스 위치]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(`Solar Return Ascendant는 Natal 차트의 ${data.solarReturnOverlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.`)
+        console.log('\nSolar Return 행성들의 Natal 차트 하우스 위치:')
+        if (data.solarReturnOverlay.planetsInNatalHouses) {
+          const planetNames = {
+            sun: 'SR Sun', moon: 'SR Moon', mercury: 'SR Mercury', venus: 'SR Venus',
+            mars: 'SR Mars', jupiter: 'SR Jupiter', saturn: 'SR Saturn',
+          }
+          Object.entries(data.solarReturnOverlay.planetsInNatalHouses).forEach(([name, house]) => {
+            const displayName = planetNames[name] || name
+            console.log(`  - ${displayName.padEnd(12)}: Natal ${house}번째 하우스`)
+          })
+        }
+        console.log('\n💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 올해 그 영역에서 해당 행성의 영향력이 강하게 나타납니다.')
+      }
+      
+      // 5. 제미나이에게 전달한 프롬프트 (디버깅용)
+      if (data.userPrompt) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📝 [제미나이에게 전달한 User Prompt]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(data.userPrompt)
+      }
+      
+      if (data.systemInstruction) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log('📋 [제미나이에게 전달한 System Instruction]')
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+        console.log(data.systemInstruction)
+      }
+      
+      // 6. 제미나이 해석 결과
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('✨ [제미나이 해석 결과]')
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       console.log(data.interpretation)
-      console.log('='.repeat(60) + '\n')
+      console.log('\n' + '='.repeat(60) + '\n')
       
       if (data.interpretation && typeof data.interpretation === 'string') {
         setInterpretation(data.interpretation)
