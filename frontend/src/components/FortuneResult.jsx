@@ -55,6 +55,7 @@ function FortuneResult({ title, interpretation, shareId }) {
     // [수정] URL API를 사용해서 현재 경로를 유지하면서 id만 교체
     const url = new URL(window.location.href)
     url.searchParams.set('id', shareId) // 기존 id가 있으면 덮어쓰고, 없으면 추가
+    url.hash = '' // 해시(#) 제거 (카카오톡 공유 시 문제 방지)
     const shareUrl = url.toString()
     
     // 이미지 URL (로컬 개발 시 외부 이미지 사용)
