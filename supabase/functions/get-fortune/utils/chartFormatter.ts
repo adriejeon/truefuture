@@ -211,3 +211,155 @@ ${overlayInfo}
 5. **Lord of the Year의 상태**: Natal 차트와 SR 차트에서 Lord of the Year가 어떤 상태인지 확인하여 올해의 전반적인 운의 흐름을 판단하세요.
 `.trim()
 }
+
+/**
+ * LIFETIME 운세를 위한 User Prompt 생성 함수
+ * Natal 차트 정보를 상세하게 포맷팅하여 반환합니다.
+ */
+export function generateLifetimeUserPrompt(natalData: ChartData): string {
+  // 현재 날짜 정보
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  
+  // 생년월일에서 연도, 월, 일 추출
+  const birthDate = new Date(natalData.date)
+  const birthYear = birthDate.getFullYear()
+  const birthMonth = birthDate.getMonth() + 1
+  const birthDay = birthDate.getDate()
+  
+  // Natal 차트 포맷팅
+  const natalPlanets = Object.entries(natalData.planets)
+    .map(([name, planet]) => {
+      return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`
+    })
+    .join('\n')
+
+  const natalAscendant = natalData.houses.angles.ascendant
+  const natalAscSign = getSignDisplay(natalAscendant)
+  
+  const natalMC = natalData.houses.angles.midheaven
+  const natalMCSign = getSignDisplay(natalMC)
+
+  // 최종 User Prompt 생성
+  return `
+인생 종합운(사주) 분석을 위한 데이터입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[📋 내담자 기본 정보]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+출생 연월일: ${birthYear}년 ${birthMonth}월 ${birthDay}일
+출생 시간: ${natalData.date}
+출생 위치: 위도 ${natalData.location.lat}, 경도 ${natalData.location.lng}
+현재 시점: ${currentYear}년 ${currentMonth}월
+
+⚠️ 중요: 출생년도(${birthYear}년)를 기준으로 정확한 만 나이를 계산하여 시점을 표현하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[🌌 Natal Chart - 출생 차트]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+상승점(Ascendant): ${natalAscSign}
+중천(Midheaven/MC): ${natalMCSign}
+
+행성 위치:
+${natalPlanets}
+
+Part of Fortune: ${natalData.fortuna.sign} ${natalData.fortuna.degreeInSign.toFixed(1)}° (House ${natalData.fortuna.house})
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+위 데이터를 기반으로 인생 종합운을 분석해 주세요.
+`.trim()
+}
+
+/**
+ * COMPATIBILITY 운세를 위한 User Prompt 생성 함수
+ * 두 사람의 Natal 차트를 비교하여 궁합을 분석합니다.
+ */
+export function generateCompatibilityUserPrompt(
+  natalData1: ChartData,
+  natalData2: ChartData,
+): string {
+  // 현재 날짜 정보
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  
+  // 사용자 1 정보
+  const birthDate1 = new Date(natalData1.date)
+  const birthYear1 = birthDate1.getFullYear()
+  const birthMonth1 = birthDate1.getMonth() + 1
+  const birthDay1 = birthDate1.getDate()
+  
+  const natalPlanets1 = Object.entries(natalData1.planets)
+    .map(([name, planet]) => {
+      return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`
+    })
+    .join('\n')
+
+  const natalAscendant1 = natalData1.houses.angles.ascendant
+  const natalAscSign1 = getSignDisplay(natalAscendant1)
+  
+  // 사용자 2 정보
+  const birthDate2 = new Date(natalData2.date)
+  const birthYear2 = birthDate2.getFullYear()
+  const birthMonth2 = birthDate2.getMonth() + 1
+  const birthDay2 = birthDate2.getDate()
+  
+  const natalPlanets2 = Object.entries(natalData2.planets)
+    .map(([name, planet]) => {
+      return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`
+    })
+    .join('\n')
+
+  const natalAscendant2 = natalData2.houses.angles.ascendant
+  const natalAscSign2 = getSignDisplay(natalAscendant2)
+
+  // 최종 User Prompt 생성
+  return `
+궁합 분석을 위한 데이터입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[📋 내담자님(User 1) 기본 정보]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+출생 연월일: ${birthYear1}년 ${birthMonth1}월 ${birthDay1}일
+출생 시간: ${natalData1.date}
+출생 위치: 위도 ${natalData1.location.lat}, 경도 ${natalData1.location.lng}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[🌌 내담자님 Natal Chart]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+상승점(Ascendant): ${natalAscSign1}
+
+행성 위치:
+${natalPlanets1}
+
+Part of Fortune: ${natalData1.fortuna.sign} ${natalData1.fortuna.degreeInSign.toFixed(1)}° (House ${natalData1.fortuna.house})
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[📋 상대방(User 2) 기본 정보]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+출생 연월일: ${birthYear2}년 ${birthMonth2}월 ${birthDay2}일
+출생 시간: ${natalData2.date}
+출생 위치: 위도 ${natalData2.location.lat}, 경도 ${natalData2.location.lng}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[🌌 상대방 Natal Chart]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+상승점(Ascendant): ${natalAscSign2}
+
+행성 위치:
+${natalPlanets2}
+
+Part of Fortune: ${natalData2.fortuna.sign} ${natalData2.fortuna.degreeInSign.toFixed(1)}° (House ${natalData2.fortuna.house})
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[📅 분석 시점]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+현재 시점: ${currentYear}년 ${currentMonth}월
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+위 두 사람의 차트 데이터를 기반으로 궁합을 분석해 주세요.
+`.trim()
+}

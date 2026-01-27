@@ -32,6 +32,8 @@ import {
 import {
   generateDailyUserPrompt,
   generateYearlyUserPrompt,
+  generateLifetimeUserPrompt,
+  generateCompatibilityUserPrompt,
 } from "./utils/chartFormatter.ts";
 
 // 점성술 계산 유틸리티 import
@@ -201,7 +203,20 @@ function buildUserPrompt(
     );
   }
 
-  // 기존 방식 (LIFETIME, COMPATIBILITY)
+  // LIFETIME 운세의 경우 상세 프롬프트 사용
+  if (fortuneType === FortuneType.LIFETIME) {
+    return generateLifetimeUserPrompt(chartData as ChartData);
+  }
+
+  // COMPATIBILITY 운세의 경우 두 사람의 상세 프롬프트 사용
+  if (fortuneType === FortuneType.COMPATIBILITY && compatibilityChartData) {
+    return generateCompatibilityUserPrompt(
+      chartData as ChartData,
+      compatibilityChartData as ChartData,
+    );
+  }
+
+  // 폴백: 기존 압축 방식 (사용되지 않을 것으로 예상)
   const reportTypeDesc = getReportTypeDescription(fortuneType);
   const compressedData = compressChartData(chartData);
 
