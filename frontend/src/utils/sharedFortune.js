@@ -9,10 +9,14 @@
  */
 export async function loadSharedFortune(shareId) {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  
   const response = await fetch(`${supabaseUrl}/functions/v1/get-fortune?id=${shareId}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'apikey': supabaseAnonKey,
     },
   })
 

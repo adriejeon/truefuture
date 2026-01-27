@@ -777,7 +777,39 @@ serve(async (req) => {
       });
     }
 
-    // Supabase Admin 클라이언트 생성 (인증된 요청용)
+    // 🔒 [보안 강화] 실제 유저 토큰 검증
+    // Authorization 헤더에서 토큰 추출 (Bearer 제거)
+    const token = authHeader.replace("Bearer ", "");
+    
+    // 해당 토큰으로 Supabase 클라이언트 생성 (유저 검증용)
+    const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+    
+    // 실제 유저 정보 검증
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error("❌ 유저 토큰 검증 실패:", authError);
+      return new Response(
+        JSON.stringify({ 
+          error: "Unauthorized: 유효한 사용자 인증이 필요합니다.",
+          details: authError?.message || "Invalid user token"
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    
+    console.log("✅ 유저 인증 성공:", user.id);
+
+    // Supabase Admin 클라이언트 생성 (DB 저장용)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 요청 본문 파싱
