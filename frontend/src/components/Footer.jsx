@@ -1,9 +1,12 @@
-import { Link } from 'react-router-dom'
+import { Link } from "react-router-dom";
 
 function Footer() {
   return (
-    <footer className="mt-auto py-6 sm:py-8 pb-24 sm:pb-28 border-t border-slate-700">
-      <div className="max-w-4xl mx-auto px-4">
+    <footer
+      className="mt-auto py-6 sm:py-8 pb-24 sm:pb-28 border-t border-white/10"
+      style={{ backgroundColor: "#0F0F2B" }}
+    >
+      <div className="max-w-[600px] mx-auto px-6">
         {/* 회사 정보 */}
         <div className="text-center mb-6 text-sm text-slate-400 space-y-1">
           <p className="font-semibold text-slate-300">진짜미래</p>
@@ -11,8 +14,8 @@ function Footer() {
           <p>사업자등록번호 344-30-02017</p>
           <p>통신판매번호 2026-서울관악-0149</p>
           <p>
-            <a 
-              href="mailto:jupiteradrie@gmail.com" 
+            <a
+              href="mailto:jupiteradrie@gmail.com"
               className="hover:text-white transition-colors duration-200"
             >
               jupiteradrie@gmail.com
@@ -43,7 +46,7 @@ function Footer() {
         </p>
       </div>
     </footer>
-  )
+  );
 }
 
-export default Footer
+export default Footer;
