@@ -56,3 +56,34 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+/* Article 이미지 교차 애니메이션 */
+@keyframes article-cross-fade-1 {
+  0%, 100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: rotate(180deg) scale(1.1);
+  }
+}
+
+@keyframes article-cross-fade-2 {
+  0%, 100% {
+    opacity: 1;
+    transform: rotate(180deg) scale(1.1);
+  }
+  50% {
+    opacity: 1;
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.animate-article-cross-fade-1 {
+  animation: article-cross-fade-1 6s ease-in-out infinite;
+}
+
+.animate-article-cross-fade-2 {
+  animation: article-cross-fade-2 6s ease-in-out infinite;
+}

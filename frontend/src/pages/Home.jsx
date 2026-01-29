@@ -617,12 +617,27 @@ function Home() {
       >
         {/* 메인 이미지 */}
         {!user && !interpretation && (
-          <div>
+          <div className="relative w-full inline-block">
             <img
               src="/assets/main.png"
               alt="진짜미래"
-              className="w-full h-auto object-contain"
+              className="w-full h-auto object-contain block"
             />
+            {/* 중앙 애니메이션 영역 */}
+            <div className="absolute top-[44.5%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[15%] sm:w-[12%] md:w-[10%] max-w-[320px] aspect-square z-10">
+              {/* Article 이미지 1 */}
+              <img
+                src="/assets/article.png"
+                alt=""
+                className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-1"
+              />
+              {/* Article 이미지 2 */}
+              <img
+                src="/assets/article1.png"
+                alt=""
+                className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-2"
+              />
+            </div>
           </div>
         )}
 
