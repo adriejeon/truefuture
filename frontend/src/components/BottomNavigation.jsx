@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { colors } from "../constants/colors";
 
 function BottomNavigation({ activeTab }) {
   const location = useLocation();
@@ -75,7 +76,10 @@ function BottomNavigation({ activeTab }) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 z-50">
+    <nav
+      className="fixed bottom-0 left-0 right-0 border-t border-slate-700 z-50"
+      style={{ backgroundColor: "#0F0F2B" }}
+    >
       <div className="max-w-4xl mx-auto">
         <div className="grid grid-cols-3 divide-x divide-slate-700">
           {tabs.map((tab) => {
@@ -88,12 +92,13 @@ function BottomNavigation({ activeTab }) {
                 className={`
                   flex flex-col items-center justify-center py-3 px-2 sm:py-4 sm:px-4
                   transition-colors duration-200
-                  ${
-                    isActive
-                      ? "bg-slate-700 text-blue-400"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                  }
+                  ${isActive ? "text-primary" : "hover:text-white hover:bg-slate-800/50"}
                 `}
+                style={
+                  isActive
+                    ? { backgroundColor: "#343261", color: colors.primary }
+                    : { color: colors.subText }
+                }
               >
                 <div className="mb-1">{tab.icon}</div>
                 <span className="text-xs sm:text-sm font-medium text-center">

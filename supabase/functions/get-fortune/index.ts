@@ -257,11 +257,15 @@ async function callGeminiAPI(
         body: JSON.stringify(requestBody),
       });
 
-      // 429 Rate Limit 에러인 경우 재시도
-      if (response.status === 429) {
+      // 429 Rate Limit 또는 503 Service Unavailable 에러인 경우 재시도
+      if (response.status === 429 || response.status === 503) {
         if (attempt < maxRetries) {
+          const statusMessage =
+            response.status === 429
+              ? "429 Too Many Requests"
+              : "503 Service Unavailable (Model Overloaded)";
           console.warn(
-            `⚠️ 429 Too Many Requests. ${delay}ms 후 재시도합니다... (남은 시도: ${maxRetries - attempt})`,
+            `⚠️ ${statusMessage}. ${delay}ms 후 재시도합니다... (남은 시도: ${maxRetries - attempt})`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2; // 지수 백오프: 1000ms -> 2000ms -> 4000ms
@@ -269,20 +273,26 @@ async function callGeminiAPI(
         } else {
           // 최대 재시도 횟수 초과
           const errorText = await response.text();
+          const statusMessage =
+            response.status === 429
+              ? "Rate Limit 초과 (429)"
+              : "Service Unavailable (503)";
           console.error("\n" + "=".repeat(60));
-          console.error("❌ Gemini API Rate Limit 초과 (429)");
+          console.error(`❌ Gemini API ${statusMessage}`);
           console.error("=".repeat(60));
           console.error("최대 재시도 횟수(3회)를 초과했습니다.");
           console.error("에러 응답:", errorText);
           console.error("=".repeat(60) + "\n");
 
+          const errorType =
+            response.status === 429 ? "Quota Exceeded" : "Service Unavailable";
           throw new Error(
-            `Gemini API Quota Exceeded (429): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`,
+            `Gemini API ${errorType} (${response.status}): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`,
           );
         }
       }
 
-      // 429가 아닌 다른 에러 처리
+      // 429, 503이 아닌 다른 에러 처리
       if (!response.ok) {
         const errorText = await response.text();
         console.error("\n" + "=".repeat(60));
@@ -329,7 +339,7 @@ async function callGeminiAPI(
       return apiResponse;
     } catch (error: any) {
       // 네트워크 에러나 기타 예외는 재시도하지 않고 바로 던짐
-      // (429 에러는 위의 response.status === 429에서 처리됨)
+      // (429, 503 에러는 위의 response.status 체크에서 처리됨)
       console.error("\n" + "=".repeat(60));
       console.error("❌ Gemini API 호출 중 예외 발생");
       console.error("=".repeat(60));
@@ -680,13 +690,18 @@ serve(async (req) => {
     // - SUPABASE_SERVICE_ROLE_KEY
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("❌ Supabase 환경 변수가 설정되지 않았습니다.");
       console.error("SUPABASE_URL:", supabaseUrl ? "설정됨" : "누락");
-      console.error("SUPABASE_SERVICE_ROLE_KEY:", supabaseServiceKey ? "설정됨" : "누락");
+      console.error(
+        "SUPABASE_SERVICE_ROLE_KEY:",
+        supabaseServiceKey ? "설정됨" : "누락",
+      );
       return new Response(
-        JSON.stringify({ error: "서버 설정 오류: Supabase 환경 변수가 필요합니다." }),
+        JSON.stringify({
+          error: "서버 설정 오류: Supabase 환경 변수가 필요합니다.",
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -700,7 +715,7 @@ serve(async (req) => {
       url = new URL(req.url);
     } catch {
       // 상대 경로인 경우 절대 URL로 변환
-      const baseUrl = supabaseUrl.replace(/\/rest\/v1$/, '');
+      const baseUrl = supabaseUrl.replace(/\/rest\/v1$/, "");
       url = new URL(req.url, baseUrl);
     }
     const id = url.searchParams.get("id");
@@ -712,16 +727,16 @@ serve(async (req) => {
         auth: {
           autoRefreshToken: false,
           persistSession: false,
-          detectSessionInUrl: false
+          detectSessionInUrl: false,
         },
         global: {
           headers: {
             // 들어오는 요청의 토큰을 무시하고 Service Key로 덮어씌움
-            Authorization: `Bearer ${supabaseServiceKey}`
-          }
-        }
+            Authorization: `Bearer ${supabaseServiceKey}`,
+          },
+        },
       });
-      
+
       // DB 조회 및 반환 로직 (Auth 검사 없이 진행)
       const { data, error } = await supabaseAdmin
         .from("fortune_results")
@@ -761,7 +776,9 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Authorization header가 필요합니다." }),
+        JSON.stringify({
+          error: "Unauthorized: Authorization header가 필요합니다.",
+        }),
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -780,7 +797,7 @@ serve(async (req) => {
     // 🔒 [보안 강화] 실제 유저 토큰 검증
     // Authorization 헤더에서 토큰 추출 (Bearer 제거)
     const token = authHeader.replace("Bearer ", "");
-    
+
     // 해당 토큰으로 Supabase 클라이언트 생성 (유저 검증용)
     const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
       global: {
@@ -789,16 +806,19 @@ serve(async (req) => {
         },
       },
     });
-    
+
     // 실제 유저 정보 검증
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAuth.auth.getUser(token);
+
     if (authError || !user) {
       console.error("❌ 유저 토큰 검증 실패:", authError);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "Unauthorized: 유효한 사용자 인증이 필요합니다.",
-          details: authError?.message || "Invalid user token"
+          details: authError?.message || "Invalid user token",
         }),
         {
           status: 401,
@@ -806,7 +826,7 @@ serve(async (req) => {
         },
       );
     }
-    
+
     console.log("✅ 유저 인증 성공:", user.id);
 
     // Supabase Admin 클라이언트 생성 (DB 저장용)
@@ -875,12 +895,14 @@ serve(async (req) => {
       let birthDateTime2: Date;
       try {
         // 사용자1: KST를 UTC로 변환 (Date.UTC 사용)
-        const dateMatch1 = user1.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+        const dateMatch1 = user1.birthDate.match(
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
+        );
         if (!dateMatch1) {
           throw new Error("Invalid date format for user1");
         }
         const [_, year1, month1, day1, hour1, minute1, second1] = dateMatch1;
-        
+
         // Date.UTC로 타임스탬프 생성 후 9시간 차감
         const tempUtcTimestamp1 = Date.UTC(
           parseInt(year1),
@@ -888,18 +910,20 @@ serve(async (req) => {
           parseInt(day1),
           parseInt(hour1),
           parseInt(minute1),
-          parseInt(second1)
+          parseInt(second1),
         );
-        const kstToUtcTimestamp1 = tempUtcTimestamp1 - (9 * 60 * 60 * 1000);
+        const kstToUtcTimestamp1 = tempUtcTimestamp1 - 9 * 60 * 60 * 1000;
         birthDateTime1 = new Date(kstToUtcTimestamp1);
-        
+
         // 사용자2: KST를 UTC로 변환 (Date.UTC 사용)
-        const dateMatch2 = user2.birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+        const dateMatch2 = user2.birthDate.match(
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
+        );
         if (!dateMatch2) {
           throw new Error("Invalid date format for user2");
         }
         const [__, year2, month2, day2, hour2, minute2, second2] = dateMatch2;
-        
+
         // Date.UTC로 타임스탬프 생성 후 9시간 차감
         const tempUtcTimestamp2 = Date.UTC(
           parseInt(year2),
@@ -907,20 +931,24 @@ serve(async (req) => {
           parseInt(day2),
           parseInt(hour2),
           parseInt(minute2),
-          parseInt(second2)
+          parseInt(second2),
         );
-        const kstToUtcTimestamp2 = tempUtcTimestamp2 - (9 * 60 * 60 * 1000);
+        const kstToUtcTimestamp2 = tempUtcTimestamp2 - 9 * 60 * 60 * 1000;
         birthDateTime2 = new Date(kstToUtcTimestamp2);
-        
+
         if (
           isNaN(birthDateTime1.getTime()) ||
           isNaN(birthDateTime2.getTime())
         ) {
           throw new Error("Invalid date format");
         }
-        
-        console.log(`🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`);
-        console.log(`🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`);
+
+        console.log(
+          `🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`,
+        );
+        console.log(
+          `🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`,
+        );
       } catch (error) {
         return new Response(
           JSON.stringify({
@@ -1044,7 +1072,9 @@ serve(async (req) => {
       }
 
       // 성공 응답 반환
-      console.log(`📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || 'null'}`);
+      console.log(
+        `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`,
+      );
       return new Response(
         JSON.stringify({
           success: true,
@@ -1087,38 +1117,42 @@ serve(async (req) => {
     try {
       // 사용자 입력을 KST(한국 시간, GMT+9)로 간주하고 UTC로 변환
       // 예: 1991-10-23T09:20:00 (KST) -> 1991-10-23T00:20:00Z (UTC)
-      
+
       // ISO 형식 문자열 파싱: YYYY-MM-DDTHH:mm:ss
-      const dateMatch = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+      const dateMatch = birthDate.match(
+        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
+      );
       if (!dateMatch) {
         throw new Error("Invalid date format. Expected YYYY-MM-DDTHH:mm:ss");
       }
-      
+
       const [_, year, month, day, hour, minute, second] = dateMatch;
-      
+
       // [핵심 수정] Date.UTC()를 사용하여 로컬 타임존 영향 제거
       // 1. 입력된 숫자를 일단 "UTC 기준 시간"으로 만듦 (예: UTC 09:20)
       const tempUtcTimestamp = Date.UTC(
         parseInt(year),
-        parseInt(month) - 1,  // JavaScript month는 0-based
+        parseInt(month) - 1, // JavaScript month는 0-based
         parseInt(day),
         parseInt(hour),
         parseInt(minute),
-        parseInt(second)
+        parseInt(second),
       );
-      
+
       // 2. 거기서 9시간(KST Offset)을 뺌
       // 원리: "UTC 09:20" - 9시간 = "UTC 00:20" (이게 바로 KST 09:20과 같은 절대 시간)
-      const kstToUtcTimestamp = tempUtcTimestamp - (9 * 60 * 60 * 1000);
-      
+      const kstToUtcTimestamp = tempUtcTimestamp - 9 * 60 * 60 * 1000;
+
       // 3. 최종 Date 객체 생성
       birthDateTime = new Date(kstToUtcTimestamp);
-      
+
       if (isNaN(birthDateTime.getTime())) {
         throw new Error("Invalid date format");
       }
-      
-      console.log(`🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`);
+
+      console.log(
+        `🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`,
+      );
     } catch (error) {
       return new Response(
         JSON.stringify({
@@ -1187,52 +1221,58 @@ serve(async (req) => {
         const now = new Date();
         // birthDateTime은 이미 위에서 KST -> UTC 변환됨 (line 982-1016에서 처리)
         // 여기서는 이미 변환된 birthDateTime을 사용
-        
+
         // 1. 현재 적용 중인 Solar Return 연도 결정
         const solarReturnYear = getActiveSolarReturnYear(birthDateTime, now);
         console.log(`📅 Solar Return Year: ${solarReturnYear}`);
-        
+
         // 2. Natal 태양의 황경
         const natalSunLongitude = chartData.planets.sun.degree;
-        
+
         // 3. Solar Return 날짜/시간 계산
         const solarReturnDateTime = calculateSolarReturnDateTime(
           birthDateTime,
           solarReturnYear,
           natalSunLongitude,
         );
-        console.log(`🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`);
-        
+        console.log(
+          `🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`,
+        );
+
         // 4. Solar Return 차트 계산
         // 하우스 계산을 위해 Timezone Offset을 전달 (경도 기반 계산)
         // 경도 15도 = 1시간, 동경은 +, 서경은 -
         const timezoneOffsetHours = Math.round(lng / 15);
-        console.log(`🌍 Timezone Offset (경도 ${lng}° 기준): ${timezoneOffsetHours}시간`);
-        
-        solarReturnChartData = await calculateChart(
-          solarReturnDateTime, 
-          { lat, lng },
-          timezoneOffsetHours  // 하우스 계산용 Timezone Offset
+        console.log(
+          `🌍 Timezone Offset (경도 ${lng}° 기준): ${timezoneOffsetHours}시간`,
         );
-        
+
+        solarReturnChartData = await calculateChart(
+          solarReturnDateTime,
+          { lat, lng },
+          timezoneOffsetHours, // 하우스 계산용 Timezone Offset
+        );
+
         // 5. Profection 계산 (Solar Return 모드: 단순 연도 차이 사용)
-        const natalAscSign = getSignFromLongitude(chartData.houses.angles.ascendant).sign;
+        const natalAscSign = getSignFromLongitude(
+          chartData.houses.angles.ascendant,
+        ).sign;
         profectionData = calculateProfection(
           birthDateTime,
           solarReturnDateTime,
           natalAscSign,
-          true  // isSolarReturn = true: 단순 연도 차이로 나이 계산
+          true, // isSolarReturn = true: 단순 연도 차이로 나이 계산
         );
-        
+
         // 6. Solar Return Overlay 계산
-        solarReturnOverlay = getSolarReturnOverlays(chartData, solarReturnChartData);
-        
+        solarReturnOverlay = getSolarReturnOverlays(
+          chartData,
+          solarReturnChartData,
+        );
+
         console.log(`✅ YEARLY 운세 데이터 계산 완료`);
       } catch (yearlyError: any) {
-        console.error(
-          "⚠️ YEARLY 운세 계산 실패:",
-          yearlyError,
-        );
+        console.error("⚠️ YEARLY 운세 계산 실패:", yearlyError);
         // YEARLY 계산 실패 시 에러 반환
         return new Response(
           JSON.stringify({
@@ -1325,7 +1365,9 @@ serve(async (req) => {
     }
 
     // 성공 응답 반환
-    console.log(`📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || 'null'}`);
+    console.log(
+      `📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || "null"}`,
+    );
     const responseData: any = {
       success: true,
       chart: chartData,

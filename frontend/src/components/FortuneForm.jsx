@@ -47,8 +47,13 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
       style={{ overflow: "visible", position: "relative", zIndex: 1 }}
     >
       <div
-        className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
-        style={{ overflow: "visible", position: "relative", zIndex: 50 }}
+        className="backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
+        style={{
+          overflow: "visible",
+          position: "relative",
+          zIndex: 50,
+          backgroundColor: "rgba(15, 15, 43, 0.3)",
+        }}
       >
         <div
           className="space-y-3 sm:space-y-4"
@@ -59,7 +64,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
             <div className="flex-1 w-full min-w-0">
               <label
                 htmlFor="birthDate"
-                className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2"
+                className="block text-base font-medium text-slate-300 mb-1.5 sm:mb-2"
               >
                 생년월일
               </label>
@@ -69,14 +74,15 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
                 required
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
+                style={{ backgroundColor: "#0F0F2B" }}
               />
             </div>
 
             <div className="flex-1 w-full min-w-0">
               <label
                 htmlFor="birthTime"
-                className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2"
+                className="block text-base font-medium text-slate-300 mb-1.5 sm:mb-2"
               >
                 태어난 시간
               </label>
@@ -86,7 +92,8 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
                 value={birthTime}
                 onChange={(e) => setBirthTime(e.target.value)}
                 required
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
+                style={{ backgroundColor: "#0F0F2B" }}
               />
             </div>
           </div>
@@ -94,7 +101,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
           <div style={{ position: "relative", zIndex: 10002 }}>
             <label
               htmlFor="cityInput"
-              className="block text-xs sm:text-sm font-medium text-slate-300 mb-1.5 sm:mb-2"
+              className="block text-base font-medium text-slate-300 mb-1.5 sm:mb-2"
             >
               태어난 도시
             </label>
@@ -112,8 +119,13 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-sm sm:text-base bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3"
-        style={{ zIndex: 1, position: "relative" }}
+        className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3 hover:shadow-[0_0_8px_rgba(97,72,235,0.3),0_0_12px_rgba(255,82,82,0.2)]"
+        style={{
+          zIndex: 1,
+          position: "relative",
+          background:
+            "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
+        }}
       >
         {loading ? (
           <>

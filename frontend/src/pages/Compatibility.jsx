@@ -1,39 +1,46 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import PageTitle from "../components/PageTitle";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
-import UserInfo from "../components/UserInfo";
 import FortuneResult from "../components/FortuneResult";
 import SocialLoginButtons from "../components/SocialLoginButtons";
+import ProfileSelector from "../components/ProfileSelector";
+import ProfileModal from "../components/ProfileModal";
 import { useAuth } from "../hooks/useAuth";
+import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
 
 function Compatibility() {
-  const { user, loadingAuth, logout } = useAuth();
+  const { user, loadingAuth } = useAuth();
+  const {
+    profiles,
+    selectedProfile,
+    loading: profilesLoading,
+    createProfile,
+    selectProfile,
+  } = useProfiles();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [interpretation, setInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // 두 사람의 데이터를 각각 관리
-  const [myData, setMyData] = useState(null);
-  const [partnerData, setPartnerData] = useState(null);
+  // 두 사람의 프로필 선택
+  const [profile1, setProfile1] = useState(null);
+  const [profile2, setProfile2] = useState(null);
   const [shareId, setShareId] = useState(null);
   const [isSharedFortune, setIsSharedFortune] = useState(false);
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showNoProfileModal, setShowNoProfileModal] = useState(false);
 
-  // 나의 정보 변경 핸들러
-  const handleMyDataChange = useCallback((data) => {
-    setMyData(data);
-  }, []);
-
-  // 상대방 정보 변경 핸들러
-  const handlePartnerDataChange = useCallback((data) => {
-    setPartnerData(data);
-  }, []);
+  // 프로필이 변경되면 첫 번째 프로필 자동 선택
+  useEffect(() => {
+    if (profiles.length > 0 && !profile1) {
+      setProfile1(selectedProfile || profiles[0]);
+    }
+  }, [profiles, profile1, selectedProfile]);
 
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
@@ -74,28 +81,57 @@ function Compatibility() {
     navigate("/");
   };
 
-  // 데이터를 API 형식으로 변환하는 함수
-  const convertToApiFormat = (data) => {
-    if (
-      !data ||
-      !data.birthDate ||
-      !data.birthTime ||
-      !data.cityData?.lat ||
-      !data.cityData?.lng
-    ) {
+  // 프로필 데이터를 API 형식으로 변환하는 함수
+  const convertProfileToApiFormat = (profile) => {
+    if (!profile) {
       return null;
     }
 
-    // YYYY.MM.DD HH:mm 형식을 ISO 형식으로 변환
-    const dateStr = data.birthDate.replace(/\./g, "-");
-    const birthDateTime = `${dateStr}T${data.birthTime}:00`;
-
     return {
-      birthDate: birthDateTime,
-      lat: data.cityData.lat,
-      lng: data.cityData.lng,
+      birthDate: profile.birth_date.substring(0, 19),
+      lat: profile.lat,
+      lng: profile.lng,
     };
   };
+
+  // 프로필이 없을 때 모달 표시
+  useEffect(() => {
+    if (
+      user &&
+      !profilesLoading &&
+      profiles.length === 0 &&
+      !showNoProfileModal &&
+      !isSharedFortune
+    ) {
+      setShowNoProfileModal(true);
+    }
+  }, [user, profilesLoading, profiles, showNoProfileModal, isSharedFortune]);
+
+  // 프로필이 생성되면 모달 닫기
+  useEffect(() => {
+    if (profiles.length > 0) {
+      setShowNoProfileModal(false);
+      setShowProfileModal(false);
+    }
+  }, [profiles]);
+
+  // 선택된 프로필 변경 시 운세 결과 초기화
+  useEffect(() => {
+    if ((profile1 || profile2) && !isSharedFortune) {
+      setInterpretation("");
+      setShareId(null);
+      setError("");
+    }
+  }, [profile1?.id, profile2?.id, isSharedFortune]);
+
+  // 프로필 생성 핸들러
+  const handleCreateProfile = useCallback(
+    async (profileData) => {
+      await createProfile(profileData);
+      // 프로필 생성 후 모달은 ProfileModal의 onClose에서 처리됨
+    },
+    [createProfile],
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,17 +142,28 @@ function Compatibility() {
       return;
     }
 
-    // 두 사람의 데이터가 모두 입력되었는지 확인
-    const user1 = convertToApiFormat(myData);
-    const user2 = convertToApiFormat(partnerData);
-
-    if (!user1) {
-      setError("나의 정보를 모두 입력해주세요.");
+    // 두 프로필이 선택되었는지 확인
+    if (!profile1) {
+      setError("첫 번째 프로필을 선택해주세요.");
       return;
     }
 
-    if (!user2) {
-      setError("상대방 정보를 모두 입력해주세요.");
+    if (!profile2) {
+      setError("두 번째 프로필을 선택해주세요.");
+      return;
+    }
+
+    if (profile1.id === profile2.id) {
+      setError("서로 다른 프로필을 선택해주세요.");
+      return;
+    }
+
+    // 두 사람의 데이터 변환
+    const user1 = convertProfileToApiFormat(profile1);
+    const user2 = convertProfileToApiFormat(profile2);
+
+    if (!user1 || !user2) {
+      setError("프로필 정보가 올바르지 않습니다.");
       return;
     }
 
@@ -393,14 +440,12 @@ function Compatibility() {
               className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
               style={{ position: "relative", zIndex: 1 }}
             >
-              <PageTitle />
-
               {/* 공유된 운세 정보 표시 */}
               <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="text-2xl">🔮</div>
                   <div className="flex-1">
-                    <p className="text-purple-200 text-sm sm:text-base mb-2">
+                    <p className="text-purple-200 text-base mb-2">
                       친구가 공유한 <strong>궁합</strong>입니다.
                     </p>
                     {sharedUserInfo &&
@@ -441,7 +486,7 @@ function Compatibility() {
 
               {/* 로그인 유도 */}
               <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-                <p className="text-center text-slate-300 mb-4 text-sm sm:text-base">
+                <p className="text-center text-slate-300 mb-4 text-base">
                   나도 내 궁합을 확인하고 싶다면?
                 </p>
                 <SocialLoginButtons />
@@ -470,20 +515,20 @@ function Compatibility() {
         className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
-        <PageTitle />
-        <UserInfo user={user} onLogout={logout} />
-
-        {/* 궁합 폼 컨테이너 */}
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
-        >
-          {/* 나의 정보 */}
-          <BirthInputForm
-            title="💙 나의 정보"
-            storageKey="birth_info_me"
-            onDataChange={handleMyDataChange}
-          />
+        {/* 프로필 선택 드롭다운 - 폼 밖으로 분리 */}
+        <div className="mb-6 sm:mb-8 space-y-4">
+          {/* 첫 번째 프로필 선택 */}
+          <div>
+            <h3 className="font-semibold text-white mb-3 text-lg">
+              💙 첫 번째 사람
+            </h3>
+            <ProfileSelector
+              profiles={profiles}
+              selectedProfile={profile1}
+              onSelectProfile={setProfile1}
+              onCreateProfile={() => setShowProfileModal(true)}
+            />
+          </div>
 
           {/* VS 구분선 */}
           <div className="flex items-center justify-center py-2">
@@ -496,19 +541,49 @@ function Compatibility() {
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
           </div>
 
-          {/* 상대방 정보 */}
-          <BirthInputForm
-            title="💗 상대방 정보"
-            storageKey="birth_info_partner"
-            onDataChange={handlePartnerDataChange}
-          />
+          {/* 두 번째 프로필 선택 */}
+          <div>
+            <h3 className="font-semibold text-white mb-3 text-lg">
+              💗 두 번째 사람
+            </h3>
+            <ProfileSelector
+              profiles={profiles}
+              selectedProfile={profile2}
+              onSelectProfile={setProfile2}
+              onCreateProfile={() => setShowProfileModal(true)}
+            />
+          </div>
+        </div>
+
+        {/* 궁합 폼 컨테이너 */}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
+        >
+          {/* 운세 폼 */}
+          <div
+            className="backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
+            style={{
+              backgroundColor: "rgba(15, 15, 43, 0.3)",
+            }}
+          >
+            <h3 className="font-semibold text-white mb-4 text-xl">💕 궁합</h3>
+            <p className="text-slate-300 text-sm mb-4">
+              프로필을 선택한 후 궁합을 확인하세요.
+            </p>
+          </div>
 
           {/* 제출 버튼 */}
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-sm sm:text-base bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3"
-            style={{ zIndex: 1, position: "relative" }}
+            disabled={loading || !profile1 || !profile2}
+            className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3 hover:shadow-[0_0_8px_rgba(97,72,235,0.3),0_0_12px_rgba(255,82,82,0.2)]"
+            style={{
+              zIndex: 1,
+              position: "relative",
+              background:
+                "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
+            }}
           >
             {loading ? (
               <>
@@ -555,6 +630,62 @@ function Compatibility() {
         )}
       </div>
       {user && <BottomNavigation activeTab="compatibility" />}
+
+      {/* 프로필 등록 모달 */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => {
+          setShowProfileModal(false);
+          if (profiles.length === 0 && !isSharedFortune) {
+            setShowNoProfileModal(true);
+          }
+        }}
+        onSubmit={handleCreateProfile}
+      />
+
+      {/* 프로필 없음 안내 모달 */}
+      {showNoProfileModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] p-4">
+          <div
+            className="bg-[#0F0F2B] rounded-lg shadow-xl max-w-md w-full p-6 border border-slate-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <div className="w-full flex justify-center mb-4">
+                <img
+                  src="/assets/welcome.png"
+                  alt="환영합니다"
+                  className="max-w-[100px] h-auto"
+                />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                환영합니다!
+              </h2>
+              <p className="text-slate-300">
+                궁합을 확인하기 위해
+                <br />
+                최소 2개의 프로필이 필요합니다
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowNoProfileModal(false);
+                // 약간의 지연을 두어 모달이 완전히 닫힌 후 프로필 등록 모달 열기
+                setTimeout(() => {
+                  setShowProfileModal(true);
+                }, 100);
+              }}
+              className="w-full py-3 px-4 text-white font-medium rounded-lg transition-all"
+              style={{
+                background:
+                  "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
+              }}
+            >
+              프로필 등록하기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
