@@ -480,7 +480,7 @@ function YearlyFortune() {
                   <div className="text-2xl">🔮</div>
                   <div className="flex-1">
                     <p className="text-purple-200 text-base mb-2">
-                      친구가 공유한 <strong>1년 운세</strong>입니다.
+                      친구가 공유한 <strong>나만의 1년 공략법</strong>입니다.
                     </p>
                     {sharedUserInfo && (
                       <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
@@ -493,7 +493,7 @@ function YearlyFortune() {
 
               {/* 운세 결과 */}
               <FortuneResult
-                title="1년 운세"
+                title="나만의 1년 공략법"
                 interpretation={interpretation}
                 shareId={shareId}
                 isShared={true}
@@ -530,6 +530,19 @@ function YearlyFortune() {
         className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
+        {/* 페이지 소개 - 1년 운세 (Solar Return) */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">
+            나만의 1년 공략법
+          </h2>
+          <p className="text-slate-400 text-sm mb-3">
+            이번 연도 생일부터 다음 연도 생일까지.
+          </p>
+          <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+            남들과 똑같은 1월 1일은 잊으세요. 점성학의 1년은 내 생일부터 시작됩니다. 이번 생일부터 다음 생일까지, 내담자님에게 주어진 1년의 테마와 구체적인 행동 전략을 제안합니다.
+          </p>
+        </div>
+
         {/* 프로필 선택 드롭다운 - 폼 밖으로 분리 */}
         <div className="mb-6 sm:mb-8">
           <ProfileSelector
@@ -545,21 +558,6 @@ function YearlyFortune() {
           onSubmit={handleSubmit}
           className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
         >
-          {/* 운세 폼 */}
-          <div
-            className="backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
-            style={{
-              backgroundColor: "rgba(15, 15, 43, 0.3)",
-            }}
-          >
-            <h3 className="font-semibold text-white mb-4 text-xl">
-              ⭐ 1년 운세
-            </h3>
-            <p className="text-slate-300 text-sm mb-4">
-              프로필을 선택한 후 운세를 확인하세요.
-            </p>
-          </div>
-
           <button
             type="submit"
             disabled={loading || !selectedProfile}
@@ -608,7 +606,7 @@ function YearlyFortune() {
         )}
         {interpretation && (
           <FortuneResult
-            title="1년 운세"
+            title="나만의 1년 공략법"
             interpretation={interpretation}
             shareId={shareId}
           />

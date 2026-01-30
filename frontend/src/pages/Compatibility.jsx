@@ -447,7 +447,7 @@ function Compatibility() {
                   <div className="text-2xl">🔮</div>
                   <div className="flex-1">
                     <p className="text-purple-200 text-base mb-2">
-                      친구가 공유한 <strong>궁합</strong>입니다.
+                      친구가 공유한 <strong>관계의 화학작용 분석</strong>입니다.
                     </p>
                     {sharedUserInfo &&
                       sharedUserInfo.user1 &&
@@ -479,7 +479,7 @@ function Compatibility() {
 
               {/* 운세 결과 */}
               <FortuneResult
-                title="궁합"
+                title="관계의 화학작용 분석"
                 interpretation={interpretation}
                 shareId={shareId}
                 isShared={true}
@@ -516,6 +516,16 @@ function Compatibility() {
         className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
+        {/* 페이지 소개 - 궁합 (Synastry) */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+            관계의 화학작용 분석
+          </h2>
+          <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+            단순히 좋고 나쁨을 따지는 것이 아닙니다. 두 사람의 우주가 만났을 때 어떤 시너지가 나고 어디서 부딪히는지, 서로를 깊이 이해하고 조율하기 위한 지혜를 드립니다.
+          </p>
+        </div>
+
         {/* 프로필 선택 드롭다운 - 폼 밖으로 분리 */}
         <div className="mb-6 sm:mb-8 space-y-4">
           {/* 첫 번째 프로필 선택 */}
@@ -563,20 +573,6 @@ function Compatibility() {
           onSubmit={handleSubmit}
           className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
         >
-          {/* 운세 폼 */}
-          <div
-            className="backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
-            style={{
-              backgroundColor: "rgba(15, 15, 43, 0.3)",
-            }}
-          >
-            <h3 className="font-semibold text-white mb-4 text-xl">💕 궁합</h3>
-            <p className="text-slate-300 text-sm mb-4">
-              프로필을 선택한 후 궁합을 확인하세요.
-            </p>
-          </div>
-
-          {/* 제출 버튼 */}
           <button
             type="submit"
             disabled={loading || !profile1 || !profile2}
@@ -626,7 +622,7 @@ function Compatibility() {
         )}
         {interpretation && (
           <FortuneResult
-            title="궁합"
+            title="관계의 화학작용 분석"
             interpretation={interpretation}
             shareId={shareId}
           />

@@ -370,7 +370,7 @@ function LifetimeFortune() {
                   <div className="text-2xl">🔮</div>
                   <div className="flex-1">
                     <p className="text-purple-200 text-base mb-2">
-                      친구가 공유한 <strong>인생 종합운</strong>입니다.
+                      친구가 공유한 <strong>내 인생 사용 설명서</strong>입니다.
                     </p>
                     {sharedUserInfo && (
                       <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
@@ -384,7 +384,7 @@ function LifetimeFortune() {
               {/* 운세 결과 */}
               {console.log("[LifetimeFortune 렌더링] shareId:", shareId)}
               <FortuneResult
-                title="인생 종합운"
+                title="내 인생 사용 설명서"
                 interpretation={interpretation}
                 shareId={shareId}
                 isShared={true}
@@ -421,6 +421,16 @@ function LifetimeFortune() {
         className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
+        {/* 페이지 소개 - 종합 운세 (Natal Chart) */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+            내 인생 사용 설명서
+          </h2>
+          <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+            내담자님이 태어난 순간, 별들이 그려낸 고유한 설계도입니다. 내가 타고난 기질과 잠재력, 그리고 인생의 방향성을 확인하고 나를 가장 잘 쓰는 방법을 알아보세요.
+          </p>
+        </div>
+
         {/* 프로필 선택 드롭다운 - 폼 밖으로 분리 */}
         <div className="mb-6 sm:mb-8">
           <ProfileSelector
@@ -436,21 +446,6 @@ function LifetimeFortune() {
           onSubmit={handleSubmit}
           className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
         >
-          {/* 운세 폼 */}
-          <div
-            className="backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
-            style={{
-              backgroundColor: "rgba(15, 15, 43, 0.3)",
-            }}
-          >
-            <h3 className="font-semibold text-white mb-4 text-xl">
-              ✨ 인생 종합운
-            </h3>
-            <p className="text-slate-300 text-sm mb-4">
-              프로필을 선택한 후 운세를 확인하세요.
-            </p>
-          </div>
-
           <button
             type="submit"
             disabled={loading || !selectedProfile}
@@ -499,7 +494,7 @@ function LifetimeFortune() {
         )}
         {interpretation && (
           <FortuneResult
-            title="인생 종합운"
+            title="내 인생 사용 설명서"
             interpretation={interpretation}
             shareId={shareId}
           />

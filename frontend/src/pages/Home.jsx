@@ -814,6 +814,16 @@ function Home() {
             {!user ? null : (
               <>
                 <div className="py-8 sm:py-12">
+                  {/* 페이지 소개 - 오늘의 운세 */}
+                  <div className="mb-6 sm:mb-8">
+                    <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                      오늘의 우주 날씨
+                    </h2>
+                    <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                      비가 오면 우산을 챙기듯, 오늘의 운을 미리 확인하세요. 매일 달라지는 행성들의 배치가 오늘 당신의 기분과 사건에 어떤 영향을 주는지, 하루를 잘 보내기 위한 행동 팁을 알려드립니다.
+                    </p>
+                  </div>
+
                   {/* 프로필 선택 드롭다운 - 폼 밖으로 분리 */}
                   <div className="mb-6 sm:mb-8">
                     <ProfileSelector
@@ -858,7 +868,7 @@ function Home() {
                         </div>
                       </div>
                       <FortuneResult
-                        title="오늘의 운세"
+                        title="오늘의 우주 날씨"
                         interpretation={interpretation}
                         shareId={shareId}
                       />
@@ -872,21 +882,6 @@ function Home() {
                         onSubmit={handleSubmit}
                         className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
                       >
-                        {/* 운세 폼 */}
-                        <div
-                          className="backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
-                          style={{
-                            backgroundColor: "rgba(15, 15, 43, 0.3)",
-                          }}
-                        >
-                          <h3 className="font-semibold text-white mb-4 text-xl">
-                            🌅 오늘의 운세
-                          </h3>
-                          <p className="text-slate-300 text-sm mb-4">
-                            프로필을 선택한 후 운세를 확인하세요.
-                          </p>
-                        </div>
-
                         <button
                           type="submit"
                           disabled={loading || !selectedProfile}
@@ -939,7 +934,7 @@ function Home() {
                   {!loadingCache && interpretation && !fromCache && (
                     <div className="mt-8 sm:mt-12">
                       <FortuneResult
-                        title="오늘의 운세"
+                        title="오늘의 우주 날씨"
                         interpretation={interpretation}
                         shareId={shareId}
                       />
