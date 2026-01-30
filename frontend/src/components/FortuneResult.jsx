@@ -110,16 +110,9 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
   };
 
   return (
-    <div
-      className="backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700"
-      style={{
-        overflow: "visible",
-        position: "relative",
-        zIndex: 50,
-        backgroundColor: "rgba(15, 15, 43, 0.3)",
-      }}
-    >
-      <div className="flex items-center justify-between mb-3 sm:mb-4">
+    <>
+      {/* 제목과 공유 버튼 - 컨테이너 밖 */}
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-primary">{title}</h2>
 
         {/* 카카오톡 공유 버튼 - 공유된 운세가 아닐 때만 표시 */}
@@ -128,7 +121,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
             onClick={handleKakaoShare}
             className="flex items-center gap-2 px-2 py-1 font-medium transition-colors text-base hover:opacity-80"
             style={{ color: colors.subText }}
-            title="친구에게 공유하기"
+            title="공유"
           >
             <svg
               className="w-5 h-5"
@@ -143,19 +136,19 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
                 d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
               />
             </svg>
-            <span>친구에게 공유하기</span>
+            <span>공유</span>
           </button>
         ) : null}
       </div>
 
-      {/* Intro (서론) - 아코디언 바깥 상단에 표시 */}
+      {/* Intro (서론) - 컨테이너 밖 */}
       {intro && (
         <div className="mb-4 sm:mb-6 prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
           <ReactMarkdown>{intro}</ReactMarkdown>
         </div>
       )}
 
-      {/* 아코디언 섹션들 (## 헤더) */}
+      {/* 아코디언 섹션들 (## 헤더) - 컨테이너 밖 */}
       {accordionSections.length > 0 ? (
         <div className="space-y-2 sm:space-y-3">
           {accordionSections.map((section, index) => {
@@ -230,7 +223,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
           <ReactMarkdown>{interpretation}</ReactMarkdown>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
