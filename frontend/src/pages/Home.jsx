@@ -23,6 +23,7 @@ function Home() {
     selectedProfile,
     loading: profilesLoading,
     createProfile,
+    deleteProfile,
     selectProfile,
     checkFortuneAvailability,
     saveFortuneHistory,
@@ -820,6 +821,7 @@ function Home() {
                       selectedProfile={selectedProfile}
                       onSelectProfile={selectProfile}
                       onCreateProfile={() => setShowProfileModal(true)}
+                      onDeleteProfile={deleteProfile}
                     />
                   </div>
 

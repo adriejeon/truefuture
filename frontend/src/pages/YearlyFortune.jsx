@@ -18,6 +18,7 @@ function YearlyFortune() {
     selectedProfile,
     loading: profilesLoading,
     createProfile,
+    deleteProfile,
     selectProfile,
     checkFortuneAvailability,
     saveFortuneHistory,
@@ -536,6 +537,7 @@ function YearlyFortune() {
             selectedProfile={selectedProfile}
             onSelectProfile={selectProfile}
             onCreateProfile={() => setShowProfileModal(true)}
+            onDeleteProfile={deleteProfile}
           />
         </div>
 

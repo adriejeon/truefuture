@@ -5,14 +5,37 @@ function BottomNavigation({ activeTab }) {
   const location = useLocation();
 
   // 현재 경로에 따라 activeTab 결정
-  const currentTab = location.pathname.includes("/lifetime")
-    ? "lifetime"
-    : location.pathname.includes("/compatibility")
-      ? "compatibility"
-      : location.pathname.includes("/yearly")
-        ? "yearly"
-        : activeTab;
+  const currentTab =
+    location.pathname === "/" || location.pathname === "/home"
+      ? "today"
+      : location.pathname.includes("/lifetime")
+        ? "lifetime"
+        : location.pathname.includes("/compatibility")
+          ? "compatibility"
+          : location.pathname.includes("/yearly")
+            ? "yearly"
+            : activeTab;
   const tabs = [
+    {
+      id: "today",
+      path: "/",
+      label: "오늘의 운세",
+      icon: (
+        <svg
+          className="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+          />
+        </svg>
+      ),
+    },
     {
       id: "lifetime",
       path: "/lifetime",
@@ -81,7 +104,7 @@ function BottomNavigation({ activeTab }) {
       style={{ backgroundColor: "#0F0F2B" }}
     >
       <div className="max-w-4xl mx-auto">
-        <div className="grid grid-cols-3 divide-x divide-slate-700">
+        <div className="grid grid-cols-4 divide-x divide-slate-700">
           {tabs.map((tab) => {
             const isActive = currentTab === tab.id;
 

@@ -8,6 +8,7 @@ function ProfileSelector({
   selectedProfile,
   onSelectProfile,
   onCreateProfile,
+  onDeleteProfile,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -36,6 +37,21 @@ function ProfileSelector({
   const handleCreateClick = () => {
     setIsOpen(false);
     onCreateProfile();
+  };
+
+  const handleDeleteClick = async (e, profile) => {
+    e.stopPropagation();
+    if (!onDeleteProfile) return;
+    if (!window.confirm(`"${profile.name}" 프로필을 삭제할까요? 삭제된 프로필의 운세 이력도 함께 삭제됩니다.`)) {
+      return;
+    }
+    try {
+      await onDeleteProfile(profile.id);
+      setIsOpen(false);
+    } catch (err) {
+      console.error("프로필 삭제 실패:", err);
+      alert("프로필 삭제에 실패했습니다. 다시 시도해주세요.");
+    }
   };
 
   const formatBirthInfo = (profile) => {
@@ -98,41 +114,68 @@ function ProfileSelector({
           {profiles.length > 0 && (
             <div className="py-1">
               {profiles.map((profile) => (
-                <button
+                <div
                   key={profile.id}
-                  type="button"
-                  onClick={() => handleSelectProfile(profile)}
-                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-800/50 transition-colors ${
+                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-800/50 transition-colors group ${
                     selectedProfile?.id === profile.id
                       ? "bg-blue-900/30 border-l-4 border-blue-500"
                       : ""
                   }`}
                 >
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">
-                    {profile.name[0]}
-                  </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="font-medium text-white truncate">
-                      {profile.name}
-                    </p>
-                    <p className="text-xs text-slate-400 truncate">
-                      {formatBirthInfo(profile)} · {profile.city_name}
-                    </p>
-                  </div>
-                  {selectedProfile?.id === profile.id && (
-                    <svg
-                      className="w-5 h-5 text-blue-400 flex-shrink-0"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
+                  <button
+                    type="button"
+                    onClick={() => handleSelectProfile(profile)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">
+                      {profile.name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-white truncate">
+                        {profile.name}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {formatBirthInfo(profile)} · {profile.city_name}
+                      </p>
+                    </div>
+                    {selectedProfile?.id === profile.id && (
+                      <svg
+                        className="w-5 h-5 text-blue-400 flex-shrink-0"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                  {onDeleteProfile && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteClick(e, profile)}
+                      className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      title="프로필 삭제"
+                      aria-label={`${profile.name} 프로필 삭제`}
                     >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           )}

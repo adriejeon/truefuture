@@ -18,6 +18,7 @@ function LifetimeFortune() {
     selectedProfile,
     loading: profilesLoading,
     createProfile,
+    deleteProfile,
     selectProfile,
     checkFortuneAvailability,
     saveFortuneHistory,
@@ -427,6 +428,7 @@ function LifetimeFortune() {
             selectedProfile={selectedProfile}
             onSelectProfile={selectProfile}
             onCreateProfile={() => setShowProfileModal(true)}
+            onDeleteProfile={deleteProfile}
           />
         </div>
 

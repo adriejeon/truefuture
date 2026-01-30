@@ -18,6 +18,7 @@ function Compatibility() {
     selectedProfile,
     loading: profilesLoading,
     createProfile,
+    deleteProfile,
     selectProfile,
   } = useProfiles();
   const navigate = useNavigate();
@@ -527,6 +528,7 @@ function Compatibility() {
               selectedProfile={profile1}
               onSelectProfile={setProfile1}
               onCreateProfile={() => setShowProfileModal(true)}
+              onDeleteProfile={deleteProfile}
             />
           </div>
 
@@ -551,6 +553,7 @@ function Compatibility() {
               selectedProfile={profile2}
               onSelectProfile={setProfile2}
               onCreateProfile={() => setShowProfileModal(true)}
+              onDeleteProfile={deleteProfile}
             />
           </div>
         </div>
