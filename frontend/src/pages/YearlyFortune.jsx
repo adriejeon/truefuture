@@ -479,80 +479,71 @@ function YearlyFortune() {
     );
   }
 
-  // 공유 링크 확인 (URL에 id 파라미터가 있는지)
+  // 공유 링크: 로그인 여부 무관하게 '친구가 공유한 운세 결과'만 표시 (프로필 선택기 없음)
   const sharedId = searchParams.get("id");
-
-  if (!user) {
-    // 공유 링크로 들어온 경우 (id 파라미터가 있음)
-    if (sharedId) {
-      // 로딩 중이거나 결과가 있는 경우 표시
-      if (loading) {
-        return (
-          <div className="w-full flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-              <p className="text-slate-400 text-sm sm:text-base">
-                공유된 운세를 불러오는 중...
-              </p>
-            </div>
+  if (sharedId) {
+    if (loading) {
+      return (
+        <div className="w-full flex items-center justify-center py-20">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+            <p className="text-slate-400 text-sm sm:text-base">
+              공유된 운세를 불러오는 중...
+            </p>
           </div>
-        );
-      }
-
-      if (isSharedFortune && interpretation) {
-        return (
+        </div>
+      );
+    }
+    if (isSharedFortune && interpretation) {
+      return (
+        <div
+          className="w-full py-8 sm:py-12"
+          style={{ position: "relative", zIndex: 1 }}
+        >
           <div
-            className="w-full py-8 sm:py-12"
+            className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
             style={{ position: "relative", zIndex: 1 }}
           >
-            <div
-              className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
-              style={{ position: "relative", zIndex: 1 }}
-            >
-              {/* 공유된 운세 정보 표시 */}
-              <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="text-2xl">🔮</div>
-                  <div className="flex-1">
-                    <p className="text-purple-200 text-base mb-2">
-                      친구가 공유한 <strong>나만의 1년 공략법</strong>입니다.
-                    </p>
-                    {sharedUserInfo && (
-                      <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
-                        <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
-                      </div>
-                    )}
-                  </div>
+            {/* 상단: 친구가 공유한 결과임을 안내 + 친구 생년월일만 */}
+            <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="text-2xl">🔮</div>
+                <div className="flex-1">
+                  <p className="text-purple-200 text-base mb-2">
+                    친구가 공유한 운세 결과예요.
+                  </p>
+                  {sharedUserInfo?.birthDate && (
+                    <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
+                      <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
+            </div>
 
-              {/* 운세 결과 */}
-              <FortuneResult
-                title="나만의 1년 공략법"
-                interpretation={interpretation}
-                shareId={shareId}
-                isShared={true}
-              />
+            <FortuneResult
+              title="나만의 1년 공략법"
+              interpretation={interpretation}
+              shareId={shareId}
+              isShared={true}
+            />
 
-              {/* 로그인 유도 */}
+            {!user && (
               <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
                 <p className="text-center text-slate-300 mb-4 text-base">
                   나도 내 운세를 확인하고 싶다면?
                 </p>
                 <SocialLoginButtons />
               </div>
-            </div>
+            )}
           </div>
-        );
-      }
+        </div>
+      );
     }
+  }
 
-    // 공유 링크가 아니거나 로딩 실패한 경우에만 홈으로 리다이렉트
-    if (!sharedId && !loadingAuth) {
-      navigate("/");
-      return null;
-    }
-
+  if (!user && !loadingAuth) {
+    navigate("/");
     return null;
   }
 

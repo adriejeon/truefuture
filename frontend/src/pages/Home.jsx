@@ -16,6 +16,7 @@ import {
   redirectToExternalBrowser,
   getBrowserGuideMessage,
 } from "../utils/inAppBrowserDetector";
+import { formatBirthDate } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
 function Home() {
@@ -40,6 +41,7 @@ function Home() {
   const [loadingCache, setLoadingCache] = useState(false);
   const [shareId, setShareId] = useState(null); // 공유 ID 상태 추가
   const [isSharedFortune, setIsSharedFortune] = useState(false); // 공유된 운세인지 여부
+  const [sharedUserInfo, setSharedUserInfo] = useState(null); // 공유한 친구의 생년월일 등
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
 
@@ -217,6 +219,7 @@ function Home() {
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
       setShareId(id);
+      setSharedUserInfo(data.userInfo ?? null);
 
       // URL에서 id 파라미터 제거 (깔끔한 URL 유지)
       // setSearchParams({})
@@ -832,7 +835,7 @@ function Home() {
           </div>
         )}
 
-        {/* 공유된 운세 표시 (로그인 불필요) */}
+        {/* 공유된 운세 표시 (로그인 여부 무관 - 친구가 공유한 결과만 표시) */}
         {isSharedFortune && interpretation && (
           <div className="mb-6 sm:mb-8">
             <div className="p-4 bg-purple-900/30 border border-purple-600/50 rounded-lg mb-4">
@@ -840,11 +843,13 @@ function Home() {
                 <div className="text-2xl">🔮</div>
                 <div className="flex-1">
                   <p className="text-purple-200 text-base mb-2">
-                    친구가 공유한 운세입니다.
+                    친구가 공유한 운세 결과예요.
                   </p>
-                  <p className="text-purple-300/80 text-xs sm:text-sm">
-                    나도 내 운세를 확인하려면 로그인해주세요!
-                  </p>
+                  {sharedUserInfo?.birthDate && (
+                    <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 py-3 rounded">
+                      <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -855,7 +860,6 @@ function Home() {
               isShared={true}
             />
 
-            {/* 로그인 버튼 (공유 운세 하단) */}
             {!user && (
               <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
                 <p className="text-center text-slate-300 mb-4 text-base">
