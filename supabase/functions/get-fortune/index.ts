@@ -579,6 +579,8 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
+        // topK: 40,
+        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
@@ -603,6 +605,8 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
+        // topK: 40,
+        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
@@ -627,6 +631,8 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
+        // topK: 40,
+        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
@@ -651,6 +657,8 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
+        // topK: 40,
+        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
