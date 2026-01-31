@@ -10,6 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { colors } from "../constants/colors";
 import { supabase } from "../lib/supabaseClient";
+import { restoreFortuneIfExists } from "../services/fortuneService";
 import {
   detectInAppBrowser,
   redirectToExternalBrowser,
@@ -131,7 +132,7 @@ function Home() {
         setLoadingCache(false);
       }
     })();
-  }, [selectedProfile?.id, isSharedFortune, restoreFortuneIfExists]);
+  }, [selectedProfile?.id, isSharedFortune]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -323,53 +324,6 @@ function Home() {
     }
   };
 
-  // localStorage에 없을 때 DB에서 오늘의 운세 복구 (기기 변경 시)
-  const restoreFortuneIfExists = useCallback(
-    async (profileId) => {
-      if (!profileId) return null;
-
-      try {
-        const todayDate = getTodayDate();
-
-        const { data: historyRow, error: historyError } = await supabase
-          .from("fortune_history")
-          .select("result_id")
-          .eq("profile_id", profileId)
-          .eq("fortune_date", todayDate)
-          .eq("fortune_type", "daily")
-          .maybeSingle();
-
-        if (historyError || !historyRow?.result_id) {
-          return null;
-        }
-
-        const { data: resultRow, error: resultError } = await supabase
-          .from("fortune_results")
-          .select("id, fortune_text, chart_data")
-          .eq("id", historyRow.result_id)
-          .single();
-
-        if (resultError || !resultRow?.fortune_text) {
-          return null;
-        }
-
-        const cd = resultRow.chart_data || {};
-        return {
-          interpretation: resultRow.fortune_text,
-          chart: cd.chart ?? null,
-          transitChart: cd.transitChart ?? null,
-          aspects: cd.aspects ?? null,
-          transitMoonHouse: cd.transitMoonHouse ?? null,
-          shareId: resultRow.id,
-        };
-      } catch (err) {
-        console.error("❌ [복구] 오늘의 운세 복구 실패:", err);
-        return null;
-      }
-    },
-    [],
-  );
-
   // 페이지 로드 시 로컬스토리지에서 오늘의 운세 확인 (없으면 DB에서 복구)
   useEffect(() => {
     // 인증 상태가 로딩 중이면 대기 (새로고침 시 세션 복구 중 데이터 삭제 방지)
@@ -462,7 +416,7 @@ function Home() {
         setLoadingCache(false);
       }
     })();
-  }, [user, loadingAuth, profilesLoading, profiles, selectedProfile, restoreFortuneIfExists]);
+  }, [user, loadingAuth, profilesLoading, profiles, selectedProfile]);
 
   // 사용자 또는 프로필 변경 시 플래그 리셋
   useEffect(() => {

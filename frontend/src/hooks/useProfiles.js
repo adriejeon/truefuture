@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "./useAuth";
+import { saveFortuneHistory as saveFortuneHistoryToDb } from "../services/fortuneService";
 
 export function useProfiles() {
   const { user } = useAuth();
@@ -301,61 +302,15 @@ export function useProfiles() {
   const saveFortuneHistory = useCallback(
     async (profileId, fortuneType, resultId = null) => {
       if (!user || !profileId) return;
-
-      try {
-        const profile = profiles.find((p) => p.id === profileId);
-        if (!profile) return;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const historyData = {
-          user_id: user.id,
-          profile_id: profileId,
-          fortune_type: fortuneType,
-          fortune_date: today.toISOString().split("T")[0],
-          ...(resultId && { result_id: resultId }),
-        };
-
-        // 1년 운세의 경우 기간 계산
-        if (fortuneType === "yearly") {
-          const birthDate = new Date(profile.birth_date);
-          const currentYear = today.getFullYear();
-
-          // 올해 생일
-          const thisYearBirthday = new Date(
-            currentYear,
-            birthDate.getMonth(),
-            birthDate.getDate(),
-          );
-
-          // 다음 생일
-          const nextYearBirthday = new Date(
-            currentYear + 1,
-            birthDate.getMonth(),
-            birthDate.getDate(),
-          );
-
-          historyData.year_period_start = thisYearBirthday
-            .toISOString()
-            .split("T")[0];
-          historyData.year_period_end = new Date(
-            nextYearBirthday.getTime() - 86400000,
-          )
-            .toISOString()
-            .split("T")[0];
-        }
-
-        const { error: insertError } = await supabase
-          .from("fortune_history")
-          .insert(historyData);
-
-        if (insertError) throw insertError;
-
-        console.log("✅ 운세 조회 이력 저장 완료:", historyData);
-      } catch (err) {
-        console.error("운세 이력 저장 실패:", err);
-      }
+      const profile = profiles.find((p) => p.id === profileId);
+      if (!profile) return;
+      await saveFortuneHistoryToDb(
+        user.id,
+        profileId,
+        fortuneType,
+        resultId,
+        profile,
+      );
     },
     [user, profiles],
   );
