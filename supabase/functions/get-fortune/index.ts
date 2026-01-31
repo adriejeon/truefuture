@@ -579,8 +579,6 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
@@ -605,8 +603,6 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
@@ -631,8 +627,6 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
@@ -657,8 +651,6 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
         maxOutputTokens: 8000,
       },
     };
@@ -1085,7 +1077,7 @@ serve(async (req) => {
         );
       }
 
-      // Supabase에 운세 저장
+      // Supabase에 운세 저장 (복구용 chart_data 포함)
       let shareId: string | undefined;
       try {
         console.log("💾 [COMPATIBILITY] 운세 저장 시작...");
@@ -1106,6 +1098,10 @@ serve(async (req) => {
             },
             fortune_text: interpretation.interpretation,
             fortune_type: fortuneType,
+            chart_data: {
+              chart: chartData1,
+              chart2: chartData2,
+            },
           })
           .select("id")
           .single();
@@ -1395,14 +1391,16 @@ serve(async (req) => {
             aspects: aspects ?? null,
             transitMoonHouse: transitMoonHouse ?? null,
           }
-        : fortuneType === FortuneType.YEARLY && solarReturnChartData
+        : fortuneType === FortuneType.YEARLY
           ? {
               chart: chartData,
-              solarReturnChart: solarReturnChartData,
+              solarReturnChart: solarReturnChartData ?? null,
               profectionData: profectionData ?? null,
               solarReturnOverlay: solarReturnOverlay ?? null,
             }
-          : null;
+          : fortuneType === FortuneType.LIFETIME
+            ? { chart: chartData }
+            : null;
 
     try {
       console.log(`💾 [${fortuneType}] 운세 저장 시작...`);

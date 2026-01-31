@@ -107,7 +107,10 @@ function Home() {
     // localStorage 없음 → DB에서 오늘의 운세 복구 시도 (기기 변경/프로필 전환 시)
     (async () => {
       try {
-        const restored = await restoreFortuneIfExists(selectedProfile.id);
+        const restored = await restoreFortuneIfExists(
+          selectedProfile.id,
+          "daily",
+        );
         if (restored) {
           console.log("✅ [복구] 선택된 프로필의 오늘의 운세 DB에서 복구");
           setInterpretation(restored.interpretation);
@@ -392,7 +395,10 @@ function Home() {
     // localStorage 없음 → DB에서 오늘의 운세 복구 시도 (기기 변경 시)
     (async () => {
       try {
-        const restored = await restoreFortuneIfExists(selectedProfile.id);
+        const restored = await restoreFortuneIfExists(
+          selectedProfile.id,
+          "daily",
+        );
         if (restored) {
           console.log("✅ [복구] DB에서 오늘의 운세 복구 완료");
           setInterpretation(restored.interpretation);

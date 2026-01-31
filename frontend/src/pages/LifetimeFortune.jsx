@@ -9,6 +9,7 @@ import ProfileModal from "../components/ProfileModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
+import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
@@ -109,14 +110,34 @@ function LifetimeFortune() {
     }
   }, [profiles]);
 
-  // 선택된 프로필 변경 시 운세 결과 초기화
+  // 선택된 프로필 변경 시 운세 결과 초기화 후, DB에서 복구 시도 (기기 변경/탭 전환 시)
   useEffect(() => {
-    if (selectedProfile && !isSharedFortune) {
-      setInterpretation("");
-      setShareId(null);
-      setError("");
-    }
-  }, [selectedProfile?.id, isSharedFortune]);
+    if (!selectedProfile || isSharedFortune || !user) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const restored = await restoreFortuneIfExists(selectedProfile.id, "lifetime");
+        if (cancelled) return;
+        if (restored) {
+          console.log("✅ [복구] 인생 종합운 DB에서 복구");
+          setInterpretation(restored.interpretation);
+          setShareId(restored.shareId);
+          setError("");
+        } else {
+          setInterpretation("");
+          setShareId(null);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || "복구 중 오류가 발생했습니다.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProfile?.id, isSharedFortune, user]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(

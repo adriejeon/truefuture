@@ -86,23 +86,37 @@ export async function saveFortuneHistory(
 }
 
 /**
- * DB에서 오늘의 운세 복구 (기기 변경/프로필 전환 시)
+ * DB에서 운세 복구 (기기 변경/프로필 전환 시)
  * @param {string} profileId
+ * @param {string} fortuneType - 'daily' | 'lifetime' | 'yearly' | 'compatibility'
  * @returns {Promise<{interpretation, chart, transitChart, aspects, transitMoonHouse, shareId}|null>}
  */
-export async function restoreFortuneIfExists(profileId) {
+export async function restoreFortuneIfExists(profileId, fortuneType = "daily") {
   if (!profileId) return null;
 
   try {
     const todayDate = getTodayDate();
 
-    const { data: historyRow, error: historyError } = await supabase
+    // result_id가 있는 기록만 대상 (공통)
+    let historyQuery = supabase
       .from("fortune_history")
       .select("result_id")
       .eq("profile_id", profileId)
-      .eq("fortune_date", todayDate)
-      .eq("fortune_type", "daily")
-      .maybeSingle();
+      .eq("fortune_type", fortuneType)
+      .not("result_id", "is", null);
+
+    if (fortuneType === "daily") {
+      // Case A: 오늘 날짜인 daily만
+      historyQuery = historyQuery.eq("fortune_date", todayDate).maybeSingle();
+    } else {
+      // Case B: lifetime / yearly — 날짜 조건 없이 최신 1건
+      historyQuery = historyQuery
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    }
+
+    const { data: historyRow, error: historyError } = await historyQuery;
 
     if (historyError || !historyRow?.result_id) {
       return null;
@@ -128,7 +142,7 @@ export async function restoreFortuneIfExists(profileId) {
       shareId: resultRow.id,
     };
   } catch (err) {
-    console.error("❌ [복구] 오늘의 운세 복구 실패:", err);
+    console.error(`❌ [복구] ${fortuneType} 운세 복구 실패:`, err);
     return null;
   }
 }

@@ -9,6 +9,7 @@ import ProfileModal from "../components/ProfileModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
+import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
@@ -21,6 +22,7 @@ function Compatibility() {
     createProfile,
     deleteProfile,
     selectProfile,
+    saveFortuneHistory,
   } = useProfiles();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -118,14 +120,39 @@ function Compatibility() {
     }
   }, [profiles]);
 
-  // 선택된 프로필 변경 시 운세 결과 초기화
+  // profile1 변경 시 운세 결과 초기화 후, DB에서 궁합 복구 시도 (기기 변경/탭 전환 시)
+  // 복구는 profile1(본인) 기준 최신 1건만 조회하며, fortune_text만 표시 (상대방 정보는 fortune_results.user_info에 있으나 복구 시에는 텍스트만 표시)
   useEffect(() => {
-    if ((profile1 || profile2) && !isSharedFortune) {
-      setInterpretation("");
-      setShareId(null);
-      setError("");
-    }
-  }, [profile1?.id, profile2?.id, isSharedFortune]);
+    if (!profile1 || isSharedFortune || !user) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const restored = await restoreFortuneIfExists(
+          profile1.id,
+          "compatibility",
+        );
+        if (cancelled) return;
+        if (restored) {
+          console.log("✅ [복구] 궁합 운세 DB에서 복구");
+          setInterpretation(restored.interpretation);
+          setShareId(restored.shareId);
+          setError("");
+        } else {
+          setInterpretation("");
+          setShareId(null);
+        }
+      } catch (err) {
+        if (!cancelled)
+          setError(err.message || "복구 중 오류가 발생했습니다.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile1?.id, isSharedFortune, user]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -394,6 +421,14 @@ function Compatibility() {
 
       if (data.interpretation && typeof data.interpretation === "string") {
         setInterpretation(data.interpretation);
+        if (data.share_id) {
+          setShareId(data.share_id);
+          await saveFortuneHistory(
+            profile1.id,
+            "compatibility",
+            data.share_id,
+          );
+        }
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
       }
