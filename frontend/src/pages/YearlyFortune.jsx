@@ -35,6 +35,7 @@ function YearlyFortune() {
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
@@ -110,10 +111,12 @@ function YearlyFortune() {
     }
   }, [profiles]);
 
-  // 선택된 프로필 변경 시 운세 결과 초기화 후, DB에서 복구 시도 (기기 변경/탭 전환 시)
+  // 로그인 계정에 저장된 이전 결과 복구 (다른 기기/새로고침 후에도 결과 유지)
   useEffect(() => {
     if (!selectedProfile || isSharedFortune || !user) return;
+    if (searchParams.get("id")) return;
 
+    setRestoring(true);
     let cancelled = false;
 
     (async () => {
@@ -131,13 +134,15 @@ function YearlyFortune() {
         }
       } catch (err) {
         if (!cancelled) setError(err.message || "복구 중 오류가 발생했습니다.");
+      } finally {
+        if (!cancelled) setRestoring(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [selectedProfile?.id, isSharedFortune, user]);
+  }, [selectedProfile?.id, isSharedFortune, user, searchParams]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -445,9 +450,14 @@ function YearlyFortune() {
 
       if (data.interpretation && typeof data.interpretation === "string") {
         setInterpretation(data.interpretation);
+        if (data.share_id) setShareId(data.share_id);
 
-        // 운세 이력 저장
-        await saveFortuneHistory(selectedProfile.id, "yearly");
+        // 운세 이력 저장 (share_id를 result_id로 저장하여 복구 가능)
+        await saveFortuneHistory(
+          selectedProfile.id,
+          "yearly",
+          data.share_id ?? undefined,
+        );
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
       }
@@ -629,7 +639,12 @@ function YearlyFortune() {
             {error}
           </div>
         )}
-        {interpretation && (
+        {restoring && !interpretation && (
+          <div className="mb-6 py-8 text-center text-slate-400 text-sm">
+            이전 결과 불러오는 중...
+          </div>
+        )}
+        {!restoring && interpretation && (
           <FortuneResult
             title="나만의 1년 공략법"
             interpretation={interpretation}

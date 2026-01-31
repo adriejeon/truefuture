@@ -38,6 +38,7 @@ function Compatibility() {
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   // 프로필이 변경되면 첫 번째 프로필 자동 선택
   useEffect(() => {
@@ -120,11 +121,12 @@ function Compatibility() {
     }
   }, [profiles]);
 
-  // profile1 변경 시 운세 결과 초기화 후, DB에서 궁합 복구 시도 (기기 변경/탭 전환 시)
-  // 복구는 profile1(본인) 기준 최신 1건만 조회하며, fortune_text만 표시 (상대방 정보는 fortune_results.user_info에 있으나 복구 시에는 텍스트만 표시)
+  // 로그인 계정에 저장된 이전 궁합 결과 복구 (다른 기기/새로고침 후에도 결과 유지)
   useEffect(() => {
     if (!profile1 || isSharedFortune || !user) return;
+    if (searchParams.get("id")) return;
 
+    setRestoring(true);
     let cancelled = false;
 
     (async () => {
@@ -146,13 +148,15 @@ function Compatibility() {
       } catch (err) {
         if (!cancelled)
           setError(err.message || "복구 중 오류가 발생했습니다.");
+      } finally {
+        if (!cancelled) setRestoring(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [profile1?.id, isSharedFortune, user]);
+  }, [profile1?.id, isSharedFortune, user, searchParams]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -659,7 +663,12 @@ function Compatibility() {
             {error}
           </div>
         )}
-        {interpretation && (
+        {restoring && !interpretation && (
+          <div className="mb-6 py-8 text-center text-slate-400 text-sm">
+            이전 결과 불러오는 중...
+          </div>
+        )}
+        {!restoring && interpretation && (
           <FortuneResult
             title="관계의 화학작용 분석"
             interpretation={interpretation}
