@@ -297,9 +297,9 @@ export function useProfiles() {
     [user, profiles],
   );
 
-  // 운세 조회 이력 저장
+  // 운세 조회 이력 저장 (resultId: share_id, fortune_results.id - 기기 변경 시 복구용)
   const saveFortuneHistory = useCallback(
-    async (profileId, fortuneType) => {
+    async (profileId, fortuneType, resultId = null) => {
       if (!user || !profileId) return;
 
       try {
@@ -314,6 +314,7 @@ export function useProfiles() {
           profile_id: profileId,
           fortune_type: fortuneType,
           fortune_date: today.toISOString().split("T")[0],
+          ...(resultId && { result_id: resultId }),
         };
 
         // 1년 운세의 경우 기간 계산

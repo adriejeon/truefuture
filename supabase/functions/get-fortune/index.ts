@@ -737,10 +737,10 @@ serve(async (req) => {
         },
       });
 
-      // DB 조회 및 반환 로직 (Auth 검사 없이 진행)
+      // DB 조회 및 반환 로직 (Auth 검사 없이 진행, 복구용 chart_data 포함)
       const { data, error } = await supabaseAdmin
         .from("fortune_results")
-        .select("fortune_text, user_info, fortune_type, created_at")
+        .select("fortune_text, user_info, fortune_type, created_at, chart_data")
         .eq("id", id)
         .single();
 
@@ -755,7 +755,7 @@ serve(async (req) => {
         );
       }
 
-      // 성공 응답 반환
+      // 성공 응답 반환 (복구 시 chart_data 활용 가능)
       return new Response(
         JSON.stringify({
           success: true,
@@ -763,6 +763,7 @@ serve(async (req) => {
           userInfo: data.user_info,
           fortuneType: data.fortune_type || "daily",
           createdAt: data.created_at,
+          chart_data: data.chart_data ?? null,
           isShared: true, // 공유된 운세임을 표시
         }),
         {
@@ -1332,8 +1333,25 @@ serve(async (req) => {
       );
     }
 
-    // Supabase에 운세 저장
+    // Supabase에 운세 저장 (복구용 chart_data 포함)
     let shareId: string | undefined;
+    const chartDataForDb =
+      fortuneType === FortuneType.DAILY && transitChartData
+        ? {
+            chart: chartData,
+            transitChart: transitChartData,
+            aspects: aspects ?? null,
+            transitMoonHouse: transitMoonHouse ?? null,
+          }
+        : fortuneType === FortuneType.YEARLY && solarReturnChartData
+          ? {
+              chart: chartData,
+              solarReturnChart: solarReturnChartData,
+              profectionData: profectionData ?? null,
+              solarReturnOverlay: solarReturnOverlay ?? null,
+            }
+          : null;
+
     try {
       console.log(`💾 [${fortuneType}] 운세 저장 시작...`);
       const { data: insertData, error: insertError } = await supabase
@@ -1346,6 +1364,7 @@ serve(async (req) => {
           },
           fortune_text: interpretation.interpretation,
           fortune_type: fortuneType,
+          ...(chartDataForDb && { chart_data: chartDataForDb }),
         })
         .select("id")
         .single();

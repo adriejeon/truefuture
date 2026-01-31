@@ -82,34 +82,56 @@ function Home() {
     }
   }, [profiles]);
 
-  // 선택된 프로필 변경 시 운세 결과 초기화 및 해당 프로필의 운세 불러오기
+  // 선택된 프로필 변경 시 운세 결과 초기화 및 해당 프로필의 운세 불러오기 (로컬 → 없으면 DB 복구)
   useEffect(() => {
-    if (selectedProfile && !isSharedFortune) {
-      console.log("🔄 프로필 변경됨, 운세 결과 초기화 및 불러오기");
-      setLoadingCache(true);
+    if (!selectedProfile || isSharedFortune) return;
 
-      const storedFortune = getTodayFortuneFromStorage(selectedProfile.id);
+    console.log("🔄 프로필 변경됨, 운세 결과 초기화 및 불러오기");
+    setLoadingCache(true);
+    setError("");
 
-      if (storedFortune) {
-        console.log("✅ 선택된 프로필의 오늘의 운세 발견!");
-        setInterpretation(storedFortune.interpretation);
-        setFromCache(true);
-        setFortuneDate(storedFortune.date);
-        if (storedFortune.shareId) {
-          setShareId(storedFortune.shareId);
-        }
-      } else {
-        console.log("💫 선택된 프로필의 오늘의 운세가 아직 없습니다.");
-        setInterpretation("");
-        setFromCache(false);
-        setFortuneDate("");
-        setShareId(null);
-      }
+    const storedFortune = getTodayFortuneFromStorage(selectedProfile.id);
 
-      setError("");
+    if (storedFortune) {
+      console.log("✅ 선택된 프로필의 오늘의 운세 발견!");
+      setInterpretation(storedFortune.interpretation);
+      setFromCache(true);
+      setFortuneDate(storedFortune.date);
+      if (storedFortune.shareId) setShareId(storedFortune.shareId);
       setLoadingCache(false);
+      return;
     }
-  }, [selectedProfile?.id, isSharedFortune]);
+
+    // localStorage 없음 → DB에서 오늘의 운세 복구 시도 (기기 변경/프로필 전환 시)
+    (async () => {
+      try {
+        const restored = await restoreFortuneIfExists(selectedProfile.id);
+        if (restored) {
+          console.log("✅ [복구] 선택된 프로필의 오늘의 운세 DB에서 복구");
+          setInterpretation(restored.interpretation);
+          setFromCache(true);
+          setFortuneDate(getTodayDate());
+          if (restored.shareId) setShareId(restored.shareId);
+          saveTodayFortuneToStorage(selectedProfile.id, {
+            interpretation: restored.interpretation,
+            chart: restored.chart,
+            transitChart: restored.transitChart,
+            aspects: restored.aspects,
+            transitMoonHouse: restored.transitMoonHouse,
+            shareId: restored.shareId,
+          });
+        } else {
+          console.log("💫 선택된 프로필의 오늘의 운세가 아직 없습니다.");
+          setInterpretation("");
+          setFromCache(false);
+          setFortuneDate("");
+          setShareId(null);
+        }
+      } finally {
+        setLoadingCache(false);
+      }
+    })();
+  }, [selectedProfile?.id, isSharedFortune, restoreFortuneIfExists]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -301,7 +323,54 @@ function Home() {
     }
   };
 
-  // 페이지 로드 시 로컬스토리지에서 오늘의 운세 확인
+  // localStorage에 없을 때 DB에서 오늘의 운세 복구 (기기 변경 시)
+  const restoreFortuneIfExists = useCallback(
+    async (profileId) => {
+      if (!profileId) return null;
+
+      try {
+        const todayDate = getTodayDate();
+
+        const { data: historyRow, error: historyError } = await supabase
+          .from("fortune_history")
+          .select("result_id")
+          .eq("profile_id", profileId)
+          .eq("fortune_date", todayDate)
+          .eq("fortune_type", "daily")
+          .maybeSingle();
+
+        if (historyError || !historyRow?.result_id) {
+          return null;
+        }
+
+        const { data: resultRow, error: resultError } = await supabase
+          .from("fortune_results")
+          .select("id, fortune_text, chart_data")
+          .eq("id", historyRow.result_id)
+          .single();
+
+        if (resultError || !resultRow?.fortune_text) {
+          return null;
+        }
+
+        const cd = resultRow.chart_data || {};
+        return {
+          interpretation: resultRow.fortune_text,
+          chart: cd.chart ?? null,
+          transitChart: cd.transitChart ?? null,
+          aspects: cd.aspects ?? null,
+          transitMoonHouse: cd.transitMoonHouse ?? null,
+          shareId: resultRow.id,
+        };
+      } catch (err) {
+        console.error("❌ [복구] 오늘의 운세 복구 실패:", err);
+        return null;
+      }
+    },
+    [],
+  );
+
+  // 페이지 로드 시 로컬스토리지에서 오늘의 운세 확인 (없으면 DB에서 복구)
   useEffect(() => {
     // 인증 상태가 로딩 중이면 대기 (새로고침 시 세션 복구 중 데이터 삭제 방지)
     if (loadingAuth || profilesLoading) {
@@ -357,20 +426,43 @@ function Home() {
       setInterpretation(storedFortune.interpretation);
       setFromCache(true);
       setFortuneDate(storedFortune.date);
-      // shareId도 복원
       if (storedFortune.shareId) {
         setShareId(storedFortune.shareId);
       }
-    } else {
-      console.log("💫 오늘의 운세가 아직 없습니다.");
-      setInterpretation("");
-      setFromCache(false);
-      setFortuneDate("");
-      setShareId(null);
+      setLoadingCache(false);
+      return;
     }
 
-    setLoadingCache(false);
-  }, [user, loadingAuth, profilesLoading, profiles, selectedProfile]);
+    // localStorage 없음 → DB에서 오늘의 운세 복구 시도 (기기 변경 시)
+    (async () => {
+      try {
+        const restored = await restoreFortuneIfExists(selectedProfile.id);
+        if (restored) {
+          console.log("✅ [복구] DB에서 오늘의 운세 복구 완료");
+          setInterpretation(restored.interpretation);
+          setFromCache(true);
+          setFortuneDate(getTodayDate());
+          if (restored.shareId) setShareId(restored.shareId);
+          saveTodayFortuneToStorage(selectedProfile.id, {
+            interpretation: restored.interpretation,
+            chart: restored.chart,
+            transitChart: restored.transitChart,
+            aspects: restored.aspects,
+            transitMoonHouse: restored.transitMoonHouse,
+            shareId: restored.shareId,
+          });
+        } else {
+          console.log("💫 오늘의 운세가 아직 없습니다.");
+          setInterpretation("");
+          setFromCache(false);
+          setFortuneDate("");
+          setShareId(null);
+        }
+      } finally {
+        setLoadingCache(false);
+      }
+    })();
+  }, [user, loadingAuth, profilesLoading, profiles, selectedProfile, restoreFortuneIfExists]);
 
   // 사용자 또는 프로필 변경 시 플래그 리셋
   useEffect(() => {
@@ -672,8 +764,12 @@ function Home() {
           shareId: currentShareId, // share_id도 함께 저장
         });
 
-        // 운세 이력 저장
-        await saveFortuneHistory(selectedProfile.id, "daily");
+        // 운세 이력 저장 (share_id를 result_id로 저장하여 기기 변경 시 복구 가능)
+        await saveFortuneHistory(
+          selectedProfile.id,
+          "daily",
+          currentShareId || undefined,
+        );
 
         // 저장 후 상태 업데이트
         setInterpretation(data.interpretation);

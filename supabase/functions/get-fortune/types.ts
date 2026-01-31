@@ -93,3 +93,37 @@ export interface SolarReturnOverlay {
     saturn: number
   }
 }
+
+// DB: fortune_results 테이블 (복구/공유용)
+export interface FortuneResultRow {
+  id: string
+  user_info: Record<string, unknown>
+  fortune_text: string
+  fortune_type: string
+  chart_data?: FortuneResultChartData | null
+  created_at: string
+}
+
+// DAILY 복구용 chart_data 구조
+export interface FortuneResultChartData {
+  chart?: unknown
+  transitChart?: unknown
+  aspects?: unknown[] | null
+  transitMoonHouse?: number | null
+  solarReturnChart?: unknown
+  profectionData?: unknown
+  solarReturnOverlay?: unknown
+}
+
+// DB: fortune_history 테이블 (조회 이력 + result_id로 복구)
+export interface FortuneHistoryRow {
+  id: string
+  user_id: string
+  profile_id: string
+  fortune_type: string
+  fortune_date: string
+  year_period_start?: string | null
+  year_period_end?: string | null
+  result_id?: string | null
+  created_at: string
+}
