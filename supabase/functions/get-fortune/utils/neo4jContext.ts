@@ -1,0 +1,210 @@
+/**
+ * Neo4j 전문 해석 데이터 조회
+ * Supabase Edge Function (get-fortune) 내부: supabase/functions/get-fortune/utils/neo4jContext.ts
+ * 차트(행성/별자리/하우스) 기반으로 위계(Dignity), 섹트(Sect), 헤이즈(Hayz) 포함 줄글 텍스트 생성
+ */
+
+import neo4j, { Driver, Session } from "npm:neo4j-driver@5.25.0";
+
+const DIGNITY_LABELS: Record<string, string> = {
+  RULES: "룰러쉽(매우 강력함)",
+  EXALTED_IN: "항진(강력함)",
+  DETRIMENT_IN: "손상(불편함)",
+  FALL_IN: "추락(약함)",
+};
+
+const PLANET_KEYS = [
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+] as const;
+
+const PLANET_NAMES: Record<string, string> = {
+  sun: "Sun",
+  moon: "Moon",
+  mercury: "Mercury",
+  venus: "Venus",
+  mars: "Mars",
+  jupiter: "Jupiter",
+  saturn: "Saturn",
+};
+
+export interface PlanetPlacement {
+  planetName: string;
+  signName: string;
+  houseNum: number;
+}
+
+/** 행성 객체: sign(별자리), house(하우스 번호) */
+export type PlanetsInput = Record<
+  string,
+  { sign?: string; house?: number; degreeInSign?: number }
+>;
+
+/**
+ * 행성 정보 객체에서 배치(행성명, 별자리, 하우스) 목록 추출
+ */
+function getPlacementsFromPlanets(planets: PlanetsInput | null): PlanetPlacement[] {
+  const placements: PlanetPlacement[] = [];
+  if (!planets) return placements;
+
+  for (const key of PLANET_KEYS) {
+    const p = planets[key];
+    if (p && p.sign != null && p.house != null) {
+      const signName =
+        typeof p.sign === "string" ? p.sign : (p.sign as any)?.sign ?? "";
+      placements.push({
+        planetName: PLANET_NAMES[key] ?? key,
+        signName: signName,
+        houseNum: Number(p.house),
+      });
+    }
+  }
+  return placements;
+}
+
+/**
+ * 단일 행성에 대한 Neo4j 조회 결과를 줄글 한 문단으로 포맷
+ */
+function formatPlanetLine(row: Record<string, any>): string {
+  const planetName = row.planet_name ?? "";
+  const signName = row.sign_name ?? "";
+  const houseNum = row.house_num ?? "";
+  const pos = row.keywords_pos ?? "(없음)";
+  const neg = row.keywords_neg ?? "(없음)";
+  const signKeywords = row.sign_keywords ?? "(없음)";
+  const houseMeaning = row.house_meaning ?? "(없음)";
+  const dignityType = row.dignity_type;
+  const sect = row.sect ?? "";
+  const signGender = row.sign_gender ?? "";
+  const isDayChart = row.is_day_chart === true;
+
+  let dignityStatus = "방랑자(중립)";
+  if (dignityType && DIGNITY_LABELS[dignityType]) {
+    dignityStatus = DIGNITY_LABELS[dignityType];
+  }
+
+  let hayzNote = "";
+  const isHayz =
+    (isDayChart && sect === "Diurnal" && signGender === "Masculine") ||
+    (!isDayChart && sect === "Nocturnal" && signGender === "Feminine");
+  if (isHayz) {
+    hayzNote =
+      " 이 위치는 Hayz(헤이즈) 상태로, 섹트에 잘 맞아 긍정적으로 발현되기 유리합니다.";
+  }
+
+  return `${planetName}은(는) ${signName}의 ${houseNum}하우스에 위치합니다. ${pos}를 상징하며, 부정적으로는 ${neg}에 주의할 필요가 있습니다. 별자리 분위기는 ${signKeywords}이고, 하우스 영역은 ${houseMeaning}입니다. 위계는 ${dignityStatus}입니다.${hayzNote}`;
+}
+
+/**
+ * Neo4j에서 행성·별자리·하우스 및 위계/섹트 정보를 조회해 Gemini용 해석 텍스트(String)로 반환
+ *
+ * @param planets - 차트의 행성 정보 (chartData.planets). 각 키(sun, moon, ...)에 sign, house 포함
+ * @param isDayChart - 낮 차트 여부. 점성술 규칙: Sun이 7,8,9,10,11,12하우스 = Day Chart, 1,2,3,4,5,6하우스 = Night Chart
+ * @returns Gemini에게 보낼 해석 텍스트. 연결 실패 시 빈 문자열 또는 에러 메시지
+ */
+export async function getNeo4jContext(
+  planets: PlanetsInput | null,
+  isDayChart: boolean,
+): Promise<string> {
+  const uri = Deno.env.get("NEO4J_URI");
+  const user = Deno.env.get("NEO4J_USER");
+  const password = Deno.env.get("NEO4J_PASSWORD");
+
+  if (!uri || !user || !password) {
+    console.warn(
+      "[Neo4j] NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD 중 하나가 없어 전문 해석 데이터를 건너뜁니다.",
+    );
+    return "";
+  }
+
+  const placements = getPlacementsFromPlanets(planets);
+  if (placements.length === 0) {
+    return "";
+  }
+
+  let driver: Driver | null = null;
+
+  try {
+    driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
+    const session: Session = driver.session();
+
+    const paragraphs: string[] = [];
+
+    for (const pl of placements) {
+      try {
+        const result = await session.run(
+          `
+          MATCH (p:Planet {name: $planetName})
+          MATCH (s:Sign {name: $signName})
+          MATCH (h:House {number: $houseNum})
+          OPTIONAL MATCH (p)-[r:RULES|EXALTED_IN|DETRIMENT_IN|FALL_IN]->(s)
+          RETURN p.name AS planet_name, s.name AS sign_name, h.number AS house_num,
+                 p.keywords_pos AS keywords_pos, p.keywords_neg AS keywords_neg,
+                 s.keywords AS sign_keywords, s.gender AS sign_gender,
+                 h.meaning AS house_meaning, p.sect AS sect,
+                 type(r) AS dignity_type
+          `,
+          {
+            planetName: pl.planetName,
+            signName: pl.signName,
+            houseNum: pl.houseNum,
+          },
+        );
+
+        if (result.records.length > 0) {
+          const record = result.records[0];
+          const obj: Record<string, any> = {
+            planet_name: record.get("planet_name"),
+            sign_name: record.get("sign_name"),
+            house_num: record.get("house_num"),
+            keywords_pos: record.get("keywords_pos"),
+            keywords_neg: record.get("keywords_neg"),
+            sign_keywords: record.get("sign_keywords"),
+            sign_gender: record.get("sign_gender"),
+            house_meaning: record.get("house_meaning"),
+            sect: record.get("sect"),
+            dignity_type: record.get("dignity_type"),
+            is_day_chart: isDayChart,
+          };
+          paragraphs.push(formatPlanetLine(obj));
+        }
+      } catch (e) {
+        console.warn(
+          `[Neo4j] 행성 ${pl.planetName} / ${pl.signName} / ${pl.houseNum} 조회 실패:`,
+          e,
+        );
+      }
+    }
+
+    await session.close();
+
+    if (paragraphs.length === 0) {
+      return "";
+    }
+
+    return paragraphs.join("\n\n");
+  } catch (err: any) {
+    console.error("[Neo4j] 연결 또는 조회 실패:", err?.message ?? err);
+    return `[Neo4j 연결 실패로 전문 해석 데이터를 불러오지 못했습니다: ${err?.message ?? String(err)}]`;
+  } finally {
+    if (driver) {
+      await driver.close();
+    }
+  }
+}
+
+/**
+ * Sun의 하우스 번호로 낮/밤 차트 여부 판단
+ * 점성술 규칙: Sun이 7, 8, 9, 10, 11, 12 하우스 = Day Chart / 1, 2, 3, 4, 5, 6 하우스 = Night Chart
+ */
+export function isDayChartFromSun(planets: PlanetsInput | null): boolean {
+  const sun = planets?.sun;
+  if (!sun || sun.house == null) return true;
+  const house = Number(sun.house);
+  return house >= 7 && house <= 12;
+}

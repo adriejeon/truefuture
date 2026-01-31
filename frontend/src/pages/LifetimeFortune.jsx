@@ -10,6 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
+import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
 function LifetimeFortune() {
   const { user, loadingAuth } = useAuth();
@@ -53,6 +54,7 @@ function LifetimeFortune() {
       const data = await loadSharedFortune(id);
 
       console.log("✅ 공유된 인생 종합운 조회 성공:", data);
+      logDebugInfoIfPresent(data);
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
@@ -193,6 +195,8 @@ function LifetimeFortune() {
       if (!data || data.error) {
         throw new Error(data?.error || "서버 오류가 발생했습니다.");
       }
+
+      logDebugInfoIfPresent(data);
 
       // 디버깅: 받은 응답 로그
       console.log("\n" + "=".repeat(60));

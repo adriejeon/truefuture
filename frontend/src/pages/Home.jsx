@@ -16,6 +16,7 @@ import {
   redirectToExternalBrowser,
   getBrowserGuideMessage,
 } from "../utils/inAppBrowserDetector";
+import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
 function Home() {
   const { user, loadingAuth } = useAuth();
@@ -208,6 +209,7 @@ function Home() {
       }
 
       console.log("✅ 공유된 운세 조회 성공:", data);
+      logDebugInfoIfPresent(data);
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
@@ -510,6 +512,8 @@ function Home() {
       if (data.error) {
         throw new Error(data.error || "서버 오류가 발생했습니다.");
       }
+
+      logDebugInfoIfPresent(data);
 
       // AI 해석 실패 체크
       if (

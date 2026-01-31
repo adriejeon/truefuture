@@ -49,6 +49,12 @@ import {
   getSolarReturnOverlays,
 } from "./utils/astrologyCalculator.ts";
 
+// Neo4j 전문 해석 데이터 조회
+import {
+  getNeo4jContext,
+  isDayChartFromSun,
+} from "./utils/neo4jContext.ts";
+
 // ========== CORS 헤더 설정 ==========
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -403,6 +409,8 @@ function parseGeminiResponse(apiResponse: any): string {
   return markdownText;
 }
 
+const NEO4J_SECTION_HEADER = "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n[Neo4j 전문 해석 데이터]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+
 async function getInterpretation(
   chartData: any,
   fortuneType: FortuneType,
@@ -420,7 +428,7 @@ async function getInterpretation(
       throw new Error("Missing GEMINI_API_KEY environment variable.");
     }
 
-    // LIFETIME 운세는 두 번 호출하여 결과 합치기
+    // LIFETIME 운세는 별도 함수에서 처리
     if (fortuneType === FortuneType.LIFETIME) {
       return await generateLifetimeFortune(
         chartData,
@@ -432,7 +440,13 @@ async function getInterpretation(
       );
     }
 
-    // 기존 로직 (DAILY, YEARLY, COMPATIBILITY)
+    // Neo4j 전문 해석 데이터 조회 (차트 계산 직후, planets + 낮/밤 차트 판단)
+    const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
+    const neo4jContext = await getNeo4jContext(
+      chartData?.planets ?? null,
+      isDayChart,
+    );
+
     const systemInstructionText = getSystemInstruction(fortuneType);
 
     const systemInstruction = {
@@ -443,7 +457,7 @@ async function getInterpretation(
       ],
     };
 
-    const userPrompt = buildUserPrompt(
+    let userPrompt = buildUserPrompt(
       chartData,
       fortuneType,
       compatibilityChartData,
@@ -454,6 +468,10 @@ async function getInterpretation(
       profectionData,
       solarReturnOverlay,
     );
+
+    if (neo4jContext) {
+      userPrompt = userPrompt + NEO4J_SECTION_HEADER + neo4jContext;
+    }
 
     const requestBody = {
       contents: [
@@ -473,12 +491,23 @@ async function getInterpretation(
     const apiResponse = await callGeminiAPI(modelName, apiKey, requestBody);
     const interpretationText = parseGeminiResponse(apiResponse);
 
+    const fullPromptSentToGemini =
+      "=== System ===\n" +
+      systemInstructionText +
+      "\n\n=== User ===\n" +
+      userPrompt;
+
     return {
       success: true,
       fortuneType: fortuneType,
       interpretation: interpretationText,
-      userPrompt: userPrompt, // 제미나이에게 전달한 User Prompt
-      systemInstruction: systemInstructionText, // 제미나이에게 전달한 System Instruction
+      userPrompt: userPrompt,
+      systemInstruction: systemInstructionText,
+      debugInfo: {
+        fullPromptSentToGemini,
+        neo4jContext: neo4jContext || "(없음)",
+        rawGeminiResponse: apiResponse,
+      },
     };
   } catch (error: any) {
     return {
@@ -507,14 +536,18 @@ async function generateLifetimeFortune(
   transitMoonHouse?: number,
 ): Promise<any> {
   try {
-    // 4개의 System Instruction
+    const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
+    const neo4jContext = await getNeo4jContext(
+      chartData?.planets ?? null,
+      isDayChart,
+    );
+
     const natureSystemText = getLifetimePrompt_Nature();
     const loveSystemText = getLifetimePrompt_Love();
     const moneyCareerSystemText = getLifetimePrompt_MoneyCareer();
     const healthTotalSystemText = getLifetimePrompt_HealthTotal();
 
-    // User Prompt는 동일하게 사용
-    const userPrompt = buildUserPrompt(
+    let userPrompt = buildUserPrompt(
       chartData,
       FortuneType.LIFETIME,
       compatibilityChartData,
@@ -522,6 +555,9 @@ async function generateLifetimeFortune(
       aspects,
       transitMoonHouse,
     );
+    if (neo4jContext) {
+      userPrompt = userPrompt + NEO4J_SECTION_HEADER + neo4jContext;
+    }
 
     // Nature 요청 본문
     const requestBodyNature = {
@@ -655,12 +691,28 @@ async function generateLifetimeFortune(
 
     console.log("✅ Lifetime 운세: 네 결과를 성공적으로 합쳤습니다.");
 
+    const fullPromptSentToGemini =
+      "=== System (Nature) ===\n" +
+      natureSystemText +
+      "\n\n=== User ===\n" +
+      userPrompt;
+
     return {
       success: true,
       fortuneType: FortuneType.LIFETIME,
       interpretation: combinedInterpretation,
       userPrompt: userPrompt,
-      systemInstruction: `${natureSystemText}\n\n${loveSystemText}\n\n${moneyCareerSystemText}\n\n${healthTotalSystemText}`, // 네 프롬프트 합친 것
+      systemInstruction: `${natureSystemText}\n\n${loveSystemText}\n\n${moneyCareerSystemText}\n\n${healthTotalSystemText}`,
+      debugInfo: {
+        fullPromptSentToGemini,
+        neo4jContext: neo4jContext || "(없음)",
+        rawGeminiResponse: {
+          nature: resultNature,
+          love: resultLove,
+          moneyCareer: resultMoneyCareer,
+          healthTotal: resultHealthTotal,
+        },
+      },
     };
   } catch (error: any) {
     console.error("❌ Lifetime 운세 생성 중 에러:", error);
@@ -1391,25 +1443,28 @@ serve(async (req) => {
       success: true,
       chart: chartData,
       interpretation: interpretation.interpretation,
+      fortune: interpretation.interpretation, // 프론트 검증용 (interpretation과 동일)
       fortuneType: fortuneType,
-      share_id: shareId || null, // 공유 ID 추가 (null로 명시)
+      share_id: shareId || null,
     };
 
-    // DAILY 운세의 경우 추가 정보 포함
+    // 디버깅 정보: 최종 프롬프트, Neo4j 컨텍스트, Gemini 원본 응답
+    if (interpretation.debugInfo) {
+      responseData.debugInfo = interpretation.debugInfo;
+    }
+
     if (fortuneType === FortuneType.DAILY && transitChartData) {
       responseData.transitChart = transitChartData;
       responseData.aspects = aspects;
       responseData.transitMoonHouse = transitMoonHouse;
     }
 
-    // YEARLY 운세의 경우 추가 정보 포함
     if (fortuneType === FortuneType.YEARLY && solarReturnChartData) {
       responseData.solarReturnChart = solarReturnChartData;
       responseData.profectionData = profectionData;
       responseData.solarReturnOverlay = solarReturnOverlay;
     }
 
-    // 제미나이에게 전달한 프롬프트 정보 포함 (디버깅용)
     if (interpretation.userPrompt) {
       responseData.userPrompt = interpretation.userPrompt;
     }
