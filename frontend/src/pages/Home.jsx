@@ -878,6 +878,39 @@ function Home() {
             {!user ? null : (
               <>
                 <div className="py-8 sm:py-12">
+                  {/* 자유 질문 상담소 버튼 */}
+                  <Link
+                    to="/consultation"
+                    className="block w-full mb-6 sm:mb-8 p-4 bg-gradient-to-r from-purple-600/30 to-pink-600/30 border border-purple-500/50 rounded-lg hover:border-purple-400 transition-all duration-300 shadow-lg hover:shadow-purple-500/20"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl">✨</div>
+                        <div>
+                          <h3 className="text-base sm:text-lg font-semibold text-white">
+                            자유 질문 상담소
+                          </h3>
+                          <p className="text-xs sm:text-sm text-slate-300 mt-1">
+                            궁금한 것을 직접 물어보세요
+                          </p>
+                        </div>
+                      </div>
+                      <svg
+                        className="w-5 h-5 text-slate-300"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </Link>
+
                   {/* 페이지 소개 - 오늘의 운세 */}
                   <div className="mb-6 sm:mb-8">
                     <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">

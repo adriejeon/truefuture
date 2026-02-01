@@ -3,8 +3,10 @@
  * astronomy-engine을 사용하여 차트 계산 및 Aspect 분석을 수행합니다.
  */
 
-import { MakeTime, Body, GeoVector, Ecliptic, SiderealTime, SearchSunLongitude } from "npm:astronomy-engine@2.1.19"
-import type { ChartData, Location, PlanetPosition, Aspect, ProfectionData, SolarReturnOverlay } from '../types.ts'
+// Deno npm 스펙(npm:...) — Edge Function 런타임에서는 정상 동작, IDE는 Node 해석기 사용 시 경고 표시
+// @ts-ignore
+import { MakeTime, Body, GeoVector, Ecliptic, SiderealTime, SearchSunLongitude, Observer, Horizon, Equator } from "npm:astronomy-engine@2.1.19"
+import type { ChartData, Location, PlanetPosition, Aspect, ProfectionData, SolarReturnOverlay, FirdariaResult, InteractionResult, ProgressionResult, DirectionHit } from '../types.ts'
 
 // ========== 상수 정의 ==========
 export const SIGNS = [
@@ -311,6 +313,157 @@ export function getTransitMoonHouseInNatalChart(natalChart: ChartData, transitCh
   return getWholeSignHouse(transitMoonLongitude, natalAscendant)
 }
 
+// ========== Secondary Progression (진행 달) ==========
+
+const PROGRESSION_ORB = 1
+const PROGRESSION_ASPECTS: Array<{ angle: number; label: string }> = [
+  { angle: 0, label: 'Conjunct' },
+  { angle: 60, label: 'Sextile' },
+  { angle: 90, label: 'Square' },
+  { angle: 120, label: 'Trine' },
+  { angle: 180, label: 'Opposition' },
+]
+
+/**
+ * Secondary Progression: "A day for a year"
+ * 만 30세 → 출생일 + 30일 시점의 달 위치를 Progressed Moon으로 봄.
+ *
+ * @param natalChart - 출생 차트 (날짜·위치·Natal 행성·Ascendant)
+ * @param ageInFullYears - 만 나이 (연수)
+ * @returns ProgressionResult (진행 달 별자리, Natal 기준 하우스, Natal 행성과의 주요 각도)
+ */
+export function calculateProgressedMoon(
+  natalChart: ChartData,
+  ageInFullYears: number
+): ProgressionResult {
+  const birthDate = new Date(natalChart.date)
+  if (isNaN(birthDate.getTime())) {
+    throw new Error('Invalid natalChart.date')
+  }
+  if (typeof ageInFullYears !== 'number' || ageInFullYears < 0) {
+    throw new Error('ageInFullYears must be a non-negative number')
+  }
+
+  // Target Time = Birth Time + (Age * 24 hours)
+  const progressedDate = new Date(
+    birthDate.getTime() + ageInFullYears * 24 * 60 * 60 * 1000
+  )
+  const time = MakeTime(progressedDate)
+  const progMoonLongitude = getPlanetLongitude(Body.Moon, time)
+  const signInfo = getSignFromLongitude(progMoonLongitude)
+  const natalAscendant = natalChart.houses.angles.ascendant
+  const progMoonHouse = getWholeSignHouse(progMoonLongitude, natalAscendant)
+
+  const aspects: string[] = []
+  for (const [planetKey, planetData] of Object.entries(natalChart.planets)) {
+    const natalPlanetName = PLANET_NAMES[planetKey]
+    const natalDegree = planetData.degree
+    const angleDiff = calculateAngleDifference(progMoonLongitude, natalDegree)
+
+    for (const { angle, label } of PROGRESSION_ASPECTS) {
+      const orb = Math.abs(angleDiff - angle)
+      if (orb <= PROGRESSION_ORB) {
+        const exact = orb <= 0.5 ? ' (Exact)' : ''
+        aspects.push(`${label} Natal ${natalPlanetName}${exact}`)
+        break
+      }
+    }
+  }
+
+  return {
+    progMoonSign: signInfo.sign,
+    progMoonHouse,
+    aspects,
+  }
+}
+
+// ========== Solar Arc Direction (솔라 아크 디렉션) ==========
+
+const SOLAR_ARC_ORB = 1
+const SOLAR_ARC_EXACT_ORB = 0.1
+
+/**
+ * Solar Arc Direction: 모든 Natal 행성·각도를 태양이 이동한 만큼(Arc)만큼 이동시킨 뒤,
+ * Directed 포인트가 Natal 포인트와 Conjunction(0°) 또는 Opposition(180°)을 이루는 "Hit" 목록 반환.
+ *
+ * @param natalChart - 출생 차트
+ * @param ageInFullYears - 만 나이 (연수)
+ * @returns DirectionHit[] (Conjunction/Opposition 히트, Orb ±1°, isExact = orb < 0.1°)
+ */
+export function calculateSolarArcDirections(
+  natalChart: ChartData,
+  ageInFullYears: number
+): DirectionHit[] {
+  const birthDate = new Date(natalChart.date)
+  if (isNaN(birthDate.getTime())) {
+    throw new Error('Invalid natalChart.date')
+  }
+  if (typeof ageInFullYears !== 'number' || ageInFullYears < 0) {
+    throw new Error('ageInFullYears must be a non-negative number')
+  }
+
+  // 1. Arc = Progressed Sun Longitude - Natal Sun Longitude
+  const natalSunLongitude = natalChart.planets.sun.degree
+  const progressedDate = new Date(
+    birthDate.getTime() + ageInFullYears * 24 * 60 * 60 * 1000
+  )
+  const progressedSunLongitude = getPlanetLongitude(Body.Sun, MakeTime(progressedDate))
+  let arc = progressedSunLongitude - natalSunLongitude
+  arc = normalizeDegrees(arc)
+
+  // 2. Directed: Natal + Arc (행성 7개 + Asc, MC)
+  const directedPlanets: Array<{ name: string; longitude: number }> = []
+  for (const [key, data] of Object.entries(natalChart.planets)) {
+    directedPlanets.push({
+      name: `Directed ${PLANET_NAMES[key]}`,
+      longitude: normalizeDegrees(data.degree + arc),
+    })
+  }
+  const natalAsc = natalChart.houses.angles.ascendant
+  const natalMC = natalChart.houses.angles.midheaven
+  directedPlanets.push(
+    { name: 'Directed Ascendant', longitude: normalizeDegrees(natalAsc + arc) },
+    { name: 'Directed MC', longitude: normalizeDegrees(natalMC + arc) },
+  )
+
+  // Natal 포인트 (Hit 대상): 행성 7개 + Asc, MC
+  const natalPoints: Array<{ name: string; longitude: number }> = []
+  for (const [key, data] of Object.entries(natalChart.planets)) {
+    natalPoints.push({ name: `Natal ${PLANET_NAMES[key]}`, longitude: data.degree })
+  }
+  natalPoints.push(
+    { name: 'Natal Ascendant', longitude: natalAsc },
+    { name: 'Natal MC', longitude: natalMC },
+  )
+
+  // 3. Hit Check: Conjunction (0°) or Opposition (180°), Orb ±1°
+  const hits: DirectionHit[] = []
+  for (const moving of directedPlanets) {
+    for (const target of natalPoints) {
+      const angleDiff = calculateAngleDifference(moving.longitude, target.longitude)
+      const orbConj = Math.abs(angleDiff - 0)
+      const orbOpp = Math.abs(angleDiff - 180)
+      if (orbConj <= SOLAR_ARC_ORB) {
+        hits.push({
+          movingPlanet: moving.name,
+          targetPoint: target.name,
+          aspect: 'Conjunction',
+          isExact: orbConj < SOLAR_ARC_EXACT_ORB,
+        })
+      } else if (orbOpp <= SOLAR_ARC_ORB) {
+        hits.push({
+          movingPlanet: moving.name,
+          targetPoint: target.name,
+          aspect: 'Opposition',
+          isExact: orbOpp < SOLAR_ARC_EXACT_ORB,
+        })
+      }
+    }
+  }
+
+  return hits
+}
+
 // ========== Solar Return & Profection 계산 함수 ==========
 
 /**
@@ -527,5 +680,277 @@ export function getSolarReturnOverlays(
   } catch (error: any) {
     console.error('❌ Solar Return Overlay 계산 실패:', error)
     throw new Error(`Solar Return Overlay calculation failed: ${error.message}`)
+  }
+}
+
+// ========== Firdaria (피르다리) 계산 ==========
+
+const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000
+
+/** 낮 차트 피르다리 순서: [행성명, 연수] */
+const DAY_FIRDARIA: Array<{ lord: string; years: number }> = [
+  { lord: 'Sun', years: 10 },
+  { lord: 'Venus', years: 8 },
+  { lord: 'Mercury', years: 13 },
+  { lord: 'Moon', years: 9 },
+  { lord: 'Saturn', years: 11 },
+  { lord: 'Jupiter', years: 12 },
+  { lord: 'Mars', years: 7 },
+  { lord: 'NorthNode', years: 3 },
+  { lord: 'SouthNode', years: 2 },
+]
+
+/** 밤 차트 피르다리 순서 */
+const NIGHT_FIRDARIA: Array<{ lord: string; years: number }> = [
+  { lord: 'Moon', years: 9 },
+  { lord: 'Saturn', years: 11 },
+  { lord: 'Jupiter', years: 12 },
+  { lord: 'Mars', years: 7 },
+  { lord: 'Sun', years: 10 },
+  { lord: 'Venus', years: 8 },
+  { lord: 'Mercury', years: 13 },
+  { lord: 'NorthNode', years: 3 },
+  { lord: 'SouthNode', years: 2 },
+]
+
+/** 서브 로드 순서 (노드 제외, 7행성) */
+const SUB_LORD_ORDER = ['Sun', 'Venus', 'Mercury', 'Moon', 'Saturn', 'Jupiter', 'Mars']
+
+function nextInSubOrder(lord: string): string {
+  const i = SUB_LORD_ORDER.indexOf(lord)
+  if (i === -1) return SUB_LORD_ORDER[0]
+  return SUB_LORD_ORDER[(i + 1) % 7]
+}
+
+/**
+ * 출생 시각·위치에서 태양의 고도(Altitude)를 계산 (astronomy-engine 사용)
+ * 고도 >= 0 이면 낮 차트(Diurnal), < 0 이면 밤 차트(Nocturnal)
+ */
+function getSunAltitudeAtBirth(birthDate: Date, lat: number, lng: number): number {
+  const time = MakeTime(birthDate)
+  const observer = new Observer(lat, lng, 0)
+  const eq = Equator(Body.Sun, birthDate, observer, true, true)
+  const hor = Horizon(birthDate, observer, eq.ra, eq.dec)
+  return hor.altitude
+}
+
+/**
+ * 생일 기준 만 나이 계산 (UTC)
+ */
+function getAgeInFullYears(birthDate: Date, targetDate: Date): number {
+  let age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
+  const birthMonth = birthDate.getUTCMonth()
+  const birthDay = birthDate.getUTCDate()
+  const targetMonth = targetDate.getUTCMonth()
+  const targetDay = targetDate.getUTCDate()
+  if (targetMonth < birthMonth || (targetMonth === birthMonth && targetDay < birthDay)) {
+    age -= 1
+  }
+  return Math.max(0, age)
+}
+
+/**
+ * Date에 연수(소수 가능)를 더한 새 Date 반환 (UTC, 연평균 365.25일)
+ */
+function addYearsUTC(date: Date, years: number): Date {
+  return new Date(date.getTime() + years * MS_PER_YEAR)
+}
+
+/**
+ * 피르다리(Firdaria) 계산
+ * Sect(낮/밤) → 메이저 로드 → 서브 로드 및 기간을 계산합니다.
+ *
+ * @param birthDate - 출생일시 (UTC)
+ * @param location - 출생 위치 (위도, 경도)
+ * @param targetDate - 계산 기준일 (기본값: 현재 시각)
+ * @returns FirdariaResult
+ */
+export function calculateFirdaria(
+  birthDate: Date,
+  location: Location,
+  targetDate: Date = new Date()
+): FirdariaResult {
+  const { lat, lng } = location
+
+  if (!(birthDate instanceof Date) || isNaN(birthDate.getTime())) {
+    throw new Error('Invalid birthDate provided.')
+  }
+  if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
+    throw new Error('Invalid latitude.')
+  }
+  if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
+    throw new Error('Invalid longitude.')
+  }
+
+  // 1. Sect: 태양 고도로 낮/밤 차트 판별
+  const sunAltitude = getSunAltitudeAtBirth(birthDate, lat, lng)
+  const isDayChart = sunAltitude >= 0
+  const sequence = isDayChart ? DAY_FIRDARIA : NIGHT_FIRDARIA
+
+  // 2. 만 나이 및 75년 주기 내 위치
+  const age = getAgeInFullYears(birthDate, targetDate)
+  const ageInCycle = age % 75
+
+  // 3. 메이저 로드 및 해당 기간 시작/종료
+  let accumulatedYears = 0
+  let majorLord = ''
+  let majorPeriodStart = new Date(birthDate.getTime())
+  let majorPeriodEnd = new Date(birthDate.getTime())
+
+  for (const { lord, years } of sequence) {
+    if (accumulatedYears + years > ageInCycle) {
+      majorLord = lord
+      majorPeriodStart = addYearsUTC(birthDate, accumulatedYears)
+      majorPeriodEnd = addYearsUTC(birthDate, accumulatedYears + years)
+      break
+    }
+    accumulatedYears += years
+  }
+
+  // 주기 끝까지 갔을 때 (ageInCycle === 0, 예: 75세·150세) → 새 주기 첫 기간
+  if (!majorLord) {
+    const cycles = Math.floor(age / 75)
+    const first = sequence[0]
+    majorLord = first.lord
+    majorPeriodStart = addYearsUTC(birthDate, 75 * cycles)
+    majorPeriodEnd = addYearsUTC(birthDate, 75 * cycles + first.years)
+  }
+
+  const result: FirdariaResult = {
+    isDayChart,
+    age,
+    majorLord,
+    subLord: null,
+    majorPeriodStart,
+    majorPeriodEnd,
+  }
+
+  // 4. 서브 로드: 노드 기간이면 null, 아니면 7등분 후 순서대로
+  const isNode = majorLord === 'NorthNode' || majorLord === 'SouthNode'
+  if (!isNode) {
+    const majorDurationMs = majorPeriodEnd.getTime() - majorPeriodStart.getTime()
+    const subDurationMs = majorDurationMs / 7
+    const elapsedMs = targetDate.getTime() - majorPeriodStart.getTime()
+    let subIndex = Math.floor(elapsedMs / subDurationMs)
+    if (subIndex < 0) subIndex = 0
+    if (subIndex > 6) subIndex = 6
+
+    const subLords: string[] = []
+    let cur = majorLord
+    for (let i = 0; i < 7; i++) {
+      subLords.push(cur)
+      cur = nextInSubOrder(cur)
+    }
+    result.subLord = subLords[subIndex]
+    result.subPeriodStart = new Date(majorPeriodStart.getTime() + subIndex * subDurationMs)
+    result.subPeriodEnd = new Date(majorPeriodStart.getTime() + (subIndex + 1) * subDurationMs)
+  }
+
+  return result
+}
+
+// ========== 메이저/서브 로드 상호작용 분석 ==========
+
+/** 행성 표기명 → 차트 키 (natalChart.planets 키) */
+const PLANET_NAME_TO_KEY: Record<string, string> = {
+  Sun: 'sun',
+  Moon: 'moon',
+  Mercury: 'mercury',
+  Venus: 'venus',
+  Mars: 'mars',
+  Jupiter: 'jupiter',
+  Saturn: 'saturn',
+}
+
+const ASPECT_ORB_LORD = 6
+
+/**
+ * 메이저 로드와 서브 로드 간의 관계 분석 (Reception, Aspect, House)
+ * Gemini 프롬프트에 넣을 수 있는 요약 객체를 반환합니다.
+ *
+ * @param natalChart - 출생 차트
+ * @param majorLordName - 메이저 로드 행성명 (예: "Sun", "Venus")
+ * @param subLordName - 서브 로드 행성명 (예: "Mercury")
+ * @returns InteractionResult
+ */
+export function analyzeLordInteraction(
+  natalChart: ChartData,
+  majorLordName: string,
+  subLordName: string
+): InteractionResult {
+  const majorKey = PLANET_NAME_TO_KEY[majorLordName]
+  const subKey = PLANET_NAME_TO_KEY[subLordName]
+  const majorData = majorKey ? natalChart.planets[majorKey as keyof typeof natalChart.planets] : undefined
+  const subData = subKey ? natalChart.planets[subKey as keyof typeof natalChart.planets] : undefined
+
+  let reception: string | null = null
+  let aspect: string | null = null
+  let houseContext: string
+  let summaryScore = 0
+
+  // 1. Reception (접대/도움): 별자리 주인(Rulership) 기준
+  if (majorData && subData) {
+    const rulerOfSubSign = getSignRuler(subData.sign)
+    const rulerOfMajorSign = getSignRuler(majorData.sign)
+    const majorHostsSub = rulerOfSubSign === majorLordName
+    const subHostsMajor = rulerOfMajorSign === subLordName
+    if (majorHostsSub && subHostsMajor) {
+      reception = `Mutual reception (Both helpful)`
+      summaryScore += 1
+    } else if (majorHostsSub) {
+      reception = `${majorLordName} hosts ${subLordName} (Helpful)`
+      summaryScore += 1
+    } else if (subHostsMajor) {
+      reception = `${subLordName} hosts ${majorLordName} (Helpful)`
+      summaryScore += 1
+    }
+  }
+
+  // 2. Aspect (협력/갈등): 황경 차이, Orb ±6도
+  if (majorData && subData) {
+    const angleDiff = calculateAngleDifference(majorData.degree, subData.degree)
+    const aspects: Array<{ angle: number; label: string; tone: string }> = [
+      { angle: 0, label: 'Conjunction', tone: 'United' },
+      { angle: 60, label: 'Sextile', tone: 'Harmonious' },
+      { angle: 90, label: 'Square', tone: 'Tension' },
+      { angle: 120, label: 'Trine', tone: 'Harmonious' },
+      { angle: 180, label: 'Opposition', tone: 'Tension' },
+    ]
+    let found = false
+    for (const { angle, label, tone } of aspects) {
+      if (Math.abs(angleDiff - angle) <= ASPECT_ORB_LORD) {
+        const tag =
+          angle === 0
+            ? 'United (Intense)'
+            : tone === 'Harmonious'
+              ? 'Cooperative'
+              : 'Tension'
+        aspect = `${label} (${tag})`
+        summaryScore += tone === 'United' || tone === 'Harmonious' ? 1 : -1
+        found = true
+        break
+      }
+    }
+    if (!found) aspect = 'No Aspect'
+  } else {
+    aspect = null
+  }
+
+  // 3. House Context (활동 무대)
+  const majorH = majorData?.house != null ? `${majorData.house}H` : '?'
+  const subH = subData?.house != null ? `${subData.house}H` : '?'
+  houseContext = `Major(${majorH}) - Sub(${subH})`
+
+  // summaryScore: 긍정이면 +1, 부정이면 -1, 그 외 0으로 단순화
+  const score =
+    summaryScore > 0 ? 1 : summaryScore < 0 ? -1 : 0
+
+  return {
+    majorPlanet: majorLordName,
+    subPlanet: subLordName,
+    reception,
+    aspect,
+    houseContext,
+    summaryScore: score,
   }
 }

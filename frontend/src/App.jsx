@@ -3,6 +3,7 @@ import Home from "./pages/Home";
 import LifetimeFortune from "./pages/LifetimeFortune";
 import Compatibility from "./pages/Compatibility";
 import YearlyFortune from "./pages/YearlyFortune";
+import Consultation from "./pages/Consultation";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import Login from "./pages/Login";
@@ -26,6 +27,7 @@ function App() {
             <Route path="/lifetime" element={<LifetimeFortune />} />
             <Route path="/compatibility" element={<Compatibility />} />
             <Route path="/yearly" element={<YearlyFortune />} />
+            <Route path="/consultation" element={<Consultation />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
           </Routes>

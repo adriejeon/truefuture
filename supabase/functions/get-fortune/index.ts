@@ -34,6 +34,7 @@ import {
   generateYearlyUserPrompt,
   generateLifetimeUserPrompt,
   generateCompatibilityUserPrompt,
+  generatePredictionPrompt,
 } from "./utils/chartFormatter.ts";
 
 // 점성술 계산 유틸리티 import
@@ -47,6 +48,10 @@ import {
   getActiveSolarReturnYear,
   calculateProfection,
   getSolarReturnOverlays,
+  calculateFirdaria,
+  analyzeLordInteraction,
+  calculateProgressedMoon,
+  calculateSolarArcDirections,
 } from "./utils/astrologyCalculator.ts";
 
 // Neo4j 전문 해석 데이터 조회
@@ -71,7 +76,7 @@ const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 /**
  * 운세 타입에 따라 사용할 Gemini 모델을 반환
  * - DAILY: gemini-2.5-flash-lite (경량 모델)
- * - LIFETIME, YEARLY, COMPATIBILITY: gemini-2.5-flash (표준 모델)
+ * - LIFETIME, YEARLY, COMPATIBILITY, CONSULTATION: gemini-2.5-flash (표준 모델)
  */
 function getGeminiModel(fortuneType: FortuneType): string {
   if (fortuneType === FortuneType.DAILY) {
@@ -93,17 +98,10 @@ function getGenerationConfig(fortuneType: FortuneType): any {
         maxOutputTokens: 2000,
       };
     case FortuneType.COMPATIBILITY:
-      return {
-        temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
-        maxOutputTokens: 8000,
-      };
     case FortuneType.YEARLY:
+    case FortuneType.CONSULTATION:
       return {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
         maxOutputTokens: 8000,
       };
     default:
@@ -163,6 +161,7 @@ function getReportTypeDescription(fortuneType: FortuneType): string {
     [FortuneType.LIFETIME]: "인생 종합운(사주)",
     [FortuneType.COMPATIBILITY]: "궁합 분석",
     [FortuneType.YEARLY]: "1년 운세",
+    [FortuneType.CONSULTATION]: "싱글턴 자유 질문",
   };
 
   return descriptions[fortuneType] || "일반 운세";
@@ -899,10 +898,265 @@ serve(async (req) => {
         lifetime: FortuneType.LIFETIME,
         compatibility: FortuneType.COMPATIBILITY,
         yearly: FortuneType.YEARLY,
+        consultation: FortuneType.CONSULTATION,
       };
       fortuneType = reportTypeMap[requestData.reportType] || FortuneType.DAILY;
     } else {
       fortuneType = FortuneType.DAILY;
+    }
+
+    // ========== CONSULTATION 처리 (싱글턴 자유 질문) ==========
+    if (fortuneType === FortuneType.CONSULTATION) {
+      const { userQuestion, consultationTopic, birthDate, lat, lng } = requestData;
+
+      // 필수 필드 검증
+      if (!userQuestion || typeof userQuestion !== 'string' || userQuestion.trim() === '') {
+        return new Response(
+          JSON.stringify({ error: 'userQuestion is required and must be a non-empty string' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+      if (!birthDate || typeof lat !== 'number' || typeof lng !== 'number') {
+        return new Response(
+          JSON.stringify({ error: 'birthDate, lat, lng are required' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // 생년월일 Date 변환 (KST→UTC)
+      let birthDateTime: Date;
+      try {
+        const dateMatch = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+        if (!dateMatch) {
+          throw new Error('Invalid date format');
+        }
+        const [_, year, month, day, hour, minute, second] = dateMatch;
+        const tempUtcTimestamp = Date.UTC(
+          parseInt(year),
+          parseInt(month) - 1,
+          parseInt(day),
+          parseInt(hour),
+          parseInt(minute),
+          parseInt(second),
+        );
+        birthDateTime = new Date(tempUtcTimestamp - 9 * 60 * 60 * 1000);
+        if (isNaN(birthDateTime.getTime())) throw new Error('Invalid date');
+        console.log(`🕐 [CONSULTATION] Timezone 보정 완료: ${birthDateTime.toISOString()}`);
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid birthDate format. Use YYYY-MM-DDTHH:mm:ss' }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // 만 나이 계산
+      const now = new Date();
+      let age = now.getUTCFullYear() - birthDateTime.getUTCFullYear();
+      const bMonth = birthDateTime.getUTCMonth();
+      const bDay = birthDateTime.getUTCDate();
+      const nMonth = now.getUTCMonth();
+      const nDay = now.getUTCDate();
+      if (nMonth < bMonth || (nMonth === bMonth && nDay < bDay)) {
+        age -= 1;
+      }
+      age = Math.max(0, age);
+
+      // 1. Natal 차트
+      let chartData;
+      try {
+        chartData = await calculateChart(birthDateTime, { lat, lng });
+      } catch (chartError: any) {
+        console.error('❌ [CONSULTATION] 차트 계산 실패:', chartError);
+        return new Response(
+          JSON.stringify({ error: `Chart calculation failed: ${chartError.message}` }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // 2. Firdaria
+      const firdariaResult = calculateFirdaria(birthDateTime, { lat, lng }, now);
+
+      // 3. Interaction (노드 기간이면 null)
+      const isNode =
+        firdariaResult.majorLord === 'NorthNode' || firdariaResult.majorLord === 'SouthNode';
+      const interactionResult =
+        !isNode && firdariaResult.subLord
+          ? analyzeLordInteraction(chartData, firdariaResult.majorLord, firdariaResult.subLord)
+          : null;
+
+      // 4. Progression
+      const progressionResult = calculateProgressedMoon(chartData, age);
+
+      // 5. Direction
+      const directionResult = calculateSolarArcDirections(chartData, age);
+
+      // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data)
+      const systemContext = generatePredictionPrompt(
+        chartData,
+        requestData.birthDate,
+        { lat: requestData.lat, lng: requestData.lng },
+        firdariaResult,
+        interactionResult,
+        progressionResult,
+        directionResult
+      );
+
+      // 7. Gemini 호출
+      const apiKey = Deno.env.get('GEMINI_API_KEY');
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const consultationSystemText = getSystemInstruction(FortuneType.CONSULTATION);
+      const systemInstruction = {
+        parts: [{ text: consultationSystemText }],
+      };
+
+      const userPrompt = `[User Question]: ${userQuestion.trim()}
+[Category]: ${consultationTopic || 'General'}
+
+${systemContext}`;
+
+      const requestBody = {
+        contents: [{ parts: [{ text: userPrompt }] }],
+        systemInstruction,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 8000,
+        },
+      };
+
+      const modelName = getGeminiModel(FortuneType.CONSULTATION);
+      let interpretation;
+      try {
+        const apiResponse = await callGeminiAPI(modelName, apiKey, requestBody);
+        const interpretationText = parseGeminiResponse(apiResponse);
+        interpretation = {
+          success: true,
+          interpretation: interpretationText,
+        };
+      } catch (geminiError: any) {
+        console.error('❌ [CONSULTATION] Gemini 호출 실패:', geminiError);
+        return new Response(
+          JSON.stringify({ error: `AI interpretation failed: ${geminiError.message}` }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // 8. DB 저장 (정규화: fortune_results → fortune_history)
+      let shareId: string | undefined;
+
+      try {
+        console.log('💾 [CONSULTATION] 운세 저장 시작...');
+
+        // Step 1: 현재 사용자 ID는 이미 상단에서 검증됨 (line 863~866)
+        const currentUserId = user.id;
+        const currentProfileId = requestData.profileId || null;
+
+        // Step 2: fortune_results에 먼저 insert (user_info NOT NULL 요구사항 충족)
+        const { data: resultData, error: resultError } = await supabase
+          .from('fortune_results')
+          .insert({
+            user_id: currentUserId,
+            user_info: { birthDate, lat, lng, userQuestion, consultationTopic }, // NOT NULL 컬럼
+            fortune_text: interpretation.interpretation,
+            fortune_type: fortuneType,
+            chart_data: {
+              chart: chartData,
+              firdaria: firdariaResult,
+              interaction: interactionResult,
+              progression: progressionResult,
+              direction: directionResult,
+              metadata: { userQuestion, consultationTopic, birthDate, lat, lng },
+            },
+          })
+          .select('id')
+          .single();
+
+        if (resultError) {
+          throw resultError;
+        }
+
+        if (!resultData?.id) {
+          throw new Error('fortune_results insert 성공했으나 id 반환 없음');
+        }
+
+        shareId = resultData.id;
+        console.log('✅ [CONSULTATION] fortune_results 저장 성공:', shareId);
+
+        // Step 3: fortune_history에 user와 result 연결
+        const { error: historyError } = await supabase
+          .from('fortune_history')
+          .insert({
+            user_id: currentUserId,
+            profile_id: currentProfileId,
+            result_id: shareId,
+            fortune_type: fortuneType,
+            fortune_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+          });
+
+        if (historyError) {
+          console.error('❌ [CONSULTATION] fortune_history 저장 실패:', historyError);
+          console.error('  - user_id:', currentUserId);
+          console.error('  - profile_id:', currentProfileId);
+          console.error('  - result_id:', shareId);
+          console.error('  - 에러 상세:', historyError);
+          // fortune_results는 이미 저장되었으므로 롤백 불가
+          // 에러 로깅만 하고 계속 진행
+        } else {
+          console.log('✅ [CONSULTATION] fortune_history 저장 성공');
+        }
+      } catch (saveError: any) {
+        console.error('❌ [CONSULTATION] 운세 저장 중 예외 발생:', saveError);
+        console.error('  - 에러 메시지:', saveError.message);
+        console.error('  - 에러 스택:', saveError.stack);
+        // 에러 발생 시에도 클라이언트에는 해석 결과를 반환
+      }
+
+      // 9. 성공 응답 반환 (프론트 콘솔 로깅용 geminiInput 포함)
+      const systemInstructionText =
+        systemInstruction.parts?.[0]?.text ?? '';
+      return new Response(
+        JSON.stringify({
+          success: true,
+          chart: chartData,
+          interpretation: interpretation.interpretation,
+          fortuneType,
+          share_id: shareId || null,
+          debugInfo: {
+            firdaria: firdariaResult,
+            interaction: interactionResult,
+            progression: progressionResult,
+            direction: directionResult,
+          },
+          geminiInput: {
+            systemInstruction: systemInstructionText,
+            userPrompt,
+          },
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // 궁합인 경우 2명의 데이터 처리

@@ -3,7 +3,8 @@
  * Gemini에게 전달할 차트 정보를 보기 좋게 포맷팅합니다.
  */
 
-import type { ChartData, Aspect, ProfectionData, SolarReturnOverlay } from '../types.ts'
+import type { ChartData, Aspect, ProfectionData, SolarReturnOverlay, FirdariaResult, InteractionResult, ProgressionResult, DirectionHit } from '../types.ts'
+import { getSignFromLongitude, getSignRuler } from './astrologyCalculator.ts'
 
 /**
  * 각도를 별자리와 도수로 표시하는 헬퍼 함수
@@ -362,4 +363,146 @@ Part of Fortune: ${natalData2.fortuna.sign} ${natalData2.fortuna.degreeInSign.to
 
 위 두 사람의 차트 데이터를 기반으로 궁합을 분석해 주세요.
 `.trim()
+}
+
+/**
+ * 자유 질문(Consultation)용 Prediction Prompt 생성.
+ * [📋 내담자 기본 정보], [🌌 Natal Chart], [Analysis Data] 순으로 구성합니다.
+ *
+ * @param chartData - Natal Chart 데이터 (planets, houses 등)
+ * @param birthDate - 출생일시 ISO 문자열 (예: 1991-10-23T09:20:00, KST)
+ * @param location - 출생지 위도/경도
+ * @param firdariaResult - 피르다리 결과
+ * @param interactionResult - 메이저·서브 로드 상호작용 (null 가능)
+ * @param progressionResult - Progressed Moon 결과
+ * @param directionResult - 솔라 아크 디렉션 히트 목록
+ */
+export function generatePredictionPrompt(
+  chartData: ChartData,
+  birthDate: string,
+  location: { lat: number; lng: number },
+  firdariaResult: FirdariaResult,
+  interactionResult: InteractionResult | null,
+  progressionResult: ProgressionResult,
+  directionResult: DirectionHit[],
+): string {
+  const sections: string[] = []
+
+  // --- [📋 내담자 기본 정보] ---
+  const birthKst = formatBirthDateKst(birthDate)
+  const nowKst = formatCurrentDateKst()
+  sections.push(`[📋 내담자 기본 정보]
+- 출생 연월일: ${birthKst}
+- 출생지 위도/경도: ${location.lat}, ${location.lng}
+- 현재 시점: ${nowKst}`)
+
+  // --- [🌌 Natal Chart] ---
+  const ascLong = chartData.houses?.angles?.ascendant ?? 0
+  const ascParts = getSignDisplay(ascLong).split(' ')
+  const ascDisplay = ascParts.length >= 2 ? `${ascParts[0]} (${ascParts[1]})` : getSignDisplay(ascLong)
+  const planetLines = formatNatalPlanets(chartData)
+  const seventhRuler = getSeventhHouseRuler(ascLong)
+  sections.push(`[🌌 Natal Chart]
+- Ascendant: ${ascDisplay}
+${planetLines}
+- 7th House Ruler: ${seventhRuler}`)
+
+  // --- [Analysis Data] ---
+  const analysisParts: string[] = []
+  analysisParts.push('[Timing Analysis]')
+  const majorLabel = firdariaResult.majorLord
+  const subLabel = firdariaResult.subLord ?? '—'
+  analysisParts.push(`1. Main Period (Firdaria): ${majorLabel} Major / ${subLabel} Sub`)
+
+  if (interactionResult) {
+    const relationship: string[] = []
+    if (interactionResult.aspect) {
+      relationship.push(interactionResult.aspect)
+    }
+    const houseMatch = interactionResult.houseContext.match(/Major\((\d+H)\)/)
+    if (houseMatch) {
+      const h = houseMatch[1].replace('H', '')
+      const ord = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'][parseInt(h, 10) - 1] ?? `${h}th`
+      relationship.push(`in ${ord} House`)
+    }
+    if (relationship.length > 0) {
+      analysisParts.push(`   - Relationship: ${relationship.join(' ')}.`)
+    }
+    if (interactionResult.reception) {
+      analysisParts.push(`   - Note: Reception exists (Helpful).`)
+    }
+  } else {
+    analysisParts.push(`   - (No Major/Sub interaction; node period or N/A.)`)
+  }
+
+  analysisParts.push('')
+  analysisParts.push('2. Psychological Trend (Progression):')
+  analysisParts.push(`   - Progressed Moon in ${progressionResult.progMoonSign} (${ordinalHouse(progressionResult.progMoonHouse)} House).`)
+  if (progressionResult.aspects.length > 0) {
+    const events = progressionResult.aspects.map((a) => a).join('; ')
+    analysisParts.push(`   - Events: ${events}.`)
+  } else {
+    analysisParts.push(`   - Events: (None within orb.)`)
+  }
+
+  analysisParts.push('')
+  analysisParts.push('3. Major Events (Solar Arc Directions):')
+  if (directionResult.length > 0) {
+    directionResult.forEach((hit) => {
+      const exact = hit.isExact ? ' (Imminent)' : ''
+      analysisParts.push(`   - ${hit.movingPlanet} ${hit.aspect} ${hit.targetPoint}${exact}.`)
+    })
+  } else {
+    analysisParts.push('   - (No Conjunction/Opposition hits within orb.)')
+  }
+
+  sections.push(`[Analysis Data]
+${analysisParts.join('\n')}`)
+
+  return sections.join('\n\n')
+}
+
+/** 출생일시 문자열을 KST 기준 "YYYY년 MM월 DD일 HH시 mm분"으로 포맷 (입력이 이미 KST라고 가정) */
+function formatBirthDateKst(birthDate: string): string {
+  const match = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!match) return birthDate
+  const [, y, m, d, h, min] = match
+  return `${y}년 ${parseInt(m!, 10)}월 ${parseInt(d!, 10)}일 ${parseInt(h!, 10)}시 ${parseInt(min!, 10)}분`
+}
+
+/** 현재 시점을 KST 기준 "YYYY년 MM월 DD일"로 포맷 */
+function formatCurrentDateKst(): string {
+  const now = new Date()
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const y = kst.getUTCFullYear()
+  const m = kst.getUTCMonth() + 1
+  const d = kst.getUTCDate()
+  return `${y}년 ${m}월 ${d}일`
+}
+
+/** chartData.planets에서 Sun, Moon, Venus, Mars, Jupiter, Saturn을 "Sun: Scorpio (11th House)" 형식으로 */
+function formatNatalPlanets(chartData: ChartData): string {
+  const order = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'] as const
+  const planets = chartData.planets ?? {}
+  const lines: string[] = []
+  for (const key of order) {
+    const p = planets[key]
+    if (!p) continue
+    const houseOrd = ordinalHouse(p.house)
+    const name = key.charAt(0).toUpperCase() + key.slice(1)
+    lines.push(`- ${name}: ${p.sign} (${houseOrd} House)`)
+  }
+  return lines.join('\n')
+}
+
+/** Whole Sign 기준 7하우스 쿠스프의 별자리 주인(행성) 반환 */
+function getSeventhHouseRuler(ascendantLongitude: number): string {
+  const seventhCuspLong = (ascendantLongitude + 180) % 360
+  const seventhSign = getSignFromLongitude(seventhCuspLong).sign
+  return getSignRuler(seventhSign)
+}
+
+function ordinalHouse(house: number): string {
+  const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th']
+  return ordinals[house - 1] ?? `${house}th`
 }

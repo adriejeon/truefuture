@@ -4,6 +4,7 @@ export enum FortuneType {
   LIFETIME = 'lifetime',     // 인생 종합운/사주 (LifetimeFortune.jsx)
   COMPATIBILITY = 'compatibility', // 궁합 (Compatibility.jsx)
   YEARLY = 'yearly',         // 1년 운세 (YearlyFortune.jsx)
+  CONSULTATION = 'consultation', // 싱글턴 자유 질문 (고급 예측 기법 활용)
 }
 
 // 사용자 데이터 타입
@@ -92,6 +93,43 @@ export interface SolarReturnOverlay {
     jupiter: number
     saturn: number
   }
+}
+
+// Firdaria(피르다리) 결과 타입
+export interface FirdariaResult {
+  isDayChart: boolean
+  age: number
+  majorLord: string       // 예: "Sun", "Venus"
+  subLord: string | null  // 예: "Mercury" (노드 기간이면 null)
+  majorPeriodStart: Date  // 해당 메이저 기간 시작일
+  majorPeriodEnd: Date    // 해당 메이저 기간 종료일
+  subPeriodStart?: Date   // 서브 기간 시작일
+  subPeriodEnd?: Date     // 서브 기간 종료일
+}
+
+// 메이저/서브 로드 상호작용 분석 결과 (Gemini 프롬프트용)
+export interface InteractionResult {
+  majorPlanet: string
+  subPlanet: string
+  reception: string | null   // 예: "Jupiter hosts Saturn (Helpful)"
+  aspect: string | null     // 예: "Trine (Cooperative)"
+  houseContext: string      // 예: "Major(10H) - Sub(2H)"
+  summaryScore: number      // 긍정 +1, 부정 -1, 중립 0 (참고용)
+}
+
+// Secondary Progression 진행 달(Progressed Moon) 결과
+export interface ProgressionResult {
+  progMoonSign: string     // 예: "Taurus"
+  progMoonHouse: number    // Natal 차트 기준 하우스 (1-12)
+  aspects: string[]        // 예: ["Conjunct Natal Saturn (Exact)", "Square Natal Sun"]
+}
+
+// Solar Arc Direction 히트 (이벤트 트리거)
+export interface DirectionHit {
+  movingPlanet: string   // 예: "Directed Saturn"
+  targetPoint: string   // 예: "Natal Ascendant"
+  aspect: string        // "Conjunction" | "Opposition"
+  isExact: boolean      // orb < 0.1° 이면 true (임박한 이벤트)
 }
 
 // DB: fortune_results 테이블 (복구/공유용)
