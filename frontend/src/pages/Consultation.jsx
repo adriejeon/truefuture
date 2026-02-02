@@ -505,7 +505,7 @@ function Consultation() {
                   {sharedConsultation.parsedData.summary?.score != null && (
                     <div className="mb-4">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-slate-300">신뢰도</span>
+                        <span className="text-sm text-slate-300">실현 가능성</span>
                         <span className="text-2xl font-bold text-purple-300">
                           {sharedConsultation.parsedData.summary.score}%
                         </span>
@@ -874,7 +874,7 @@ function Consultation() {
                     {currentAnswer.parsedData.summary?.score != null && (
                       <div className="mb-4">
                         <div className="flex items-center gap-3 mb-2">
-                          <span className="text-sm text-slate-300">신뢰도</span>
+                          <span className="text-sm text-slate-300">실현 가능성</span>
                           <span className="text-2xl font-bold text-purple-300">
                             {currentAnswer.parsedData.summary.score}%
                           </span>
