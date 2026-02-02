@@ -21,6 +21,28 @@ import {
   type PrimaryDirectionHit,
 } from "./astrologyCalculator.ts";
 
+/** 12별자리 성향 키워드 (내부 사용: 풍부한 해석용) */
+const SIGN_KEYWORDS: Record<string, string> = {
+  Aries: "직설적, 도전적, 급함, 리더십",
+  Taurus: "안정지향, 감각적, 고집, 신중함",
+  Gemini: "다재다능, 호기심, 언변, 변덕",
+  Cancer: "감성적, 보호본능, 방어적, 가정적",
+  Leo: "드라마틱, 자신감, 중심, 관대함",
+  Virgo: "분석적, 헌신적, 완벽주의, 비판적",
+  Libra: "사교적, 조화, 우유부단, 세련됨",
+  Scorpio: "강렬함, 통찰력, 집착, 비밀스러움",
+  Sagittarius: "자유분방, 철학적, 낙천적, 직설적",
+  Capricorn: "야망, 책임감, 보수적, 현실적, 상하관계 뚜렷, 야욕",
+  Aquarius: "독창적, 독립적, 이성적, 반골기질, 평화주의",
+  Pisces: "몽상가, 예술적, 희생적, 흐릿한경계, 본인만의 감수성",
+};
+
+/** signName이 "Virgo 12.5°"처럼 들어올 수 있으므로 앞 단어만 파싱하거나 포함 여부 확인 */
+function getSignCharacter(signName: string): string {
+  const key = Object.keys(SIGN_KEYWORDS).find((k) => signName.includes(k));
+  return key ? SIGN_KEYWORDS[key] : "";
+}
+
 /** LOVE 토픽 시 generatePredictionPrompt에 전달되는 연애/결혼 분석 데이터 */
 export type LoveAnalysisData = {
   lotOfMarriage: { sign: string; longitude: number };
@@ -476,10 +498,11 @@ export function generatePredictionPrompt(
     ascParts.length >= 2
       ? `${ascParts[0]} (${ascParts[1]})`
       : getSignDisplay(ascLong);
-  const planetLines = formatNatalPlanets(chartData);
+  const ascCharacter = getSignCharacter(ascParts[0] ?? getSignDisplay(ascLong));
+  const planetLines = formatNatalPlanets(chartData, { getSignCharacter });
   const seventhRuler = getSeventhHouseRuler(ascLong);
   sections.push(`[🌌 Natal Chart]
-- Ascendant: ${ascDisplay}
+- Ascendant: ${ascDisplay}${ascCharacter ? ` (Character: ${ascCharacter})` : ""}
 ${planetLines}
 - 7th House Ruler: ${seventhRuler}`);
 
@@ -585,8 +608,9 @@ ${analysisParts.join("\n")}`);
       reasonParts.length > 0
         ? reasonParts.join(", ") + " 때문에"
         : "점수 구조상";
+    const bestSignCharacter = getSignCharacter(best.sign);
     sections.push(`[🏛️ Career Potential Analysis (Method: POF & MC)]
-- Best Career Planet: ${best.planetName} (Score: ${best.score})
+- Best Career Planet: ${best.planetName} (Score: ${best.score})${bestSignCharacter ? `\n- Sign Character (Best Planet): "${bestSignCharacter}"` : ""}
 - Key Candidates:
 ${careerAnalysis.candidates
   .map((c) => {
@@ -623,6 +647,11 @@ ${careerAnalysis.candidates
     const rulerStatus = formatScoreBreakdown(wealthAnalysis.ruler.breakdown);
     const rulerStatusText =
       rulerStatus.length > 0 ? rulerStatus.join(", ") : "—";
+    const rulerPlanetKey = wealthAnalysis.ruler.planetName.toLowerCase();
+    const rulerSign =
+      (chartData.planets as Record<string, { sign?: string }>)?.[rulerPlanetKey]
+        ?.sign ?? "";
+    const rulerSignCharacter = getSignCharacter(rulerSign);
     const meaningOccupants =
       wealthAnalysis.occupants.length > 0
         ? wealthAnalysis.occupants.map((o) => o.planetName).join(", ") + "가"
@@ -633,7 +662,7 @@ ${careerAnalysis.candidates
 - Ruler Condition: ${wealthAnalysis.ruler.planetName} (Score: ${
       wealthAnalysis.ruler.score
     })
-  * Status: ${rulerStatusText}
+  * Status: ${rulerStatusText}${rulerSignCharacter ? `\n- Ruler Sign Character: "${rulerSignCharacter}"` : ""}
 - Meaning: "재물 획득의 장소(11th from POF)에 ${meaningOccupants} 있고, 주인인 ${
       wealthAnalysis.ruler.planetName
     }가 ${wealthAnalysis.ruler.score}점으로 ${
@@ -719,6 +748,7 @@ ${careerAnalysis.candidates
    - Score: ${
      loveAnalysis.loveQualities.score
    } / Placement: ${ord} House (${sign})
+   - Sign Character: "${getSignCharacter(sign)}"
    - Status: ${combust ? "Combust" : "Not combust"}, ${dignity}
    - Interpretation: "금성이 ${ord}에 있고 점수가 ${
       loveAnalysis.loveQualities.score
@@ -744,8 +774,44 @@ Instruction: 제미나이에게 "이 데이터를 바탕으로 내담자의 연�
   }
 
   sections.push(`[📚 Knowledge Base (from Neo4j)]
-${(graphKnowledge ?? "").trim() || "(없음)"}
-Instruction: 이 섹션은 DB에서 가져온 검증된 점성학 지식입니다. 해석 시 이 키워드와 의미를 우선적으로 참고하세요.`);
+${(graphKnowledge ?? "").trim() || "(없음)"}`);
+
+  sections.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[🛑 IMPORTANT INSTRUCTION FOR AI - READ CAREFULLY]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You are "TrueFuture", a wise, intuitive, and empathetic astrologer.
+Your mission is to answer the user's inquiry based on the astrological data provided above (\`[Analysis Data]\`, \`[Deep Scan]\`, etc.), acting as your **hidden reasoning engine**.
+
+**🚫 Negative Constraints (Review strict compliance):**
+1.  **NO Data Recitation:** Do NOT say "Because Jupiter is in the 11th house..." or "According to the Primary Direction...". The user does not know astrology.
+2.  **NO Technical Jargon:** Avoid terms like "Firdaria", "Profection", "Sect", "Acquisition House" in your final output unless absolutely necessary for credibility. Translate them into life context (e.g., "Jupiter in 11th" -> "Help from friends or networks").
+3.  **NO Robotic Templates:** Do not start every sentence with "Based on the chart...". Be conversational.
+
+**✅ Positive Guidelines (Follow these):**
+1.  **Use "Invisible Reasoning":**
+    - Look at the \`[Analysis Data]\`.
+    - If \`Score\` is high (+), be optimistic and encourage action.
+    - If \`Score\` is low (-) or blocked by Saturn/Mars, be cautious and advise patience/preparation.
+    - Use the provided \`Sign Character\` keywords to describe the user's nature (e.g., "Since your Venus is in Virgo (Devoted), you tend to care for details in love...").
+2.  **Focus on the User's Intent:**
+    - **Topic: LOVE** -> Focus on "When" (Timing) and "Who" (Future Spouse Character) and "How" (Your Style).
+    - **Topic: WORK** -> Focus on "Talent" (What fits me) and "Success Timing".
+    - **Topic: MONEY** -> Focus on "Source" (Where money comes from) and "Volume" (Big or stable).
+3.  **Structure:**
+    - **Conclusion:** Direct answer (Yes/No/Time).
+    - **Insight:** Why? (Synthesized interpretation of character + timing).
+    - **Action Tip:** Practical advice based on the analysis.
+
+**Tone & Manner:**
+- **Language Protocol:** STRICTLY match the language of the user's input query.
+  - **If Input is Korean:** Use **Korean** (Natural conversational tone, 해요체).
+  - **If Input is English:** Use **English** (Warm, professional, empathetic tone).
+  - **If Mixed:** Prioritize the language used for the core question.
+- **Vibe:** Professional counselor, warm, insightful.
+
+**Input Query:** "{User's Specific Question will be here}"
+**Now, provide your counseling session.**`);
 
   return sections.join("\n\n");
 }
@@ -771,8 +837,11 @@ function formatCurrentDateKst(): string {
   return `${y}년 ${m}월 ${d}일`;
 }
 
-/** chartData.planets에서 Sun, Moon, Venus, Mars, Jupiter, Saturn을 "Sun: Scorpio (11th House)" 형식으로 */
-function formatNatalPlanets(chartData: ChartData): string {
+/** chartData.planets에서 Sun, Moon, Venus, Mars, Jupiter, Saturn을 "Sun: Scorpio (11th House)" 형식으로. getSignCharacter 주입 시 Sun/Moon에 (Character: ...) 추가 */
+function formatNatalPlanets(
+  chartData: ChartData,
+  options?: { getSignCharacter?: (sign: string) => string }
+): string {
   const order = [
     "sun",
     "moon",
@@ -783,13 +852,18 @@ function formatNatalPlanets(chartData: ChartData): string {
     "saturn",
   ] as const;
   const planets = chartData.planets ?? {};
+  const getSignChar = options?.getSignCharacter;
   const lines: string[] = [];
   for (const key of order) {
     const p = planets[key];
     if (!p) continue;
     const houseOrd = ordinalHouse(p.house);
     const name = key.charAt(0).toUpperCase() + key.slice(1);
-    lines.push(`- ${name}: ${p.sign} (${houseOrd} House)`);
+    const charSuffix =
+      getSignChar && (key === "sun" || key === "moon")
+        ? ` (Character: ${getSignChar(p.sign)})`
+        : "";
+    lines.push(`- ${name}: ${p.sign} (${houseOrd} House)${charSuffix}`);
   }
   return lines.join("\n");
 }

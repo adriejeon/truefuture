@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
+import { saveFortuneHistory } from "../services/fortuneService";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
@@ -100,15 +101,15 @@ function Consultation() {
   const [error, setError] = useState("");
   const [currentAnswer, setCurrentAnswer] = useState(null); // { question, topic, interpretation, debugInfo }
 
-  // 상담 내역
-  const [consultationHistory, setConsultationHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
-
   // 공유 링크로 들어온 경우
   const [searchParams, setSearchParams] = useSearchParams();
   const [sharedConsultation, setSharedConsultation] = useState(null);
   const [loadingShared, setLoadingShared] = useState(false);
+
+  // 히스토리 뷰 (대화 목록에서 클릭한 경우)
+  const { resultId } = useParams();
+  const navigate = useNavigate();
+  const [historyView, setHistoryView] = useState(null); // { question, interpretation }
 
   const loadingIntervalRef = useRef(null);
 
@@ -141,23 +142,62 @@ function Consultation() {
     }
   }, [loading]);
 
-  // 상담 내역 로드
+  // 히스토리 뷰 로드 (대화 목록에서 클릭한 경우 /consultation/:resultId)
   useEffect(() => {
-    if (user?.id && selectedProfile?.id) {
-      loadConsultationHistory();
+    if (!resultId) {
+      setHistoryView(null);
+      return;
     }
-  }, [user?.id, selectedProfile?.id]);
 
-  // currentAnswer가 설정되면 자동으로 내역 새로고침
-  useEffect(() => {
-    if (currentAnswer && user?.id && selectedProfile?.id) {
-      // 약간의 딜레이 후 내역 새로고침 (DB 저장 완료 대기)
-      const timer = setTimeout(() => {
-        loadConsultationHistory();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [currentAnswer, user?.id, selectedProfile?.id]);
+    const loadHistoryItem = async () => {
+      setLoadingShared(true);
+      try {
+        // result_id로 fortune_history 조회 (동일 result_id가 여러 행일 수 있으므로 limit(1), 최신 1건만 사용)
+        const { data: historyRows, error: historyError } = await supabase
+          .from("fortune_history")
+          .select("user_question, result_id")
+          .eq("result_id", resultId)
+          .eq("fortune_type", "consultation")
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (historyError || !historyRows?.length) {
+          console.error("히스토리 조회 실패:", historyError);
+          setHistoryView(null);
+          return;
+        }
+
+        const historyData = historyRows[0];
+
+        const { data: resultData, error: resultError } = await supabase
+          .from("fortune_results")
+          .select("fortune_text")
+          .eq("id", resultId)
+          .single();
+
+        if (resultError || !resultData) {
+          console.error("결과 조회 실패:", resultError);
+          setHistoryView(null);
+          return;
+        }
+
+        const parsedData = parseFortuneResult(resultData.fortune_text);
+        setHistoryView({
+          question: historyData.user_question || "(질문 없음)",
+          interpretation: resultData.fortune_text,
+          parsedData,
+          shareId: resultId,
+        });
+      } catch (err) {
+        console.error("히스토리 로드 실패:", err);
+        setHistoryView(null);
+      } finally {
+        setLoadingShared(false);
+      }
+    };
+
+    loadHistoryItem();
+  }, [resultId]);
 
   // URL ?id= 로 공유된 상담 로드
   useEffect(() => {
@@ -237,83 +277,6 @@ function Consultation() {
       });
     } catch (err) {
       alert("카카오톡 공유 중 오류가 발생했습니다: " + err.message);
-    }
-  };
-
-  const loadConsultationHistory = async () => {
-    if (!selectedProfile?.id || !user?.id) return;
-
-    setLoadingHistory(true);
-    try {
-      // JOIN을 사용하여 fortune_history와 fortune_results를 한 번에 조회
-      const { data, error: historyError } = await supabase
-        .from("fortune_history")
-        .select(
-          `
-          id,
-          result_id,
-          created_at,
-          fortune_results (
-            id,
-            fortune_text,
-            chart_data,
-            created_at
-          )
-        `
-        )
-        .eq("user_id", user.id) // Security: 내 것만 조회
-        .eq("profile_id", selectedProfile.id) // 선택된 프로필만
-        .eq("fortune_type", "consultation") // 싱글턴 질문만
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (historyError) throw historyError;
-
-      if (!data || data.length === 0) {
-        setConsultationHistory([]);
-        return;
-      }
-
-      // JOIN 결과 매핑 (fortune_results가 null인 경우 예외 처리)
-      const historyWithDetails = data
-        .map((h) => {
-          const result = h.fortune_results;
-          if (!result) {
-            console.warn(
-              `⚠️ [CONSULTATION] result_id ${h.result_id}에 해당하는 fortune_results가 없음 (무결성 깨짐)`
-            );
-            return null;
-          }
-
-          // chart_data.metadata에서 질문/카테고리 추출 (신규 구조)
-          const metadata = result.chart_data?.metadata || {};
-          const question = metadata.userQuestion || "(질문 없음)";
-          const topic = metadata.consultationTopic || "OTHER";
-
-          const parsedData = parseFortuneResult(result.fortune_text);
-
-          return {
-            id: result.id,
-            question,
-            topic,
-            interpretation: result.fortune_text,
-            parsedData, // 구조화된 JSON 데이터 (있으면)
-            debugInfo: {
-              firdaria: result.chart_data?.firdaria,
-              interaction: result.chart_data?.interaction,
-              progression: result.chart_data?.progression,
-              direction: result.chart_data?.direction,
-            },
-            createdAt: h.created_at, // fortune_history의 created_at 사용
-          };
-        })
-        .filter(Boolean);
-
-      setConsultationHistory(historyWithDetails);
-    } catch (err) {
-      console.error("❌ 상담 내역 로드 실패:", err);
-    } finally {
-      setLoadingHistory(false);
     }
   };
 
@@ -406,6 +369,18 @@ function Consultation() {
         shareId: data.share_id || null,
       });
 
+      // 운세 이력 저장 (대화 목록용)
+      if (data.share_id) {
+        await saveFortuneHistory(
+          user.id,
+          selectedProfile.id,
+          "consultation",
+          data.share_id,
+          null,
+          userQuestion.trim()
+        );
+      }
+
       // 입력 초기화
       setUserQuestion("");
     } catch (err) {
@@ -414,11 +389,6 @@ function Consultation() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // 내역 클릭 (펼치기/접기)
-  const toggleHistoryItem = (id) => {
-    setExpandedHistoryId((prev) => (prev === id ? null : id));
   };
 
   // 인증 로딩 중
@@ -442,7 +412,7 @@ function Consultation() {
             로그인이 필요합니다
           </h2>
           <p className="text-slate-300 mb-6">
-            자유 질문 상담소는 로그인 후 이용하실 수 있습니다.
+            진짜미래는 로그인 후 이용하실 수 있습니다.
           </p>
           <a
             href="/login"
@@ -463,6 +433,216 @@ function Consultation() {
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-400 mx-auto mb-4"></div>
           <p className="text-slate-400">공유된 상담을 불러오는 중...</p>
         </div>
+      </div>
+    );
+  }
+
+  // 히스토리 뷰 (대화 목록에서 클릭한 경우)
+  if (historyView) {
+    return (
+      <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
+        <div className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24">
+          <div className="py-8 sm:py-12">
+            {/* 상단: 새로운 질문 버튼 */}
+            <div className="mb-6">
+              <button
+                onClick={() => navigate("/consultation")}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                새로운 질문
+              </button>
+            </div>
+
+            {/* 질문 표시 */}
+            <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">💬</div>
+                <div className="flex-1">
+                  <p className="text-slate-300 text-sm mb-1">내 질문</p>
+                  <p className="text-white font-medium">{historyView.question}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 답변 표시: parsedData면 구조화된 UI, 아니면 마크다운(평문) */}
+            {historyView.parsedData ? (
+              <div className="space-y-5 mb-8">
+                {/* 요약 카드 */}
+                <div className="p-6 bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-purple-500/50 rounded-xl shadow-xl">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
+                    {historyView.parsedData.summary?.title || "결론"}
+                  </h2>
+                  {historyView.parsedData.summary?.score != null && (
+                    <div className="mb-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-sm text-slate-300">실현 가능성</span>
+                        <span className="text-2xl font-bold text-purple-300">
+                          {historyView.parsedData.summary.score}%
+                        </span>
+                        <span className="flex gap-0.5" aria-hidden>
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <span
+                              key={i}
+                              className={
+                                i <= Math.round((historyView.parsedData.summary?.score || 0) / 20)
+                                  ? "text-amber-400"
+                                  : "text-slate-600"
+                              }
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-700/50 rounded-full h-2.5">
+                        <div
+                          className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${historyView.parsedData.summary?.score || 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {(historyView.parsedData.summary?.keywords || []).map((keyword, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1.5 bg-purple-600/40 border border-purple-400/50 rounded-full text-xs font-medium text-purple-100"
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 타임라인 */}
+                {historyView.parsedData.timeline && historyView.parsedData.timeline.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      📅 타임라인
+                    </h3>
+                    <div className="space-y-3">
+                      {historyView.parsedData.timeline.map((item, idx) => {
+                        const isGood = item.type === "good";
+                        const isBad = item.type === "bad";
+                        const bgColor = isGood
+                          ? "bg-emerald-900/30 border-emerald-500/50"
+                          : isBad
+                          ? "bg-rose-900/30 border-rose-500/50"
+                          : "bg-slate-700/30 border-slate-500/50";
+                        const iconColor = isGood ? "text-emerald-400" : isBad ? "text-rose-400" : "text-slate-400";
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                          >
+                            <div className={`text-xl flex-shrink-0 ${iconColor}`}>
+                              {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white mb-1">{item.date}</p>
+                              <p className="text-sm text-slate-300 leading-relaxed">{item.note}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 종합 분석 + 시기 분석 + Action Tip */}
+                <div className="space-y-5">
+                  {historyView.parsedData.analysis?.general && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
+                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                        {historyView.parsedData.analysis.general}
+                      </p>
+                    </div>
+                  )}
+                  {historyView.parsedData.analysis?.timing && (
+                    <div className="border-t border-slate-600/40 pt-5">
+                      <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
+                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                        {historyView.parsedData.analysis.timing}
+                      </p>
+                    </div>
+                  )}
+                  {historyView.parsedData.analysis?.advice && (
+                    <div className="border-t border-slate-600/40 pt-5">
+                      <div className="p-4 bg-amber-900/25 border-2 border-amber-500/50 rounded-xl">
+                        <h3 className="text-lg font-semibold text-amber-200 mb-3 flex items-center gap-2">
+                          💡 Action Tip
+                        </h3>
+                        <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                          {historyView.parsedData.analysis.advice}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                <div className="prose prose-invert prose-sm sm:prose-base max-w-none text-slate-200">
+                  <ReactMarkdown>{historyView.interpretation}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {/* 친구에게 공유 */}
+            {historyView.shareId && (
+              <div className="mt-6 pt-6 border-t border-slate-600/50">
+                <p className="text-sm text-slate-300 mb-3">친구에게 공유하기</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyLink(historyView.shareId)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                      />
+                    </svg>
+                    링크 복사
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleKakaoShare(historyView.shareId)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                  >
+                    <span>카카오톡 공유</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        {user && <BottomNavigation />}
       </div>
     );
   }
@@ -557,7 +737,7 @@ function Consultation() {
                 {/* Timeline Section */}
                 {sharedConsultation.parsedData.timeline &&
                   sharedConsultation.parsedData.timeline.length > 0 && (
-                    <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                    <div>
                       <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                         📅 타임라인
                       </h3>
@@ -604,7 +784,7 @@ function Consultation() {
                   )}
 
                 {/* Analysis Section */}
-                <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl space-y-5">
+                <div className="space-y-5">
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-3">
                       🔮 종합 분석
@@ -667,7 +847,7 @@ function Consultation() {
                 href="/consultation"
                 className="block text-center py-3 text-purple-300 hover:text-purple-200 text-sm"
               >
-                자유 질문 상담소로 이동 →
+                진짜미래로 이동 →
               </a>
             )}
           </div>
@@ -686,12 +866,10 @@ function Consultation() {
           {/* 페이지 소개 */}
           <div className="mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-              ✨ 자유 질문 상담소
+              ✨ 진짜미래
             </h2>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              궁금한 것을 구체적으로 물어보세요. AI가 당신의 출생 차트와 현재
-              행성 흐름(피르다리, 프로그레스, 솔라 아크)을 분석하여 맞춤형
-              답변을 제공합니다.
+              궁금한 것을 구체적으로 물어보세요. 점성술사 AI가 내담자님의 점성학 차트와 현재 우주의 흐름을 분석하여 진짜 미래를 알려드립니다.
             </p>
           </div>
 
@@ -924,7 +1102,7 @@ function Consultation() {
                   {/* Timeline Section */}
                   {currentAnswer.parsedData.timeline &&
                     currentAnswer.parsedData.timeline.length > 0 && (
-                      <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                      <div>
                         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                           📅 타임라인
                         </h3>
@@ -972,7 +1150,7 @@ function Consultation() {
                     )}
 
                   {/* Analysis Section */}
-                  <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl space-y-5">
+                  <div className="space-y-5">
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">
                         🔮 종합 분석
@@ -1019,158 +1197,6 @@ function Consultation() {
             </div>
           )}
 
-          {/* 상담 내역 */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-white mb-4">
-              📜 상담 내역
-            </h3>
-
-            {loadingHistory && (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-3"></div>
-                <p className="text-slate-400 text-sm">내역 불러오는 중...</p>
-              </div>
-            )}
-
-            {!loadingHistory && consultationHistory.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-slate-400 text-sm">
-                  아직 상담 내역이 없습니다.
-                </p>
-              </div>
-            )}
-
-            {!loadingHistory && consultationHistory.length > 0 && (
-              <div className="space-y-3">
-                {consultationHistory.map((item) => {
-                  const isExpanded = expandedHistoryId === item.id;
-                  const topicOption = TOPIC_OPTIONS.find(
-                    (t) => t.id === item.topic
-                  );
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="border border-slate-600/50 rounded-lg overflow-hidden transition-all hover:border-slate-500"
-                      style={{ backgroundColor: "rgba(15, 15, 43, 0.3)" }}
-                    >
-                      <button
-                        onClick={() => toggleHistoryItem(item.id)}
-                        className="w-full flex items-center justify-between p-4 text-left focus:outline-none"
-                      >
-                        <div className="flex-1 pr-4">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-lg">
-                              {topicOption?.emoji || "🔮"}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              {new Date(item.createdAt).toLocaleDateString(
-                                "ko-KR",
-                                {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                }
-                              )}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-300 line-clamp-2">
-                            {item.question}
-                          </p>
-                        </div>
-                        <svg
-                          className={`w-5 h-5 text-slate-300 flex-shrink-0 transition-transform duration-300 ${
-                            isExpanded ? "transform rotate-180" : ""
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="px-4 pb-4">
-                          <div className="pt-3 border-t border-slate-600/30 flex flex-col gap-3">
-                            {/* parsedData가 있으면 구조화된 요약 보기 */}
-                            {item.parsedData ? (
-                              <div className="space-y-3">
-                                {/* 간단 요약 */}
-                                <div className="p-3 bg-purple-900/20 border border-purple-600/30 rounded-lg">
-                                  <p className="text-sm font-semibold text-purple-200 mb-1">
-                                    {item.parsedData.summary?.title}
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-slate-400">
-                                      신뢰도:
-                                    </span>
-                                    <span className="text-sm font-bold text-purple-300">
-                                      {item.parsedData.summary?.score || 0}%
-                                    </span>
-                                  </div>
-                                </div>
-                                {/* 종합 분석 (축약) */}
-                                <p className="text-sm text-slate-300 leading-relaxed line-clamp-4">
-                                  {item.parsedData.analysis?.general || ""}
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="prose prose-invert max-w-none prose-sm text-slate-200 leading-relaxed break-words">
-                                <ReactMarkdown>
-                                  {item.interpretation}
-                                </ReactMarkdown>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopyLink(item.id);
-                                }}
-                                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white text-sm transition-colors"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                                  />
-                                </svg>
-                                링크 복사
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleKakaoShare(item.id);
-                                }}
-                                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white text-sm transition-colors"
-                              >
-                                카카오톡 공유
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

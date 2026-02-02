@@ -1,6 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Home from "./pages/Home";
-import LifetimeFortune from "./pages/LifetimeFortune";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Compatibility from "./pages/Compatibility";
 import YearlyFortune from "./pages/YearlyFortune";
 import Consultation from "./pages/Consultation";
@@ -22,12 +20,13 @@ function App() {
           }}
         >
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Navigate to="/consultation" replace />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/lifetime" element={<LifetimeFortune />} />
+            <Route path="/lifetime" element={<Navigate to="/yearly" replace />} />
             <Route path="/compatibility" element={<Compatibility />} />
             <Route path="/yearly" element={<YearlyFortune />} />
             <Route path="/consultation" element={<Consultation />} />
+            <Route path="/consultation/:resultId" element={<Consultation />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
           </Routes>

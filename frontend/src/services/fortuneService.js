@@ -23,9 +23,10 @@ function getTodayDate() {
  * 운세 조회 이력 저장 (DB 전용, React/Hook 미의존)
  * @param {string} userId - user.id
  * @param {string} profileId
- * @param {string} fortuneType - 'daily' | 'yearly' | 'lifetime' | 'compatibility'
+ * @param {string} fortuneType - 'daily' | 'yearly' | 'lifetime' | 'compatibility' | 'consultation'
  * @param {string|null} resultId - share_id / fortune_results.id (기기 변경 시 복구용)
  * @param {object} profile - 프로필 객체 (birth_date 등 yearly 기간 계산용)
+ * @param {string|null} userQuestion - 상담(consultation) 시 사용자 질문
  */
 export async function saveFortuneHistory(
   userId,
@@ -33,6 +34,7 @@ export async function saveFortuneHistory(
   fortuneType,
   resultId = null,
   profile = null,
+  userQuestion = null,
 ) {
   if (!userId || !profileId) return;
 
@@ -46,6 +48,7 @@ export async function saveFortuneHistory(
       fortune_type: fortuneType,
       fortune_date: getTodayDate(),
       ...(resultId && { result_id: resultId }),
+      ...(userQuestion && fortuneType === "consultation" && { user_question: userQuestion }),
     };
 
     if (fortuneType === "yearly" && profile?.birth_date) {
@@ -82,6 +85,32 @@ export async function saveFortuneHistory(
     console.log("✅ 운세 조회 이력 저장 완료:", historyData);
   } catch (err) {
     console.error("운세 이력 저장 실패:", err);
+  }
+}
+
+/**
+ * 상담 내역 조회 (consultation fortune_type만)
+ * @param {string} userId
+ * @returns {Promise<Array<{id, user_question, created_at, result_id}>>}
+ */
+export async function fetchConsultationHistory(userId) {
+  if (!userId) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from("fortune_history")
+      .select("id, user_question, created_at, result_id")
+      .eq("user_id", userId)
+      .eq("fortune_type", "consultation")
+      .not("user_question", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error("❌ 상담 내역 조회 실패:", err);
+    return [];
   }
 }
 

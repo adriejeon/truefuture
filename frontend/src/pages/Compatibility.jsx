@@ -543,10 +543,10 @@ function Compatibility() {
         className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
-        {/* 페이지 소개 - 궁합 (Synastry) */}
+        {/* 페이지 소개 - 진짜 궁합 (Synastry) */}
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-            관계의 화학작용 분석
+            진짜 궁합
           </h2>
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
             단순히 좋고 나쁨을 따지는 것이 아닙니다. 두 사람의 우주가 만났을 때 어떤 시너지가 나고 어디서 부딪히는지, 서로를 깊이 이해하고 조율하기 위한 지혜를 드립니다.
@@ -637,7 +637,7 @@ function Compatibility() {
                 <span>궁합을 분석하는 중...</span>
               </>
             ) : (
-              <span>💕 궁합 확인하기</span>
+              <span>💕 진짜 궁합 확인하기</span>
             )}
           </button>
         </form>
@@ -654,7 +654,7 @@ function Compatibility() {
         )}
         {!restoring && interpretation && (
           <FortuneResult
-            title="관계의 화학작용 분석"
+            title="진짜 궁합"
             interpretation={interpretation}
             shareId={shareId}
           />

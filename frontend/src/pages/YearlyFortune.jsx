@@ -36,6 +36,67 @@ function YearlyFortune() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [fortuneTab, setFortuneTab] = useState("daily"); // "daily" | "yearly" | "lifetime"
+  const [fromCache, setFromCache] = useState(false);
+  const [fortuneDate, setFortuneDate] = useState("");
+  const [loadingCache, setLoadingCache] = useState(false);
+
+  // 데일리 운세용: 한국 시간 기준 오늘 날짜
+  const getKoreaTime = () => {
+    const now = new Date();
+    return new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  };
+  const getTodayDate = () => {
+    const koreaTime = getKoreaTime();
+    const year = koreaTime.getUTCFullYear();
+    const month = String(koreaTime.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(koreaTime.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const isWithinDailyFortuneTime = () => {
+    const koreaTime = getKoreaTime();
+    const hour = koreaTime.getUTCHours();
+    const minute = koreaTime.getUTCMinutes();
+    if (hour === 0 && minute < 1) return false;
+    return true;
+  };
+  const getTodayFortuneFromStorage = (profileId) => {
+    if (!profileId) return null;
+    try {
+      const storageKey = `daily_fortune_${profileId}`;
+      const stored = localStorage.getItem(storageKey);
+      if (!stored) return null;
+      const fortuneData = JSON.parse(stored);
+      if (fortuneData.date === getTodayDate()) return fortuneData;
+      localStorage.removeItem(storageKey);
+      return null;
+    } catch (err) {
+      console.error("로컬스토리지 읽기 에러:", err);
+      return null;
+    }
+  };
+  const saveTodayFortuneToStorage = (profileId, fortuneData) => {
+    if (!profileId) return;
+    try {
+      const todayDate = getTodayDate();
+      const dataToSave = {
+        date: todayDate,
+        interpretation: fortuneData.interpretation,
+        chart: fortuneData.chart,
+        transitChart: fortuneData.transitChart,
+        aspects: fortuneData.aspects,
+        transitMoonHouse: fortuneData.transitMoonHouse,
+        shareId: fortuneData.shareId,
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem(
+        `daily_fortune_${profileId}`,
+        JSON.stringify(dataToSave)
+      );
+    } catch (err) {
+      console.error("❌ 로컬스토리지 저장 에러:", err);
+    }
+  };
 
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
@@ -111,20 +172,64 @@ function YearlyFortune() {
     }
   }, [profiles]);
 
-  // 로그인 계정에 저장된 이전 결과 복구 (다른 기기/새로고침 후에도 결과 유지)
+  // 탭/프로필별 저장된 결과 복구
   useEffect(() => {
     if (!selectedProfile || isSharedFortune || !user) return;
     if (searchParams.get("id")) return;
 
+    if (fortuneTab === "daily") {
+      setLoadingCache(true);
+      const stored = getTodayFortuneFromStorage(selectedProfile.id);
+      if (stored) {
+        setInterpretation(stored.interpretation);
+        setFromCache(true);
+        setFortuneDate(stored.date);
+        setShareId(stored.shareId || null);
+      } else {
+        (async () => {
+          try {
+            const restored = await restoreFortuneIfExists(
+              selectedProfile.id,
+              "daily"
+            );
+            if (restored) {
+              setInterpretation(restored.interpretation);
+              setFromCache(true);
+              setFortuneDate(getTodayDate());
+              setShareId(restored.shareId || null);
+              saveTodayFortuneToStorage(selectedProfile.id, {
+                interpretation: restored.interpretation,
+                chart: restored.chart,
+                transitChart: restored.transitChart,
+                aspects: restored.aspects,
+                transitMoonHouse: restored.transitMoonHouse,
+                shareId: restored.shareId,
+              });
+            } else {
+              setInterpretation("");
+              setFromCache(false);
+              setFortuneDate("");
+              setShareId(null);
+            }
+          } finally {
+            setLoadingCache(false);
+          }
+        })();
+        return;
+      }
+      setLoadingCache(false);
+      return;
+    }
+
     setRestoring(true);
     let cancelled = false;
+    const type = fortuneTab === "yearly" ? "yearly" : "lifetime";
 
     (async () => {
       try {
-        const restored = await restoreFortuneIfExists(selectedProfile.id, "yearly");
+        const restored = await restoreFortuneIfExists(selectedProfile.id, type);
         if (cancelled) return;
         if (restored) {
-          console.log("✅ [복구] 1년 운세 DB에서 복구");
           setInterpretation(restored.interpretation);
           setShareId(restored.shareId);
           setError("");
@@ -142,7 +247,7 @@ function YearlyFortune() {
     return () => {
       cancelled = true;
     };
-  }, [selectedProfile?.id, isSharedFortune, user, searchParams]);
+  }, [selectedProfile?.id, isSharedFortune, user, searchParams, fortuneTab]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -153,34 +258,111 @@ function YearlyFortune() {
     [createProfile],
   );
 
-  const handleSubmit = async (e) => {
+  const handleSubmitDaily = async (e) => {
     e.preventDefault();
-
-    // 공유 링크로 들어온 경우 로그인 필요
-    if (isSharedFortune && !user) {
+    if (!user) {
       handleRequireLogin();
       return;
     }
-
-    // 프로필 선택 체크
     if (!selectedProfile) {
       setError("프로필을 선택해주세요.");
       setShowProfileModal(true);
       return;
     }
-
-    // 운세 조회 가능 여부 체크
     const availability = await checkFortuneAvailability(
       selectedProfile.id,
-      "yearly",
+      "daily"
     );
     if (!availability.available) {
       setError(availability.reason);
       return;
     }
-
     const formData = convertProfileToApiFormat(selectedProfile);
+    if (!formData) {
+      setError("프로필 정보가 올바르지 않습니다.");
+      return;
+    }
+    if (!isWithinDailyFortuneTime()) {
+      setError("오늘의 운세는 00시 1분부터 확인하실 수 있습니다.");
+      return;
+    }
+    const existingFortune = getTodayFortuneFromStorage(selectedProfile.id);
+    if (existingFortune) {
+      setError(
+        "오늘의 운세를 이미 확인하셨습니다. 내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다."
+      );
+      setInterpretation(existingFortune.interpretation);
+      setFromCache(true);
+      setFortuneDate(existingFortune.date);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setInterpretation("");
+    try {
+      const requestBody = {
+        ...formData,
+        fortuneType: "daily",
+        reportType: "daily",
+      };
+      const { data, error: functionError } = await supabase.functions.invoke(
+        "get-fortune",
+        { body: requestBody }
+      );
+      if (functionError) throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+      if (!data || data.error) throw new Error(data?.error || "서버 오류가 발생했습니다.");
+      logDebugInfoIfPresent(data);
+      if (data.interpretation && typeof data.interpretation === "string") {
+        const todayDate = getTodayDate();
+        const currentShareId = data.share_id || null;
+        setShareId(currentShareId);
+        saveTodayFortuneToStorage(selectedProfile.id, {
+          interpretation: data.interpretation,
+          chart: data.chart,
+          transitChart: data.transitChart,
+          aspects: data.aspects,
+          transitMoonHouse: data.transitMoonHouse,
+          shareId: currentShareId,
+        });
+        await saveFortuneHistory(
+          selectedProfile.id,
+          "daily",
+          currentShareId ?? undefined
+        );
+        setInterpretation(data.interpretation);
+        setFromCache(false);
+        setFortuneDate(todayDate);
+      } else {
+        setInterpretation("결과를 불러올 수 없습니다.");
+      }
+    } catch (err) {
+      setError(err.message || "요청 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const handleSubmitYearly = async (e) => {
+    e.preventDefault();
+
+    if (isSharedFortune && !user) {
+      handleRequireLogin();
+      return;
+    }
+    if (!selectedProfile) {
+      setError("프로필을 선택해주세요.");
+      setShowProfileModal(true);
+      return;
+    }
+    const availability = await checkFortuneAvailability(
+      selectedProfile.id,
+      "yearly"
+    );
+    if (!availability.available) {
+      setError(availability.reason);
+      return;
+    }
+    const formData = convertProfileToApiFormat(selectedProfile);
     if (!formData) {
       setError("프로필 정보가 올바르지 않습니다.");
       return;
@@ -195,7 +377,7 @@ function YearlyFortune() {
       const requestBody = {
         ...formData,
         fortuneType: "yearly",
-        reportType: "yearly", // 하위 호환성 유지
+        reportType: "yearly",
       };
 
       // 디버깅: 전송하는 데이터 로그
@@ -468,6 +650,65 @@ function YearlyFortune() {
     }
   };
 
+  const handleSubmitLifetime = async (e) => {
+    e.preventDefault();
+    if (isSharedFortune && !user) {
+      handleRequireLogin();
+      return;
+    }
+    if (!selectedProfile) {
+      setError("프로필을 선택해주세요.");
+      setShowProfileModal(true);
+      return;
+    }
+    const availability = await checkFortuneAvailability(
+      selectedProfile.id,
+      "lifetime"
+    );
+    if (!availability.available) {
+      setError(availability.reason);
+      return;
+    }
+    const formData = convertProfileToApiFormat(selectedProfile);
+    if (!formData) {
+      setError("프로필 정보가 올바르지 않습니다.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setInterpretation("");
+    setShareId(null);
+    try {
+      const requestBody = {
+        ...formData,
+        fortuneType: "lifetime",
+        reportType: "lifetime",
+      };
+      const { data, error: functionError } = await supabase.functions.invoke(
+        "get-fortune",
+        { body: requestBody }
+      );
+      if (functionError) throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+      if (!data || data.error) throw new Error(data?.error || "서버 오류가 발생했습니다.");
+      logDebugInfoIfPresent(data);
+      if (data.interpretation && typeof data.interpretation === "string") {
+        setInterpretation(data.interpretation);
+        setShareId(data.share_id || null);
+        await saveFortuneHistory(
+          selectedProfile.id,
+          "lifetime",
+          data.share_id ?? undefined
+        );
+      } else {
+        setInterpretation("결과를 불러올 수 없습니다.");
+      }
+    } catch (err) {
+      setError(err.message || "요청 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loadingAuth) {
     return (
       <div className="w-full flex items-center justify-center py-20">
@@ -547,6 +788,19 @@ function YearlyFortune() {
     return null;
   }
 
+  const getSubmitHandler = () => {
+    if (fortuneTab === "daily") return handleSubmitDaily;
+    if (fortuneTab === "yearly") return handleSubmitYearly;
+    return handleSubmitLifetime;
+  };
+  const getResultTitle = () => {
+    if (fortuneTab === "daily") return "오늘의 우주 날씨";
+    if (fortuneTab === "yearly") return "나만의 1년 공략법";
+    return "내 인생 사용 설명서";
+  };
+  const showRestoring = fortuneTab !== "daily" && restoring && !interpretation;
+  const showLoadingCache = fortuneTab === "daily" && loadingCache;
+
   return (
     <div
       className="w-full py-8 sm:py-12"
@@ -556,20 +810,77 @@ function YearlyFortune() {
         className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
-        {/* 페이지 소개 - 1년 운세 (Solar Return) */}
-        <div className="mb-6 sm:mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">
-            나만의 1년 공략법
+        {/* 페이지 타이틀 - 진짜 운세 */}
+        <div className="mb-4">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+            진짜 운세
           </h2>
-          <p className="text-slate-400 text-sm mb-3">
-            이번 연도 생일부터 다음 연도 생일까지.
-          </p>
-          <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-            남들과 똑같은 1월 1일은 잊으세요. 점성학의 1년은 내 생일부터 시작됩니다. 이번 생일부터 다음 생일까지, 내담자님에게 주어진 1년의 테마와 구체적인 행동 전략을 제안합니다.
+          <p className="text-slate-300 text-sm sm:text-base">
+            데일리 운세, 1년 운세, 종합 운세를 확인해 보세요.
           </p>
         </div>
 
-        {/* 프로필 선택 드롭다운 - 폼 밖으로 분리 */}
+        {/* 탭: 데일리 운세 | 1년 운세 | 종합 운세 */}
+        <div className="flex gap-1 mb-6 p-1 bg-slate-800/50 rounded-lg">
+          {[
+            { id: "daily", label: "데일리 운세" },
+            { id: "yearly", label: "1년 운세" },
+            { id: "lifetime", label: "종합 운세" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setFortuneTab(tab.id);
+                setError("");
+              }}
+              className={`flex-1 py-2.5 px-3 text-sm font-medium rounded-md transition-colors ${
+                fortuneTab === tab.id
+                  ? "bg-purple-600 text-white"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 탭별 소개 */}
+        {fortuneTab === "daily" && (
+          <div className="mb-6 sm:mb-8">
+            <h3 className="text-lg font-semibold text-white mb-2">
+              오늘의 우주 날씨
+            </h3>
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              비가 오면 우산을 챙기듯, 오늘의 운을 미리 확인하세요. 매일 달라지는 행성들의 배치가 오늘 당신의 기분과 사건에 어떤 영향을 주는지 알려드립니다.
+            </p>
+          </div>
+        )}
+        {fortuneTab === "yearly" && (
+          <div className="mb-6 sm:mb-8">
+            <h3 className="text-lg font-semibold text-white mb-2">
+              나만의 1년 공략법
+            </h3>
+            <p className="text-slate-400 text-sm mb-1">
+              이번 연도 생일부터 다음 연도 생일까지.
+            </p>
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              점성학의 1년은 내 생일부터 시작됩니다. 이번 생일부터 다음 생일까지, 주어진 1년의 테마와 구체적인 행동 전략을 제안합니다.
+            </p>
+          </div>
+        )}
+        {fortuneTab === "lifetime" && (
+          <div className="mb-6 sm:mb-8">
+            <h3 className="text-lg font-semibold text-white mb-2">
+              내 인생 사용 설명서
+            </h3>
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              태어난 순간, 별들이 그려낸 고유한 설계도입니다. 타고난 기질과 잠재력, 인생의 방향성을 확인하고 나를 잘 쓰는 방법을 알아보세요.
+            </p>
+          </div>
+        )}
+
+        {/* 프로필 선택 */}
         <div className="mb-6 sm:mb-8">
           <ProfileSelector
             profiles={profiles}
@@ -581,12 +892,16 @@ function YearlyFortune() {
         </div>
 
         <form
-          onSubmit={handleSubmit}
+          onSubmit={getSubmitHandler()}
           className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
         >
           <button
             type="submit"
-            disabled={loading || !selectedProfile}
+            disabled={
+              loading ||
+              !selectedProfile ||
+              (fortuneTab === "daily" && loadingCache)
+            }
             className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3 hover:shadow-[0_0_8px_rgba(97,72,235,0.3),0_0_12px_rgba(255,82,82,0.2)]"
             style={{
               zIndex: 1,
@@ -617,7 +932,13 @@ function YearlyFortune() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                <span>1년을 분석하는 중...</span>
+                <span>
+                  {fortuneTab === "daily"
+                    ? "미래를 계산하는 중..."
+                    : fortuneTab === "yearly"
+                      ? "1년을 분석하는 중..."
+                      : "인생을 분석하는 중..."}
+                </span>
               </>
             ) : (
               <span>진짜미래 확인하기</span>
@@ -630,14 +951,24 @@ function YearlyFortune() {
             {error}
           </div>
         )}
-        {restoring && !interpretation && (
+        {showLoadingCache && (
+          <div className="mb-6 py-8 text-center text-slate-400 text-sm">
+            오늘의 운세 확인 중...
+          </div>
+        )}
+        {showRestoring && (
           <div className="mb-6 py-8 text-center text-slate-400 text-sm">
             이전 결과 불러오는 중...
           </div>
         )}
-        {!restoring && interpretation && (
+        {fortuneTab === "daily" && fromCache && interpretation && !loadingCache && (
+          <div className="mb-4 px-4 py-2 border rounded-lg border-slate-600">
+            <p className="text-slate-300 text-sm">내일 새로운 운세를 확인하러 또 오세요!</p>
+          </div>
+        )}
+        {!showLoadingCache && !showRestoring && interpretation && (
           <FortuneResult
-            title="나만의 1년 공략법"
+            title={getResultTitle()}
             interpretation={interpretation}
             shareId={shareId}
           />

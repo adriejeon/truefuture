@@ -4,22 +4,20 @@ import { colors } from "../constants/colors";
 function BottomNavigation({ activeTab }) {
   const location = useLocation();
 
-  // 현재 경로에 따라 activeTab 결정
+  // 현재 경로에 따라 activeTab 결정 (하단 3개: 진짜미래, 궁합, 진짜운세)
   const currentTab =
-    location.pathname === "/" || location.pathname === "/home"
-      ? "today"
-      : location.pathname.includes("/lifetime")
-        ? "lifetime"
-        : location.pathname.includes("/compatibility")
-          ? "compatibility"
-          : location.pathname.includes("/yearly")
-            ? "yearly"
-            : activeTab;
+    location.pathname === "/" || location.pathname.includes("/consultation")
+      ? "consultation"
+      : location.pathname.includes("/compatibility")
+        ? "compatibility"
+        : location.pathname.includes("/yearly")
+          ? "yearly"
+          : activeTab;
   const tabs = [
     {
-      id: "today",
-      path: "/",
-      label: "오늘의 운세",
+      id: "consultation",
+      path: "/consultation",
+      label: "진짜미래",
       icon: (
         <svg
           className="w-6 h-6"
@@ -31,27 +29,7 @@ function BottomNavigation({ activeTab }) {
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: "lifetime",
-      path: "/lifetime",
-      label: "인생 종합운",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
           />
         </svg>
       ),
@@ -79,7 +57,7 @@ function BottomNavigation({ activeTab }) {
     {
       id: "yearly",
       path: "/yearly",
-      label: "1년 운세",
+      label: "진짜운세",
       icon: (
         <svg
           className="w-6 h-6"
@@ -104,7 +82,7 @@ function BottomNavigation({ activeTab }) {
       style={{ backgroundColor: "#0F0F2B" }}
     >
       <div className="max-w-4xl mx-auto">
-        <div className="grid grid-cols-4 divide-x divide-slate-700">
+        <div className="grid grid-cols-3 divide-x divide-slate-700">
           {tabs.map((tab) => {
             const isActive = currentTab === tab.id;
 

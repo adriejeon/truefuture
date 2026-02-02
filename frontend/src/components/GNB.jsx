@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import ConversationDrawer from "./ConversationDrawer";
+import { colors } from "../constants/colors";
 
 function GNB() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   const handleAuthClick = () => {
@@ -61,22 +64,56 @@ function GNB() {
   };
 
   return (
-    <header
-      className="w-full py-4 sm:py-5 relative z-10"
-      style={{ backgroundColor: "#343261" }}
-    >
-      <div className="max-w-[600px] mx-auto px-6">
-        <div className="flex items-center justify-between">
-          {/* 로고 */}
-          <Link to="/" className="flex-shrink-0">
-            <img
-              src="/assets/logo.png"
-              alt="진짜미래"
-              className="h-6 sm:h-8 w-auto object-contain"
-            />
-          </Link>
+    <>
+      <ConversationDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      />
+      <header
+        className="w-full py-4 sm:py-5 relative z-10"
+        style={{ backgroundColor: "#343261" }}
+      >
+        <div className="max-w-[600px] mx-auto px-6">
+          <div className="flex items-center justify-between relative">
+            {/* 좌측: 대화 목록 버튼 (로그인 시) 또는 빈 공간 */}
+            <div className="flex-1 flex items-center justify-start min-w-0">
+              {user ? (
+                <button
+                  onClick={() => setIsDrawerOpen(true)}
+                  className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+                  aria-label="대화 목록 열기"
+                >
+                  <svg
+                    className="w-6 h-6 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    style={{ color: colors.primary }}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
 
-          {/* 로그인 버튼 또는 프로필 이미지 */}
+            {/* 가운데: 로고 */}
+            <div className="absolute left-1/2 -translate-x-1/2">
+              <Link to="/" className="flex-shrink-0 block">
+                <img
+                  src="/assets/logo.png"
+                  alt="진짜미래"
+                  className="h-6 sm:h-8 w-auto object-contain"
+                />
+              </Link>
+            </div>
+
+            {/* 우측: 로그인 버튼 또는 프로필 이미지 */}
+            <div className="flex-1 flex items-center justify-end min-w-0">
           {!user ? (
             <button
               onClick={handleAuthClick}
@@ -85,7 +122,7 @@ function GNB() {
               로그인
             </button>
           ) : (
-            <div className="relative flex-shrink-0" ref={dropdownRef}>
+            <div className="relative" ref={dropdownRef}>
               {getProfileImage() ? (
                 <img
                   src={getProfileImage()}
@@ -115,9 +152,11 @@ function GNB() {
               )}
             </div>
           )}
+            </div>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }
 
