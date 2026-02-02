@@ -22,6 +22,7 @@ import {
 } from "./types.ts";
 import {
   getSystemInstruction,
+  getConsultationSystemPrompt,
   getLifetimePrompt_Nature,
   getLifetimePrompt_Love,
   getLifetimePrompt_MoneyCareer,
@@ -50,7 +51,13 @@ import {
   getSolarReturnOverlays,
   calculateFirdaria,
   analyzeLordInteraction,
-  calculateProgressedMoon,
+  analyzeCareerPotential,
+  analyzeWealthPotential,
+  calculateLotOfMarriage,
+  analyzeLoveQualities,
+  identifySpouseCandidate,
+  analyzeLoveTiming,
+  calculateSecondaryProgression,
   calculateSolarArcDirections,
 } from "./utils/astrologyCalculator.ts";
 
@@ -58,6 +65,7 @@ import {
 import {
   getNeo4jContext,
   isDayChartFromSun,
+  fetchConsultationContext,
 } from "./utils/neo4jContext.ts";
 
 // ========== CORS 헤더 설정 ==========
@@ -176,7 +184,7 @@ function buildUserPrompt(
   transitMoonHouse?: number,
   solarReturnChartData?: any,
   profectionData?: any,
-  solarReturnOverlay?: any,
+  solarReturnOverlay?: any
 ): string {
   // DAILY 운세의 경우 새로운 상세 프롬프트 사용
   if (
@@ -189,7 +197,7 @@ function buildUserPrompt(
       chartData as ChartData,
       transitChartData as ChartData,
       aspects,
-      transitMoonHouse,
+      transitMoonHouse
     );
   }
 
@@ -204,7 +212,7 @@ function buildUserPrompt(
       chartData as ChartData,
       solarReturnChartData as ChartData,
       profectionData,
-      solarReturnOverlay,
+      solarReturnOverlay
     );
   }
 
@@ -217,7 +225,7 @@ function buildUserPrompt(
   if (fortuneType === FortuneType.COMPATIBILITY && compatibilityChartData) {
     return generateCompatibilityUserPrompt(
       chartData as ChartData,
-      compatibilityChartData as ChartData,
+      compatibilityChartData as ChartData
     );
   }
 
@@ -239,7 +247,7 @@ function buildUserPrompt(
 async function callGeminiAPI(
   modelName: string,
   apiKey: string,
-  requestBody: any,
+  requestBody: any
 ): Promise<any> {
   const endpoint = `${GEMINI_API_BASE_URL}/models/${modelName}:generateContent?key=${apiKey}`;
 
@@ -270,7 +278,9 @@ async function callGeminiAPI(
               ? "429 Too Many Requests"
               : "503 Service Unavailable (Model Overloaded)";
           console.warn(
-            `⚠️ ${statusMessage}. ${delay}ms 후 재시도합니다... (남은 시도: ${maxRetries - attempt})`,
+            `⚠️ ${statusMessage}. ${delay}ms 후 재시도합니다... (남은 시도: ${
+              maxRetries - attempt
+            })`
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2; // 지수 백오프: 1000ms -> 2000ms -> 4000ms
@@ -292,7 +302,9 @@ async function callGeminiAPI(
           const errorType =
             response.status === 429 ? "Quota Exceeded" : "Service Unavailable";
           throw new Error(
-            `Gemini API ${errorType} (${response.status}): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`,
+            `Gemini API ${errorType} (${
+              response.status
+            }): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`
           );
         }
       }
@@ -311,12 +323,14 @@ async function callGeminiAPI(
         // API 키 관련 에러인지 확인
         if (response.status === 401 || response.status === 403) {
           throw new Error(
-            "Gemini API 인증 실패: API 키가 유효하지 않거나 만료되었습니다.",
+            "Gemini API 인증 실패: API 키가 유효하지 않거나 만료되었습니다."
           );
         }
 
         throw new Error(
-          `Gemini API 요청 실패 (${response.status}): ${response.statusText}. ${errorText.substring(0, 200)}`,
+          `Gemini API 요청 실패 (${response.status}): ${
+            response.statusText
+          }. ${errorText.substring(0, 200)}`
         );
       }
 
@@ -331,7 +345,9 @@ async function callGeminiAPI(
         console.error("=".repeat(60) + "\n");
 
         throw new Error(
-          `Gemini API error: ${apiResponse.error.message || JSON.stringify(apiResponse.error)}`,
+          `Gemini API error: ${
+            apiResponse.error.message || JSON.stringify(apiResponse.error)
+          }`
         );
       }
 
@@ -378,7 +394,7 @@ function parseGeminiResponse(apiResponse: any): string {
     console.warn("Warning: Response was truncated due to MAX_TOKENS limit.");
   } else if (candidate.finishReason && candidate.finishReason !== "STOP") {
     throw new Error(
-      `API response finished with reason: ${candidate.finishReason}`,
+      `API response finished with reason: ${candidate.finishReason}`
     );
   }
 
@@ -408,7 +424,8 @@ function parseGeminiResponse(apiResponse: any): string {
   return markdownText;
 }
 
-const NEO4J_SECTION_HEADER = "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n[Neo4j 전문 해석 데이터]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+const NEO4J_SECTION_HEADER =
+  "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n[Neo4j 전문 해석 데이터]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
 
 async function getInterpretation(
   chartData: any,
@@ -420,7 +437,7 @@ async function getInterpretation(
   transitMoonHouse?: number,
   solarReturnChartData?: any,
   profectionData?: any,
-  solarReturnOverlay?: any,
+  solarReturnOverlay?: any
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -435,7 +452,7 @@ async function getInterpretation(
         compatibilityChartData,
         transitChartData,
         aspects,
-        transitMoonHouse,
+        transitMoonHouse
       );
     }
 
@@ -443,7 +460,7 @@ async function getInterpretation(
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
     const neo4jContext = await getNeo4jContext(
       chartData?.planets ?? null,
-      isDayChart,
+      isDayChart
     );
 
     const systemInstructionText = getSystemInstruction(fortuneType);
@@ -465,7 +482,7 @@ async function getInterpretation(
       transitMoonHouse,
       solarReturnChartData,
       profectionData,
-      solarReturnOverlay,
+      solarReturnOverlay
     );
 
     if (neo4jContext) {
@@ -532,13 +549,13 @@ async function generateLifetimeFortune(
   compatibilityChartData?: any,
   transitChartData?: any,
   aspects?: any[],
-  transitMoonHouse?: number,
+  transitMoonHouse?: number
 ): Promise<any> {
   try {
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
     const neo4jContext = await getNeo4jContext(
       chartData?.planets ?? null,
-      isDayChart,
+      isDayChart
     );
 
     const natureSystemText = getLifetimePrompt_Nature();
@@ -552,7 +569,7 @@ async function generateLifetimeFortune(
       compatibilityChartData,
       transitChartData,
       aspects,
-      transitMoonHouse,
+      transitMoonHouse
     );
     if (neo4jContext) {
       userPrompt = userPrompt + NEO4J_SECTION_HEADER + neo4jContext;
@@ -667,7 +684,7 @@ async function generateLifetimeFortune(
 
     // 병렬 호출로 속도 최적화 (4배 빠름!)
     console.log(
-      "🔄 Lifetime 운세: Nature, Love, MoneyCareer, HealthTotal을 병렬로 호출합니다...",
+      "🔄 Lifetime 운세: Nature, Love, MoneyCareer, HealthTotal을 병렬로 호출합니다..."
     );
     const [resultNature, resultLove, resultMoneyCareer, resultHealthTotal] =
       await Promise.all([
@@ -747,7 +764,7 @@ serve(async (req) => {
       console.error("SUPABASE_URL:", supabaseUrl ? "설정됨" : "누락");
       console.error(
         "SUPABASE_SERVICE_ROLE_KEY:",
-        supabaseServiceKey ? "설정됨" : "누락",
+        supabaseServiceKey ? "설정됨" : "누락"
       );
       return new Response(
         JSON.stringify({
@@ -756,7 +773,7 @@ serve(async (req) => {
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -802,7 +819,7 @@ serve(async (req) => {
           {
             status: 404,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -820,7 +837,7 @@ serve(async (req) => {
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -834,7 +851,7 @@ serve(async (req) => {
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -875,7 +892,7 @@ serve(async (req) => {
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -907,24 +924,31 @@ serve(async (req) => {
 
     // ========== CONSULTATION 처리 (싱글턴 자유 질문) ==========
     if (fortuneType === FortuneType.CONSULTATION) {
-      const { userQuestion, consultationTopic, birthDate, lat, lng } = requestData;
+      const { userQuestion, consultationTopic, birthDate, lat, lng } =
+        requestData;
 
       // 필수 필드 검증
-      if (!userQuestion || typeof userQuestion !== 'string' || userQuestion.trim() === '') {
+      if (
+        !userQuestion ||
+        typeof userQuestion !== "string" ||
+        userQuestion.trim() === ""
+      ) {
         return new Response(
-          JSON.stringify({ error: 'userQuestion is required and must be a non-empty string' }),
+          JSON.stringify({
+            error: "userQuestion is required and must be a non-empty string",
+          }),
           {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
       }
-      if (!birthDate || typeof lat !== 'number' || typeof lng !== 'number') {
+      if (!birthDate || typeof lat !== "number" || typeof lng !== "number") {
         return new Response(
-          JSON.stringify({ error: 'birthDate, lat, lng are required' }),
+          JSON.stringify({ error: "birthDate, lat, lng are required" }),
           {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
       }
@@ -932,9 +956,11 @@ serve(async (req) => {
       // 생년월일 Date 변환 (KST→UTC)
       let birthDateTime: Date;
       try {
-        const dateMatch = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+        const dateMatch = birthDate.match(
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
+        );
         if (!dateMatch) {
-          throw new Error('Invalid date format');
+          throw new Error("Invalid date format");
         }
         const [_, year, month, day, hour, minute, second] = dateMatch;
         const tempUtcTimestamp = Date.UTC(
@@ -943,17 +969,21 @@ serve(async (req) => {
           parseInt(day),
           parseInt(hour),
           parseInt(minute),
-          parseInt(second),
+          parseInt(second)
         );
         birthDateTime = new Date(tempUtcTimestamp - 9 * 60 * 60 * 1000);
-        if (isNaN(birthDateTime.getTime())) throw new Error('Invalid date');
-        console.log(`🕐 [CONSULTATION] Timezone 보정 완료: ${birthDateTime.toISOString()}`);
+        if (isNaN(birthDateTime.getTime())) throw new Error("Invalid date");
+        console.log(
+          `🕐 [CONSULTATION] Timezone 보정 완료: ${birthDateTime.toISOString()}`
+        );
       } catch (error) {
         return new Response(
-          JSON.stringify({ error: 'Invalid birthDate format. Use YYYY-MM-DDTHH:mm:ss' }),
+          JSON.stringify({
+            error: "Invalid birthDate format. Use YYYY-MM-DDTHH:mm:ss",
+          }),
           {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
       }
@@ -975,34 +1005,112 @@ serve(async (req) => {
       try {
         chartData = await calculateChart(birthDateTime, { lat, lng });
       } catch (chartError: any) {
-        console.error('❌ [CONSULTATION] 차트 계산 실패:', chartError);
+        console.error("❌ [CONSULTATION] 차트 계산 실패:", chartError);
         return new Response(
-          JSON.stringify({ error: `Chart calculation failed: ${chartError.message}` }),
+          JSON.stringify({
+            error: `Chart calculation failed: ${chartError.message}`,
+          }),
           {
             status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
       }
 
+      // Neo4j 상담 컨텍스트(질문 카테고리별 핵심 행성 지식) — 다른 계산과 병렬 수행
+      const graphKnowledgePromise = fetchConsultationContext(
+        requestData.consultationTopic || "GENERAL",
+        chartData
+      );
+
       // 2. Firdaria
-      const firdariaResult = calculateFirdaria(birthDateTime, { lat, lng }, now);
+      const firdariaResult = calculateFirdaria(
+        birthDateTime,
+        { lat, lng },
+        now
+      );
 
       // 3. Interaction (노드 기간이면 null)
       const isNode =
-        firdariaResult.majorLord === 'NorthNode' || firdariaResult.majorLord === 'SouthNode';
+        firdariaResult.majorLord === "NorthNode" ||
+        firdariaResult.majorLord === "SouthNode";
       const interactionResult =
         !isNode && firdariaResult.subLord
-          ? analyzeLordInteraction(chartData, firdariaResult.majorLord, firdariaResult.subLord)
+          ? analyzeLordInteraction(
+              chartData,
+              firdariaResult.majorLord,
+              firdariaResult.subLord
+            )
           : null;
 
       // 4. Progression
-      const progressionResult = calculateProgressedMoon(chartData, age);
+      const progressionResult = calculateSecondaryProgression(chartData, age);
 
       // 5. Direction
       const directionResult = calculateSolarArcDirections(chartData, age);
 
-      // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data)
+      const graphKnowledge = await graphKnowledgePromise;
+
+      // 5b. Career/Wealth/Love 분석 (consultationTopic에 따라)
+      const consultationTopicUpper = (requestData.consultationTopic || "")
+        .trim()
+        .toUpperCase();
+      const careerAnalysis =
+        consultationTopicUpper === "WORK"
+          ? analyzeCareerPotential(chartData)
+          : null;
+      const wealthAnalysis =
+        consultationTopicUpper === "MONEY"
+          ? analyzeWealthPotential(chartData)
+          : null;
+
+      let loveAnalysis: {
+        lotOfMarriage: { sign: string; longitude: number };
+        loveQualities: ReturnType<typeof analyzeLoveQualities>;
+        spouseCandidate: ReturnType<typeof identifySpouseCandidate>;
+        loveTiming: ReturnType<typeof analyzeLoveTiming>;
+        profectionSign: string;
+      } | null = null;
+      if (consultationTopicUpper === "LOVE") {
+        const gender =
+          requestData.gender === "F" ||
+          requestData.gender === "female" ||
+          requestData.gender === "여자"
+            ? "F"
+            : "M";
+        const lotOfMarriage = calculateLotOfMarriage(chartData, gender);
+        const loveQualities = analyzeLoveQualities(chartData);
+        const spouseCandidate = identifySpouseCandidate(chartData, gender);
+        const loveTiming = analyzeLoveTiming(
+          chartData,
+          age,
+          spouseCandidate.bestSpouseCandidate,
+          gender,
+          {
+            firdariaResult,
+            progressionResult,
+            directionHits: directionResult,
+          }
+        );
+        const natalAscSign = getSignFromLongitude(
+          chartData.houses?.angles?.ascendant ?? 0
+        ).sign;
+        const profectionData = calculateProfection(
+          birthDateTime,
+          now,
+          natalAscSign,
+          false
+        );
+        loveAnalysis = {
+          lotOfMarriage,
+          loveQualities,
+          spouseCandidate,
+          loveTiming,
+          profectionSign: profectionData.profectionSign,
+        };
+      }
+
+      // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data + graphKnowledge)
       const systemContext = generatePredictionPrompt(
         chartData,
         requestData.birthDate,
@@ -1010,25 +1118,46 @@ serve(async (req) => {
         firdariaResult,
         interactionResult,
         progressionResult,
-        directionResult
+        directionResult,
+        graphKnowledge,
+        careerAnalysis,
+        wealthAnalysis,
+        loveAnalysis
       );
 
       // 7. Gemini 호출
-      const apiKey = Deno.env.get('GEMINI_API_KEY');
+      const apiKey = Deno.env.get("GEMINI_API_KEY");
       if (!apiKey) {
-        return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({ error: "GEMINI_API_KEY not configured" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
 
-      const consultationSystemText = getSystemInstruction(FortuneType.CONSULTATION);
+      const consultationSystemText = getConsultationSystemPrompt(
+        requestData.consultationTopic || "General"
+      );
       const systemInstruction = {
         parts: [{ text: consultationSystemText }],
       };
 
+      const genderForPrompt =
+        requestData.gender === "F" ||
+        requestData.gender === "female" ||
+        requestData.gender === "여자"
+          ? "Female"
+          : requestData.gender === "M" ||
+            requestData.gender === "male" ||
+            requestData.gender === "남자"
+          ? "Male"
+          : null;
       const userPrompt = `[User Question]: ${userQuestion.trim()}
-[Category]: ${consultationTopic || 'General'}
+[Category]: ${consultationTopic || "General"}${
+        genderForPrompt ? `\n[Gender]: ${genderForPrompt}` : ""
+      }
 
 ${systemContext}`;
 
@@ -1051,12 +1180,14 @@ ${systemContext}`;
           interpretation: interpretationText,
         };
       } catch (geminiError: any) {
-        console.error('❌ [CONSULTATION] Gemini 호출 실패:', geminiError);
+        console.error("❌ [CONSULTATION] Gemini 호출 실패:", geminiError);
         return new Response(
-          JSON.stringify({ error: `AI interpretation failed: ${geminiError.message}` }),
+          JSON.stringify({
+            error: `AI interpretation failed: ${geminiError.message}`,
+          }),
           {
             status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
       }
@@ -1065,7 +1196,7 @@ ${systemContext}`;
       let shareId: string | undefined;
 
       try {
-        console.log('💾 [CONSULTATION] 운세 저장 시작...');
+        console.log("💾 [CONSULTATION] 운세 저장 시작...");
 
         // Step 1: 현재 사용자 ID는 이미 상단에서 검증됨 (line 863~866)
         const currentUserId = user.id;
@@ -1073,7 +1204,7 @@ ${systemContext}`;
 
         // Step 2: fortune_results에 먼저 insert (user_info NOT NULL 요구사항 충족)
         const { data: resultData, error: resultError } = await supabase
-          .from('fortune_results')
+          .from("fortune_results")
           .insert({
             user_id: currentUserId,
             user_info: { birthDate, lat, lng, userQuestion, consultationTopic }, // NOT NULL 컬럼
@@ -1085,10 +1216,16 @@ ${systemContext}`;
               interaction: interactionResult,
               progression: progressionResult,
               direction: directionResult,
-              metadata: { userQuestion, consultationTopic, birthDate, lat, lng },
+              metadata: {
+                userQuestion,
+                consultationTopic,
+                birthDate,
+                lat,
+                lng,
+              },
             },
           })
-          .select('id')
+          .select("id")
           .single();
 
         if (resultError) {
@@ -1096,44 +1233,46 @@ ${systemContext}`;
         }
 
         if (!resultData?.id) {
-          throw new Error('fortune_results insert 성공했으나 id 반환 없음');
+          throw new Error("fortune_results insert 성공했으나 id 반환 없음");
         }
 
         shareId = resultData.id;
-        console.log('✅ [CONSULTATION] fortune_results 저장 성공:', shareId);
+        console.log("✅ [CONSULTATION] fortune_results 저장 성공:", shareId);
 
         // Step 3: fortune_history에 user와 result 연결
         const { error: historyError } = await supabase
-          .from('fortune_history')
+          .from("fortune_history")
           .insert({
             user_id: currentUserId,
             profile_id: currentProfileId,
             result_id: shareId,
             fortune_type: fortuneType,
-            fortune_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            fortune_date: new Date().toISOString().split("T")[0], // YYYY-MM-DD
           });
 
         if (historyError) {
-          console.error('❌ [CONSULTATION] fortune_history 저장 실패:', historyError);
-          console.error('  - user_id:', currentUserId);
-          console.error('  - profile_id:', currentProfileId);
-          console.error('  - result_id:', shareId);
-          console.error('  - 에러 상세:', historyError);
+          console.error(
+            "❌ [CONSULTATION] fortune_history 저장 실패:",
+            historyError
+          );
+          console.error("  - user_id:", currentUserId);
+          console.error("  - profile_id:", currentProfileId);
+          console.error("  - result_id:", shareId);
+          console.error("  - 에러 상세:", historyError);
           // fortune_results는 이미 저장되었으므로 롤백 불가
           // 에러 로깅만 하고 계속 진행
         } else {
-          console.log('✅ [CONSULTATION] fortune_history 저장 성공');
+          console.log("✅ [CONSULTATION] fortune_history 저장 성공");
         }
       } catch (saveError: any) {
-        console.error('❌ [CONSULTATION] 운세 저장 중 예외 발생:', saveError);
-        console.error('  - 에러 메시지:', saveError.message);
-        console.error('  - 에러 스택:', saveError.stack);
+        console.error("❌ [CONSULTATION] 운세 저장 중 예외 발생:", saveError);
+        console.error("  - 에러 메시지:", saveError.message);
+        console.error("  - 에러 스택:", saveError.stack);
         // 에러 발생 시에도 클라이언트에는 해석 결과를 반환
       }
 
       // 9. 성공 응답 반환 (프론트 콘솔 로깅용 geminiInput 포함)
-      const systemInstructionText =
-        systemInstruction.parts?.[0]?.text ?? '';
+      const systemInstructionText = systemInstruction.parts?.[0]?.text ?? "";
       return new Response(
         JSON.stringify({
           success: true,
@@ -1154,7 +1293,7 @@ ${systemContext}`;
         }),
         {
           status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
@@ -1176,7 +1315,7 @@ ${systemContext}`;
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -1193,7 +1332,7 @@ ${systemContext}`;
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -1203,7 +1342,7 @@ ${systemContext}`;
       try {
         // 사용자1: KST를 UTC로 변환 (Date.UTC 사용)
         const dateMatch1 = user1.birthDate.match(
-          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
         );
         if (!dateMatch1) {
           throw new Error("Invalid date format for user1");
@@ -1217,14 +1356,14 @@ ${systemContext}`;
           parseInt(day1),
           parseInt(hour1),
           parseInt(minute1),
-          parseInt(second1),
+          parseInt(second1)
         );
         const kstToUtcTimestamp1 = tempUtcTimestamp1 - 9 * 60 * 60 * 1000;
         birthDateTime1 = new Date(kstToUtcTimestamp1);
 
         // 사용자2: KST를 UTC로 변환 (Date.UTC 사용)
         const dateMatch2 = user2.birthDate.match(
-          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
         );
         if (!dateMatch2) {
           throw new Error("Invalid date format for user2");
@@ -1238,7 +1377,7 @@ ${systemContext}`;
           parseInt(day2),
           parseInt(hour2),
           parseInt(minute2),
-          parseInt(second2),
+          parseInt(second2)
         );
         const kstToUtcTimestamp2 = tempUtcTimestamp2 - 9 * 60 * 60 * 1000;
         birthDateTime2 = new Date(kstToUtcTimestamp2);
@@ -1251,10 +1390,10 @@ ${systemContext}`;
         }
 
         console.log(
-          `🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`,
+          `🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`
         );
         console.log(
-          `🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`,
+          `🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`
         );
       } catch (error) {
         return new Response(
@@ -1265,7 +1404,7 @@ ${systemContext}`;
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -1281,12 +1420,14 @@ ${systemContext}`;
         console.error("사용자1 차트 계산 실패:", chartError);
         return new Response(
           JSON.stringify({
-            error: `Chart calculation failed for user1: ${chartError.message || "Unknown error"}`,
+            error: `Chart calculation failed for user1: ${
+              chartError.message || "Unknown error"
+            }`,
           }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -1299,12 +1440,14 @@ ${systemContext}`;
         console.error("사용자2 차트 계산 실패:", chartError);
         return new Response(
           JSON.stringify({
-            error: `Chart calculation failed for user2: ${chartError.message || "Unknown error"}`,
+            error: `Chart calculation failed for user2: ${
+              chartError.message || "Unknown error"
+            }`,
           }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -1316,7 +1459,7 @@ ${systemContext}`;
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -1324,18 +1467,20 @@ ${systemContext}`;
         chartData1,
         fortuneType,
         apiKey,
-        chartData2,
+        chartData2
       );
 
       if (!interpretation.success || interpretation.error) {
         return new Response(
           JSON.stringify({
-            error: `AI interpretation failed: ${interpretation.message || "Unknown error"}`,
+            error: `AI interpretation failed: ${
+              interpretation.message || "Unknown error"
+            }`,
           }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
 
@@ -1384,7 +1529,7 @@ ${systemContext}`;
 
       // 성공 응답 반환
       console.log(
-        `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`,
+        `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`
       );
       return new Response(
         JSON.stringify({
@@ -1398,7 +1543,7 @@ ${systemContext}`;
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -1419,7 +1564,7 @@ ${systemContext}`;
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -1431,7 +1576,7 @@ ${systemContext}`;
 
       // ISO 형식 문자열 파싱: YYYY-MM-DDTHH:mm:ss
       const dateMatch = birthDate.match(
-        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
+        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
       );
       if (!dateMatch) {
         throw new Error("Invalid date format. Expected YYYY-MM-DDTHH:mm:ss");
@@ -1447,7 +1592,7 @@ ${systemContext}`;
         parseInt(day),
         parseInt(hour),
         parseInt(minute),
-        parseInt(second),
+        parseInt(second)
       );
 
       // 2. 거기서 9시간(KST Offset)을 뺌
@@ -1462,7 +1607,7 @@ ${systemContext}`;
       }
 
       console.log(
-        `🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`,
+        `🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`
       );
     } catch (error) {
       return new Response(
@@ -1473,7 +1618,7 @@ ${systemContext}`;
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -1485,12 +1630,14 @@ ${systemContext}`;
       console.error("차트 계산 실패:", chartError);
       return new Response(
         JSON.stringify({
-          error: `Chart calculation failed: ${chartError.message || "Unknown error"}`,
+          error: `Chart calculation failed: ${
+            chartError.message || "Unknown error"
+          }`,
         }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -1511,12 +1658,12 @@ ${systemContext}`;
         // Transit Moon이 Natal 차트의 몇 번째 하우스에 있는지 계산
         transitMoonHouse = getTransitMoonHouseInNatalChart(
           chartData,
-          transitChartData,
+          transitChartData
         );
       } catch (transitError: any) {
         console.error(
           "⚠️ Transit 차트 계산 실패 (기본 모드로 진행):",
-          transitError,
+          transitError
         );
         // Transit 계산 실패 시에도 기본 운세는 제공
       }
@@ -1544,10 +1691,10 @@ ${systemContext}`;
         const solarReturnDateTime = calculateSolarReturnDateTime(
           birthDateTime,
           solarReturnYear,
-          natalSunLongitude,
+          natalSunLongitude
         );
         console.log(
-          `🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`,
+          `🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`
         );
 
         // 4. Solar Return 차트 계산
@@ -1555,30 +1702,30 @@ ${systemContext}`;
         // 경도 15도 = 1시간, 동경은 +, 서경은 -
         const timezoneOffsetHours = Math.round(lng / 15);
         console.log(
-          `🌍 Timezone Offset (경도 ${lng}° 기준): ${timezoneOffsetHours}시간`,
+          `🌍 Timezone Offset (경도 ${lng}° 기준): ${timezoneOffsetHours}시간`
         );
 
         solarReturnChartData = await calculateChart(
           solarReturnDateTime,
           { lat, lng },
-          timezoneOffsetHours, // 하우스 계산용 Timezone Offset
+          timezoneOffsetHours // 하우스 계산용 Timezone Offset
         );
 
         // 5. Profection 계산 (Solar Return 모드: 단순 연도 차이 사용)
         const natalAscSign = getSignFromLongitude(
-          chartData.houses.angles.ascendant,
+          chartData.houses.angles.ascendant
         ).sign;
         profectionData = calculateProfection(
           birthDateTime,
           solarReturnDateTime,
           natalAscSign,
-          true, // isSolarReturn = true: 단순 연도 차이로 나이 계산
+          true // isSolarReturn = true: 단순 연도 차이로 나이 계산
         );
 
         // 6. Solar Return Overlay 계산
         solarReturnOverlay = getSolarReturnOverlays(
           chartData,
-          solarReturnChartData,
+          solarReturnChartData
         );
 
         console.log(`✅ YEARLY 운세 데이터 계산 완료`);
@@ -1587,12 +1734,14 @@ ${systemContext}`;
         // YEARLY 계산 실패 시 에러 반환
         return new Response(
           JSON.stringify({
-            error: `YEARLY 운세 계산 실패: ${yearlyError.message || "Unknown error"}`,
+            error: `YEARLY 운세 계산 실패: ${
+              yearlyError.message || "Unknown error"
+            }`,
           }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+          }
         );
       }
     }
@@ -1605,7 +1754,7 @@ ${systemContext}`;
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -1619,7 +1768,7 @@ ${systemContext}`;
       transitMoonHouse,
       solarReturnChartData,
       profectionData,
-      solarReturnOverlay,
+      solarReturnOverlay
     );
 
     if (!interpretation.success || interpretation.error) {
@@ -1639,7 +1788,7 @@ ${systemContext}`;
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
       );
     }
 
@@ -1654,15 +1803,15 @@ ${systemContext}`;
             transitMoonHouse: transitMoonHouse ?? null,
           }
         : fortuneType === FortuneType.YEARLY
-          ? {
-              chart: chartData,
-              solarReturnChart: solarReturnChartData ?? null,
-              profectionData: profectionData ?? null,
-              solarReturnOverlay: solarReturnOverlay ?? null,
-            }
-          : fortuneType === FortuneType.LIFETIME
-            ? { chart: chartData }
-            : null;
+        ? {
+            chart: chartData,
+            solarReturnChart: solarReturnChartData ?? null,
+            profectionData: profectionData ?? null,
+            solarReturnOverlay: solarReturnOverlay ?? null,
+          }
+        : fortuneType === FortuneType.LIFETIME
+        ? { chart: chartData }
+        : null;
 
     try {
       console.log(`💾 [${fortuneType}] 운세 저장 시작...`);
@@ -1697,7 +1846,7 @@ ${systemContext}`;
 
     // 성공 응답 반환
     console.log(
-      `📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || "null"}`,
+      `📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || "null"}`
     );
     const responseData: any = {
       success: true,
@@ -1747,7 +1896,9 @@ ${systemContext}`;
 
     return new Response(
       JSON.stringify({
-        error: `서버 오류: ${error.message || "알 수 없는 오류가 발생했습니다."}`,
+        error: `서버 오류: ${
+          error.message || "알 수 없는 오류가 발생했습니다."
+        }`,
         errorType: error.name || "UNKNOWN_ERROR",
         details:
           Deno.env.get("DENO_ENV") === "development" ? error.stack : undefined,
@@ -1755,7 +1906,7 @@ ${systemContext}`;
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      }
     );
   }
 });

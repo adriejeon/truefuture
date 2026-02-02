@@ -111,7 +111,7 @@ function Home() {
       try {
         const restored = await restoreFortuneIfExists(
           selectedProfile.id,
-          "daily",
+          "daily"
         );
         if (restored) {
           console.log("✅ [복구] 선택된 프로필의 오늘의 운세 DB에서 복구");
@@ -146,7 +146,7 @@ function Home() {
       await createProfile(profileData);
       // 프로필 생성 후 모달은 ProfileModal의 onClose에서 처리됨
     },
-    [createProfile],
+    [createProfile]
   );
 
   // 인앱 브라우저 감지 및 처리
@@ -158,7 +158,7 @@ function Home() {
 
       const redirectSuccess = redirectToExternalBrowser(
         appName,
-        window.location.href,
+        window.location.href
       );
 
       if (!redirectSuccess) {
@@ -200,7 +200,7 @@ function Home() {
           headers: {
             "Content-Type": "application/json",
           },
-        },
+        }
       );
 
       if (!response.ok) {
@@ -324,7 +324,7 @@ function Home() {
       console.log(
         "저장된 해석 길이:",
         fortuneData.interpretation?.length || 0,
-        "글자",
+        "글자"
       );
       console.log("=".repeat(60) + "\n");
     } catch (err) {
@@ -400,7 +400,7 @@ function Home() {
       try {
         const restored = await restoreFortuneIfExists(
           selectedProfile.id,
-          "daily",
+          "daily"
         );
         if (restored) {
           console.log("✅ [복구] DB에서 오늘의 운세 복구 완료");
@@ -457,7 +457,7 @@ function Home() {
     // 운세 조회 가능 여부 체크
     const availability = await checkFortuneAvailability(
       selectedProfile.id,
-      "daily",
+      "daily"
     );
     if (!availability.available) {
       setError(availability.reason);
@@ -481,7 +481,7 @@ function Home() {
     const existingFortune = getTodayFortuneFromStorage(selectedProfile.id);
     if (existingFortune) {
       setError(
-        "오늘의 운세를 이미 확인하셨습니다. 내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다.",
+        "오늘의 운세를 이미 확인하셨습니다. 내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다."
       );
       setInterpretation(existingFortune.interpretation);
       setFromCache(true);
@@ -504,13 +504,13 @@ function Home() {
         "get-fortune",
         {
           body: requestBody,
-        },
+        }
       );
 
       if (functionError) {
         throw new Error(
           functionError.message ||
-            `서버 오류가 발생했습니다. (${functionError.name || "Unknown"})`,
+            `서버 오류가 발생했습니다. (${functionError.name || "Unknown"})`
         );
       }
 
@@ -532,7 +532,7 @@ function Home() {
       ) {
         console.error("❌ AI 해석 실패:", data.interpretation);
         throw new Error(
-          data.interpretation.message || "AI 해석 중 오류가 발생했습니다.",
+          data.interpretation.message || "AI 해석 중 오류가 발생했습니다."
         );
       }
 
@@ -547,7 +547,7 @@ function Home() {
         "🔍 [Home] API 응답 data.share_id:",
         data.share_id,
         "타입:",
-        typeof data.share_id,
+        typeof data.share_id
       );
       if (
         data.share_id &&
@@ -571,7 +571,7 @@ function Home() {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`출생 시간: ${data.chart.date}`);
         console.log(
-          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`,
+          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
         );
 
         // 상승점
@@ -594,7 +594,9 @@ function Home() {
             "Pisces",
           ];
           console.log(
-            `\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`,
+            `\n상승점(Ascendant): ${
+              signs[ascSignIndex]
+            } ${ascDegreeInSign.toFixed(1)}°`
           );
         }
 
@@ -613,7 +615,11 @@ function Home() {
           Object.entries(data.chart.planets).forEach(([name, planet]) => {
             const displayName = planetNames[name] || name;
             console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`,
+              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
+                12
+              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
+                planet.house
+              })`
             );
           });
         }
@@ -621,7 +627,11 @@ function Home() {
         // 포르투나
         if (data.chart.fortuna) {
           console.log(
-            `\nPart of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart.fortuna.house})`,
+            `\nPart of Fortune: ${
+              data.chart.fortuna.sign
+            } ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${
+              data.chart.fortuna.house
+            })`
           );
         }
       }
@@ -648,9 +658,13 @@ function Home() {
             ([name, planet]) => {
               const displayName = planetNames[name] || name;
               console.log(
-                `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`,
+                `  - ${displayName
+                  .toUpperCase()
+                  .padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign
+                  .toFixed(1)
+                  .padStart(5)}° (House ${planet.house})`
               );
-            },
+            }
           );
         }
       }
@@ -661,7 +675,7 @@ function Home() {
         console.log("🌙 [Transit Moon House]");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(
-          `Transit Moon은 Natal 차트의 ${data.transitMoonHouse}번째 하우스에 위치합니다.`,
+          `Transit Moon은 Natal 차트의 ${data.transitMoonHouse}번째 하우스에 위치합니다.`
         );
       }
 
@@ -735,7 +749,7 @@ function Home() {
         await saveFortuneHistory(
           selectedProfile.id,
           "daily",
-          currentShareId || undefined,
+          currentShareId || undefined
         );
 
         // 저장 후 상태 업데이트
@@ -769,31 +783,48 @@ function Home() {
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
       <div
-        className={`w-full max-w-[600px] mx-auto px-6 ${!user && !interpretation ? "" : "pb-20 sm:pb-24"}`}
+        className={`w-full max-w-[600px] mx-auto px-6 ${
+          !user && !interpretation ? "" : "pb-20 sm:pb-24"
+        }`}
         style={{ position: "relative", zIndex: 1 }}
       >
-        {/* 메인 이미지 */}
+        {/* 메인 이미지 + CTA (로그아웃 상태) */}
         {!user && !interpretation && (
-          <div className="relative w-full inline-block">
-            <img
-              src="/assets/main.png"
-              alt="진짜미래"
-              className="w-full h-auto object-contain block"
-            />
-            {/* 중앙 애니메이션 영역 */}
-            <div className="absolute top-[44.5%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[15%] sm:w-[12%] md:w-[10%] max-w-[320px] aspect-square z-10">
-              {/* Article 이미지 1 */}
+          <div className="w-full">
+            <div className="relative w-full inline-block">
               <img
-                src="/assets/article.png"
-                alt=""
-                className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-1"
+                src="/assets/main.png"
+                alt="진짜미래"
+                className="w-full h-auto object-contain block"
               />
-              {/* Article 이미지 2 */}
-              <img
-                src="/assets/article1.png"
-                alt=""
-                className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-2"
-              />
+              {/* 중앙 애니메이션 영역 */}
+              <div className="absolute top-[44.5%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[15%] sm:w-[12%] md:w-[10%] max-w-[320px] aspect-square z-10">
+                {/* Article 이미지 1 */}
+                <img
+                  src="/assets/article.png"
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-1"
+                />
+                {/* Article 이미지 2 */}
+                <img
+                  src="/assets/article1.png"
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-2"
+                />
+              </div>
+            </div>
+            {/* CTA: 진짜미래 보기 */}
+            <div className="w-full mt-6 sm:mt-8 mb-6 sm:mb-8 px-0">
+              <Link
+                to="/login"
+                className="block w-full py-4 px-6 rounded-full text-center font-semibold text-base sm:text-lg transition-all duration-200 hover:opacity-90"
+                style={{
+                  backgroundColor: colors.primary,
+                  color: "#000000",
+                }}
+              >
+                진짜미래 보러가기
+              </Link>
             </div>
           </div>
         )}
@@ -917,7 +948,10 @@ function Home() {
                       오늘의 우주 날씨
                     </h2>
                     <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-                      비가 오면 우산을 챙기듯, 오늘의 운을 미리 확인하세요. 매일 달라지는 행성들의 배치가 오늘 당신의 기분과 사건에 어떤 영향을 주는지, 하루를 잘 보내기 위한 행동 팁을 알려드립니다.
+                      비가 오면 우산을 챙기듯, 오늘의 운을 미리 확인하세요. 매일
+                      달라지는 행성들의 배치가 오늘 당신의 기분과 사건에 어떤
+                      영향을 주는지, 하루를 잘 보내기 위한 행동 팁을
+                      알려드립니다.
                     </p>
                   </div>
 

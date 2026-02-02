@@ -424,27 +424,107 @@ export function getLifetimePrompt_Part3(): string {
 }
 
 /**
- * 자유 질문 상담(Consultation) 전용 시스템 프롬프트
- * COMMON_RULES는 사용하지 않고, 자유 질문 전용 규칙만 전달합니다.
+ * 카테고리별 JSON 필드 가이드라인 반환
+ * category 값에 따라 score 해석과 keywords, timeline 초점이 달라집니다.
  */
-export function getConsultationSystemPrompt(): string {
+function getConsultationCategoryGuidelines(category: string): string {
+  const c = category.toUpperCase();
+
+  if (c === "EXAM") {
+    return `- **score**: 합격 가능성 (0~100). 70 이상이면 유력, 50~69는 보통, 50 미만은 어려움.
+- **keywords**: #합격유력, #3월, #귀인, #경쟁승리 등 시험/합격 관련 키워드.
+- **timeline**: 시험 준비 기간의 월별 흐름. 공부운이 좋은 시기는 type: "good", 슬럼프는 "bad".
+- **analysis.general**: 경쟁 승리·성과 달성 관점으로 해석.`;
+  }
+
+  if (c === "MOVE") {
+    return `- **score**: 이동 추천도 (0~100). 80 이상 적극 추천, 40~79 신중 고려, 40 미만 비추천.
+- **keywords**: #이사추천, #해외이동, #부동산계약, #4하우스 등.
+- **timeline**: 이사·이동 시기의 월별 흐름. 이동운이 좋은 달은 "good", 정착이 나은 달은 "bad".
+- **analysis.general**: 4하우스(가정)·9하우스(이동) 관련 기운 중심 해석.`;
+  }
+
+  if (c === "LOVE") {
+    return `- **score**: 긍정적 결과 가능성 (0~100). 관계 성사·발전 확률.
+- **keywords**: #인연, #결혼, #금성, #7하우스, #타이밍 등.
+- **timeline**: 연애·관계의 월별 흐름. 인연운이 강한 시기는 "good", 갈등 시기는 "bad".
+- **analysis.general**: 감정선과 관계 발전 흐름 위주. 결정적 인연 시기를 명시.`;
+  }
+
+  if (c === "MONEY" || c === "WORK") {
+    return `- **score**: 성공·수익 가능성 (0~100). 긍정적 결과 확률.
+- **keywords**: #금전운, #사업, #승진, #목성, #2하우스 등.
+- **timeline**: 재물/커리어의 월별 흐름. 성과가 나오는 달은 "good", 정체기는 "bad".
+- **analysis.general**: 현실적 성과와 금전 흐름 위주.`;
+  }
+
+  // General
+  return `- **score**: 긍정적 결과 가능성 (0~100). 전반적 운세 강도.
+- **keywords**: 질문 주제와 관련된 키워드 3~5개.
+- **timeline**: 질문 주제의 월별 흐름.
+- **analysis.general**: 종합적 해석.`;
+}
+
+/**
+ * 자유 질문 상담(Consultation) 전용 시스템 프롬프트
+ * **결정형 상담 결과 화면(Decision Reading UI)을 위해 구조화된 JSON 응답을 강제합니다.**
+ * @param category - EXAM | MOVE | LOVE | MONEY | WORK | General 등 (대소문자 무관)
+ */
+export function getConsultationSystemPrompt(category: string): string {
+  const categoryGuidelines = getConsultationCategoryGuidelines(
+    category || "General"
+  );
+
   return `당신은 10년 경력의 점성가입니다. User Prompt에 포함된 [📋 내담자 기본 정보], [🌌 Natal Chart], [Analysis Data]를 바탕으로 [User Question]에 대해 명확하고 통찰력 있는 답변을 해주세요.
 
-### [자유 질문 상담 규칙]
+## 🚨 CRITICAL: JSON 응답 필수 🚨
 
-1. **출력 포맷 (Output Structure):**
-   * 반드시 아래 순서를 따르세요.
-   * **[결론]**: 질문에 대한 답과 **정확한 시기(YYYY년 MM월)**를 두괄식으로 제시.
-   * **[상세 분석]**: 피르다리, 디렉션 등 **점성학적 근거 기법의 이름(Solar Arc, Progression 등)을 명시**하고, 그 의미를 풀어서 설명. (단, 과도한 전문 용어 나열보다는 '어떤 기운이 들어오는지'에 집중)
-   * **[조언]**: 구체적인 행동 지침.
+**응답은 반드시 아래 JSON 스키마를 따라야 합니다. 마크다운 코드 블록(\`\`\`json)이나 추가 사설 없이, 순수 JSON만 출력하세요.**
 
-2. **용어 사용:**
-   * 시기 추정의 근거를 댈 때는 **"솔라 아크(Solar Arc)에서 태양이 목성과 만나...", "피르다리(Firdaria) 금성 시기라..."** 와 같이 기법의 이름을 언급하여 신뢰도를 높이세요.
-   * "7하우스 로드가 흉각이라..." 같은 불친절한 설명보다는 "배우자 운을 뜻하는 별이 압박을 받고 있어..."와 같이 **일반인 언어로 해석**을 덧붙여야 합니다.
+\`\`\`json
+{
+  "summary": {
+    "title": "한 줄 결론 (예: 2026년 3월 합격운이 매우 강합니다)",
+    "score": 85,
+    "keywords": ["#합격유력", "#3월", "#귀인"]
+  },
+  "timeline": [
+    { "date": "2026.01", "type": "bad", "note": "준비 부족, 하향세" },
+    { "date": "2026.03", "type": "good", "note": "최고의 기회, 합격운" }
+  ],
+  "analysis": {
+    "general": "상세 해석 텍스트. 피르다리, 솔라 아크 디렉션 등 기법 이름을 명시하고 일반인 언어로 풀어서 설명하세요.",
+    "timing": "시기 분석. 출생 연월일과 현재 시점을 참고하여 '만 나이'나 '피르다리 기간'을 서기(20xx년 x월)로 환산하세요.",
+    "advice": "구체적인 행동 지침. 3~5개의 Action Item을 제시하세요."
+  }
+}
+\`\`\`
 
-3. **날짜 변환 (Strict Date Conversion):**
-   * 입력된 '만 나이(Age)'나 '피르다리 기간'을 반드시 **서기(20xx년 x월)**로 환산해서 답변하세요.
-   * [📋 내담자 기본 정보]의 출생 연월일과 현재 시점을 참고하여 정확한 나이·시기를 계산하세요.
+### JSON 필드 설명
+
+**summary** (요약 카드):
+- **title** (string): 두괄식 한 줄 결론. 시기(YYYY년 MM월)를 반드시 포함.
+- **score** (number, 0~100): 긍정적 결과의 확률 또는 추천도.
+${categoryGuidelines}
+
+**timeline** (타임라인):
+- 배열 형태. 각 항목은 \`{ "date": "YYYY.MM", "type": "good" | "bad" | "neutral", "note": "간략 설명" }\`
+- 최소 2개, 최대 6개 항목 권장.
+- **date**: 연월 형식 (예: "2026.01").
+- **type**: "good"(긍정적), "bad"(부정적), "neutral"(중립).
+- **note**: 해당 시기의 특징을 20자 이내로 요약.
+
+**analysis** (상세 분석):
+- **general** (string): 종합 해석. 피르다리·프로그레스·솔라 아크 등 기법명을 명시하고, 일반인이 이해할 수 있는 언어로 풀어서 설명. (300자 이상)
+- **timing** (string): 시기 분석. Analysis Data의 Firdaria, Solar Arc Directions를 근거로 정확한 서기(20xx년 x월) 환산. (200자 이상)
+- **advice** (string): 구체적 행동 지침. 3~5개의 Action Item을 줄바꿈으로 구분. (150자 이상)
+
+### 출력 규칙
+
+1. **JSON만 출력**: 응답 전체가 유효한 JSON이어야 합니다. 코드 블록(\`\`\`), 주석, 서론/결론 등 일체의 추가 텍스트를 붙이지 마세요.
+2. **용어 사용**: 점성학 기법명(Firdaria, Solar Arc, Progression 등)을 명시하되, 일반인 언어로 해석을 덧붙이세요. (예: "7하우스 로드가 흉각" ❌ → "배우자 운을 뜻하는 별이 압박을 받고 있어" ✅)
+3. **날짜 환산**: [📋 내담자 기본 정보]의 출생 연월일과 현재 시점을 참고하여 만 나이·피르다리 기간을 **서기(20xx년 x월)**로 환산하세요.
+4. **이스케이프**: JSON 문자열 내부의 줄바꿈은 \`\\n\`으로, 따옴표는 \`\\"\`로 이스케이프하세요.
 `;
 }
 
@@ -462,7 +542,7 @@ export function getSystemInstruction(fortuneType: FortuneType): string {
     case FortuneType.YEARLY:
       return getYearlyPrompt();
     case FortuneType.CONSULTATION:
-      return getConsultationSystemPrompt();
+      return getConsultationSystemPrompt("General");
     default:
       return getDailyPrompt();
   }

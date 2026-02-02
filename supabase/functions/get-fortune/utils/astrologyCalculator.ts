@@ -5,14 +5,45 @@
 
 // Deno npm 스펙(npm:...) — Edge Function 런타임에서는 정상 동작, IDE는 Node 해석기 사용 시 경고 표시
 // @ts-ignore
-import { MakeTime, Body, GeoVector, Ecliptic, SiderealTime, SearchSunLongitude, Observer, Horizon, Equator } from "npm:astronomy-engine@2.1.19"
-import type { ChartData, Location, PlanetPosition, Aspect, ProfectionData, SolarReturnOverlay, FirdariaResult, InteractionResult, ProgressionResult, DirectionHit } from '../types.ts'
+import {
+  MakeTime,
+  Body,
+  GeoVector,
+  Ecliptic,
+  SiderealTime,
+  SearchSunLongitude,
+  Observer,
+  Horizon,
+  Equator,
+} from "npm:astronomy-engine@2.1.19";
+import type {
+  ChartData,
+  Location,
+  PlanetPosition,
+  Aspect,
+  ProfectionData,
+  SolarReturnOverlay,
+  FirdariaResult,
+  InteractionResult,
+  ProgressionResult,
+  DirectionHit,
+} from "../types.ts";
 
 // ========== 상수 정의 ==========
 export const SIGNS = [
-  'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
-]
+  "Aries",
+  "Taurus",
+  "Gemini",
+  "Cancer",
+  "Leo",
+  "Virgo",
+  "Libra",
+  "Scorpio",
+  "Sagittarius",
+  "Capricorn",
+  "Aquarius",
+  "Pisces",
+];
 
 export const PLANETS = {
   sun: Body.Sun,
@@ -22,26 +53,26 @@ export const PLANETS = {
   mars: Body.Mars,
   jupiter: Body.Jupiter,
   saturn: Body.Saturn,
-}
+};
 
 export const PLANET_NAMES: Record<string, string> = {
-  sun: 'Sun',
-  moon: 'Moon',
-  mercury: 'Mercury',
-  venus: 'Venus',
-  mars: 'Mars',
-  jupiter: 'Jupiter',
-  saturn: 'Saturn',
-}
+  sun: "Sun",
+  moon: "Moon",
+  mercury: "Mercury",
+  venus: "Venus",
+  mars: "Mars",
+  jupiter: "Jupiter",
+  saturn: "Saturn",
+};
 
 // Aspect 타입 정의
 export const ASPECT_TYPES = {
-  CONJUNCTION: { name: 'Conjunction', angle: 0, orb: 8 },
-  OPPOSITION: { name: 'Opposition', angle: 180, orb: 8 },
-  SQUARE: { name: 'Square', angle: 90, orb: 6 },
-  TRINE: { name: 'Trine', angle: 120, orb: 6 },
-  SEXTILE: { name: 'Sextile', angle: 60, orb: 4 },
-}
+  CONJUNCTION: { name: "Conjunction", angle: 0, orb: 8 },
+  OPPOSITION: { name: "Opposition", angle: 180, orb: 8 },
+  SQUARE: { name: "Square", angle: 90, orb: 6 },
+  TRINE: { name: "Trine", angle: 120, orb: 6 },
+  SEXTILE: { name: "Sextile", angle: 60, orb: 4 },
+};
 
 // ========== 유틸리티 함수 ==========
 
@@ -49,81 +80,101 @@ export const ASPECT_TYPES = {
  * 각도를 0-360 범위로 정규화
  */
 export function normalizeDegrees(degrees: number): number {
-  return ((degrees % 360) + 360) % 360
+  return ((degrees % 360) + 360) % 360;
 }
 
 /**
  * 황도 경도로부터 별자리와 별자리 내 각도를 계산
  */
-export function getSignFromLongitude(longitude: number): { sign: string; degreeInSign: number } {
-  const normalized = normalizeDegrees(longitude)
-  const signIndex = Math.floor(normalized / 30)
-  const degreeInSign = normalized % 30
+export function getSignFromLongitude(longitude: number): {
+  sign: string;
+  degreeInSign: number;
+} {
+  const normalized = normalizeDegrees(longitude);
+  const signIndex = Math.floor(normalized / 30);
+  const degreeInSign = normalized % 30;
 
   return {
     sign: SIGNS[signIndex],
     degreeInSign: degreeInSign,
-  }
+  };
 }
 
 /**
  * Whole Sign House System을 사용하여 하우스 계산
  */
-export function getWholeSignHouse(longitude: number, ascendantLon: number): number {
-  const normalized = normalizeDegrees(longitude)
-  const ascNormalized = normalizeDegrees(ascendantLon)
-  
-  const ascSignIndex = Math.floor(ascNormalized / 30)
-  const planetSignIndex = Math.floor(normalized / 30)
-  
-  let house = planetSignIndex - ascSignIndex + 1
-  
-  if (house < 1) house += 12
-  if (house > 12) house -= 12
-  
-  return house
+export function getWholeSignHouse(
+  longitude: number,
+  ascendantLon: number
+): number {
+  const normalized = normalizeDegrees(longitude);
+  const ascNormalized = normalizeDegrees(ascendantLon);
+
+  const ascSignIndex = Math.floor(ascNormalized / 30);
+  const planetSignIndex = Math.floor(normalized / 30);
+
+  let house = planetSignIndex - ascSignIndex + 1;
+
+  if (house < 1) house += 12;
+  if (house > 12) house -= 12;
+
+  return house;
 }
 
 /**
  * 상승점(Ascendant) 계산
  */
-export function calculateAscendant(date: Date, lat: number, lng: number, time: any): number {
+export function calculateAscendant(
+  date: Date,
+  lat: number,
+  lng: number,
+  time: any
+): number {
   // 1. 그리니치 항성시(GMST) 계산
-  const gmst = SiderealTime(time) // 시간 단위로 반환
-  
+  const gmst = SiderealTime(time); // 시간 단위로 반환
+
   // 2. 지방 항성시(LST) = GMST + (경도 / 15)
-  const lst = gmst + (lng / 15)
-  
+  const lst = gmst + lng / 15;
+
   // 3. RAMC (Right Ascension of MC) - 도 단위로 변환
-  const ramc = normalizeDegrees(lst * 15)
-  
+  const ramc = normalizeDegrees(lst * 15);
+
   // 4. 황도경사각 (obliquity of the ecliptic) - J2000 기준 약 23.44도
-  const obliquity = 23.4392911
-  const obliquityRad = obliquity * (Math.PI / 180)
-  const latRad = lat * (Math.PI / 180)
-  const ramcRad = ramc * (Math.PI / 180)
-  
+  const obliquity = 23.4392911;
+  const obliquityRad = obliquity * (Math.PI / 180);
+  const latRad = lat * (Math.PI / 180);
+  const ramcRad = ramc * (Math.PI / 180);
+
   // 5. 상승점 계산 공식
-  const numerator = Math.cos(ramcRad)
-  const denominator = -(Math.sin(ramcRad) * Math.cos(obliquityRad)) - (Math.tan(latRad) * Math.sin(obliquityRad))
-  
-  let ascendantRad = Math.atan2(numerator, denominator)
-  let ascendant = ascendantRad * (180 / Math.PI)
-  
+  const numerator = Math.cos(ramcRad);
+  const denominator =
+    -(Math.sin(ramcRad) * Math.cos(obliquityRad)) -
+    Math.tan(latRad) * Math.sin(obliquityRad);
+
+  let ascendantRad = Math.atan2(numerator, denominator);
+  let ascendant = ascendantRad * (180 / Math.PI);
+
   // RAMC가 180-360도 범위일 때 180도 보정 필요
   if (ramc >= 180) {
-    ascendant += 180
+    ascendant += 180;
   }
-  
-  return normalizeDegrees(ascendant)
+
+  return normalizeDegrees(ascendant);
 }
 
 /**
- * Part of Fortune 계산
+ * Part of Fortune 계산 (Day: Asc+Moon-Sun, Night: Asc+Sun-Moon)
  */
-export function calculateFortuna(ascendant: number, moonLon: number, sunLon: number): number {
-  let fortuna = ascendant + moonLon - sunLon
-  return normalizeDegrees(fortuna)
+export function calculateFortuna(
+  ascendant: number,
+  moonLon: number,
+  sunLon: number,
+  isDayChart: boolean = true
+): number {
+  const fortuna = isDayChart
+    ? ascendant + moonLon - sunLon
+    : ascendant + sunLon - moonLon;
+  return normalizeDegrees(fortuna);
 }
 
 /**
@@ -131,14 +182,14 @@ export function calculateFortuna(ascendant: number, moonLon: number, sunLon: num
  */
 export function getPlanetLongitude(body: any, time: any): number {
   try {
-    const vector = GeoVector(body, time, true)
-    const ecliptic = Ecliptic(vector)
-    const longitude = ecliptic.elon
-    
-    return normalizeDegrees(longitude)
+    const vector = GeoVector(body, time, true);
+    const ecliptic = Ecliptic(vector);
+    const longitude = ecliptic.elon;
+
+    return normalizeDegrees(longitude);
   } catch (error: any) {
-    console.error(`Error calculating planet longitude for ${body}:`, error)
-    throw new Error(`Failed to calculate planet longitude: ${error.message}`)
+    console.error(`Error calculating planet longitude for ${body}:`, error);
+    throw new Error(`Failed to calculate planet longitude: ${error.message}`);
   }
 }
 
@@ -152,78 +203,91 @@ export function getPlanetLongitude(body: any, time: any): number {
  * @returns 계산된 차트 데이터
  */
 export async function calculateChart(
-  date: Date, 
+  date: Date,
   location: Location,
   timezoneOffsetHours: number = 0
 ): Promise<ChartData> {
   try {
-    const { lat, lng } = location
+    const { lat, lng } = location;
 
     // 입력 검증
     if (!(date instanceof Date) || isNaN(date.getTime())) {
-      throw new Error('Invalid date provided.')
+      throw new Error("Invalid date provided.");
     }
 
-    if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
-      throw new Error('Invalid latitude.')
+    if (typeof lat !== "number" || isNaN(lat) || lat < -90 || lat > 90) {
+      throw new Error("Invalid latitude.");
     }
 
-    if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
-      throw new Error('Invalid longitude.')
+    if (typeof lng !== "number" || isNaN(lng) || lng < -180 || lng > 180) {
+      throw new Error("Invalid longitude.");
     }
 
     // 행성 계산용: UTC 그대로 사용 (정확함)
-    const time = MakeTime(date)
-    
+    const time = MakeTime(date);
+
     // 하우스 계산용: 현지 시간으로 변환
     // 하우스 시스템은 "그 장소의 그 시간"을 기준으로 계산되므로,
     // UTC 시간에 Timezone Offset을 더해서 현지 시간 기준으로 만들어줌
-    const localDateForHouses = new Date(date.getTime() + (timezoneOffsetHours * 60 * 60 * 1000))
-    const localTimeForHouses = MakeTime(localDateForHouses)
-    
+    const localDateForHouses = new Date(
+      date.getTime() + timezoneOffsetHours * 60 * 60 * 1000
+    );
+    const localTimeForHouses = MakeTime(localDateForHouses);
+
     if (timezoneOffsetHours !== 0) {
-      console.log(`🏠 하우스 계산용 시간 변환: UTC ${date.toISOString()} + ${timezoneOffsetHours}h = Local ${localDateForHouses.toISOString()}`)
+      console.log(
+        `🏠 하우스 계산용 시간 변환: UTC ${date.toISOString()} + ${timezoneOffsetHours}h = Local ${localDateForHouses.toISOString()}`
+      );
     }
-    
+
     // 상승점 계산 (현지 시간 기준)
-    const ascendant = calculateAscendant(localDateForHouses, lat, lng, localTimeForHouses)
-    const ascendantSignInfo = getSignFromLongitude(ascendant)
+    const ascendant = calculateAscendant(
+      localDateForHouses,
+      lat,
+      lng,
+      localTimeForHouses
+    );
+    const ascendantSignInfo = getSignFromLongitude(ascendant);
 
     // 행성 위치 계산
-    const planetsData: any = {}
+    const planetsData: any = {};
 
     for (const [planetName, body] of Object.entries(PLANETS)) {
       try {
-        const longitude = getPlanetLongitude(body, time)
-        const signInfo = getSignFromLongitude(longitude)
-        const house = getWholeSignHouse(longitude, ascendant)
+        const longitude = getPlanetLongitude(body, time);
+        const signInfo = getSignFromLongitude(longitude);
+        const house = getWholeSignHouse(longitude, ascendant);
 
         planetsData[planetName] = {
           sign: signInfo.sign,
           degree: longitude,
           degreeInSign: signInfo.degreeInSign,
           house: house,
-        }
+        };
       } catch (planetError: any) {
-        console.error(`❌ ${planetName} 계산 실패:`, planetError)
-        throw new Error(`Failed to calculate ${planetName} position: ${planetError.message}`)
+        console.error(`❌ ${planetName} 계산 실패:`, planetError);
+        throw new Error(
+          `Failed to calculate ${planetName} position: ${planetError.message}`
+        );
       }
     }
 
-    const moonLon = planetsData.moon.degree
-    const sunLon = planetsData.sun.degree
-    
-    const fortunaLon = calculateFortuna(ascendant, moonLon, sunLon)
-    const fortunaSignInfo = getSignFromLongitude(fortunaLon)
-    const fortunaHouse = getWholeSignHouse(fortunaLon, ascendant)
+    const moonLon = planetsData.moon.degree;
+    const sunLon = planetsData.sun.degree;
+    const isDayChart =
+      planetsData.sun.house >= 7 && planetsData.sun.house <= 12;
 
-    const midheaven = normalizeDegrees(ascendant + 90)
+    const fortunaLon = calculateFortuna(ascendant, moonLon, sunLon, isDayChart);
+    const fortunaSignInfo = getSignFromLongitude(fortunaLon);
+    const fortunaHouse = getWholeSignHouse(fortunaLon, ascendant);
+
+    const midheaven = normalizeDegrees(ascendant + 90);
 
     const result: ChartData = {
       date: date.toISOString(),
       location: { lat, lng },
       houses: {
-        system: 'Whole Sign',
+        system: "Whole Sign",
         angles: {
           ascendant: ascendant,
           midheaven: midheaven,
@@ -236,21 +300,26 @@ export async function calculateChart(
         degreeInSign: fortunaSignInfo.degreeInSign,
         house: fortunaHouse,
       },
-    }
+    };
 
-    return result
+    return result;
   } catch (error: any) {
-    console.error('❌ 차트 계산 중 에러 발생:', error)
-    throw new Error(`Chart calculation failed: ${error.message || 'Unknown error occurred'}`)
+    console.error("❌ 차트 계산 중 에러 발생:", error);
+    throw new Error(
+      `Chart calculation failed: ${error.message || "Unknown error occurred"}`
+    );
   }
 }
 
 /**
  * 두 각도 간의 최소 각도 차이를 계산 (0-180도 범위)
  */
-export function calculateAngleDifference(angle1: number, angle2: number): number {
-  const diff = Math.abs(normalizeDegrees(angle1) - normalizeDegrees(angle2))
-  return diff > 180 ? 360 - diff : diff
+export function calculateAngleDifference(
+  angle1: number,
+  angle2: number
+): number {
+  const diff = Math.abs(normalizeDegrees(angle1) - normalizeDegrees(angle2));
+  return diff > 180 ? 360 - diff : diff;
 }
 
 /**
@@ -259,27 +328,34 @@ export function calculateAngleDifference(angle1: number, angle2: number): number
  * @param transitChart - 현재 하늘(Transit) 차트
  * @returns Aspect 배열
  */
-export function calculateAspects(natalChart: ChartData, transitChart: ChartData): Aspect[] {
-  const aspects: Aspect[] = []
+export function calculateAspects(
+  natalChart: ChartData,
+  transitChart: ChartData
+): Aspect[] {
+  const aspects: Aspect[] = [];
 
   // Transit 행성들을 순회
-  for (const [transitPlanetKey, transitPlanet] of Object.entries(transitChart.planets)) {
-    const transitPlanetName = PLANET_NAMES[transitPlanetKey]
-    const transitDegree = transitPlanet.degree
+  for (const [transitPlanetKey, transitPlanet] of Object.entries(
+    transitChart.planets
+  )) {
+    const transitPlanetName = PLANET_NAMES[transitPlanetKey];
+    const transitDegree = transitPlanet.degree;
 
     // Natal 행성들과 비교
-    for (const [natalPlanetKey, natalPlanet] of Object.entries(natalChart.planets)) {
-      const natalPlanetName = PLANET_NAMES[natalPlanetKey]
-      const natalDegree = natalPlanet.degree
+    for (const [natalPlanetKey, natalPlanet] of Object.entries(
+      natalChart.planets
+    )) {
+      const natalPlanetName = PLANET_NAMES[natalPlanetKey];
+      const natalDegree = natalPlanet.degree;
 
       // 각도 차이 계산
-      const angleDiff = calculateAngleDifference(transitDegree, natalDegree)
+      const angleDiff = calculateAngleDifference(transitDegree, natalDegree);
 
       // 각 Aspect 타입과 비교
       for (const [aspectKey, aspectType] of Object.entries(ASPECT_TYPES)) {
-        const expectedAngle = aspectType.angle
-        const orb = aspectType.orb
-        const actualOrb = Math.abs(angleDiff - expectedAngle)
+        const expectedAngle = aspectType.angle;
+        const orb = aspectType.orb;
+        const actualOrb = Math.abs(angleDiff - expectedAngle);
 
         // Orb 범위 내에 있는지 확인
         if (actualOrb <= orb) {
@@ -288,84 +364,117 @@ export function calculateAspects(natalChart: ChartData, transitChart: ChartData)
             orb: actualOrb,
             transitPlanet: transitPlanetName,
             natalPlanet: natalPlanetName,
-            description: `Transit ${transitPlanetName} ${aspectType.name} Natal ${natalPlanetName} (orb ${actualOrb.toFixed(1)}°)`
-          }
-          
-          aspects.push(aspect)
+            description: `Transit ${transitPlanetName} ${
+              aspectType.name
+            } Natal ${natalPlanetName} (orb ${actualOrb.toFixed(1)}°)`,
+          };
+
+          aspects.push(aspect);
         }
       }
     }
   }
 
   // Orb가 작은 순서로 정렬 (더 정확한 Aspect가 우선)
-  aspects.sort((a, b) => a.orb - b.orb)
+  aspects.sort((a, b) => a.orb - b.orb);
 
-  return aspects
+  return aspects;
 }
 
 /**
  * Transit 달이 Natal 차트의 몇 번째 하우스에 있는지 계산
  */
-export function getTransitMoonHouseInNatalChart(natalChart: ChartData, transitChart: ChartData): number {
-  const transitMoonLongitude = transitChart.planets.moon.degree
-  const natalAscendant = natalChart.houses.angles.ascendant
-  
-  return getWholeSignHouse(transitMoonLongitude, natalAscendant)
+export function getTransitMoonHouseInNatalChart(
+  natalChart: ChartData,
+  transitChart: ChartData
+): number {
+  const transitMoonLongitude = transitChart.planets.moon.degree;
+  const natalAscendant = natalChart.houses.angles.ascendant;
+
+  return getWholeSignHouse(transitMoonLongitude, natalAscendant);
 }
 
 // ========== Secondary Progression (진행 달) ==========
 
-const PROGRESSION_ORB = 1
+const PROGRESSION_ORB = 1;
 const PROGRESSION_ASPECTS: Array<{ angle: number; label: string }> = [
-  { angle: 0, label: 'Conjunct' },
-  { angle: 60, label: 'Sextile' },
-  { angle: 90, label: 'Square' },
-  { angle: 120, label: 'Trine' },
-  { angle: 180, label: 'Opposition' },
-]
+  { angle: 0, label: "Conjunct" },
+  { angle: 60, label: "Sextile" },
+  { angle: 90, label: "Square" },
+  { angle: 120, label: "Trine" },
+  { angle: 180, label: "Opposition" },
+];
 
 /**
  * Secondary Progression: "A day for a year"
- * 만 30세 → 출생일 + 30일 시점의 달 위치를 Progressed Moon으로 봄.
+ * Target Time = Birth Time + (Age * 24 hours) 시점의 모든 주요 행성 위치를 계산하고,
+ * Progressed Moon vs Natal 행성 / Progressed Moon vs Progressed 행성 각도를 분석.
  *
  * @param natalChart - 출생 차트 (날짜·위치·Natal 행성·Ascendant)
  * @param ageInFullYears - 만 나이 (연수)
- * @returns ProgressionResult (진행 달 별자리, Natal 기준 하우스, Natal 행성과의 주요 각도)
+ * @returns ProgressionResult (진행 달 별자리, Natal 기준 하우스, natalAspects, progressedAspects)
  */
-export function calculateProgressedMoon(
+export function calculateSecondaryProgression(
   natalChart: ChartData,
   ageInFullYears: number
 ): ProgressionResult {
-  const birthDate = new Date(natalChart.date)
+  const birthDate = new Date(natalChart.date);
   if (isNaN(birthDate.getTime())) {
-    throw new Error('Invalid natalChart.date')
+    throw new Error("Invalid natalChart.date");
   }
-  if (typeof ageInFullYears !== 'number' || ageInFullYears < 0) {
-    throw new Error('ageInFullYears must be a non-negative number')
+  if (typeof ageInFullYears !== "number" || ageInFullYears < 0) {
+    throw new Error("ageInFullYears must be a non-negative number");
   }
 
   // Target Time = Birth Time + (Age * 24 hours)
   const progressedDate = new Date(
     birthDate.getTime() + ageInFullYears * 24 * 60 * 60 * 1000
-  )
-  const time = MakeTime(progressedDate)
-  const progMoonLongitude = getPlanetLongitude(Body.Moon, time)
-  const signInfo = getSignFromLongitude(progMoonLongitude)
-  const natalAscendant = natalChart.houses.angles.ascendant
-  const progMoonHouse = getWholeSignHouse(progMoonLongitude, natalAscendant)
+  );
+  const time = MakeTime(progressedDate);
 
-  const aspects: string[] = []
+  // 1. Calculate all progressed planets at target time
+  const progressedLongitudes: Record<string, number> = {};
+  for (const [planetKey, body] of Object.entries(PLANETS)) {
+    progressedLongitudes[planetKey] = getPlanetLongitude(body, time);
+  }
+
+  const progMoonLongitude = progressedLongitudes.moon;
+  const signInfo = getSignFromLongitude(progMoonLongitude);
+  const natalAscendant = natalChart.houses.angles.ascendant;
+  const progMoonHouse = getWholeSignHouse(progMoonLongitude, natalAscendant);
+
+  // 2a. Type A: Progressed Moon vs Natal planets (Orb ±1°)
+  const natalAspects: string[] = [];
   for (const [planetKey, planetData] of Object.entries(natalChart.planets)) {
-    const natalPlanetName = PLANET_NAMES[planetKey]
-    const natalDegree = planetData.degree
-    const angleDiff = calculateAngleDifference(progMoonLongitude, natalDegree)
+    const natalPlanetName = PLANET_NAMES[planetKey];
+    const natalDegree = planetData.degree;
+    const angleDiff = calculateAngleDifference(progMoonLongitude, natalDegree);
 
     for (const { angle, label } of PROGRESSION_ASPECTS) {
-      const orb = Math.abs(angleDiff - angle)
+      const orb = Math.abs(angleDiff - angle);
       if (orb <= PROGRESSION_ORB) {
-        const exact = orb <= 0.5 ? ' (Exact)' : ''
-        aspects.push(`${label} Natal ${natalPlanetName}${exact}`)
-        break
+        const exact = orb <= 0.5 ? " (Exact)" : "";
+        natalAspects.push(`${label} Natal ${natalPlanetName}${exact}`);
+        break;
+      }
+    }
+  }
+
+  // 2b. Type B: Progressed Moon vs Progressed planets (Orb ±1°), exclude Moon vs Moon
+  const progressedAspects: string[] = [];
+  for (const [planetKey, progLon] of Object.entries(progressedLongitudes)) {
+    if (planetKey === "moon") continue;
+    const progressedPlanetName = PLANET_NAMES[planetKey];
+    const angleDiff = calculateAngleDifference(progMoonLongitude, progLon);
+
+    for (const { angle, label } of PROGRESSION_ASPECTS) {
+      const orb = Math.abs(angleDiff - angle);
+      if (orb <= PROGRESSION_ORB) {
+        const exact = orb <= 0.5 ? " (Exact)" : "";
+        progressedAspects.push(
+          `${label} Progressed ${progressedPlanetName}${exact}`
+        );
+        break;
       }
     }
   }
@@ -373,14 +482,15 @@ export function calculateProgressedMoon(
   return {
     progMoonSign: signInfo.sign,
     progMoonHouse,
-    aspects,
-  }
+    natalAspects,
+    progressedAspects,
+  };
 }
 
 // ========== Solar Arc Direction (솔라 아크 디렉션) ==========
 
-const SOLAR_ARC_ORB = 1
-const SOLAR_ARC_EXACT_ORB = 0.1
+const SOLAR_ARC_ORB = 1;
+const SOLAR_ARC_EXACT_ORB = 0.1;
 
 /**
  * Solar Arc Direction: 모든 Natal 행성·각도를 태양이 이동한 만큼(Arc)만큼 이동시킨 뒤,
@@ -394,74 +504,83 @@ export function calculateSolarArcDirections(
   natalChart: ChartData,
   ageInFullYears: number
 ): DirectionHit[] {
-  const birthDate = new Date(natalChart.date)
+  const birthDate = new Date(natalChart.date);
   if (isNaN(birthDate.getTime())) {
-    throw new Error('Invalid natalChart.date')
+    throw new Error("Invalid natalChart.date");
   }
-  if (typeof ageInFullYears !== 'number' || ageInFullYears < 0) {
-    throw new Error('ageInFullYears must be a non-negative number')
+  if (typeof ageInFullYears !== "number" || ageInFullYears < 0) {
+    throw new Error("ageInFullYears must be a non-negative number");
   }
 
   // 1. Arc = Progressed Sun Longitude - Natal Sun Longitude
-  const natalSunLongitude = natalChart.planets.sun.degree
+  const natalSunLongitude = natalChart.planets.sun.degree;
   const progressedDate = new Date(
     birthDate.getTime() + ageInFullYears * 24 * 60 * 60 * 1000
-  )
-  const progressedSunLongitude = getPlanetLongitude(Body.Sun, MakeTime(progressedDate))
-  let arc = progressedSunLongitude - natalSunLongitude
-  arc = normalizeDegrees(arc)
+  );
+  const progressedSunLongitude = getPlanetLongitude(
+    Body.Sun,
+    MakeTime(progressedDate)
+  );
+  let arc = progressedSunLongitude - natalSunLongitude;
+  arc = normalizeDegrees(arc);
 
   // 2. Directed: Natal + Arc (행성 7개 + Asc, MC)
-  const directedPlanets: Array<{ name: string; longitude: number }> = []
+  const directedPlanets: Array<{ name: string; longitude: number }> = [];
   for (const [key, data] of Object.entries(natalChart.planets)) {
     directedPlanets.push({
       name: `Directed ${PLANET_NAMES[key]}`,
       longitude: normalizeDegrees(data.degree + arc),
-    })
+    });
   }
-  const natalAsc = natalChart.houses.angles.ascendant
-  const natalMC = natalChart.houses.angles.midheaven
+  const natalAsc = natalChart.houses.angles.ascendant;
+  const natalMC = natalChart.houses.angles.midheaven;
   directedPlanets.push(
-    { name: 'Directed Ascendant', longitude: normalizeDegrees(natalAsc + arc) },
-    { name: 'Directed MC', longitude: normalizeDegrees(natalMC + arc) },
-  )
+    { name: "Directed Ascendant", longitude: normalizeDegrees(natalAsc + arc) },
+    { name: "Directed MC", longitude: normalizeDegrees(natalMC + arc) }
+  );
 
   // Natal 포인트 (Hit 대상): 행성 7개 + Asc, MC
-  const natalPoints: Array<{ name: string; longitude: number }> = []
+  const natalPoints: Array<{ name: string; longitude: number }> = [];
   for (const [key, data] of Object.entries(natalChart.planets)) {
-    natalPoints.push({ name: `Natal ${PLANET_NAMES[key]}`, longitude: data.degree })
+    natalPoints.push({
+      name: `Natal ${PLANET_NAMES[key]}`,
+      longitude: data.degree,
+    });
   }
   natalPoints.push(
-    { name: 'Natal Ascendant', longitude: natalAsc },
-    { name: 'Natal MC', longitude: natalMC },
-  )
+    { name: "Natal Ascendant", longitude: natalAsc },
+    { name: "Natal MC", longitude: natalMC }
+  );
 
   // 3. Hit Check: Conjunction (0°) or Opposition (180°), Orb ±1°
-  const hits: DirectionHit[] = []
+  const hits: DirectionHit[] = [];
   for (const moving of directedPlanets) {
     for (const target of natalPoints) {
-      const angleDiff = calculateAngleDifference(moving.longitude, target.longitude)
-      const orbConj = Math.abs(angleDiff - 0)
-      const orbOpp = Math.abs(angleDiff - 180)
+      const angleDiff = calculateAngleDifference(
+        moving.longitude,
+        target.longitude
+      );
+      const orbConj = Math.abs(angleDiff - 0);
+      const orbOpp = Math.abs(angleDiff - 180);
       if (orbConj <= SOLAR_ARC_ORB) {
         hits.push({
           movingPlanet: moving.name,
           targetPoint: target.name,
-          aspect: 'Conjunction',
+          aspect: "Conjunction",
           isExact: orbConj < SOLAR_ARC_EXACT_ORB,
-        })
+        });
       } else if (orbOpp <= SOLAR_ARC_ORB) {
         hits.push({
           movingPlanet: moving.name,
           targetPoint: target.name,
-          aspect: 'Opposition',
+          aspect: "Opposition",
           isExact: orbOpp < SOLAR_ARC_EXACT_ORB,
-        })
+        });
       }
     }
   }
 
-  return hits
+  return hits;
 }
 
 // ========== Solar Return & Profection 계산 함수 ==========
@@ -471,27 +590,669 @@ export function calculateSolarArcDirections(
  */
 export function getSignRuler(sign: string): string {
   const rulers: Record<string, string> = {
-    'Aries': 'Mars',
-    'Taurus': 'Venus',
-    'Gemini': 'Mercury',
-    'Cancer': 'Moon',
-    'Leo': 'Sun',
-    'Virgo': 'Mercury',
-    'Libra': 'Venus',
-    'Scorpio': 'Mars',      // 고전 점성술: Mars (현대: Pluto)
-    'Sagittarius': 'Jupiter',
-    'Capricorn': 'Saturn',
-    'Aquarius': 'Saturn',   // 고전 점성술: Saturn (현대: Uranus)
-    'Pisces': 'Jupiter',    // 고전 점성술: Jupiter (현대: Neptune)
-  }
-  
-  return rulers[sign] || 'Unknown'
+    Aries: "Mars",
+    Taurus: "Venus",
+    Gemini: "Mercury",
+    Cancer: "Moon",
+    Leo: "Sun",
+    Virgo: "Mercury",
+    Libra: "Venus",
+    Scorpio: "Mars", // 고전 점성술: Mars (현대: Pluto)
+    Sagittarius: "Jupiter",
+    Capricorn: "Saturn",
+    Aquarius: "Saturn", // 고전 점성술: Saturn (현대: Uranus)
+    Pisces: "Jupiter", // 고전 점성술: Jupiter (현대: Neptune)
+  };
+
+  return rulers[sign] || "Unknown";
 }
+
+// ========== Career & Wealth (Hellenistic) ==========
+
+/** 행성별 Domicile(본집) 별자리 */
+const DOMICILE_SIGNS: Record<string, string[]> = {
+  Sun: ["Leo"],
+  Moon: ["Cancer"],
+  Mercury: ["Gemini", "Virgo"],
+  Venus: ["Taurus", "Libra"],
+  Mars: ["Aries", "Scorpio"],
+  Jupiter: ["Sagittarius", "Pisces"],
+  Saturn: ["Capricorn", "Aquarius"],
+};
+
+/** 행성별 Exaltation(양자리) 별자리 */
+const EXALTATION_SIGNS: Record<string, string> = {
+  Sun: "Aries",
+  Moon: "Taurus",
+  Mercury: "Virgo",
+  Venus: "Pisces",
+  Mars: "Capricorn",
+  Jupiter: "Cancer",
+  Saturn: "Libra",
+};
+
+/** Sect: 낮 차트 = Sun, Jupiter, Saturn / 밤 차트 = Moon, Venus, Mars */
+const DAY_SECT_PLANETS = new Set(["Sun", "Jupiter", "Saturn"]);
+const NIGHT_SECT_PLANETS = new Set(["Moon", "Venus", "Mars"]);
+const MALEFICS = new Set(["Mars", "Saturn"]);
+
+/** 직업 키워드 (Hellenistic Career Significators) */
+const CAREER_KEYWORDS: Record<string, string> = {
+  Sun: "리더십/정치/공직",
+  Moon: "돌봄/교육/공공",
+  Mercury: "커뮤니케이션/상업/문서",
+  Venus: "예술/미용/협상",
+  Mars: "엔지니어/군인/스포츠",
+  Jupiter: "법/교육/종교",
+  Saturn: "관리/구조/장기 프로젝트",
+};
+
+/** 차트에서 낮/밤 판별 (Sun이 7–12하우스 = Day) */
+function isDayChartFromChart(chartData: ChartData): boolean {
+  const house = chartData.planets?.sun?.house;
+  if (house == null) return true;
+  return house >= 7 && house <= 12;
+}
+
+/** 두 경도 간의 Natal Aspect 타입 및 Orb 반환 (Trine/Sextile/Square/Opposition만) */
+function getNatalAspect(
+  lon1: number,
+  lon2: number,
+  options: {
+    trineOrb?: number;
+    sextileOrb?: number;
+    squareOrb?: number;
+    oppositionOrb?: number;
+  } = {}
+): { type: string; angle: number; orb: number } | null {
+  const diff = calculateAngleDifference(lon1, lon2);
+  const orbs = {
+    trine: options.trineOrb ?? 6,
+    sextile: options.sextileOrb ?? 4,
+    square: options.squareOrb ?? 6,
+    opposition: options.oppositionOrb ?? 8,
+  };
+  if (Math.abs(diff - 120) <= orbs.trine)
+    return { type: "Trine", angle: 120, orb: Math.abs(diff - 120) };
+  if (Math.abs(diff - 60) <= orbs.sextile)
+    return { type: "Sextile", angle: 60, orb: Math.abs(diff - 60) };
+  if (Math.abs(diff - 90) <= orbs.square)
+    return { type: "Square", angle: 90, orb: Math.abs(diff - 90) };
+  if (Math.abs(diff - 180) <= orbs.opposition)
+    return { type: "Opposition", angle: 180, orb: Math.abs(diff - 180) };
+  return null;
+}
+
+export interface PlanetScoreResult {
+  score: number;
+  breakdown: {
+    sect: number;
+    essentialDignity: number;
+    bonification: number;
+    maltreatment: number;
+  };
+}
+
+/**
+ * 고전 점성학 기준 특정 행성의 힘(Strength)을 점수화
+ * Sect +3, Essential Dignity +5, Bonification +5, Maltreatment -5(또는 흉성 Sect 시 -2)
+ */
+export function calculatePlanetScore(
+  planetName: string,
+  chartData: ChartData
+): PlanetScoreResult {
+  const key = planetName.toLowerCase();
+  const planetData = chartData.planets?.[key as keyof typeof chartData.planets];
+  if (!planetData) {
+    return {
+      score: 0,
+      breakdown: {
+        sect: 0,
+        essentialDignity: 0,
+        bonification: 0,
+        maltreatment: 0,
+      },
+    };
+  }
+
+  const displayName = PLANET_NAMES[key] ?? planetName;
+  const longitude = planetData.degree;
+  const sign = planetData.sign;
+  const asc = chartData.houses?.angles?.ascendant ?? 0;
+  const isDayChart = isDayChartFromChart(chartData);
+  const planets = chartData.planets ?? {};
+  const breakdown = {
+    sect: 0,
+    essentialDignity: 0,
+    bonification: 0,
+    maltreatment: 0,
+  };
+
+  // Sect (+3)
+  if (isDayChart && DAY_SECT_PLANETS.has(displayName)) breakdown.sect = 3;
+  else if (!isDayChart && NIGHT_SECT_PLANETS.has(displayName))
+    breakdown.sect = 3;
+
+  // Essential Dignity (+5): Domicile or Exaltation
+  const domicile = DOMICILE_SIGNS[displayName]?.includes(sign);
+  const exaltation = EXALTATION_SIGNS[displayName] === sign;
+  if (domicile || exaltation) breakdown.essentialDignity = 5;
+
+  // Bonification (+5): Sign ruler in Trine or Sextile to this planet
+  const lordName = getSignRuler(sign);
+  const lordKey = PLANET_NAME_TO_KEY[lordName];
+  const lordData = lordKey ? planets[lordKey as keyof typeof planets] : null;
+  if (lordData && lordKey !== key) {
+    const aspect = getNatalAspect(longitude, lordData.degree);
+    if (aspect && (aspect.type === "Trine" || aspect.type === "Sextile"))
+      breakdown.bonification = 5;
+  }
+
+  // Maltreatment (-5 or -2): Malefic (Mars/Saturn) in Square or Opposition; -2 if malefic has Sect
+  for (const maleficKey of ["mars", "saturn"]) {
+    const maleficData = planets[maleficKey as keyof typeof planets];
+    if (!maleficData) continue;
+    const aspect = getNatalAspect(longitude, maleficData.degree);
+    if (!aspect || (aspect.type !== "Square" && aspect.type !== "Opposition"))
+      continue;
+    const maleficDisplay = PLANET_NAMES[maleficKey];
+    const maleficHasSect =
+      (isDayChart && maleficDisplay === "Saturn") ||
+      (!isDayChart && maleficDisplay === "Mars");
+    breakdown.maltreatment += maleficHasSect ? -2 : -5;
+  }
+
+  const score =
+    breakdown.sect +
+    breakdown.essentialDignity +
+    breakdown.bonification +
+    breakdown.maltreatment;
+  return { score, breakdown };
+}
+
+export interface CareerCandidateResult {
+  planetKey: string;
+  planetName: string;
+  score: number;
+  sign: string;
+  house: number;
+  keywords: string;
+  role: "MC Lord" | "POF 1st" | "POF 10th" | "POF 11th";
+  /** Sect/Dignity/Bonification/Maltreatment 점수 (프롬프트용 Reason) */
+  breakdown: PlanetScoreResult["breakdown"];
+}
+
+export interface CareerAnalysisResult {
+  isDayChart: boolean;
+  pofLongitude: number;
+  pofSign: string;
+  candidates: CareerCandidateResult[];
+}
+
+/**
+ * 직업(Career) 운 분석: POF·MC Lord·POF 1/10/11 하우스 후보를 찾아 점수화
+ */
+export function analyzeCareerPotential(
+  chartData: ChartData
+): CareerAnalysisResult {
+  const asc = chartData.houses?.angles?.ascendant ?? 0;
+  const planets = chartData.planets ?? {};
+  const sunLon = planets.sun?.degree ?? 0;
+  const moonLon = planets.moon?.degree ?? 0;
+  const isDayChart = isDayChartFromChart(chartData);
+  const pofLongitude = calculateFortuna(asc, moonLon, sunLon, isDayChart);
+  const pofSignInfo = getSignFromLongitude(pofLongitude);
+  const pofSign = pofSignInfo.sign;
+
+  // Whole Sign: 1st from POF = POF sign, 10th = +9 signs, 11th = +10 signs
+  const signIndex = (s: string) => SIGNS.indexOf(s);
+  const tenthFromPofIndex = (signIndex(pofSign) + 9) % 12;
+  const eleventhFromPofIndex = (signIndex(pofSign) + 10) % 12;
+  const tenthSignFromPof = SIGNS[tenthFromPofIndex];
+  const eleventhSignFromPof = SIGNS[eleventhFromPofIndex];
+
+  const candidates: CareerCandidateResult[] = [];
+  const seen = new Set<string>();
+
+  // 1) MC (10th House) Ruler (Whole Sign: 10th = Asc + 9 signs)
+  const tenthHouseSignIndex = (Math.floor(asc / 30) + 9) % 12;
+  const mcSign = SIGNS[tenthHouseSignIndex];
+  const mcLordName = getSignRuler(mcSign);
+  const mcLordKey = PLANET_NAME_TO_KEY[mcLordName];
+  if (mcLordKey && !seen.has(mcLordKey)) {
+    seen.add(mcLordKey);
+    const data = planets[mcLordKey as keyof typeof planets];
+    const res = calculatePlanetScore(mcLordKey, chartData);
+    candidates.push({
+      planetKey: mcLordKey,
+      planetName: PLANET_NAMES[mcLordKey],
+      score: res.score,
+      sign: data?.sign ?? "?",
+      house: data?.house ?? 0,
+      keywords: CAREER_KEYWORDS[PLANET_NAMES[mcLordKey]] ?? "",
+      role: "MC Lord",
+      breakdown: res.breakdown,
+    });
+  }
+
+  // 2) Planets in POF 1st, 10th, 11th (by Whole Sign from POF)
+  for (const [pKey, data] of Object.entries(planets)) {
+    if (!data?.sign) continue;
+    let role: "POF 1st" | "POF 10th" | "POF 11th" | null = null;
+    if (data.sign === pofSign) role = "POF 1st";
+    else if (data.sign === tenthSignFromPof) role = "POF 10th";
+    else if (data.sign === eleventhSignFromPof) role = "POF 11th";
+    if (!role || seen.has(pKey)) continue;
+    seen.add(pKey);
+    const res = calculatePlanetScore(pKey, chartData);
+    candidates.push({
+      planetKey: pKey,
+      planetName: PLANET_NAMES[pKey],
+      score: res.score,
+      sign: data.sign,
+      house: data.house,
+      keywords: CAREER_KEYWORDS[PLANET_NAMES[pKey]] ?? "",
+      role,
+      breakdown: res.breakdown,
+    });
+  }
+
+  return {
+    isDayChart,
+    pofLongitude,
+    pofSign,
+    candidates,
+  };
+}
+
+export interface WealthOccupantInfo {
+  planetName: string;
+  type: "Benefic" | "Malefic";
+}
+
+export interface WealthAnalysisResult {
+  isDayChart: boolean;
+  pofLongitude: number;
+  pofSign: string;
+  acquisitionSign: string;
+  occupants: WealthOccupantInfo[];
+  ruler: {
+    planetName: string;
+    score: number;
+    breakdown: PlanetScoreResult["breakdown"];
+  };
+}
+
+const BENEFIC_PLANETS = new Set(["Jupiter", "Venus"]);
+const WEALTH_MALEFIC_PLANETS = new Set(["Saturn", "Mars"]);
+
+/**
+ * 재물(Wealth) 운 분석: Acquisition House (POF로부터 11번째 별자리) 및 그 주인 평가
+ */
+export function analyzeWealthPotential(
+  chartData: ChartData
+): WealthAnalysisResult {
+  const asc = chartData.houses?.angles?.ascendant ?? 0;
+  const planets = chartData.planets ?? {};
+  const sunLon = planets.sun?.degree ?? 0;
+  const moonLon = planets.moon?.degree ?? 0;
+  const isDayChart = isDayChartFromChart(chartData);
+  const pofLongitude = calculateFortuna(asc, moonLon, sunLon, isDayChart);
+  const pofSignInfo = getSignFromLongitude(pofLongitude);
+  const pofSign = pofSignInfo.sign;
+
+  // Acquisition Sign = 11th sign from POF
+  const signIndex = (s: string) => SIGNS.indexOf(s);
+  const acquisitionIndex = (signIndex(pofSign) + 10) % 12;
+  const acquisitionSign = SIGNS[acquisitionIndex];
+
+  const occupants: WealthOccupantInfo[] = [];
+  for (const [pKey, data] of Object.entries(planets)) {
+    if (!data?.sign || data.sign !== acquisitionSign) continue;
+    const name = PLANET_NAMES[pKey];
+    if (BENEFIC_PLANETS.has(name))
+      occupants.push({ planetName: name, type: "Benefic" });
+    else if (WEALTH_MALEFIC_PLANETS.has(name))
+      occupants.push({ planetName: name, type: "Malefic" });
+  }
+
+  const rulerName = getSignRuler(acquisitionSign);
+  const rulerKey = PLANET_NAME_TO_KEY[rulerName];
+  const rulerScoreResult = rulerKey
+    ? calculatePlanetScore(rulerKey, chartData)
+    : {
+        score: 0,
+        breakdown: {
+          sect: 0,
+          essentialDignity: 0,
+          bonification: 0,
+          maltreatment: 0,
+        },
+      };
+
+  return {
+    isDayChart,
+    pofLongitude,
+    pofSign,
+    acquisitionSign,
+    occupants,
+    ruler: {
+      planetName: rulerName,
+      score: rulerScoreResult.score,
+      breakdown: rulerScoreResult.breakdown,
+    },
+  };
+}
+
+// ========== Love & Marriage (Hellenistic) ==========
+
+/**
+ * Lot of Marriage (결혼의 랏) — 성별 기준 공식
+ * Male: Asc + Venus - Saturn (남자는 금성을 지향)
+ * Female: Asc + Saturn - Venus (여자는 토성을 지향)
+ */
+export function calculateLotOfMarriage(
+  chartData: ChartData,
+  gender: string
+): { sign: string; longitude: number } {
+  const asc = chartData.houses?.angles?.ascendant ?? 0;
+  const venusLon = chartData.planets?.venus?.degree ?? 0;
+  const saturnLon = chartData.planets?.saturn?.degree ?? 0;
+  const isFemale =
+    typeof gender === "string" &&
+    (gender.toUpperCase() === "F" || gender.toLowerCase() === "female");
+  const lotLon = isFemale
+    ? normalizeDegrees(asc + saturnLon - venusLon)
+    : normalizeDegrees(asc + venusLon - saturnLon);
+  const { sign } = getSignFromLongitude(lotLon);
+  return { sign, longitude: lotLon };
+}
+
+export interface LoveQualitiesResult {
+  score: number;
+  statusDescription: string;
+  interpretation: string;
+}
+
+/** Venus 연애 품질: 하우스(1,4,7,10,11=Good / 6,8,12=Weak), Combustion, Dignity/Sect */
+export function analyzeLoveQualities(
+  chartData: ChartData
+): LoveQualitiesResult {
+  const venus = chartData.planets?.venus;
+  const sun = chartData.planets?.sun;
+  if (!venus) {
+    return {
+      score: 0,
+      statusDescription: "Venus data missing",
+      interpretation: "—",
+    };
+  }
+
+  const house =
+    venus.house ??
+    getWholeSignHouse(venus.degree, chartData.houses?.angles?.ascendant ?? 0);
+  const GOOD_HOUSES = new Set([1, 4, 7, 10, 11]);
+  const WEAK_HOUSES = new Set([6, 8, 12]);
+  let houseStatus: string;
+  if (GOOD_HOUSES.has(house)) houseStatus = "Good/Opportunity";
+  else if (WEAK_HOUSES.has(house))
+    houseStatus = house === 12 ? "Weak/Hidden (Secret Love)" : "Weak/Hidden";
+  else houseStatus = "Neutral";
+
+  const COMBUSTION_ORB = 8.5;
+  const sunVenusDiff = calculateAngleDifference(sun?.degree ?? 0, venus.degree);
+  const combust = sunVenusDiff <= COMBUSTION_ORB;
+  const combustionStatus = combust
+    ? "Combust (연애 기회 차단/흉함)"
+    : "Not combust";
+
+  const scoreResult = calculatePlanetScore("venus", chartData);
+  const dignityStatus =
+    scoreResult.score >= 5
+      ? "Stable/Happy (Dignity/Sect favorable)"
+      : scoreResult.score <= 0
+      ? "Challenging (Dignity/Sect weak)"
+      : "Moderate";
+
+  const statusParts = [houseStatus, combustionStatus, dignityStatus];
+  const interpretation = `Venus in ${
+    venus.sign
+  } (${house}th House): ${statusParts.join(". ")}`;
+
+  return {
+    score: scoreResult.score,
+    statusDescription: statusParts.join("; "),
+    interpretation,
+  };
+}
+
+/** Luminary가 다른 행성에게 적용(Applying) 중인지 판단 (빠른 행성이 정확 각도로 접근) */
+function isApplyingAspect(
+  lumLongitude: number,
+  otherLongitude: number,
+  aspectAngle: number
+): boolean {
+  const diff = normalizeDegrees(otherLongitude - lumLongitude);
+  if (aspectAngle === 0) return diff > 0 && diff < 180;
+  return diff > aspectAngle && diff < 360;
+}
+
+/** Ptolemaic aspects: Conjunction, Opposition, Trine, Square, Sextile (orb 8/6/4) */
+const PTOLEMAIC_ASPECTS = [
+  { angle: 0, orb: 8 },
+  { angle: 60, orb: 4 },
+  { angle: 90, orb: 6 },
+  { angle: 120, orb: 6 },
+  { angle: 180, orb: 8 },
+];
+
+export interface SpouseCandidateResult {
+  bestSpouseCandidate: string;
+  scores: Record<string, number>;
+}
+
+/**
+ * 배우자 후보 행성 선정: 7th Ruler, Lot Ruler, Venus, Luminary(M=Moon, F=Sun)를 지표로
+ * 다른 행성들이 이들과 맺는 각도에 따라 점수 부여. Luminary가 가장 먼저 만나는(Applying) 행성 +30.
+ */
+export function identifySpouseCandidate(
+  chartData: ChartData,
+  gender: "M" | "F"
+): SpouseCandidateResult {
+  const planets = chartData.planets ?? {};
+  const asc = chartData.houses?.angles?.ascendant ?? 0;
+  const planetKeys = [
+    "sun",
+    "moon",
+    "mercury",
+    "venus",
+    "mars",
+    "jupiter",
+    "saturn",
+  ] as const;
+
+  const seventhCuspLon = normalizeDegrees(asc + 180);
+  const seventhSign = getSignFromLongitude(seventhCuspLon).sign;
+  const seventhRulerName = getSignRuler(seventhSign);
+  const seventhRulerLon =
+    planets[PLANET_NAME_TO_KEY[seventhRulerName] as keyof typeof planets]
+      ?.degree;
+
+  const lot = calculateLotOfMarriage(chartData, gender);
+  const lotRulerName = getSignRuler(lot.sign);
+  const lotRulerLon =
+    planets[PLANET_NAME_TO_KEY[lotRulerName] as keyof typeof planets]?.degree;
+
+  const venusLon = planets.venus?.degree ?? 0;
+  const luminaryKey = gender === "M" ? "moon" : "sun";
+  const luminaryLon = planets[luminaryKey]?.degree ?? 0;
+
+  const scores: Record<string, number> = {};
+  for (const key of planetKeys) {
+    scores[PLANET_NAMES[key]] = 0;
+  }
+
+  for (const key of planetKeys) {
+    const otherLon = planets[key]?.degree;
+    if (otherLon == null) continue;
+    const name = PLANET_NAMES[key];
+
+    if (seventhRulerLon != null) {
+      const asp = getNatalAspect(otherLon, seventhRulerLon);
+      if (asp) scores[name] += 10;
+    }
+    const aspVenus = getNatalAspect(otherLon, venusLon);
+    if (aspVenus) scores[name] += 10;
+    if (lotRulerLon != null) {
+      const aspLot = getNatalAspect(otherLon, lotRulerLon);
+      if (aspLot) scores[name] += 5;
+    }
+  }
+
+  let bestApplyingOrb = Infinity;
+  let luminaryFirstPlanet: string | null = null;
+  for (const key of planetKeys) {
+    if (key === luminaryKey) continue;
+    const otherLon = planets[key]?.degree;
+    if (otherLon == null) continue;
+    for (const { angle, orb } of PTOLEMAIC_ASPECTS) {
+      const diff = calculateAngleDifference(luminaryLon, otherLon);
+      const curOrb = Math.abs(diff - angle);
+      if (curOrb <= orb && isApplyingAspect(luminaryLon, otherLon, angle)) {
+        if (curOrb < bestApplyingOrb) {
+          bestApplyingOrb = curOrb;
+          luminaryFirstPlanet = PLANET_NAMES[key];
+        }
+        break;
+      }
+    }
+  }
+  if (luminaryFirstPlanet != null) {
+    scores[luminaryFirstPlanet] = (scores[luminaryFirstPlanet] ?? 0) + 30;
+  }
+
+  let bestPlanet = "Venus";
+  let bestScore = -1;
+  for (const [planetName, total] of Object.entries(scores)) {
+    if (total > bestScore) {
+      bestScore = total;
+      bestPlanet = planetName;
+    }
+  }
+
+  return { bestSpouseCandidate: bestPlanet, scores };
+}
+
+export interface LoveTimingResult {
+  activatedFactors: string[];
+}
+
+/**
+ * 연애/결혼 시기 트리거: Profection, Firdaria, Direction, Progression 체크
+ */
+export function analyzeLoveTiming(
+  natalChart: ChartData,
+  currentAge: number,
+  spouseCandidate: string,
+  gender: string,
+  options?: {
+    firdariaResult?: FirdariaResult | null;
+    progressionResult?: ProgressionResult | null;
+    directionHits?: DirectionHit[] | null;
+  }
+): LoveTimingResult {
+  const activatedFactors: string[] = [];
+  const birthDate = new Date(natalChart.date);
+  const now = new Date();
+  const asc = natalChart.houses?.angles?.ascendant ?? 0;
+  const natalAscSign = getSignFromLongitude(asc).sign;
+  const venusSign = natalChart.planets?.venus?.sign ?? "";
+  const lot = calculateLotOfMarriage(natalChart, gender);
+  const seventhCuspLon = normalizeDegrees(asc + 180);
+  const seventhSign = getSignFromLongitude(seventhCuspLon).sign;
+
+  if (birthDate.getTime() && isNaN(birthDate.getTime())) {
+    return { activatedFactors };
+  }
+
+  const profection = calculateProfection(birthDate, now, natalAscSign, false);
+  if (
+    profection.profectionSign === venusSign ||
+    profection.profectionSign === lot.sign ||
+    profection.profectionSign === seventhSign
+  ) {
+    activatedFactors.push(
+      `Profection: Current year sign (${profection.profectionSign}) activates Venus/Lot/7th — love themes highlighted`
+    );
+  }
+
+  const firdaria =
+    options?.firdariaResult ??
+    calculateFirdaria(
+      birthDate,
+      {
+        lat: natalChart.location?.lat ?? 0,
+        lng: natalChart.location?.lng ?? 0,
+      },
+      now
+    );
+  if (firdaria.majorLord === "Venus" || firdaria.subLord === "Venus") {
+    activatedFactors.push(
+      `Firdaria: Venus period active (Major: ${firdaria.majorLord}, Sub: ${
+        firdaria.subLord ?? "—"
+      })`
+    );
+  }
+
+  const directionHits =
+    options?.directionHits ??
+    calculateSolarArcDirections(natalChart, currentAge);
+  const angleTargets = ["Natal Ascendant", "Natal MC"];
+  for (const hit of directionHits) {
+    const isAngle = angleTargets.some((t) => hit.targetPoint === t);
+    const isVenusOrSpouse =
+      hit.movingPlanet.includes("Venus") ||
+      hit.movingPlanet.includes(spouseCandidate);
+    if (isAngle && isVenusOrSpouse) {
+      activatedFactors.push(
+        `Direction: ${hit.movingPlanet} ${hit.aspect} ${hit.targetPoint} (angle trigger)`
+      );
+    }
+  }
+
+  const progression =
+    options?.progressionResult ??
+    calculateSecondaryProgression(natalChart, currentAge);
+  const venusOrSpouseInNatal = progression.natalAspects.some(
+    (s) => s.includes("Venus") || s.includes(spouseCandidate)
+  );
+  const venusOrSpouseInProg = progression.progressedAspects.some(
+    (s) => s.includes("Venus") || s.includes(spouseCandidate)
+  );
+  if (venusOrSpouseInNatal) {
+    activatedFactors.push(
+      `Progression: Progressed Moon aspects Natal Venus or ${spouseCandidate} — ${progression.natalAspects
+        .filter((a) => a.includes("Venus") || a.includes(spouseCandidate))
+        .join("; ")}`
+    );
+  }
+  if (venusOrSpouseInProg) {
+    activatedFactors.push(
+      `Progression: Progressed Moon aspects Progressed Venus or ${spouseCandidate} — ${progression.progressedAspects
+        .filter((a) => a.includes("Venus") || a.includes(spouseCandidate))
+        .join("; ")}`
+    );
+  }
+
+  return { activatedFactors };
+}
+
+// ========== Solar Return & Profection 계산 함수 ==========
 
 /**
  * Solar Return 날짜/시간 계산
  * 태양이 Natal 태양과 정확히 같은 황경에 위치하는 시점을 찾습니다.
- * 
+ *
  * @param birthDate - 사용자의 출생 날짜
  * @param targetYear - 계산할 연도 (현재 년도 또는 특정 년도)
  * @param natalSunLongitude - Natal 태양의 황경
@@ -504,79 +1265,89 @@ export function calculateSolarReturnDateTime(
 ): Date {
   try {
     // 대략적인 생일 날짜 계산 (targetYear의 생일)
-    const birthMonth = birthDate.getUTCMonth()
-    const birthDay = birthDate.getUTCDate()
-    
+    const birthMonth = birthDate.getUTCMonth();
+    const birthDay = birthDate.getUTCDate();
+
     // 검색 시작일: targetYear의 생일 2일 전
-    const searchStartDate = new Date(Date.UTC(targetYear, birthMonth, birthDay - 2))
-    
+    const searchStartDate = new Date(
+      Date.UTC(targetYear, birthMonth, birthDay - 2)
+    );
+
     // 검색 종료일: targetYear의 생일 2일 후
-    const searchEndDate = new Date(Date.UTC(targetYear, birthMonth, birthDay + 2))
-    
-    const startTime = MakeTime(searchStartDate)
-    const endTime = MakeTime(searchEndDate)
-    
+    const searchEndDate = new Date(
+      Date.UTC(targetYear, birthMonth, birthDay + 2)
+    );
+
+    const startTime = MakeTime(searchStartDate);
+    const endTime = MakeTime(searchEndDate);
+
     // astronomy-engine의 SearchSunLongitude를 사용하여 정확한 시점 찾기
-    const solarReturnTime = SearchSunLongitude(natalSunLongitude, startTime, 5)
-    
+    const solarReturnTime = SearchSunLongitude(natalSunLongitude, startTime, 5);
+
     if (!solarReturnTime) {
-      throw new Error('Solar Return time not found in the search window')
+      throw new Error("Solar Return time not found in the search window");
     }
-    
+
     // AstroTime을 순수 UTC Date로 변환
     // astronomy-engine의 AstroTime.date는 JavaScript Date 객체이지만,
     // 생성 시 로컬 타임존이 적용될 수 있으므로 명시적으로 UTC로 파싱
-    const astroDate = solarReturnTime.date
-    
+    const astroDate = solarReturnTime.date;
+
     // Date 객체를 UTC 기준으로 재구성
     // getUTC* 메서드를 사용하여 UTC 값을 가져온 후 Date.UTC로 순수 UTC Date 생성
-    const solarReturnDate = new Date(Date.UTC(
-      astroDate.getUTCFullYear(),
-      astroDate.getUTCMonth(),
-      astroDate.getUTCDate(),
-      astroDate.getUTCHours(),
-      astroDate.getUTCMinutes(),
-      astroDate.getUTCSeconds(),
-      astroDate.getUTCMilliseconds()
-    ))
-    
-    console.log(`✅ Solar Return 계산 완료 (UTC): ${solarReturnDate.toISOString()}`)
-    
-    return solarReturnDate
+    const solarReturnDate = new Date(
+      Date.UTC(
+        astroDate.getUTCFullYear(),
+        astroDate.getUTCMonth(),
+        astroDate.getUTCDate(),
+        astroDate.getUTCHours(),
+        astroDate.getUTCMinutes(),
+        astroDate.getUTCSeconds(),
+        astroDate.getUTCMilliseconds()
+      )
+    );
+
+    console.log(
+      `✅ Solar Return 계산 완료 (UTC): ${solarReturnDate.toISOString()}`
+    );
+
+    return solarReturnDate;
   } catch (error: any) {
-    console.error('❌ Solar Return 계산 실패:', error)
-    throw new Error(`Solar Return calculation failed: ${error.message}`)
+    console.error("❌ Solar Return 계산 실패:", error);
+    throw new Error(`Solar Return calculation failed: ${error.message}`);
   }
 }
 
 /**
  * 현재 적용 중인 Solar Return 연도 결정
  * 현재 날짜가 올해 생일 이전이면 작년 Solar Return, 이후면 올해 Solar Return
- * 
+ *
  * @param birthDate - 사용자의 출생 날짜
  * @param now - 현재 날짜
  * @returns Solar Return 연도
  */
 export function getActiveSolarReturnYear(birthDate: Date, now: Date): number {
-  const currentYear = now.getUTCFullYear()
-  const birthMonth = birthDate.getUTCMonth()
-  const birthDay = birthDate.getUTCDate()
-  
+  const currentYear = now.getUTCFullYear();
+  const birthMonth = birthDate.getUTCMonth();
+  const birthDay = birthDate.getUTCDate();
+
   // 올해의 생일
-  const birthdayThisYear = new Date(Date.UTC(currentYear, birthMonth, birthDay))
-  
+  const birthdayThisYear = new Date(
+    Date.UTC(currentYear, birthMonth, birthDay)
+  );
+
   // 현재가 올해 생일 이전이면 작년의 Solar Return 사용
   if (now < birthdayThisYear) {
-    return currentYear - 1
+    return currentYear - 1;
   }
-  
+
   // 생일 이후면 올해의 Solar Return 사용
-  return currentYear
+  return currentYear;
 }
 
 /**
  * Annual Profection 계산
- * 
+ *
  * @param birthDate - 사용자의 출생 날짜
  * @param targetDate - 계산 기준 날짜 (보통 Solar Return 날짜)
  * @param natalAscSign - Natal 차트의 상승궁 별자리
@@ -590,63 +1361,67 @@ export function calculateProfection(
   isSolarReturn: boolean = true
 ): ProfectionData {
   try {
-    let age: number
-    
+    let age: number;
+
     if (isSolarReturn) {
       // Solar Return의 경우: 단순 연도 차이 (생일 도달 여부와 무관)
       // targetDate가 Solar Return 시점이므로, 그 해에 도달하는 나이를 사용
-      age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
-      console.log(`📅 Profection 계산 (Solar Return 모드): targetYear ${targetDate.getUTCFullYear()} - birthYear ${birthDate.getUTCFullYear()} = ${age}세`)
+      age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear();
+      console.log(
+        `📅 Profection 계산 (Solar Return 모드): targetYear ${targetDate.getUTCFullYear()} - birthYear ${birthDate.getUTCFullYear()} = ${age}세`
+      );
     } else {
       // 일반 만 나이 계산 (생일이 지났는지 체크)
-      age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
-      
+      age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear();
+
       const birthdayThisYear = new Date(
         Date.UTC(
           targetDate.getUTCFullYear(),
           birthDate.getUTCMonth(),
           birthDate.getUTCDate()
         )
-      )
-      
+      );
+
       if (targetDate < birthdayThisYear) {
-        age -= 1
+        age -= 1;
       }
-      console.log(`📅 Profection 계산 (일반 모드): 만 나이 ${age}세`)
+      console.log(`📅 Profection 계산 (일반 모드): 만 나이 ${age}세`);
     }
-    
+
     // Profection House 계산 (Age를 12로 나눈 나머지 + 1)
-    const profectionHouse = (age % 12) + 1
-    
+    const profectionHouse = (age % 12) + 1;
+
     // Profection Sign 계산 (Natal Asc Sign에서 profectionHouse - 1만큼 이동)
-    const natalAscIndex = SIGNS.indexOf(natalAscSign)
+    const natalAscIndex = SIGNS.indexOf(natalAscSign);
     if (natalAscIndex === -1) {
-      throw new Error(`Invalid natal ascendant sign: ${natalAscSign}`)
+      throw new Error(`Invalid natal ascendant sign: ${natalAscSign}`);
     }
-    
-    const profectionSignIndex = (natalAscIndex + (profectionHouse - 1)) % 12
-    const profectionSign = SIGNS[profectionSignIndex]
-    
+
+    const profectionSignIndex = (natalAscIndex + (profectionHouse - 1)) % 12;
+    const profectionSign = SIGNS[profectionSignIndex];
+
     // Lord of the Year (Profection Sign의 지배 행성)
-    const lordOfTheYear = getSignRuler(profectionSign)
-    
-    console.log(`✅ Profection 계산 완료: Age ${age}, House ${profectionHouse}, Sign ${profectionSign}, Lord ${lordOfTheYear}`)
-    
+    const lordOfTheYear = getSignRuler(profectionSign);
+
+    console.log(
+      `✅ Profection 계산 완료: Age ${age}, House ${profectionHouse}, Sign ${profectionSign}, Lord ${lordOfTheYear}`
+    );
+
     return {
       age,
       profectionHouse,
       profectionSign,
       lordOfTheYear,
-    }
+    };
   } catch (error: any) {
-    console.error('❌ Profection 계산 실패:', error)
-    throw new Error(`Profection calculation failed: ${error.message}`)
+    console.error("❌ Profection 계산 실패:", error);
+    throw new Error(`Profection calculation failed: ${error.message}`);
   }
 }
 
 /**
  * Solar Return 차트의 행성들이 Natal 차트의 어느 하우스에 위치하는지 계산 (Overlay)
- * 
+ *
  * @param natalChart - Natal 차트
  * @param solarReturnChart - Solar Return 차트
  * @returns Solar Return Overlay 정보
@@ -656,104 +1431,126 @@ export function getSolarReturnOverlays(
   solarReturnChart: ChartData
 ): SolarReturnOverlay {
   try {
-    const natalAscendant = natalChart.houses.angles.ascendant
-    
+    const natalAscendant = natalChart.houses.angles.ascendant;
+
     // SR Ascendant가 Natal 차트의 몇 번째 하우스에 있는지
-    const solarReturnAscendant = solarReturnChart.houses.angles.ascendant
-    const solarReturnAscendantInNatalHouse = getWholeSignHouse(solarReturnAscendant, natalAscendant)
-    
+    const solarReturnAscendant = solarReturnChart.houses.angles.ascendant;
+    const solarReturnAscendantInNatalHouse = getWholeSignHouse(
+      solarReturnAscendant,
+      natalAscendant
+    );
+
     // SR 행성들이 Natal 차트의 몇 번째 하우스에 있는지
-    const planetsInNatalHouses: any = {}
-    
-    for (const [planetKey, planetData] of Object.entries(solarReturnChart.planets)) {
-      const planetLongitude = planetData.degree
-      const natalHouse = getWholeSignHouse(planetLongitude, natalAscendant)
-      planetsInNatalHouses[planetKey] = natalHouse
+    const planetsInNatalHouses: any = {};
+
+    for (const [planetKey, planetData] of Object.entries(
+      solarReturnChart.planets
+    )) {
+      const planetLongitude = planetData.degree;
+      const natalHouse = getWholeSignHouse(planetLongitude, natalAscendant);
+      planetsInNatalHouses[planetKey] = natalHouse;
     }
-    
-    console.log(`✅ Solar Return Overlay 계산 완료`)
-    
+
+    console.log(`✅ Solar Return Overlay 계산 완료`);
+
     return {
       solarReturnAscendantInNatalHouse,
       planetsInNatalHouses,
-    }
+    };
   } catch (error: any) {
-    console.error('❌ Solar Return Overlay 계산 실패:', error)
-    throw new Error(`Solar Return Overlay calculation failed: ${error.message}`)
+    console.error("❌ Solar Return Overlay 계산 실패:", error);
+    throw new Error(
+      `Solar Return Overlay calculation failed: ${error.message}`
+    );
   }
 }
 
 // ========== Firdaria (피르다리) 계산 ==========
 
-const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000
+const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
 
 /** 낮 차트 피르다리 순서: [행성명, 연수] */
 const DAY_FIRDARIA: Array<{ lord: string; years: number }> = [
-  { lord: 'Sun', years: 10 },
-  { lord: 'Venus', years: 8 },
-  { lord: 'Mercury', years: 13 },
-  { lord: 'Moon', years: 9 },
-  { lord: 'Saturn', years: 11 },
-  { lord: 'Jupiter', years: 12 },
-  { lord: 'Mars', years: 7 },
-  { lord: 'NorthNode', years: 3 },
-  { lord: 'SouthNode', years: 2 },
-]
+  { lord: "Sun", years: 10 },
+  { lord: "Venus", years: 8 },
+  { lord: "Mercury", years: 13 },
+  { lord: "Moon", years: 9 },
+  { lord: "Saturn", years: 11 },
+  { lord: "Jupiter", years: 12 },
+  { lord: "Mars", years: 7 },
+  { lord: "NorthNode", years: 3 },
+  { lord: "SouthNode", years: 2 },
+];
 
 /** 밤 차트 피르다리 순서 */
 const NIGHT_FIRDARIA: Array<{ lord: string; years: number }> = [
-  { lord: 'Moon', years: 9 },
-  { lord: 'Saturn', years: 11 },
-  { lord: 'Jupiter', years: 12 },
-  { lord: 'Mars', years: 7 },
-  { lord: 'Sun', years: 10 },
-  { lord: 'Venus', years: 8 },
-  { lord: 'Mercury', years: 13 },
-  { lord: 'NorthNode', years: 3 },
-  { lord: 'SouthNode', years: 2 },
-]
+  { lord: "Moon", years: 9 },
+  { lord: "Saturn", years: 11 },
+  { lord: "Jupiter", years: 12 },
+  { lord: "Mars", years: 7 },
+  { lord: "Sun", years: 10 },
+  { lord: "Venus", years: 8 },
+  { lord: "Mercury", years: 13 },
+  { lord: "NorthNode", years: 3 },
+  { lord: "SouthNode", years: 2 },
+];
 
 /** 서브 로드 순서 (노드 제외, 7행성) */
-const SUB_LORD_ORDER = ['Sun', 'Venus', 'Mercury', 'Moon', 'Saturn', 'Jupiter', 'Mars']
+const SUB_LORD_ORDER = [
+  "Sun",
+  "Venus",
+  "Mercury",
+  "Moon",
+  "Saturn",
+  "Jupiter",
+  "Mars",
+];
 
 function nextInSubOrder(lord: string): string {
-  const i = SUB_LORD_ORDER.indexOf(lord)
-  if (i === -1) return SUB_LORD_ORDER[0]
-  return SUB_LORD_ORDER[(i + 1) % 7]
+  const i = SUB_LORD_ORDER.indexOf(lord);
+  if (i === -1) return SUB_LORD_ORDER[0];
+  return SUB_LORD_ORDER[(i + 1) % 7];
 }
 
 /**
  * 출생 시각·위치에서 태양의 고도(Altitude)를 계산 (astronomy-engine 사용)
  * 고도 >= 0 이면 낮 차트(Diurnal), < 0 이면 밤 차트(Nocturnal)
  */
-function getSunAltitudeAtBirth(birthDate: Date, lat: number, lng: number): number {
-  const time = MakeTime(birthDate)
-  const observer = new Observer(lat, lng, 0)
-  const eq = Equator(Body.Sun, birthDate, observer, true, true)
-  const hor = Horizon(birthDate, observer, eq.ra, eq.dec)
-  return hor.altitude
+function getSunAltitudeAtBirth(
+  birthDate: Date,
+  lat: number,
+  lng: number
+): number {
+  const time = MakeTime(birthDate);
+  const observer = new Observer(lat, lng, 0);
+  const eq = Equator(Body.Sun, birthDate, observer, true, true);
+  const hor = Horizon(birthDate, observer, eq.ra, eq.dec);
+  return hor.altitude;
 }
 
 /**
  * 생일 기준 만 나이 계산 (UTC)
  */
 function getAgeInFullYears(birthDate: Date, targetDate: Date): number {
-  let age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear()
-  const birthMonth = birthDate.getUTCMonth()
-  const birthDay = birthDate.getUTCDate()
-  const targetMonth = targetDate.getUTCMonth()
-  const targetDay = targetDate.getUTCDate()
-  if (targetMonth < birthMonth || (targetMonth === birthMonth && targetDay < birthDay)) {
-    age -= 1
+  let age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear();
+  const birthMonth = birthDate.getUTCMonth();
+  const birthDay = birthDate.getUTCDate();
+  const targetMonth = targetDate.getUTCMonth();
+  const targetDay = targetDate.getUTCDate();
+  if (
+    targetMonth < birthMonth ||
+    (targetMonth === birthMonth && targetDay < birthDay)
+  ) {
+    age -= 1;
   }
-  return Math.max(0, age)
+  return Math.max(0, age);
 }
 
 /**
  * Date에 연수(소수 가능)를 더한 새 Date 반환 (UTC, 연평균 365.25일)
  */
 function addYearsUTC(date: Date, years: number): Date {
-  return new Date(date.getTime() + years * MS_PER_YEAR)
+  return new Date(date.getTime() + years * MS_PER_YEAR);
 }
 
 /**
@@ -770,50 +1567,50 @@ export function calculateFirdaria(
   location: Location,
   targetDate: Date = new Date()
 ): FirdariaResult {
-  const { lat, lng } = location
+  const { lat, lng } = location;
 
   if (!(birthDate instanceof Date) || isNaN(birthDate.getTime())) {
-    throw new Error('Invalid birthDate provided.')
+    throw new Error("Invalid birthDate provided.");
   }
-  if (typeof lat !== 'number' || isNaN(lat) || lat < -90 || lat > 90) {
-    throw new Error('Invalid latitude.')
+  if (typeof lat !== "number" || isNaN(lat) || lat < -90 || lat > 90) {
+    throw new Error("Invalid latitude.");
   }
-  if (typeof lng !== 'number' || isNaN(lng) || lng < -180 || lng > 180) {
-    throw new Error('Invalid longitude.')
+  if (typeof lng !== "number" || isNaN(lng) || lng < -180 || lng > 180) {
+    throw new Error("Invalid longitude.");
   }
 
   // 1. Sect: 태양 고도로 낮/밤 차트 판별
-  const sunAltitude = getSunAltitudeAtBirth(birthDate, lat, lng)
-  const isDayChart = sunAltitude >= 0
-  const sequence = isDayChart ? DAY_FIRDARIA : NIGHT_FIRDARIA
+  const sunAltitude = getSunAltitudeAtBirth(birthDate, lat, lng);
+  const isDayChart = sunAltitude >= 0;
+  const sequence = isDayChart ? DAY_FIRDARIA : NIGHT_FIRDARIA;
 
   // 2. 만 나이 및 75년 주기 내 위치
-  const age = getAgeInFullYears(birthDate, targetDate)
-  const ageInCycle = age % 75
+  const age = getAgeInFullYears(birthDate, targetDate);
+  const ageInCycle = age % 75;
 
   // 3. 메이저 로드 및 해당 기간 시작/종료
-  let accumulatedYears = 0
-  let majorLord = ''
-  let majorPeriodStart = new Date(birthDate.getTime())
-  let majorPeriodEnd = new Date(birthDate.getTime())
+  let accumulatedYears = 0;
+  let majorLord = "";
+  let majorPeriodStart = new Date(birthDate.getTime());
+  let majorPeriodEnd = new Date(birthDate.getTime());
 
   for (const { lord, years } of sequence) {
     if (accumulatedYears + years > ageInCycle) {
-      majorLord = lord
-      majorPeriodStart = addYearsUTC(birthDate, accumulatedYears)
-      majorPeriodEnd = addYearsUTC(birthDate, accumulatedYears + years)
-      break
+      majorLord = lord;
+      majorPeriodStart = addYearsUTC(birthDate, accumulatedYears);
+      majorPeriodEnd = addYearsUTC(birthDate, accumulatedYears + years);
+      break;
     }
-    accumulatedYears += years
+    accumulatedYears += years;
   }
 
   // 주기 끝까지 갔을 때 (ageInCycle === 0, 예: 75세·150세) → 새 주기 첫 기간
   if (!majorLord) {
-    const cycles = Math.floor(age / 75)
-    const first = sequence[0]
-    majorLord = first.lord
-    majorPeriodStart = addYearsUTC(birthDate, 75 * cycles)
-    majorPeriodEnd = addYearsUTC(birthDate, 75 * cycles + first.years)
+    const cycles = Math.floor(age / 75);
+    const first = sequence[0];
+    majorLord = first.lord;
+    majorPeriodStart = addYearsUTC(birthDate, 75 * cycles);
+    majorPeriodEnd = addYearsUTC(birthDate, 75 * cycles + first.years);
   }
 
   const result: FirdariaResult = {
@@ -823,46 +1620,51 @@ export function calculateFirdaria(
     subLord: null,
     majorPeriodStart,
     majorPeriodEnd,
-  }
+  };
 
   // 4. 서브 로드: 노드 기간이면 null, 아니면 7등분 후 순서대로
-  const isNode = majorLord === 'NorthNode' || majorLord === 'SouthNode'
+  const isNode = majorLord === "NorthNode" || majorLord === "SouthNode";
   if (!isNode) {
-    const majorDurationMs = majorPeriodEnd.getTime() - majorPeriodStart.getTime()
-    const subDurationMs = majorDurationMs / 7
-    const elapsedMs = targetDate.getTime() - majorPeriodStart.getTime()
-    let subIndex = Math.floor(elapsedMs / subDurationMs)
-    if (subIndex < 0) subIndex = 0
-    if (subIndex > 6) subIndex = 6
+    const majorDurationMs =
+      majorPeriodEnd.getTime() - majorPeriodStart.getTime();
+    const subDurationMs = majorDurationMs / 7;
+    const elapsedMs = targetDate.getTime() - majorPeriodStart.getTime();
+    let subIndex = Math.floor(elapsedMs / subDurationMs);
+    if (subIndex < 0) subIndex = 0;
+    if (subIndex > 6) subIndex = 6;
 
-    const subLords: string[] = []
-    let cur = majorLord
+    const subLords: string[] = [];
+    let cur = majorLord;
     for (let i = 0; i < 7; i++) {
-      subLords.push(cur)
-      cur = nextInSubOrder(cur)
+      subLords.push(cur);
+      cur = nextInSubOrder(cur);
     }
-    result.subLord = subLords[subIndex]
-    result.subPeriodStart = new Date(majorPeriodStart.getTime() + subIndex * subDurationMs)
-    result.subPeriodEnd = new Date(majorPeriodStart.getTime() + (subIndex + 1) * subDurationMs)
+    result.subLord = subLords[subIndex];
+    result.subPeriodStart = new Date(
+      majorPeriodStart.getTime() + subIndex * subDurationMs
+    );
+    result.subPeriodEnd = new Date(
+      majorPeriodStart.getTime() + (subIndex + 1) * subDurationMs
+    );
   }
 
-  return result
+  return result;
 }
 
 // ========== 메이저/서브 로드 상호작용 분석 ==========
 
 /** 행성 표기명 → 차트 키 (natalChart.planets 키) */
 const PLANET_NAME_TO_KEY: Record<string, string> = {
-  Sun: 'sun',
-  Moon: 'moon',
-  Mercury: 'mercury',
-  Venus: 'venus',
-  Mars: 'mars',
-  Jupiter: 'jupiter',
-  Saturn: 'saturn',
-}
+  Sun: "sun",
+  Moon: "moon",
+  Mercury: "mercury",
+  Venus: "venus",
+  Mars: "mars",
+  Jupiter: "jupiter",
+  Saturn: "saturn",
+};
 
-const ASPECT_ORB_LORD = 6
+const ASPECT_ORB_LORD = 6;
 
 /**
  * 메이저 로드와 서브 로드 간의 관계 분석 (Reception, Aspect, House)
@@ -878,72 +1680,78 @@ export function analyzeLordInteraction(
   majorLordName: string,
   subLordName: string
 ): InteractionResult {
-  const majorKey = PLANET_NAME_TO_KEY[majorLordName]
-  const subKey = PLANET_NAME_TO_KEY[subLordName]
-  const majorData = majorKey ? natalChart.planets[majorKey as keyof typeof natalChart.planets] : undefined
-  const subData = subKey ? natalChart.planets[subKey as keyof typeof natalChart.planets] : undefined
+  const majorKey = PLANET_NAME_TO_KEY[majorLordName];
+  const subKey = PLANET_NAME_TO_KEY[subLordName];
+  const majorData = majorKey
+    ? natalChart.planets[majorKey as keyof typeof natalChart.planets]
+    : undefined;
+  const subData = subKey
+    ? natalChart.planets[subKey as keyof typeof natalChart.planets]
+    : undefined;
 
-  let reception: string | null = null
-  let aspect: string | null = null
-  let houseContext: string
-  let summaryScore = 0
+  let reception: string | null = null;
+  let aspect: string | null = null;
+  let houseContext: string;
+  let summaryScore = 0;
 
   // 1. Reception (접대/도움): 별자리 주인(Rulership) 기준
   if (majorData && subData) {
-    const rulerOfSubSign = getSignRuler(subData.sign)
-    const rulerOfMajorSign = getSignRuler(majorData.sign)
-    const majorHostsSub = rulerOfSubSign === majorLordName
-    const subHostsMajor = rulerOfMajorSign === subLordName
+    const rulerOfSubSign = getSignRuler(subData.sign);
+    const rulerOfMajorSign = getSignRuler(majorData.sign);
+    const majorHostsSub = rulerOfSubSign === majorLordName;
+    const subHostsMajor = rulerOfMajorSign === subLordName;
     if (majorHostsSub && subHostsMajor) {
-      reception = `Mutual reception (Both helpful)`
-      summaryScore += 1
+      reception = `Mutual reception (Both helpful)`;
+      summaryScore += 1;
     } else if (majorHostsSub) {
-      reception = `${majorLordName} hosts ${subLordName} (Helpful)`
-      summaryScore += 1
+      reception = `${majorLordName} hosts ${subLordName} (Helpful)`;
+      summaryScore += 1;
     } else if (subHostsMajor) {
-      reception = `${subLordName} hosts ${majorLordName} (Helpful)`
-      summaryScore += 1
+      reception = `${subLordName} hosts ${majorLordName} (Helpful)`;
+      summaryScore += 1;
     }
   }
 
   // 2. Aspect (협력/갈등): 황경 차이, Orb ±6도
   if (majorData && subData) {
-    const angleDiff = calculateAngleDifference(majorData.degree, subData.degree)
+    const angleDiff = calculateAngleDifference(
+      majorData.degree,
+      subData.degree
+    );
     const aspects: Array<{ angle: number; label: string; tone: string }> = [
-      { angle: 0, label: 'Conjunction', tone: 'United' },
-      { angle: 60, label: 'Sextile', tone: 'Harmonious' },
-      { angle: 90, label: 'Square', tone: 'Tension' },
-      { angle: 120, label: 'Trine', tone: 'Harmonious' },
-      { angle: 180, label: 'Opposition', tone: 'Tension' },
-    ]
-    let found = false
+      { angle: 0, label: "Conjunction", tone: "United" },
+      { angle: 60, label: "Sextile", tone: "Harmonious" },
+      { angle: 90, label: "Square", tone: "Tension" },
+      { angle: 120, label: "Trine", tone: "Harmonious" },
+      { angle: 180, label: "Opposition", tone: "Tension" },
+    ];
+    let found = false;
     for (const { angle, label, tone } of aspects) {
       if (Math.abs(angleDiff - angle) <= ASPECT_ORB_LORD) {
         const tag =
           angle === 0
-            ? 'United (Intense)'
-            : tone === 'Harmonious'
-              ? 'Cooperative'
-              : 'Tension'
-        aspect = `${label} (${tag})`
-        summaryScore += tone === 'United' || tone === 'Harmonious' ? 1 : -1
-        found = true
-        break
+            ? "United (Intense)"
+            : tone === "Harmonious"
+            ? "Cooperative"
+            : "Tension";
+        aspect = `${label} (${tag})`;
+        summaryScore += tone === "United" || tone === "Harmonious" ? 1 : -1;
+        found = true;
+        break;
       }
     }
-    if (!found) aspect = 'No Aspect'
+    if (!found) aspect = "No Aspect";
   } else {
-    aspect = null
+    aspect = null;
   }
 
   // 3. House Context (활동 무대)
-  const majorH = majorData?.house != null ? `${majorData.house}H` : '?'
-  const subH = subData?.house != null ? `${subData.house}H` : '?'
-  houseContext = `Major(${majorH}) - Sub(${subH})`
+  const majorH = majorData?.house != null ? `${majorData.house}H` : "?";
+  const subH = subData?.house != null ? `${subData.house}H` : "?";
+  houseContext = `Major(${majorH}) - Sub(${subH})`;
 
   // summaryScore: 긍정이면 +1, 부정이면 -1, 그 외 0으로 단순화
-  const score =
-    summaryScore > 0 ? 1 : summaryScore < 0 ? -1 : 0
+  const score = summaryScore > 0 ? 1 : summaryScore < 0 ? -1 : 0;
 
   return {
     majorPlanet: majorLordName,
@@ -952,5 +1760,5 @@ export function analyzeLordInteraction(
     aspect,
     houseContext,
     summaryScore: score,
-  }
+  };
 }
