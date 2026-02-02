@@ -26,7 +26,6 @@ import type {
   FirdariaResult,
   InteractionResult,
   ProgressionResult,
-  DirectionHit,
 } from "../types.ts";
 
 // ========== 상수 정의 ==========
@@ -322,6 +321,181 @@ export function calculateAngleDifference(
   return diff > 180 ? 360 - diff : diff;
 }
 
+// ========== Primary Directions (Placidus, Naibod Key) ==========
+
+const OBLIQUITY_DEG = 23.44;
+const NAIBOD_KEY = 0.985647;
+
+function toRad(d: number): number {
+  return (d * Math.PI) / 180;
+}
+function toDeg(r: number): number {
+  return (r * 180) / Math.PI;
+}
+
+/**
+ * 황경/황위 → 적경(RA). lon, lat, obliquity in degrees; returns RA in degrees (0–360).
+ * tan(RA) = (sin(lon)*cos(eps) - tan(lat)*sin(eps)) / cos(lon)
+ */
+export function toRightAscension(
+  lon: number,
+  lat: number,
+  obliquity: number = OBLIQUITY_DEG
+): number {
+  const lonR = toRad(lon);
+  const latR = toRad(lat);
+  const epsR = toRad(obliquity);
+  const num = Math.sin(lonR) * Math.cos(epsR) - Math.tan(latR) * Math.sin(epsR);
+  const den = Math.cos(lonR);
+  let ra = Math.atan2(num, den);
+  if (ra < 0) ra += 2 * Math.PI;
+  return normalizeDegrees(toDeg(ra));
+}
+
+/**
+ * 황경/황위 → 적위(Declination). lon, lat, obliquity in degrees; returns Decl in degrees.
+ * sin(Decl) = sin(lat)*cos(eps) + cos(lat)*sin(eps)*sin(lon)
+ */
+export function toDeclination(
+  lon: number,
+  lat: number,
+  obliquity: number = OBLIQUITY_DEG
+): number {
+  const lonR = toRad(lon);
+  const latR = toRad(lat);
+  const epsR = toRad(obliquity);
+  const sinDecl =
+    Math.sin(latR) * Math.cos(epsR) +
+    Math.cos(latR) * Math.sin(epsR) * Math.sin(lonR);
+  const decl = Math.asin(Math.max(-1, Math.min(1, sinDecl)));
+  return toDeg(decl);
+}
+
+/**
+ * 적경/적위 → 사경(OA). ra, decl, geoLat in degrees; returns OA in degrees (0–360).
+ * Formula: OA = RA - degrees(atan(tan(radians(geoLat)) * tan(radians(decl))))
+ */
+export function toObliqueAscension(
+  ra: number,
+  decl: number,
+  geoLat: number
+): number {
+  const geoLatR = toRad(geoLat);
+  const declR = toRad(decl);
+  const adRad = Math.atan(Math.tan(geoLatR) * Math.tan(declR));
+  const adDeg = toDeg(adRad);
+  let oa = ra - adDeg;
+  return normalizeDegrees(oa);
+}
+
+export interface PrimaryDirectionHit {
+  name: string;
+  type: "Direct";
+  age: number;
+  arc: number;
+  /** YYYY.MM (생년월일 + EventAge로 계산) */
+  eventDate: string;
+}
+
+/**
+ * Primary Directions (Placidus, Naibod Key). Direct only, next 10 years.
+ * Targets: MC/IC (RA), Asc/Dsc (OA), Natal Sun/Moon (OA).
+ * Promissors: Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn.
+ * Arc = | Promissor - Target | normalized 0–360. EventAge = Arc / NAIBOD_KEY.
+ * Returns only currentAge <= EventAge <= currentAge + 10.
+ */
+export function calculatePrimaryDirections(
+  chartData: ChartData,
+  currentAge: number,
+  birthDate: Date
+): PrimaryDirectionHit[] {
+  const hits: PrimaryDirectionHit[] = [];
+  const geoLat = chartData.location?.lat ?? 0;
+  const ascLon = chartData.houses?.angles?.ascendant ?? 0;
+  const mcLon = chartData.houses?.angles?.midheaven ?? 0;
+  const obliquity = OBLIQUITY_DEG;
+  const lat0 = 0;
+  const minAge = currentAge;
+  const maxAge = currentAge + 10;
+
+  const raMC = toRightAscension(mcLon, lat0, obliquity);
+  const raIC = normalizeDegrees(raMC + 180);
+  const raAsc = toRightAscension(ascLon, lat0, obliquity);
+  const declAsc = toDeclination(ascLon, lat0, obliquity);
+  const oaAsc = toObliqueAscension(raAsc, declAsc, geoLat);
+  const oaDsc = normalizeDegrees(oaAsc + 180);
+
+  const planets = chartData.planets ?? {};
+  const sunLon = planets.sun?.degree;
+  const moonLon = planets.moon?.degree;
+  const oaSun =
+    sunLon != null
+      ? toObliqueAscension(
+          toRightAscension(sunLon, lat0, obliquity),
+          toDeclination(sunLon, lat0, obliquity),
+          geoLat
+        )
+      : null;
+  const oaMoon =
+    moonLon != null
+      ? toObliqueAscension(
+          toRightAscension(moonLon, lat0, obliquity),
+          toDeclination(moonLon, lat0, obliquity),
+          geoLat
+        )
+      : null;
+
+  const promissors: Array<{ key: string; name: string; lon: number }> = [];
+  for (const [key, data] of Object.entries(planets)) {
+    if (data?.degree != null)
+      promissors.push({
+        key,
+        name: PLANET_NAMES[key],
+        lon: data.degree,
+      });
+  }
+
+  const eventDateFromAge = (eventAge: number): string => {
+    const d = new Date(birthDate.getTime());
+    d.setUTCMonth(d.getUTCMonth() + Math.round(eventAge * 12));
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    return `${y}.${String(m).padStart(2, "0")}`;
+  };
+
+  const checkHit = (promName: string, arcRaw: number, targetName: string) => {
+    const arc = normalizeDegrees(arcRaw);
+    if (arc <= 0) return;
+    const eventAge = arc / NAIBOD_KEY;
+    if (eventAge < minAge || eventAge > maxAge) return;
+    const eventDate = eventDateFromAge(eventAge);
+    hits.push({
+      name: `${promName} -> ${targetName}`,
+      type: "Direct",
+      age: Math.round(eventAge * 10) / 10,
+      arc: Math.round(arc * 10) / 10,
+      eventDate,
+    });
+  };
+
+  for (const prom of promissors) {
+    const raP = toRightAscension(prom.lon, lat0, obliquity);
+    const declP = toDeclination(prom.lon, lat0, obliquity);
+    const oaP = toObliqueAscension(raP, declP, geoLat);
+
+    checkHit(prom.name, normalizeDegrees(raP - raMC), "MC");
+    checkHit(prom.name, normalizeDegrees(raP - raIC), "IC");
+    checkHit(prom.name, normalizeDegrees(oaP - oaAsc), "Asc");
+    checkHit(prom.name, normalizeDegrees(oaP - oaDsc), "Dsc");
+    if (oaSun != null && prom.key !== "sun")
+      checkHit(prom.name, normalizeDegrees(oaP - oaSun), "Sun");
+    if (oaMoon != null && prom.key !== "moon")
+      checkHit(prom.name, normalizeDegrees(oaP - oaMoon), "Moon");
+  }
+
+  return hits.sort((a, b) => a.age - b.age);
+}
+
 /**
  * Natal 차트와 Transit 차트 간의 Aspect 계산
  * @param natalChart - 출생 차트
@@ -488,100 +662,6 @@ export function calculateSecondaryProgression(
 }
 
 // ========== Solar Arc Direction (솔라 아크 디렉션) ==========
-
-const SOLAR_ARC_ORB = 1;
-const SOLAR_ARC_EXACT_ORB = 0.1;
-
-/**
- * Solar Arc Direction: 모든 Natal 행성·각도를 태양이 이동한 만큼(Arc)만큼 이동시킨 뒤,
- * Directed 포인트가 Natal 포인트와 Conjunction(0°) 또는 Opposition(180°)을 이루는 "Hit" 목록 반환.
- *
- * @param natalChart - 출생 차트
- * @param ageInFullYears - 만 나이 (연수)
- * @returns DirectionHit[] (Conjunction/Opposition 히트, Orb ±1°, isExact = orb < 0.1°)
- */
-export function calculateSolarArcDirections(
-  natalChart: ChartData,
-  ageInFullYears: number
-): DirectionHit[] {
-  const birthDate = new Date(natalChart.date);
-  if (isNaN(birthDate.getTime())) {
-    throw new Error("Invalid natalChart.date");
-  }
-  if (typeof ageInFullYears !== "number" || ageInFullYears < 0) {
-    throw new Error("ageInFullYears must be a non-negative number");
-  }
-
-  // 1. Arc = Progressed Sun Longitude - Natal Sun Longitude
-  const natalSunLongitude = natalChart.planets.sun.degree;
-  const progressedDate = new Date(
-    birthDate.getTime() + ageInFullYears * 24 * 60 * 60 * 1000
-  );
-  const progressedSunLongitude = getPlanetLongitude(
-    Body.Sun,
-    MakeTime(progressedDate)
-  );
-  let arc = progressedSunLongitude - natalSunLongitude;
-  arc = normalizeDegrees(arc);
-
-  // 2. Directed: Natal + Arc (행성 7개 + Asc, MC)
-  const directedPlanets: Array<{ name: string; longitude: number }> = [];
-  for (const [key, data] of Object.entries(natalChart.planets)) {
-    directedPlanets.push({
-      name: `Directed ${PLANET_NAMES[key]}`,
-      longitude: normalizeDegrees(data.degree + arc),
-    });
-  }
-  const natalAsc = natalChart.houses.angles.ascendant;
-  const natalMC = natalChart.houses.angles.midheaven;
-  directedPlanets.push(
-    { name: "Directed Ascendant", longitude: normalizeDegrees(natalAsc + arc) },
-    { name: "Directed MC", longitude: normalizeDegrees(natalMC + arc) }
-  );
-
-  // Natal 포인트 (Hit 대상): 행성 7개 + Asc, MC
-  const natalPoints: Array<{ name: string; longitude: number }> = [];
-  for (const [key, data] of Object.entries(natalChart.planets)) {
-    natalPoints.push({
-      name: `Natal ${PLANET_NAMES[key]}`,
-      longitude: data.degree,
-    });
-  }
-  natalPoints.push(
-    { name: "Natal Ascendant", longitude: natalAsc },
-    { name: "Natal MC", longitude: natalMC }
-  );
-
-  // 3. Hit Check: Conjunction (0°) or Opposition (180°), Orb ±1°
-  const hits: DirectionHit[] = [];
-  for (const moving of directedPlanets) {
-    for (const target of natalPoints) {
-      const angleDiff = calculateAngleDifference(
-        moving.longitude,
-        target.longitude
-      );
-      const orbConj = Math.abs(angleDiff - 0);
-      const orbOpp = Math.abs(angleDiff - 180);
-      if (orbConj <= SOLAR_ARC_ORB) {
-        hits.push({
-          movingPlanet: moving.name,
-          targetPoint: target.name,
-          aspect: "Conjunction",
-          isExact: orbConj < SOLAR_ARC_EXACT_ORB,
-        });
-      } else if (orbOpp <= SOLAR_ARC_ORB) {
-        hits.push({
-          movingPlanet: moving.name,
-          targetPoint: target.name,
-          aspect: "Opposition",
-          isExact: orbOpp < SOLAR_ARC_EXACT_ORB,
-        });
-      }
-    }
-  }
-
-  return hits;
-}
 
 // ========== Solar Return & Profection 계산 함수 ==========
 
@@ -1158,7 +1238,7 @@ export function analyzeLoveTiming(
   options?: {
     firdariaResult?: FirdariaResult | null;
     progressionResult?: ProgressionResult | null;
-    directionHits?: DirectionHit[] | null;
+    directionHits?: PrimaryDirectionHit[] | null;
   }
 ): LoveTimingResult {
   const activatedFactors: string[] = [];
@@ -1206,16 +1286,18 @@ export function analyzeLoveTiming(
 
   const directionHits =
     options?.directionHits ??
-    calculateSolarArcDirections(natalChart, currentAge);
-  const angleTargets = ["Natal Ascendant", "Natal MC"];
+    calculatePrimaryDirections(natalChart, currentAge, birthDate);
+  const angleSignificators = ["Asc", "MC", "Dsc", "IC"];
   for (const hit of directionHits) {
-    const isAngle = angleTargets.some((t) => hit.targetPoint === t);
+    const match = hit.name.match(/^(.+?) -> (.+)$/);
+    if (!match) continue;
+    const [, promName, significator] = match;
+    const isAngle = angleSignificators.includes(significator);
     const isVenusOrSpouse =
-      hit.movingPlanet.includes("Venus") ||
-      hit.movingPlanet.includes(spouseCandidate);
+      promName.includes("Venus") || promName.includes(spouseCandidate);
     if (isAngle && isVenusOrSpouse) {
       activatedFactors.push(
-        `Direction: ${hit.movingPlanet} ${hit.aspect} ${hit.targetPoint} (angle trigger)`
+        `Direction: ${hit.name} (${hit.eventDate}, age ${hit.age}) — angle trigger`
       );
     }
   }

@@ -58,7 +58,7 @@ import {
   identifySpouseCandidate,
   analyzeLoveTiming,
   calculateSecondaryProgression,
-  calculateSolarArcDirections,
+  calculatePrimaryDirections,
 } from "./utils/astrologyCalculator.ts";
 
 // Neo4j 전문 해석 데이터 조회
@@ -1046,8 +1046,12 @@ serve(async (req) => {
       // 4. Progression
       const progressionResult = calculateSecondaryProgression(chartData, age);
 
-      // 5. Direction
-      const directionResult = calculateSolarArcDirections(chartData, age);
+      // 5. Direction (Primary Directions, Placidus/Naibod — next 10 years only)
+      const directionResult = calculatePrimaryDirections(
+        chartData,
+        age,
+        birthDateTime
+      );
 
       const graphKnowledge = await graphKnowledgePromise;
 

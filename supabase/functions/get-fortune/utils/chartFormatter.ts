@@ -11,7 +11,6 @@ import type {
   FirdariaResult,
   InteractionResult,
   ProgressionResult,
-  DirectionHit,
 } from "../types.ts";
 import {
   getSignFromLongitude,
@@ -19,6 +18,7 @@ import {
   normalizeDegrees,
   type CareerAnalysisResult,
   type WealthAnalysisResult,
+  type PrimaryDirectionHit,
 } from "./astrologyCalculator.ts";
 
 /** LOVE 토픽 시 generatePredictionPrompt에 전달되는 연애/결혼 분석 데이터 */
@@ -440,7 +440,7 @@ Part of Fortune: ${
  * @param firdariaResult - 피르다리 결과
  * @param interactionResult - 메이저·서브 로드 상호작용 (null 가능)
  * @param progressionResult - Progressed Moon 결과
- * @param directionResult - 솔라 아크 디렉션 히트 목록
+ * @param directionResult - Primary Directions (Placidus/Naibod) 히트 목록 (향후 10년)
  * @param graphKnowledge - Neo4j에서 조회한 점성학 지식 (선택 또는 빈 문자열 허용)
  * @param careerAnalysis - WORK 토픽일 때 analyzeCareerPotential 결과 (null이면 생략)
  * @param wealthAnalysis - MONEY 토픽일 때 analyzeWealthPotential 결과 (null이면 생략)
@@ -453,7 +453,7 @@ export function generatePredictionPrompt(
   firdariaResult: FirdariaResult,
   interactionResult: InteractionResult | null,
   progressionResult: ProgressionResult,
-  directionResult: DirectionHit[],
+  directionResult: PrimaryDirectionHit[],
   graphKnowledge: string = "",
   careerAnalysis: CareerAnalysisResult | null = null,
   wealthAnalysis: WealthAnalysisResult | null = null,
@@ -554,16 +554,22 @@ ${planetLines}
   }
 
   analysisParts.push("");
-  analysisParts.push("3. Major Events (Solar Arc Directions):");
+  analysisParts.push("3. Major Events (Primary Directions - Placidus/Naibod):");
+  analysisParts.push(
+    "   * Note: Shows Direct hits to Angles/Luminaries within next 10 years."
+  );
   if (directionResult.length > 0) {
     directionResult.forEach((hit) => {
-      const exact = hit.isExact ? " (Imminent)" : "";
+      const match = hit.name.match(/^(.+?) -> (.+)$/);
+      const promName = match ? match[1] : hit.name;
+      const significator = match ? match[2] : "—";
+      analysisParts.push(`   - ${hit.eventDate} (Age ${hit.age}): ${hit.name}`);
       analysisParts.push(
-        `   - ${hit.movingPlanet} ${hit.aspect} ${hit.targetPoint}${exact}.`
+        `     * Interpretation: "${significator}의 영역(직업/가정/본신)에 ${promName}의 사건이 발생합니다."`
       );
     });
   } else {
-    analysisParts.push("   - (No Conjunction/Opposition hits within orb.)");
+    analysisParts.push("   - No major direction events in the next 10 years.");
   }
 
   sections.push(`[Analysis Data]
