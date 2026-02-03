@@ -20,6 +20,7 @@ import {
   type WealthAnalysisResult,
   type PrimaryDirectionHit,
 } from "./astrologyCalculator.ts";
+import { SIGNS } from "./astrologyCalculator.ts";
 
 /** 12별자리 성향 키워드 (내부 사용: 풍부한 해석용) */
 const SIGN_KEYWORDS: Record<string, string> = {
@@ -454,7 +455,7 @@ Part of Fortune: ${
 
 /**
  * 자유 질문(Consultation)용 Prediction Prompt 생성.
- * [📋 내담자 기본 정보], [🌌 Natal Chart], [Analysis Data] 순으로 구성합니다.
+ * [📋 내담자 기본 정보], [🌌 Natal Chart], [Analysis Data], [TIMING FILTER], [Category Significators] 순으로 구성합니다.
  *
  * @param chartData - Natal Chart 데이터 (planets, houses 등)
  * @param birthDate - 출생일시 ISO 문자열 (예: 1991-10-23T09:20:00, KST)
@@ -467,6 +468,8 @@ Part of Fortune: ${
  * @param careerAnalysis - WORK 토픽일 때 analyzeCareerPotential 결과 (null이면 생략)
  * @param wealthAnalysis - MONEY 토픽일 때 analyzeWealthPotential 결과 (null이면 생략)
  * @param loveAnalysis - LOVE 토픽일 때 연애/결혼 분석 결과 (null이면 생략)
+ * @param consultationTopic - 질문 카테고리 (EXAM | MOVE | LOVE | MONEY | WORK | OTHER) — 타이밍 필터 및 지표성 블록에 사용
+ * @param profectionData - 프로펙션 데이터 (profectionHouse, profectionSign, lordOfTheYear)
  */
 export function generatePredictionPrompt(
   chartData: ChartData,
@@ -479,7 +482,9 @@ export function generatePredictionPrompt(
   graphKnowledge: string = "",
   careerAnalysis: CareerAnalysisResult | null = null,
   wealthAnalysis: WealthAnalysisResult | null = null,
-  loveAnalysis: LoveAnalysisData | null = null
+  loveAnalysis: LoveAnalysisData | null = null,
+  consultationTopic: string = "OTHER",
+  profectionData?: ProfectionData
 ): string {
   const sections: string[] = [];
 
@@ -595,8 +600,58 @@ ${planetLines}
     analysisParts.push("   - No major direction events in the next 10 years.");
   }
 
+  if (profectionData) {
+    analysisParts.push("");
+    analysisParts.push("4. Annual Profection:");
+    analysisParts.push(
+      `   - Current Age: ${profectionData.age} (Profection House: ${ordinalHouse(profectionData.profectionHouse)})`
+    );
+    analysisParts.push(
+      `   - Profection Sign: ${profectionData.profectionSign}`
+    );
+    analysisParts.push(
+      `   - Lord of the Year: ${profectionData.lordOfTheYear ?? "—"}`
+    );
+    analysisParts.push(
+      `   * Note: This year's focus is on the ${ordinalHouse(profectionData.profectionHouse)} house themes, ruled by ${profectionData.lordOfTheYear ?? "the sign ruler"}.`
+    );
+  }
+
+  const catUpper = (consultationTopic || "").trim().toUpperCase();
+  if (catUpper === "EXAM" || catUpper === "MOVE") {
+    const asc = chartData.houses?.angles?.ascendant ?? 0;
+    const nextNum = profectionData ? "5" : "4";
+    analysisParts.push("");
+    analysisParts.push(`${nextNum}. Category-Specific House Rulers (for timing focus):`);
+    if (catUpper === "EXAM") {
+      analysisParts.push(`   - Ruler of 3rd House (기초학습): ${getHouseRuler(asc, 3)}`);
+      analysisParts.push(`   - Ruler of 9th House (고등학문/대학): ${getHouseRuler(asc, 9)}`);
+      analysisParts.push(`   - Ruler of 10th House (직업/공무원·취업 시험): ${getHouseRuler(asc, 10)}`);
+      analysisParts.push("   - Mercury (학업/자격증), Sun (직업성 시험 시 가중).");
+    } else {
+      analysisParts.push(`   - Ruler of 4th House (거주지/부동산): ${getHouseRuler(asc, 4)}`);
+      analysisParts.push(`   - Ruler of 7th House (이동/계약): ${getHouseRuler(asc, 7)}`);
+      analysisParts.push("   - Key angle: IC (Imum Coeli, relocation).");
+    }
+  }
+
   sections.push(`[Analysis Data]
 ${analysisParts.join("\n")}`);
+
+  // --- [TIMING FILTER] 카테고리별 시기 예측용 지표성 및 강제 규칙 ---
+  const significators = getCategorySignificators(chartData, consultationTopic, {
+    loveAnalysis,
+    wealthAnalysis,
+    careerAnalysis,
+  });
+  sections.push(
+    `[CRITICAL INSTRUCTION FOR TIMING ANALYSIS]\n${significators.timingFilterInstruction}`
+  );
+  if (significators.houseLordsBlock) {
+    sections.push(
+      `[Category-Specific Significators (House Lords)]\n${significators.houseLordsBlock}`
+    );
+  }
 
   // --- [🏛️ Career] / [💰 Wealth] (consultationTopic WORK / MONEY 시에만) ---
   if (careerAnalysis && careerAnalysis.candidates.length > 0) {
@@ -873,6 +928,289 @@ function getSeventhHouseRuler(ascendantLongitude: number): string {
   const seventhCuspLong = (ascendantLongitude + 180) % 360;
   const seventhSign = getSignFromLongitude(seventhCuspLong).sign;
   return getSignRuler(seventhSign);
+}
+
+/** Whole Sign 기준 N하우스 쿠스프의 별자리 주인(행성) 반환 */
+function getHouseRuler(ascendantLongitude: number, houseNum: number): string {
+  const cuspLong = (ascendantLongitude + (houseNum - 1) * 30 + 360) % 360;
+  const sign = getSignFromLongitude(cuspLong).sign;
+  return getSignRuler(sign);
+}
+
+/** POF(Part of Fortune) 기준 11번째 하우스 별자리의 룰러 반환 */
+function getRulerOf11thFromPof(chartData: ChartData): string {
+  const pofLon = chartData.fortuna?.degree ?? 0;
+  const pofSign = chartData.fortuna?.sign ?? getSignFromLongitude(pofLon).sign;
+  const idx = SIGNS.indexOf(pofSign);
+  if (idx < 0) return "Jupiter";
+  const eleventhSign = SIGNS[(idx + 10) % 12];
+  return getSignRuler(eleventhSign);
+}
+
+/** POF 기준 10번째·11번째 하우스에 위치한 행성 이름 목록 (1순위: 10th, 2순위: 11th) */
+function getPlanetsInPof10th11th(
+  chartData: ChartData,
+  careerAnalysis?: CareerAnalysisResult | null
+): { pof10: string[]; pof11: string[] } {
+  if (careerAnalysis?.candidates?.length) {
+    const pof10 = careerAnalysis.candidates
+      .filter((c) => c.role === "POF 10th")
+      .map((c) => c.planetName);
+    const pof11 = careerAnalysis.candidates
+      .filter((c) => c.role === "POF 11th")
+      .map((c) => c.planetName);
+    return { pof10, pof11 };
+  }
+  const pofLon = chartData.fortuna?.degree ?? 0;
+  const planets = chartData.planets ?? {};
+  const PLANET_NAMES: Record<string, string> = {
+    sun: "Sun",
+    moon: "Moon",
+    mercury: "Mercury",
+    venus: "Venus",
+    mars: "Mars",
+    jupiter: "Jupiter",
+    saturn: "Saturn",
+  };
+  const pof10: string[] = [];
+  const pof11: string[] = [];
+  for (const [key, data] of Object.entries(planets)) {
+    if (data?.degree == null) continue;
+    const lon = (data.degree ?? 0) as number;
+    const diff = normalizeDegrees(lon - pofLon);
+    const houseFromPof = Math.floor(diff / 30) + 1;
+    const name = PLANET_NAMES[key] ?? key;
+    if (houseFromPof === 10) pof10.push(name);
+    else if (houseFromPof === 11) pof11.push(name);
+  }
+  return { pof10, pof11 };
+}
+
+/** 카테고리별 시기 예측용 지표성(Significator) 결과 */
+export interface CategorySignificatorsResult {
+  primary: string[];
+  secondary?: string[];
+  houseLordsBlock?: string;
+  timingFilterInstruction: string;
+}
+
+/** 카테고리별 '집중해야 할 지표(Focus Targets)' 목록 및 타이밍 필터 문구 반환 */
+export function getCategorySignificators(
+  chartData: ChartData,
+  category: string,
+  options?: {
+    loveAnalysis?: LoveAnalysisData | null;
+    wealthAnalysis?: WealthAnalysisResult | null;
+    careerAnalysis?: CareerAnalysisResult | null;
+  }
+): CategorySignificatorsResult {
+  const asc = chartData.houses?.angles?.ascendant ?? 0;
+  const cat = (category || "OTHER").trim().toUpperCase();
+  const primarySet = new Set<string>();
+  const secondarySet = new Set<string>();
+  let houseLordsBlock: string | undefined;
+
+  const addPrimary = (...names: string[]) =>
+    names.forEach((n) => n && primarySet.add(n));
+  const addSecondary = (...names: string[]) =>
+    names.forEach((n) => n && secondarySet.add(n));
+
+  if (cat === "LOVE" && options?.loveAnalysis) {
+    const lord7 = getHouseRuler(asc, 7);
+    const lotRuler = getSignRuler(options.loveAnalysis.lotOfMarriage.sign);
+    addPrimary("Venus", lord7, "Moon", lotRuler);
+    return {
+      primary: [...primarySet],
+      timingFilterInstruction: buildTimingFilterInstruction("LOVE", {
+        primary: [...primarySet],
+        secondary: undefined,
+      }),
+    };
+  }
+
+  if (cat === "MONEY") {
+    const lord2 = getHouseRuler(asc, 2);
+    const lord5 = getHouseRuler(asc, 5);
+    const lord11 = getHouseRuler(asc, 11);
+    const poaRuler =
+      options?.wealthAnalysis?.ruler?.planetName ??
+      getRulerOf11thFromPof(chartData);
+    addPrimary("Jupiter", lord2, poaRuler, lord5, lord11);
+    return {
+      primary: [...primarySet],
+      timingFilterInstruction: buildTimingFilterInstruction("MONEY", {
+        primary: [...primarySet],
+        secondary: undefined,
+      }),
+    };
+  }
+
+  if (cat === "WORK") {
+    const lord10 = getHouseRuler(asc, 10);
+    const lord6 = getHouseRuler(asc, 6);
+    addPrimary(lord10, lord6);
+    const { pof10, pof11 } = getPlanetsInPof10th11th(chartData, options?.careerAnalysis);
+    pof10.forEach((p) => primarySet.add(p));
+    pof11.forEach((p) => primarySet.add(p));
+    return {
+      primary: [...primarySet],
+      timingFilterInstruction: buildTimingFilterInstruction("WORK", {
+        primary: [...primarySet],
+        secondary: undefined,
+      }),
+    };
+  }
+
+  if (cat === "EXAM") {
+    const lord3 = getHouseRuler(asc, 3);
+    const lord9 = getHouseRuler(asc, 9);
+    const lord10 = getHouseRuler(asc, 10);
+    addPrimary("Mercury", lord3, lord9, lord10, "Sun");
+    addSecondary(lord10, "Sun");
+    houseLordsBlock = [
+      `Ruler of 3rd House (기초학습): ${lord3}`,
+      `Ruler of 9th House (고등학문/대학): ${lord9}`,
+      `Ruler of 10th House (직업/공무원·취업 시험): ${lord10}`,
+      "Mercury (학업/자격증), Sun (직업성 시험 시 가중).",
+    ].join("\n");
+    return {
+      primary: [...primarySet],
+      secondary: [...secondarySet],
+      houseLordsBlock,
+      timingFilterInstruction: buildTimingFilterInstruction("EXAM", {
+        primary: ["Mercury", lord3, lord9],
+        secondary: [lord10, "Sun"],
+      }),
+    };
+  }
+
+  if (cat === "MOVE") {
+    const lord4 = getHouseRuler(asc, 4);
+    const lord7 = getHouseRuler(asc, 7);
+    addPrimary(lord4, lord7);
+    houseLordsBlock = [
+      `Ruler of 4th House (거주지/부동산): ${lord4}`,
+      `Ruler of 7th House (이동/계약/타인과의 관계): ${lord7}`,
+      "Key angle for relocation: IC (Imum Coeli).",
+    ].join("\n");
+    return {
+      primary: [...primarySet],
+      houseLordsBlock,
+      timingFilterInstruction: buildTimingFilterInstruction("MOVE", {
+        primary: [lord4, lord7],
+        secondary: undefined,
+      }),
+    };
+  }
+
+  if (cat === "OTHER" || cat === "GENERAL" || !cat) {
+    const lord1 = getHouseRuler(asc, 1);
+    addPrimary(lord1, "Moon", "Sun");
+    return {
+      primary: [...primarySet],
+      timingFilterInstruction: buildTimingFilterInstruction("OTHER", {
+        primary: [...primarySet],
+        secondary: undefined,
+      }),
+    };
+  }
+
+  const lord1 = getHouseRuler(asc, 1);
+  addPrimary(lord1, "Moon", "Sun");
+  return {
+    primary: [...primarySet],
+    timingFilterInstruction: buildTimingFilterInstruction("OTHER", {
+      primary: [...primarySet],
+      secondary: undefined,
+    }),
+  };
+}
+
+/** 카테고리별 [CRITICAL INSTRUCTION FOR TIMING ANALYSIS] 문구 생성 */
+function buildTimingFilterInstruction(
+  category: string,
+  sig: { primary: string[]; secondary?: string[] }
+): string {
+  const primaryList = sig.primary.join(", ");
+  const secondaryList =
+    sig.secondary && sig.secondary.length > 0
+      ? ` (Secondary: ${sig.secondary.join(", ")})`
+      : "";
+
+  const baseInstruction = `[CRITICAL INSTRUCTION FOR TIMING ANALYSIS]
+Current Category: **${category.toUpperCase()}**
+
+**Significators for this question:**
+- ${primaryList}${secondaryList}
+
+**Your Task: Synthesize timing from ALL 4 techniques**
+
+You must analyze timing by integrating data from all 4 predictive techniques provided in [Analysis Data]:
+
+1. **Firdaria (Main Period):**
+   - Check if the Major Lord or Sub Lord is one of the significators above.
+   - If yes, this period is favorable for the question. Note the period and interpret accordingly.
+
+2. **Secondary Progression (Progressed Moon):**
+   - Check if the Progressed Moon aspects (conjunction, trine, sextile, square, opposition) any of the significators (in Natal or Progressed positions).
+   - Favorable aspects (trine, sextile, conjunction with benefics) = positive timing.
+   - Challenging aspects (square, opposition, conjunction with malefics) = difficult timing but still activation.
+
+3. **Primary Directions:**
+   - Check if any of the significators direct to key angles (Asc, MC, IC, Dsc) or luminaries (Sun, Moon).
+   - Each direction hit provides a **specific date/age** when the significator is activated. Prioritize these for precise timing.
+
+4. **Annual Profection:**
+   - Check if the Profection Sign or Lord of the Year is one of the significators.
+   - Or check if the Profection House matches the relevant houses for this category (e.g., 3rd/9th/10th for EXAM, 4th/7th for MOVE, 7th for LOVE, 2nd/5th/11th for MONEY, 10th/6th for WORK).
+   - If yes, the current profection year is favorable.
+
+**Scoring & Synthesis:**
+- **Best timing:** When multiple techniques activate the same significators simultaneously (e.g., Firdaria Lord = significator AND Primary Direction of that significator AND Profection to relevant house).
+- **Good timing:** When 2+ techniques activate significators, or when 1 technique strongly activates (e.g., exact Primary Direction hit).
+- **Moderate timing:** When only 1 technique activates, or when activation is weak (e.g., challenging aspect in Progression).
+- **Poor timing:** When none of the significators are activated, or when significators are in very difficult condition (malefic aspects, weak dignity, cadent houses).
+
+**Output Requirements:**
+1. Identify the most favorable period(s) by synthesizing all 4 techniques.
+2. Provide specific dates/ages for timing (from Primary Directions) and contextualize with the broader periods (Firdaria, Profection year).
+3. Score each identified period (0-100) based on how many techniques activate the significators and whether the activation is positive or challenging.
+4. Explain your reasoning: which techniques support this timing, which significators are activated, and what the condition of those significators is.`;
+
+  if (category === "EXAM") {
+    return baseInstruction + `
+
+**Additional Guidance for EXAM:**
+- If the question involves career-related exams (civil service, professional licensing), emphasize Ruler of 10th House and Sun.
+- If it's academic exams (university, certifications), emphasize Mercury, Ruler of 3rd, and Ruler of 9th.`;
+  }
+
+  if (category === "MOVE") {
+    return baseInstruction + `
+
+**Additional Guidance for MOVE:**
+- Prioritize Primary Direction hits **to IC (Imum Coeli)** as these are the strongest indicators for relocation.
+- Ruler of 4th (home/real estate) and Ruler of 7th (contracts/relocation) are key.`;
+  }
+
+  if (category === "LOVE") {
+    return baseInstruction + `
+
+**Additional Guidance for LOVE:**
+- Venus and Ruler of 7th House are primary indicators for relationships.
+- Ruler of Lot of Marriage indicates marriage potential specifically.
+- Moon aspects in Progression are especially important for emotional readiness and relationship timing.`;
+  }
+
+  if (category === "MONEY" || category === "WORK") {
+    return baseInstruction + `
+
+**Additional Guidance for ${category}:**
+- Jupiter and benefic aspects generally indicate favorable periods for ${category === "MONEY" ? "wealth acquisition" : "career advancement"}.
+- Check if the Lord of the Year (Profection) or Firdaria Lord has good essential dignity and favorable house placement.`;
+  }
+
+  return baseInstruction;
 }
 
 function ordinalHouse(house: number): string {

@@ -1055,6 +1055,17 @@ serve(async (req) => {
 
       const graphKnowledge = await graphKnowledgePromise;
 
+      // 5a. Profection (모든 카테고리 공통)
+      const natalAscSign = getSignFromLongitude(
+        chartData.houses?.angles?.ascendant ?? 0
+      ).sign;
+      const profectionData = calculateProfection(
+        birthDateTime,
+        now,
+        natalAscSign,
+        false
+      );
+
       // 5b. Career/Wealth/Love 분석 (consultationTopic에 따라)
       const consultationTopicUpper = (requestData.consultationTopic || "")
         .trim()
@@ -1096,15 +1107,6 @@ serve(async (req) => {
             directionHits: directionResult,
           }
         );
-        const natalAscSign = getSignFromLongitude(
-          chartData.houses?.angles?.ascendant ?? 0
-        ).sign;
-        const profectionData = calculateProfection(
-          birthDateTime,
-          now,
-          natalAscSign,
-          false
-        );
         loveAnalysis = {
           lotOfMarriage,
           loveQualities,
@@ -1114,7 +1116,7 @@ serve(async (req) => {
         };
       }
 
-      // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data + graphKnowledge)
+      // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data + TIMING FILTER + graphKnowledge)
       const systemContext = generatePredictionPrompt(
         chartData,
         requestData.birthDate,
@@ -1126,7 +1128,9 @@ serve(async (req) => {
         graphKnowledge,
         careerAnalysis,
         wealthAnalysis,
-        loveAnalysis
+        loveAnalysis,
+        requestData.consultationTopic || "OTHER",
+        profectionData
       );
 
       // 7. Gemini 호출
