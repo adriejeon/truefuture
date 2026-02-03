@@ -79,25 +79,15 @@ const corsHeaders = {
 };
 
 // ========== AI 해석 관련 함수 ==========
-const GEMINI_MODEL_FLASH = "gemini-2.5-flash";
-const GEMINI_MODEL_FLASH_LITE = "gemini-2.5-flash-lite";
-const GEMINI_MODEL_PRO = "gemini-2.5-pro";
+const GEMINI_MODEL = "gemini-3-flash-preview"; // 전 타입 공통: consultation, 종합운세, 데일리, 1년 운세, 궁합
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 /**
  * 운세 타입에 따라 사용할 Gemini 모델을 반환
- * - DAILY: gemini-2.5-flash-lite (경량 모델)
- * - CONSULTATION: gemini-2.5-pro (자유 상담)
- * - LIFETIME, YEARLY, COMPATIBILITY: gemini-2.5-flash (표준 모델)
+ * 전 타입 gemini-3-flash 사용
  */
-function getGeminiModel(fortuneType: FortuneType): string {
-  if (fortuneType === FortuneType.DAILY) {
-    return GEMINI_MODEL_FLASH_LITE;
-  }
-  if (fortuneType === FortuneType.CONSULTATION) {
-    return GEMINI_MODEL_PRO;
-  }
-  return GEMINI_MODEL_FLASH;
+function getGeminiModel(_fortuneType: FortuneType): string {
+  return GEMINI_MODEL;
 }
 
 /**
