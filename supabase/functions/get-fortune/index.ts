@@ -59,6 +59,8 @@ import {
   analyzeLoveTiming,
   calculateSecondaryProgression,
   calculatePrimaryDirections,
+  calculateProgressedEventsTimeline,
+  calculateProfectionTimeline,
 } from "./utils/astrologyCalculator.ts";
 
 // Neo4j 전문 해석 데이터 조회
@@ -1066,6 +1068,18 @@ serve(async (req) => {
         false
       );
 
+      // 5a-2. 10년 타임라인: Progression & Profection
+      const progressionTimeline = calculateProgressedEventsTimeline(
+        chartData,
+        age,
+        10
+      );
+      const profectionTimeline = calculateProfectionTimeline(
+        chartData,
+        age,
+        10
+      );
+
       // 5b. Career/Wealth/Love 분석 (consultationTopic에 따라)
       const consultationTopicUpper = (requestData.consultationTopic || "")
         .trim()
@@ -1116,7 +1130,7 @@ serve(async (req) => {
         };
       }
 
-      // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data + TIMING FILTER + graphKnowledge)
+      // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data + TIMING DATA 10년 + graphKnowledge)
       const systemContext = generatePredictionPrompt(
         chartData,
         requestData.birthDate,
@@ -1130,7 +1144,9 @@ serve(async (req) => {
         wealthAnalysis,
         loveAnalysis,
         requestData.consultationTopic || "OTHER",
-        profectionData
+        profectionData,
+        progressionTimeline,
+        profectionTimeline
       );
 
       // 7. Gemini 호출

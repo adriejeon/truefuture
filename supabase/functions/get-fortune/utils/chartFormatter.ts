@@ -19,6 +19,8 @@ import {
   type CareerAnalysisResult,
   type WealthAnalysisResult,
   type PrimaryDirectionHit,
+  type ProgressedEventItem,
+  type ProfectionTimelineItem,
 } from "./astrologyCalculator.ts";
 import { SIGNS } from "./astrologyCalculator.ts";
 
@@ -470,6 +472,8 @@ Part of Fortune: ${
  * @param loveAnalysis - LOVE 토픽일 때 연애/결혼 분석 결과 (null이면 생략)
  * @param consultationTopic - 질문 카테고리 (EXAM | MOVE | LOVE | MONEY | WORK | OTHER) — 타이밍 필터 및 지표성 블록에 사용
  * @param profectionData - 프로펙션 데이터 (profectionHouse, profectionSign, lordOfTheYear)
+ * @param progressionTimeline - 10년 Progressed Moon 이벤트 타임라인
+ * @param profectionTimeline - 10년 Profection 타임라인
  */
 export function generatePredictionPrompt(
   chartData: ChartData,
@@ -484,7 +488,9 @@ export function generatePredictionPrompt(
   wealthAnalysis: WealthAnalysisResult | null = null,
   loveAnalysis: LoveAnalysisData | null = null,
   consultationTopic: string = "OTHER",
-  profectionData?: ProfectionData
+  profectionData?: ProfectionData,
+  progressionTimeline?: ProgressedEventItem[],
+  profectionTimeline?: ProfectionTimelineItem[]
 ): string {
   const sections: string[] = [];
 
@@ -584,14 +590,15 @@ ${planetLines}
   analysisParts.push("");
   analysisParts.push("3. Major Events (Primary Directions - Placidus/Naibod):");
   analysisParts.push(
-    "   * Note: Shows Direct hits to Angles/Luminaries within next 10 years."
+    "   * Note: Shows Direct and Converse hits to Angles/Luminaries within next 10 years."
   );
   if (directionResult.length > 0) {
     directionResult.forEach((hit) => {
       const match = hit.name.match(/^(.+?) -> (.+)$/);
       const promName = match ? match[1] : hit.name;
       const significator = match ? match[2] : "—";
-      analysisParts.push(`   - ${hit.eventDate} (Age ${hit.age}): ${hit.name}`);
+      const typeLabel = hit.type === "Converse" ? " (Converse)" : "";
+      analysisParts.push(`   - ${hit.eventDate} (Age ${hit.age}): ${hit.name}${typeLabel}`);
       analysisParts.push(
         `     * Interpretation: "${significator}의 영역(직업/가정/본신)에 ${promName}의 사건이 발생합니다."`
       );
@@ -650,6 +657,21 @@ ${analysisParts.join("\n")}`);
   if (significators.houseLordsBlock) {
     sections.push(
       `[Category-Specific Significators (House Lords)]\n${significators.houseLordsBlock}`
+    );
+  }
+
+  // --- [TIMELINE ANALYSIS (Next 10 Years)] 지표성 필터링 후 연도별 병합 ---
+  const timelineSection = buildTimelineAnalysisSection(
+    significators.primary,
+    directionResult,
+    progressionTimeline ?? [],
+    profectionTimeline ?? [],
+    consultationTopic
+  );
+  if (timelineSection) {
+    sections.push(`[TIMELINE ANALYSIS (Next 10 Years)]\n${timelineSection}`);
+    sections.push(
+      `[INSTRUCTION FOR 10-YEAR TIMING]\nYou are analyzing a **10-year timeline**. DO NOT limit your answer to the current year (e.g. 2026). Scan the timeline above. If the strongest indicator for this question appears in a later year (e.g. 2029), explicitly state that "The most important timing is **that year**." Explain WHY based on the combination of Primary Directions, Secondary Progressions, and Annual Profections. Mark **(STRONG)** entries as especially significant when multiple techniques align.`
     );
   }
 
@@ -947,6 +969,12 @@ function getRulerOf11thFromPof(chartData: ChartData): string {
   return getSignRuler(eleventhSign);
 }
 
+/** POF(Part of Fortune) 별자리의 룰러 반환 */
+function getRulerOfPof(chartData: ChartData): string {
+  const pofSign = chartData.fortuna?.sign ?? getSignFromLongitude(chartData.fortuna?.degree ?? 0).sign;
+  return getSignRuler(pofSign);
+}
+
 /** POF 기준 10번째·11번째 하우스에 위치한 행성 이름 목록 (1순위: 10th, 2순위: 11th) */
 function getPlanetsInPof10th11th(
   chartData: ChartData,
@@ -1030,12 +1058,9 @@ export function getCategorySignificators(
 
   if (cat === "MONEY") {
     const lord2 = getHouseRuler(asc, 2);
-    const lord5 = getHouseRuler(asc, 5);
-    const lord11 = getHouseRuler(asc, 11);
-    const poaRuler =
-      options?.wealthAnalysis?.ruler?.planetName ??
-      getRulerOf11thFromPof(chartData);
-    addPrimary("Jupiter", lord2, poaRuler, lord5, lord11);
+    const lord8 = getHouseRuler(asc, 8);
+    const pofRuler = getRulerOfPof(chartData);
+    addPrimary("Jupiter", lord2, pofRuler, lord8);
     return {
       primary: [...primarySet],
       timingFilterInstruction: buildTimingFilterInstruction("MONEY", {
@@ -1048,10 +1073,7 @@ export function getCategorySignificators(
   if (cat === "WORK") {
     const lord10 = getHouseRuler(asc, 10);
     const lord6 = getHouseRuler(asc, 6);
-    addPrimary(lord10, lord6);
-    const { pof10, pof11 } = getPlanetsInPof10th11th(chartData, options?.careerAnalysis);
-    pof10.forEach((p) => primarySet.add(p));
-    pof11.forEach((p) => primarySet.add(p));
+    addPrimary("Sun", "Mars", "MC", lord10, lord6);
     return {
       primary: [...primarySet],
       timingFilterInstruction: buildTimingFilterInstruction("WORK", {
@@ -1087,7 +1109,7 @@ export function getCategorySignificators(
   if (cat === "MOVE") {
     const lord4 = getHouseRuler(asc, 4);
     const lord7 = getHouseRuler(asc, 7);
-    addPrimary(lord4, lord7);
+    addPrimary("Moon", lord4, lord7);
     houseLordsBlock = [
       `Ruler of 4th House (거주지/부동산): ${lord4}`,
       `Ruler of 7th House (이동/계약/타인과의 관계): ${lord7}`,
@@ -1124,6 +1146,67 @@ export function getCategorySignificators(
       secondary: undefined,
     }),
   };
+}
+
+/**
+ * 10년 타임라인 데이터를 지표성(Significators)으로 필터링하여 연도별(Chronological) 텍스트로 병합.
+ */
+function buildTimelineAnalysisSection(
+  significators: string[],
+  directionResult: PrimaryDirectionHit[],
+  progressionTimeline: ProgressedEventItem[],
+  profectionTimeline: ProfectionTimelineItem[],
+  category: string
+): string {
+  const sigSet = new Set(significators.map((s) => s.toLowerCase()));
+  const yearsToLines: Record<number, string[]> = {};
+
+  const addYear = (year: number) => {
+    if (!yearsToLines[year]) yearsToLines[year] = [];
+  };
+
+  // Primary Directions: promissor 또는 target이 지표성에 해당하면 포함
+  for (const hit of directionResult) {
+    const [prom, target] = hit.pair.split(" -> ");
+    if (!prom || !target) continue;
+    const promMatch = sigSet.has(prom.toLowerCase());
+    const targetMatch = sigSet.has(target.toLowerCase());
+    if (!promMatch && !targetMatch) continue;
+    const year = hit.year ?? parseInt(String(hit.eventDate ?? "").split(".")[0], 10);
+    if (!year || isNaN(year)) continue;
+    addYear(year);
+    yearsToLines[year].push(
+      `Primary Direction(${hit.pair}) **(STRONG)**`
+    );
+  }
+
+  // Progression: 이벤트 문자열에 지표성 행성명이 포함되면 포함
+  for (const item of progressionTimeline) {
+    const matched = item.events.filter((ev) =>
+      significators.some((sig) =>
+        ev.includes(sig) || ev.toLowerCase().includes(`natal ${sig.toLowerCase()}`)
+      )
+    );
+    if (matched.length === 0) continue;
+    addYear(item.year);
+    yearsToLines[item.year].push(...matched);
+  }
+
+  // Profection: Lord가 지표성에 해당하면 포함
+  for (const item of profectionTimeline) {
+    if (!sigSet.has(item.lord.toLowerCase())) continue;
+    addYear(item.year);
+    yearsToLines[item.year].push(`Profection Lord(${item.lord})`);
+  }
+
+  const years = Object.keys(yearsToLines)
+    .map(Number)
+    .sort((a, b) => a - b);
+  if (years.length === 0) return "";
+
+  return years
+    .map((y) => `${y}: ${yearsToLines[y].join(", ")}`)
+    .join("\n");
 }
 
 /** 카테고리별 [CRITICAL INSTRUCTION FOR TIMING ANALYSIS] 문구 생성 */

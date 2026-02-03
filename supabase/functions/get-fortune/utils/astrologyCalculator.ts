@@ -390,19 +390,23 @@ export function toObliqueAscension(
 
 export interface PrimaryDirectionHit {
   name: string;
-  type: "Direct";
+  /** "Promissor -> Target" (e.g. "Moon -> IC") */
+  pair: string;
+  type: "Direct" | "Converse";
   age: number;
   arc: number;
+  /** 서기 연도 (향후 10년 타임라인용) */
+  year: number;
   /** YYYY.MM (생년월일 + EventAge로 계산) */
   eventDate: string;
 }
 
 /**
- * Primary Directions (Placidus, Naibod Key). Direct only, next 10 years.
+ * Primary Directions (Placidus, Naibod Key). Direct and Converse, next 10 years.
  * Targets: MC/IC (RA), Asc/Dsc (OA), Natal Sun/Moon (OA).
  * Promissors: Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn.
- * Arc = | Promissor - Target | normalized 0–360. EventAge = Arc / NAIBOD_KEY.
- * Returns only currentAge <= EventAge <= currentAge + 10.
+ * Arc Direct  = normalizeDegrees(Promissor - Target). Arc Converse = normalizeDegrees(Target - Promissor).
+ * EventAge = Arc / NAIBOD_KEY. Returns only currentAge <= EventAge <= currentAge + 10.
  */
 export function calculatePrimaryDirections(
   chartData: ChartData,
@@ -445,6 +449,16 @@ export function calculatePrimaryDirections(
         )
       : null;
 
+  type TargetSpec = { name: string; val: number; coord: "RA" | "OA" };
+  const targets: TargetSpec[] = [
+    { name: "MC", val: raMC, coord: "RA" },
+    { name: "IC", val: raIC, coord: "RA" },
+    { name: "Asc", val: oaAsc, coord: "OA" },
+    { name: "Dsc", val: oaDsc, coord: "OA" },
+  ];
+  if (oaSun != null) targets.push({ name: "Sun", val: oaSun, coord: "OA" });
+  if (oaMoon != null) targets.push({ name: "Moon", val: oaMoon, coord: "OA" });
+
   const promissors: Array<{ key: string; name: string; lon: number }> = [];
   for (const [key, data] of Object.entries(planets)) {
     if (data?.degree != null)
@@ -463,17 +477,26 @@ export function calculatePrimaryDirections(
     return `${y}.${String(m).padStart(2, "0")}`;
   };
 
-  const checkHit = (promName: string, arcRaw: number, targetName: string) => {
+  const checkHit = (
+    promName: string,
+    targetName: string,
+    directionType: "Direct" | "Converse",
+    arcRaw: number
+  ) => {
     const arc = normalizeDegrees(arcRaw);
     if (arc <= 0) return;
     const eventAge = arc / NAIBOD_KEY;
     if (eventAge < minAge || eventAge > maxAge) return;
     const eventDate = eventDateFromAge(eventAge);
+    const pair = `${promName} -> ${targetName}`;
+    const year = parseInt(eventDate.split(".")[0], 10);
     hits.push({
-      name: `${promName} -> ${targetName}`,
-      type: "Direct",
+      name: pair,
+      pair,
+      type: directionType,
       age: Math.round(eventAge * 10) / 10,
       arc: Math.round(arc * 10) / 10,
+      year,
       eventDate,
     });
   };
@@ -483,14 +506,19 @@ export function calculatePrimaryDirections(
     const declP = toDeclination(prom.lon, lat0, obliquity);
     const oaP = toObliqueAscension(raP, declP, geoLat);
 
-    checkHit(prom.name, normalizeDegrees(raP - raMC), "MC");
-    checkHit(prom.name, normalizeDegrees(raP - raIC), "IC");
-    checkHit(prom.name, normalizeDegrees(oaP - oaAsc), "Asc");
-    checkHit(prom.name, normalizeDegrees(oaP - oaDsc), "Dsc");
-    if (oaSun != null && prom.key !== "sun")
-      checkHit(prom.name, normalizeDegrees(oaP - oaSun), "Sun");
-    if (oaMoon != null && prom.key !== "moon")
-      checkHit(prom.name, normalizeDegrees(oaP - oaMoon), "Moon");
+    for (const t of targets) {
+      if (t.name === "Sun" && prom.key === "sun") continue;
+      if (t.name === "Moon" && prom.key === "moon") continue;
+
+      const valP = t.coord === "RA" ? raP : oaP;
+      const valT = t.val;
+
+      const arcDirect = normalizeDegrees(valP - valT);
+      const arcConverse = normalizeDegrees(valT - valP);
+
+      checkHit(prom.name, t.name, "Direct", arcDirect);
+      if (arcConverse !== arcDirect) checkHit(prom.name, t.name, "Converse", arcConverse);
+    }
   }
 
   return hits.sort((a, b) => a.age - b.age);
@@ -659,6 +687,96 @@ export function calculateSecondaryProgression(
     natalAspects,
     progressedAspects,
   };
+}
+
+/** Progressed Moon 이벤트 타임라인 항목 (연도별) */
+export interface ProgressedEventItem {
+  year: number;
+  age: number;
+  events: string[];
+}
+
+/**
+ * Secondary Progressions 10년 타임라인: 각 연도별 Progressed Moon의 Natal/Progressed 행성과의 주요 각(0,60,90,120,180) 발생 시기.
+ * 1일 = 1년. startAge부터 duration년 동안 루프.
+ */
+export function calculateProgressedEventsTimeline(
+  chartData: ChartData,
+  startAge: number,
+  duration: number = 10
+): ProgressedEventItem[] {
+  const birthDate = new Date(chartData.date);
+  if (isNaN(birthDate.getTime())) return [];
+  const birthYear = birthDate.getUTCFullYear();
+  const timeline: ProgressedEventItem[] = [];
+  const PROGRESSION_ORB = 1;
+
+  for (let i = 0; i < duration; i++) {
+    const age = startAge + i;
+    const year = birthYear + age;
+    const progressedDate = new Date(
+      birthDate.getTime() + age * 24 * 60 * 60 * 1000
+    );
+    const time = MakeTime(progressedDate);
+    const progMoonLongitude = getPlanetLongitude(PLANETS.moon, time);
+    const events: string[] = [];
+
+    // Natal 행성들과의 각도 (0, 60, 90, 120, 180)
+    for (const [planetKey, planetData] of Object.entries(chartData.planets ?? {})) {
+      const natalDegree = planetData?.degree;
+      if (natalDegree == null) continue;
+      const natalPlanetName = PLANET_NAMES[planetKey];
+      const angleDiff = calculateAngleDifference(progMoonLongitude, natalDegree);
+      for (const { angle, label } of PROGRESSION_ASPECTS) {
+        const orb = Math.abs(angleDiff - angle);
+        if (orb <= PROGRESSION_ORB) {
+          const aspectLabel =
+            label === "Conjunct"
+              ? "conjunct"
+              : label === "Sextile"
+              ? "sextile"
+              : label === "Square"
+              ? "square"
+              : label === "Trine"
+              ? "trine"
+              : "opposition";
+          events.push(`P.Moon ${aspectLabel} Natal ${natalPlanetName}`);
+          break;
+        }
+      }
+    }
+
+    // Natal Asc, MC와의 각도
+    const ascLon = chartData.houses?.angles?.ascendant ?? 0;
+    const mcLon = chartData.houses?.angles?.midheaven ?? 0;
+    for (const [pointName, lon] of [
+      ["Asc", ascLon],
+      ["MC", mcLon],
+    ] as const) {
+      const angleDiff = calculateAngleDifference(progMoonLongitude, lon);
+      for (const { angle, label } of PROGRESSION_ASPECTS) {
+        const orb = Math.abs(angleDiff - angle);
+        if (orb <= PROGRESSION_ORB) {
+          const aspectLabel =
+            label === "Conjunct"
+              ? "conjunct"
+              : label === "Sextile"
+              ? "sextile"
+              : label === "Square"
+              ? "square"
+              : label === "Trine"
+              ? "trine"
+              : "opposition";
+          events.push(`P.Moon ${aspectLabel} Natal ${pointName}`);
+          break;
+        }
+      }
+    }
+
+    timeline.push({ year, age, events });
+  }
+
+  return timeline;
 }
 
 // ========== Solar Arc Direction (솔라 아크 디렉션) ==========
@@ -1425,6 +1543,44 @@ export function getActiveSolarReturnYear(birthDate: Date, now: Date): number {
 
   // 생일 이후면 올해의 Solar Return 사용
   return currentYear;
+}
+
+/** 연도별 Profection 타임라인 항목 */
+export interface ProfectionTimelineItem {
+  age: number;
+  year: number;
+  sign: string;
+  lord: string;
+}
+
+/**
+ * Annual Profections 10년 타임라인: 향후 duration년 동안 매년의 Lord of the Year와 Profection Sign.
+ */
+export function calculateProfectionTimeline(
+  chartData: ChartData,
+  startAge: number,
+  duration: number = 10
+): ProfectionTimelineItem[] {
+  const birthDate = new Date(chartData.date);
+  if (isNaN(birthDate.getTime())) return [];
+  const birthYear = birthDate.getUTCFullYear();
+  const ascLon = chartData.houses?.angles?.ascendant ?? 0;
+  const natalAscSign = getSignFromLongitude(ascLon).sign;
+  const natalAscIndex = SIGNS.indexOf(natalAscSign);
+  if (natalAscIndex === -1) return [];
+
+  const timeline: ProfectionTimelineItem[] = [];
+  for (let i = 0; i < duration; i++) {
+    const age = startAge + i;
+    const year = birthYear + age;
+    const profectionHouse = (age % 12) + 1;
+    const profectionSignIndex =
+      (natalAscIndex + (profectionHouse - 1)) % 12;
+    const sign = SIGNS[profectionSignIndex];
+    const lord = getSignRuler(sign);
+    timeline.push({ age, year, sign, lord });
+  }
+  return timeline;
 }
 
 /**
