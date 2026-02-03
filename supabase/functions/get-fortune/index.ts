@@ -100,21 +100,23 @@ function getGenerationConfig(fortuneType: FortuneType): any {
         temperature: 0.7,
         topK: 40,
         topP: 0.95,
-        maxOutputTokens: 2000,
+        maxOutputTokens: 8000,
       };
     case FortuneType.COMPATIBILITY:
     case FortuneType.YEARLY:
     case FortuneType.CONSULTATION:
       return {
         temperature: 0.7,
-        maxOutputTokens: 8000,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 15000,
       };
     default:
       return {
         temperature: 0.7,
         topK: 40,
         topP: 0.95,
-        maxOutputTokens: 1023,
+        maxOutputTokens: 3000,
       };
   }
 }
@@ -592,9 +594,9 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
-        maxOutputTokens: 8000,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 10000,
       },
     };
 
@@ -618,9 +620,9 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
-        maxOutputTokens: 8000,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 10000,
       },
     };
 
@@ -644,9 +646,9 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
-        maxOutputTokens: 8000,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 10000,
       },
     };
 
@@ -670,9 +672,9 @@ async function generateLifetimeFortune(
       },
       generationConfig: {
         temperature: 0.7,
-        // topK: 40,
-        // topP: 0.95,
-        maxOutputTokens: 8000,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 10000,
       },
     };
 
