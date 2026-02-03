@@ -79,7 +79,7 @@ const corsHeaders = {
 };
 
 // ========== AI 해석 관련 함수 ==========
-const GEMINI_MODEL = "gemini-3-pro-preview"; // 전 타입 공통: consultation, 종합운세, 데일리, 1년 운세, 궁합
+const GEMINI_MODEL = "gemini-3-flash-preview"; // 전 타입 공통: consultation, 종합운세, 데일리, 1년 운세, 궁합
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 /**
