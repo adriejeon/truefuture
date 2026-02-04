@@ -1525,6 +1525,7 @@ ${systemContext}`;
             error: `AI interpretation failed: ${
               interpretation.message || "Unknown error"
             }`,
+            synastryResult: synastryResult, // 에러 발생 시에도 synastryResult 포함
           }),
           {
             status: 500,

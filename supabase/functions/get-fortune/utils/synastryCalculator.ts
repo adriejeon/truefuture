@@ -14,6 +14,7 @@ import {
   calculateLotOfMarriage,
   calculateAngleDifference,
   normalizeDegrees,
+  calculateFortuna,
 } from "./astrologyCalculator.ts";
 
 /** 행성 표기명 → 차트 키 (chart.planets 키) */
@@ -88,6 +89,12 @@ export interface ConnectionDetail {
   keyPointAspects: SynastryAspect[];
   /** 점수 */
   score: number;
+  /** 기준 (Asc 또는 POF) */
+  reference: "Asc" | "POF";
+  /** 하우스 번호 */
+  house: number;
+  /** Base Score (하우스 점수) */
+  baseScore: number;
 }
 
 /**
@@ -218,10 +225,51 @@ export function getHouseInPartnerChart(
 }
 
 /**
+ * 하우스 번호에 따른 Base Score 계산
+ * - Angle (1, 4, 7, 10): 10점
+ * - Succedent (2, 5, 8, 11): 5점
+ * - Cadent (3, 6, 9, 12): 0점
+ */
+function getHouseBaseScore(house: number): number {
+  if (house === 1 || house === 4 || house === 7 || house === 10) {
+    return 10; // Angle
+  } else if (house === 2 || house === 5 || house === 8 || house === 11) {
+    return 5; // Succedent
+  } else {
+    return 0; // Cadent
+  }
+}
+
+/**
  * 앵글 하우스인지 확인 (1, 4, 7, 10하우스)
  */
 function isAngleHouse(house: number): boolean {
   return house === 1 || house === 4 || house === 7 || house === 10;
+}
+
+/**
+ * POF 기준으로 행성이 상대방 차트에서 몇 번째 하우스에 위치하는지 계산
+ * 
+ * @param planetSign - 행성이 위치한 별자리
+ * @param partnerPofSign - 상대방의 POF 별자리
+ * @returns 하우스 번호 (1-12)
+ */
+function getHouseInPartnerChartByPOF(
+  planetSign: string,
+  partnerPofSign: string
+): number {
+  const planetSignIndex = SIGNS.indexOf(planetSign);
+  const partnerPofSignIndex = SIGNS.indexOf(partnerPofSign);
+
+  if (planetSignIndex === -1 || partnerPofSignIndex === -1) {
+    throw new Error(
+      `Invalid sign: planetSign=${planetSign}, partnerPofSign=${partnerPofSign}`
+    );
+  }
+
+  // POF 기준 하우스 계산: ((PlanetSignIndex - PofSignIndex + 12) % 12) + 1
+  const house = ((planetSignIndex - partnerPofSignIndex + 12) % 12) + 1;
+  return house;
 }
 
 /**
@@ -310,7 +358,7 @@ function getPlanetSign(chart: ChartData, planetName: string): string | null {
 }
 
 /**
- * 주요 감응점(Key Points): Asc, Dsc, Sun, Moon의 황경 배열 반환
+ * 주요 감응점(Key Points): Asc, Dsc, Sun, Moon, IC, MC의 황경 배열 반환
  */
 function getKeyPoints(chart: ChartData): Array<{
   name: string;
@@ -329,6 +377,17 @@ function getKeyPoints(chart: ChartData): Array<{
     points.push({ name: "Descendant", longitude: normalizeDegrees(ascLon + 180) });
   }
 
+  // MC (Midheaven)
+  const mcLon = chart.houses?.angles?.midheaven;
+  if (mcLon != null) {
+    points.push({ name: "MC", longitude: mcLon });
+  }
+
+  // IC (Imum Coeli) = MC + 180
+  if (mcLon != null) {
+    points.push({ name: "IC", longitude: normalizeDegrees(mcLon + 180) });
+  }
+
   // Sun
   const sunLon = chart.planets.sun?.degree;
   if (sunLon != null) {
@@ -345,7 +404,7 @@ function getKeyPoints(chart: ChartData): Array<{
 }
 
 /**
- * 2단계 검증을 통한 연결 상세 정보 계산
+ * 2단계 검증을 통한 연결 상세 정보 계산 (Dual Reference System: Asc & POF)
  * 
  * @param rulerPlanet - 룰러 행성명
  * @param rulerChart - 룰러가 위치한 차트
@@ -367,71 +426,124 @@ function calculateConnectionDetail(
       inAngle: false,
       keyPointAspects: [],
       score: 0,
+      reference: "Asc",
+      house: 0,
+      baseScore: 0,
     };
   }
 
   const targetAscSign = getSignFromLongitude(
     targetChart.houses?.angles?.ascendant ?? 0
   ).sign;
-  const rulerHouse = getHouseInPartnerChart(rulerSign, targetAscSign);
-  const inAngle = isAngleHouse(rulerHouse);
+  
+  // POF 계산
+  const targetAsc = targetChart.houses?.angles?.ascendant ?? 0;
+  const targetSunLon = targetChart.planets.sun?.degree ?? 0;
+  const targetMoonLon = targetChart.planets.moon?.degree ?? 0;
+  const isDayChart = targetChart.planets.sun?.house
+    ? targetChart.planets.sun.house >= 7 && targetChart.planets.sun.house <= 12
+    : true;
+  
+  const targetPofLon = calculateFortuna(targetAsc, targetMoonLon, targetSunLon, isDayChart);
+  const targetPofSign = getSignFromLongitude(targetPofLon).sign;
 
-  // Condition 1: 앵글 하우스 체크 (예선)
-  if (!inAngle) {
+  // Reference A: Ascendant 기준
+  const ascHouse = getHouseInPartnerChart(rulerSign, targetAscSign);
+  const ascBaseScore = getHouseBaseScore(ascHouse);
+
+  // Reference B: POF 기준
+  const pofHouse = getHouseInPartnerChartByPOF(rulerSign, targetPofSign);
+  const pofBaseScore = getHouseBaseScore(pofHouse);
+
+  // 두 기준 중 더 높은 점수를 채택
+  let finalHouse: number;
+  let finalBaseScore: number;
+  let reference: "Asc" | "POF";
+  let referenceSign: string;
+
+  if (pofBaseScore > ascBaseScore) {
+    finalHouse = pofHouse;
+    finalBaseScore = pofBaseScore;
+    reference = "POF";
+    referenceSign = targetPofSign;
+  } else {
+    finalHouse = ascHouse;
+    finalBaseScore = ascBaseScore;
+    reference = "Asc";
+    referenceSign = targetAscSign;
+  }
+
+  // Base Score가 0점이면 None
+  if (finalBaseScore === 0) {
     return {
       type: "None",
-      description: `${rulerPlanet}가 ${targetAscSign} 기준 ${rulerHouse}하우스에 위치 (앵글 아님)`,
+      description: `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점)에 위치`,
       inAngle: false,
       keyPointAspects: [],
       score: 0,
+      reference,
+      house: finalHouse,
+      baseScore: finalBaseScore,
     };
   }
 
-  // Condition 2: 주요 감응점과의 애스펙트 체크 (본선)
+  // 주요 감응점과의 애스펙트 체크
   const rulerLon = getPlanetLongitude(rulerChart, rulerPlanet);
-  if (!rulerLon) {
-    return {
-      type: "Potential",
-      description: `${rulerPlanet}가 ${targetAscSign} 기준 ${rulerHouse}하우스(앵글)에 위치`,
-      inAngle: true,
-      keyPointAspects: [],
-      score: 10,
-    };
-  }
-
   const keyPointAspects: SynastryAspect[] = [];
-  for (const point of targetKeyPoints) {
-    const aspect = calculateMajorAspect(rulerLon, point.longitude, 5);
-    if (aspect) {
-      keyPointAspects.push({
-        ...aspect,
-        planetA: rulerPlanet,
-        planetB: point.name,
-      });
+  
+  if (rulerLon != null) {
+    for (const point of targetKeyPoints) {
+      const aspect = calculateMajorAspect(rulerLon, point.longitude, 5);
+      if (aspect) {
+        keyPointAspects.push({
+          ...aspect,
+          planetA: rulerPlanet,
+          planetB: point.name,
+        });
+      }
     }
   }
 
-  // Destiny: 앵글 + 주요 감응점 애스펙트
+  // Type 결정 및 점수 계산
+  let type: ConnectionType;
+  let description: string;
+  let score: number;
+
   if (keyPointAspects.length > 0) {
+    // Destiny: Base Score 5점 이상 + 주요 감응점 애스펙트
+    type = "Destiny";
     const aspectDesc = keyPointAspects
       .map((a) => `${a.planetB}와 ${a.type} (orb ${a.orb.toFixed(1)}°)`)
       .join(", ");
-    return {
-      type: "Destiny",
-      description: `${rulerPlanet}가 ${targetAscSign} 기준 ${rulerHouse}하우스(앵글)에 위치하며, ${aspectDesc}`,
-      inAngle: true,
-      keyPointAspects,
-      score: 20,
-    };
+    
+    const angleText = finalBaseScore === 10 ? "앵글" : "수세덴트";
+    description = `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점, ${angleText})에 위치하며, ${aspectDesc}`;
+    
+    // Base Score + Aspect Bonus (+20)
+    score = finalBaseScore + 20;
+  } else if (finalBaseScore >= 5) {
+    // Potential: Base Score 5점 이상, 애스펙트 없음
+    type = "Potential";
+    const angleText = finalBaseScore === 10 ? "앵글" : "수세덴트";
+    description = `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점, ${angleText})에 위치`;
+    
+    score = finalBaseScore;
+  } else {
+    // None: Base Score 0점
+    type = "None";
+    description = `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점)에 위치`;
+    score = 0;
   }
 
-  // Potential: 앵글만
   return {
-    type: "Potential",
-    description: `${rulerPlanet}가 ${targetAscSign} 기준 ${rulerHouse}하우스(앵글)에 위치`,
-    inAngle: true,
-    keyPointAspects: [],
-    score: 10,
+    type,
+    description,
+    inAngle: finalBaseScore === 10,
+    keyPointAspects,
+    score,
+    reference,
+    house: finalHouse,
+    baseScore: finalBaseScore,
   };
 }
 
@@ -460,6 +572,9 @@ function analyzeMoonRulerConnection(
         inAngle: false,
         keyPointAspects: [],
         score: 0,
+        reference: "Asc" as const,
+        house: 0,
+        baseScore: 0,
       };
 
   // B -> A 연결
@@ -471,6 +586,9 @@ function analyzeMoonRulerConnection(
         inAngle: false,
         keyPointAspects: [],
         score: 0,
+        reference: "Asc" as const,
+        house: 0,
+        baseScore: 0,
       };
 
   // 상호 연결 여부 (양방향 Destiny)
@@ -534,7 +652,8 @@ function analyzeMarriageLotConnection(
 }
 
 /**
- * Detriment/Fall 갈등 요소 분석
+ * Detriment/Fall 갈등 요소 분석 (업그레이드)
+ * 상대방의 Key Points와 애스펙트를 맺을 때만 갈등으로 판정
  */
 function analyzeConflictFactors(
   chartA: ChartData,
@@ -555,89 +674,58 @@ function analyzeConflictFactors(
   const bDetriments = DETRIMENT_TABLE[bMoonSign] || [];
   const bFalls = FALL_TABLE[bMoonSign] || [];
 
-  const aKeyPoints = getKeyPoints(chartA);
+  // 상대방(B)의 Key Points (Sun, Moon, Asc, Dsc, IC, MC)
   const bKeyPoints = getKeyPoints(chartB);
+  
+  // 상대방(A)의 Key Points (Sun, Moon, Asc, Dsc, IC, MC)
+  const aKeyPoints = getKeyPoints(chartA);
 
   // A의 달이 싫어하는 행성이 B의 차트에서 문제를 일으키는지 체크
+  // 조건: 상대방(B)의 Key Points와 5도 이내 메이저 애스펙트를 맺는 경우만
   for (const planet of [...aDetriments, ...aFalls]) {
-    const planetSign = getPlanetSign(chartB, planet);
-    if (!planetSign) continue;
-
-    const bAscSign = getSignFromLongitude(
-      chartB.houses?.angles?.ascendant ?? 0
-    ).sign;
-    const planetHouse = getHouseInPartnerChart(planetSign, bAscSign);
-    const inAngle = isAngleHouse(planetHouse);
-
-    // 앵글 하우스에 있는 경우
-    if (inAngle) {
-      conflicts.push({
-        planet,
-        type: aDetriments.includes(planet) ? "Detriment" : "Fall",
-        aMoonSign,
-        reason: `내담자의 달(${aMoonSign})이 싫어하는 ${planet}이 상대방 차트 ${planetHouse}하우스(앵글)에 위치`,
-        score: -10,
-      });
-      continue;
-    }
-
-    // A의 주요 감응점과 애스펙트를 맺는 경우
     const planetLon = getPlanetLongitude(chartB, planet);
-    if (planetLon != null) {
-      for (const point of aKeyPoints) {
-        const aspect = calculateMajorAspect(planetLon, point.longitude, 5);
-        if (aspect) {
-          conflicts.push({
-            planet,
-            type: aDetriments.includes(planet) ? "Detriment" : "Fall",
-            aMoonSign,
-            reason: `내담자의 달(${aMoonSign})이 싫어하는 ${planet}이 내담자님의 ${point.name}와 ${aspect.type} (orb ${aspect.orb.toFixed(1)}°)`,
-            score: -10,
-          });
-          break;
-        }
+    if (planetLon == null) continue;
+
+    // 상대방(B)의 Key Points와 애스펙트 체크
+    for (const point of bKeyPoints) {
+      const aspect = calculateMajorAspect(planetLon, point.longitude, 5);
+      if (aspect) {
+        const conflictType = aDetriments.includes(planet) ? "Detriment" : "Fall";
+        const conflictTypeText = conflictType === "Detriment" ? "손상" : "추락";
+        
+        conflicts.push({
+          planet,
+          type: conflictType,
+          aMoonSign,
+          reason: `내담자의 달(${aMoonSign})은 ${planet}을 싫어하는데(${conflictTypeText}), 상대방의 ${planet}이 상대방의 ${point.name}와 ${aspect.type}하여 그 성향이 강하게 드러남 (내담자의 무의식과 충돌)`,
+          score: -10,
+        });
+        break; // 한 번만 추가
       }
     }
   }
 
   // B의 달이 싫어하는 행성이 A의 차트에서 문제를 일으키는지 체크
+  // 조건: 상대방(A)의 Key Points와 5도 이내 메이저 애스펙트를 맺는 경우만
   for (const planet of [...bDetriments, ...bFalls]) {
-    const planetSign = getPlanetSign(chartA, planet);
-    if (!planetSign) continue;
-
-    const aAscSign = getSignFromLongitude(
-      chartA.houses?.angles?.ascendant ?? 0
-    ).sign;
-    const planetHouse = getHouseInPartnerChart(planetSign, aAscSign);
-    const inAngle = isAngleHouse(planetHouse);
-
-    // 앵글 하우스에 있는 경우
-    if (inAngle) {
-      conflicts.push({
-        planet,
-        type: bDetriments.includes(planet) ? "Detriment" : "Fall",
-        aMoonSign: bMoonSign,
-        reason: `상대방의 달(${bMoonSign})이 싫어하는 ${planet}이 내담자님 차트 ${planetHouse}하우스(앵글)에 위치`,
-        score: -10,
-      });
-      continue;
-    }
-
-    // B의 주요 감응점과 애스펙트를 맺는 경우
     const planetLon = getPlanetLongitude(chartA, planet);
-    if (planetLon != null) {
-      for (const point of bKeyPoints) {
-        const aspect = calculateMajorAspect(planetLon, point.longitude, 5);
-        if (aspect) {
-          conflicts.push({
-            planet,
-            type: bDetriments.includes(planet) ? "Detriment" : "Fall",
-            aMoonSign: bMoonSign,
-            reason: `상대방의 달(${bMoonSign})이 싫어하는 ${planet}이 상대방의 ${point.name}와 ${aspect.type} (orb ${aspect.orb.toFixed(1)}°)`,
-            score: -10,
-          });
-          break;
-        }
+    if (planetLon == null) continue;
+
+    // 상대방(A)의 Key Points와 애스펙트 체크
+    for (const point of aKeyPoints) {
+      const aspect = calculateMajorAspect(planetLon, point.longitude, 5);
+      if (aspect) {
+        const conflictType = bDetriments.includes(planet) ? "Detriment" : "Fall";
+        const conflictTypeText = conflictType === "Detriment" ? "손상" : "추락";
+        
+        conflicts.push({
+          planet,
+          type: conflictType,
+          aMoonSign: bMoonSign,
+          reason: `상대방의 달(${bMoonSign})은 ${planet}을 싫어하는데(${conflictTypeText}), 내담자님의 ${planet}이 내담자님의 ${point.name}와 ${aspect.type}하여 그 성향이 강하게 드러남 (상대방의 무의식과 충돌)`,
+          score: -10,
+        });
+        break; // 한 번만 추가
       }
     }
   }
@@ -803,37 +891,29 @@ export function calculateSynastry(
     chartB
   );
 
-  // 종합 점수 계산 (업그레이드 로직)
+  // 종합 점수 계산 (업그레이드 로직 - 세분화된 점수 체계)
   let overallScore = 0;
 
   // 달의 룰러 연결 점수
-  if (moonRulerConnection.isMutual) {
-    // 양방향 Destiny: +40
-    overallScore += 40;
-  } else if (
-    moonRulerConnection.aToB.type === "Destiny" ||
-    moonRulerConnection.bToA.type === "Destiny"
-  ) {
-    // 단방향 Destiny: +20
-    overallScore += 20;
-  } else {
-    // Potential: 각각 +10
-    overallScore += moonRulerConnection.aToB.score + moonRulerConnection.bToA.score;
+  const moonScoreA = moonRulerConnection.aToB.score;
+  const moonScoreB = moonRulerConnection.bToA.score;
+  overallScore += moonScoreA + moonScoreB;
+  
+  // Mutual Bonus: 쌍방이 모두 5점 이상일 경우 가산점
+  if (moonScoreA >= 5 && moonScoreB >= 5) {
+    const mutualBonus = moonRulerConnection.isMutual ? 20 : 10; // 양방향 Destiny면 +20, 아니면 +10
+    overallScore += mutualBonus;
   }
 
   // 결혼의 랏 연결 점수
-  if (marriageLotConnection.isMutual) {
-    // 양방향 Destiny: +40
-    overallScore += 40;
-  } else if (
-    marriageLotConnection.aToB.type === "Destiny" ||
-    marriageLotConnection.bToA.type === "Destiny"
-  ) {
-    // 단방향 Destiny: +20
-    overallScore += 20;
-  } else {
-    // Potential: 각각 +10
-    overallScore += marriageLotConnection.aToB.score + marriageLotConnection.bToA.score;
+  const lotScoreA = marriageLotConnection.aToB.score;
+  const lotScoreB = marriageLotConnection.bToA.score;
+  overallScore += lotScoreA + lotScoreB;
+  
+  // Mutual Bonus: 쌍방이 모두 5점 이상일 경우 가산점
+  if (lotScoreA >= 5 && lotScoreB >= 5) {
+    const mutualBonus = marriageLotConnection.isMutual ? 20 : 10; // 양방향 Destiny면 +20, 아니면 +10
+    overallScore += mutualBonus;
   }
 
   // 금성-화성 조화 점수 (최대 +10)

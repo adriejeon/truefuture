@@ -115,12 +115,16 @@ function TypewriterLoader({ typeSpeed = 80, pauseAfterType = 1700 }) {
         <span>{displayText}</span>
         {(phase === "typing" || phase === "hold") && (
           <span
-            className="animate-pulse"
+            className="animate-pulse inline-block align-middle ml-1"
             style={{
               background: "linear-gradient(to right, #9785FE 0%, #FF9FA1 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
+              fontSize: "1.5em",
+              lineHeight: "1em",
+              height: "1.5em",
+              display: "inline-block",
             }}
             aria-hidden
           >
