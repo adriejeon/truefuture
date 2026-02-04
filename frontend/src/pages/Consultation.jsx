@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
@@ -7,6 +7,7 @@ import { saveFortuneHistory } from "../services/fortuneService";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
+import FortuneProcess from "../components/FortuneProcess";
 import ReactMarkdown from "react-markdown";
 import { colors } from "../constants/colors";
 
@@ -52,14 +53,6 @@ const PRESET_QUESTIONS = {
   ],
 };
 
-// 로딩 메시지 순서 (3~4초 간격)
-const LOADING_MESSAGES = [
-  "🌌 별들의 위치를 계산하고 있습니다...",
-  "🪐 행성 간의 유기적 관계를 분석 중입니다...",
-  "⏳ 운의 흐름과 결정적 시기(Timing)를 추적합니다...",
-  "📜 별들의 메시지를 해석하고 있습니다...",
-];
-
 /**
  * Gemini 응답 텍스트를 JSON으로 파싱.
  * 마크다운 코드블록(```json ... ```), "json" 접두어 제거 후 파싱 시도.
@@ -96,10 +89,7 @@ function Consultation() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState("LOVE");
   const [userQuestion, setUserQuestion] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [error, setError] = useState("");
-  const [currentAnswer, setCurrentAnswer] = useState(null); // { question, topic, interpretation, debugInfo }
 
   // 공유 링크로 들어온 경우
   const [searchParams, setSearchParams] = useSearchParams();
@@ -110,8 +100,6 @@ function Consultation() {
   const { resultId } = useParams();
   const navigate = useNavigate();
   const [historyView, setHistoryView] = useState(null); // { question, interpretation }
-
-  const loadingIntervalRef = useRef(null);
 
   // 프로필 데이터를 API 형식으로 변환 (성별: 백엔드/제미나이용 M/F)
   const convertProfileToApiFormat = (profile) => {
@@ -125,22 +113,6 @@ function Consultation() {
       gender,
     };
   };
-
-  // 로딩 메시지 순환
-  useEffect(() => {
-    if (loading) {
-      setLoadingMessageIndex(0);
-      loadingIntervalRef.current = setInterval(() => {
-        setLoadingMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
-      }, 3500); // 3.5초마다 변경
-
-      return () => {
-        if (loadingIntervalRef.current) {
-          clearInterval(loadingIntervalRef.current);
-        }
-      };
-    }
-  }, [loading]);
 
   // 히스토리 뷰 로드 (대화 목록에서 클릭한 경우 /consultation/:resultId)
   useEffect(() => {
@@ -280,116 +252,58 @@ function Consultation() {
     }
   };
 
-  // 질문 제출
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!user) {
-      setError("로그인이 필요합니다.");
-      return;
-    }
-
+  // FortuneProcess용: API 호출 후 결과 객체 반환 (상태 2 → 3 전환용)
+  const requestConsultation = useCallback(async () => {
+    if (!user) throw new Error("로그인이 필요합니다.");
     if (!selectedProfile) {
-      setError("프로필을 선택해주세요.");
       setShowProfileModal(true);
-      return;
+      throw new Error("프로필을 선택해주세요.");
     }
+    if (!userQuestion.trim()) throw new Error("질문을 입력해주세요.");
+    if (userQuestion.trim().length > 1000) throw new Error("질문은 1000자 이내로 입력해주세요.");
 
-    if (!userQuestion.trim()) {
-      setError("질문을 입력해주세요.");
-      return;
-    }
+    const formData = convertProfileToApiFormat(selectedProfile);
+    if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
 
-    if (userQuestion.trim().length > 1000) {
-      setError("질문은 1000자 이내로 입력해주세요.");
-      return;
-    }
+    const requestBody = {
+      ...formData,
+      fortuneType: "consultation",
+      userQuestion: userQuestion.trim(),
+      consultationTopic: selectedTopic,
+      profileId: selectedProfile.id,
+    };
 
-    setLoading(true);
-    setError("");
-    setCurrentAnswer(null);
-    setLoadingMessageIndex(0);
+    const { data, error: functionError } = await supabase.functions.invoke(
+      "get-fortune",
+      { body: requestBody }
+    );
 
-    try {
-      const formData = convertProfileToApiFormat(selectedProfile);
-      if (!formData) {
-        throw new Error("프로필 정보가 올바르지 않습니다.");
-      }
+    if (functionError) throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+    if (!data || data.error) throw new Error(data?.error || "서버 오류가 발생했습니다.");
 
-      const requestBody = {
-        ...formData,
-        fortuneType: "consultation",
-        userQuestion: userQuestion.trim(),
-        consultationTopic: selectedTopic,
-        profileId: selectedProfile.id, // profile_id 전송
-      };
+    const parsedData = parseFortuneResult(data.interpretation);
+    const answer = {
+      question: userQuestion.trim(),
+      topic: selectedTopic,
+      interpretation: data.interpretation,
+      parsedData,
+      debugInfo: data.debugInfo || {},
+      shareId: data.share_id || null,
+    };
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        {
-          body: requestBody,
-        }
+    if (data.share_id) {
+      await saveFortuneHistory(
+        user.id,
+        selectedProfile.id,
+        "consultation",
+        data.share_id,
+        null,
+        userQuestion.trim()
       );
-
-      if (functionError) {
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      }
-
-      if (!data || data.error) {
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      }
-
-      // 제미나이 인풋/아웃풋 프론트엔드 콘솔 출력
-      if (data.geminiInput) {
-        console.log("\n" + "=".repeat(60));
-        console.log("📥 [자유 질문 상담소] 제미나이 인풋 (Input to Gemini)");
-        console.log("=".repeat(60));
-        console.log(
-          "[System Instruction]\n",
-          data.geminiInput.systemInstruction
-        );
-        console.log("\n[User Prompt]\n", data.geminiInput.userPrompt);
-        console.log("=".repeat(60) + "\n");
-      }
-      console.log("\n" + "=".repeat(60));
-      console.log("📤 [자유 질문 상담소] 제미나이 아웃풋 (Gemini Response)");
-      console.log("=".repeat(60));
-      console.log(data.interpretation);
-      console.log("=".repeat(60) + "\n");
-
-      const parsedData = parseFortuneResult(data.interpretation);
-      if (parsedData) console.log("✅ JSON 파싱 성공:", parsedData);
-
-      setCurrentAnswer({
-        question: userQuestion.trim(),
-        topic: selectedTopic,
-        interpretation: data.interpretation,
-        parsedData: parsedData, // 구조화된 JSON 데이터 (파싱 성공 시)
-        debugInfo: data.debugInfo || {},
-        shareId: data.share_id || null,
-      });
-
-      // 운세 이력 저장 (대화 목록용)
-      if (data.share_id) {
-        await saveFortuneHistory(
-          user.id,
-          selectedProfile.id,
-          "consultation",
-          data.share_id,
-          null,
-          userQuestion.trim()
-        );
-      }
-
-      // 입력 초기화
-      setUserQuestion("");
-    } catch (err) {
-      console.error("❌ [CONSULTATION] 요청 실패:", err);
-      setError(err.message || "요청 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
     }
-  };
+    setUserQuestion("");
+    return answer;
+  }, [user, selectedProfile, selectedTopic, userQuestion]);
 
   // 인증 로딩 중
   if (loadingAuth) {
@@ -609,33 +523,26 @@ function Consultation() {
             {historyView.shareId && (
               <div className="mt-6 pt-6 border-t border-slate-600/50">
                 <p className="text-sm text-slate-300 mb-3">친구에게 공유하기</p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleCopyLink(historyView.shareId)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                    title="주소 복사"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                      />
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                     </svg>
-                    링크 복사
                   </button>
                   <button
                     type="button"
                     onClick={() => handleKakaoShare(historyView.shareId)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors text-sm font-medium"
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                    title="카카오톡 공유하기"
                   >
-                    <span>카카오톡 공유</span>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -929,7 +836,7 @@ function Consultation() {
           )}
 
           {/* 질문 입력 */}
-          <form onSubmit={handleSubmit} className="mb-6 sm:mb-8">
+          <form onSubmit={(e) => e.preventDefault()} className="mb-6 sm:mb-8">
             <label className="block text-sm font-medium text-slate-300 mb-3">
               질문 입력
             </label>
@@ -953,108 +860,57 @@ function Consultation() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading || !selectedProfile || !userQuestion.trim()}
-              className="w-full mt-4 py-3 px-4 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background:
-                  "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
-              }}
-            >
-              {loading ? "답변 생성 중..." : "답변 받기"}
-            </button>
-          </form>
-
-          {/* 로딩 애니메이션 (Storytelling) */}
-          {loading && (
-            <div className="mb-8 p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400"></div>
-                <p
-                  className="text-slate-200 text-base text-center animate-fade-in-out"
-                  key={loadingMessageIndex}
-                >
-                  {LOADING_MESSAGES[loadingMessageIndex]}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* 답변 결과 */}
-          {!loading && currentAnswer && (
+            <FortuneProcess
+              onRequest={requestConsultation}
+              renderResult={(answer) => (
             <div className="mb-8">
+              {answer.shareId && (
+                <div className="flex items-center justify-end gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyLink(answer.shareId)}
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                    title="주소 복사"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleKakaoShare(answer.shareId)}
+                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                    title="카카오톡 공유하기"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               <div className="mb-4 p-4 bg-purple-900/30 border border-purple-600/50 rounded-lg">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="text-2xl">
-                      {
-                        TOPIC_OPTIONS.find((t) => t.id === currentAnswer.topic)
-                          ?.emoji
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-purple-200 text-sm mb-1">
-                        {
-                          TOPIC_OPTIONS.find(
-                            (t) => t.id === currentAnswer.topic
-                          )?.label
-                        }
-                      </p>
-                      <p className="text-white font-medium">
-                        {currentAnswer.question}
-                      </p>
-                    </div>
-                  </div>
-                  {currentAnswer.shareId && (
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyLink(currentAnswer.shareId)}
-                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                        title="링크 복사"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleKakaoShare(currentAnswer.shareId)}
-                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                        title="카카오톡 공유"
-                      >
-                        <span className="text-sm font-medium">카카오톡</span>
-                      </button>
-                    </div>
-                  )}
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl flex-shrink-0" aria-hidden>
+                    {TOPIC_OPTIONS.find((t) => t.id === answer.topic)?.emoji}
+                  </span>
+                  <p className="text-white font-medium flex-1 min-w-0">{answer.question}</p>
                 </div>
               </div>
 
               {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
-              {currentAnswer.parsedData ? (
+              {answer.parsedData ? (
                 <div className="space-y-5">
                   {/* Header Card */}
                   <div className="p-6 bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-purple-500/50 rounded-xl shadow-xl">
                     <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                      {currentAnswer.parsedData.summary?.title || "결론"}
+                      {answer.parsedData.summary?.title || "결론"}
                     </h2>
-                    {currentAnswer.parsedData.summary?.score != null && (
+                    {answer.parsedData.summary?.score != null && (
                       <div className="mb-4">
                         <div className="flex items-center gap-3 mb-2">
                           <span className="text-sm text-slate-300">실현 가능성</span>
                           <span className="text-2xl font-bold text-purple-300">
-                            {currentAnswer.parsedData.summary.score}%
+                            {answer.parsedData.summary.score}%
                           </span>
                           <span className="flex gap-0.5" aria-hidden>
                             {[1, 2, 3, 4, 5].map((i) => (
@@ -1063,7 +919,7 @@ function Consultation() {
                                 className={
                                   i <=
                                   Math.round(
-                                    (currentAnswer.parsedData.summary.score ||
+                                    (answer.parsedData.summary.score ||
                                       0) / 20
                                   )
                                     ? "text-amber-400"
@@ -1079,14 +935,14 @@ function Consultation() {
                           <div
                             className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-500"
                             style={{
-                              width: `${currentAnswer.parsedData.summary.score}%`,
+                              width: `${answer.parsedData.summary.score}%`,
                             }}
                           />
                         </div>
                       </div>
                     )}
                     <div className="flex flex-wrap gap-2">
-                      {(currentAnswer.parsedData.summary?.keywords || []).map(
+                      {(answer.parsedData.summary?.keywords || []).map(
                         (keyword, idx) => (
                           <span
                             key={idx}
@@ -1100,14 +956,14 @@ function Consultation() {
                   </div>
 
                   {/* Timeline Section */}
-                  {currentAnswer.parsedData.timeline &&
-                    currentAnswer.parsedData.timeline.length > 0 && (
+                  {answer.parsedData.timeline &&
+                    answer.parsedData.timeline.length > 0 && (
                       <div>
                         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                           📅 타임라인
                         </h3>
                         <div className="space-y-3">
-                          {currentAnswer.parsedData.timeline.map(
+                          {answer.parsedData.timeline.map(
                             (item, idx) => {
                               const isGood = item.type === "good";
                               const isBad = item.type === "bad";
@@ -1156,7 +1012,7 @@ function Consultation() {
                         🔮 종합 분석
                       </h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {currentAnswer.parsedData.analysis?.general || ""}
+                        {answer.parsedData.analysis?.general || ""}
                       </p>
                     </div>
 
@@ -1165,7 +1021,7 @@ function Consultation() {
                         ⏰ 시기 분석
                       </h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {currentAnswer.parsedData.analysis?.timing || ""}
+                        {answer.parsedData.analysis?.timing || ""}
                       </p>
                     </div>
 
@@ -1175,7 +1031,7 @@ function Consultation() {
                           💡 Action Tip
                         </h3>
                         <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                          {currentAnswer.parsedData.analysis?.advice || ""}
+                          {answer.parsedData.analysis?.advice || ""}
                         </p>
                       </div>
                     </div>
@@ -1189,13 +1045,27 @@ function Consultation() {
                   </h3>
                   <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
                     <ReactMarkdown>
-                      {currentAnswer.interpretation}
+                      {answer.interpretation}
                     </ReactMarkdown>
                   </div>
                 </div>
               )}
             </div>
-          )}
+              )}
+            >
+              <button
+                type="button"
+                disabled={!selectedProfile || !userQuestion.trim()}
+                className="w-full mt-4 py-3 px-4 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  background:
+                    "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
+                }}
+              >
+                답변 받기
+              </button>
+            </FortuneProcess>
+          </form>
 
         </div>
       </div>

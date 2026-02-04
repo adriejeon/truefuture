@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { parseMarkdownToSections } from "../utils/markdownParser";
-import { colors } from "../constants/colors";
 
 function FortuneResult({ title, interpretation, shareId, isShared = false }) {
   // 디버깅: shareId 확인
@@ -34,6 +33,19 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
       }
       return newSet;
     });
+  };
+
+  // 주소 복사
+  const handleCopyLink = () => {
+    if (!shareId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("id", shareId);
+    url.hash = "";
+    const shareUrl = url.toString();
+    navigator.clipboard.writeText(shareUrl).then(
+      () => alert("링크가 복사되었어요. 친구에게 보내보세요!"),
+      () => alert("복사에 실패했어요. 주소창의 링크를 복사해 주세요.")
+    );
   };
 
   // 카카오톡 공유하기
@@ -115,29 +127,28 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
       <div className="flex items-center justify-between mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-primary">{title}</h2>
 
-        {/* 카카오톡 공유 버튼 - 공유된 운세가 아닐 때만 표시 */}
+        {/* 주소 복사 / 카카오톡 공유 - 공유된 운세가 아닐 때만 표시 */}
         {!isShared && shareId ? (
-          <button
-            onClick={handleKakaoShare}
-            className="flex items-center gap-2 px-2 py-1 font-medium transition-colors text-base hover:opacity-80"
-            style={{ color: colors.subText }}
-            title="공유"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyLink}
+              className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+              title="주소 복사"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-              />
-            </svg>
-            <span>공유</span>
-          </button>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+            </button>
+            <button
+              onClick={handleKakaoShare}
+              className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+              title="카카오톡 공유하기"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+          </div>
         ) : null}
       </div>
 

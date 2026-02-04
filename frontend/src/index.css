@@ -119,3 +119,74 @@ a {
 .animate-fade-in-out {
   animation: fade-in-out 3.5s ease-in-out;
 }
+
+/* FortuneProcess 결과 영역 페이드 인 */
+@keyframes fortune-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fortune-view-fade-in {
+  animation: fortune-fade-in 0.5s ease-out forwards;
+}
+
+/* TypewriterLoader: 문장 위로 페이드아웃 */
+@keyframes typewriter-fade-out-up {
+  to {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
+/* TypewriterLoader: 아래에서 올라오며 페이드인 */
+@keyframes typewriter-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.typewriter-fade-out-up {
+  animation: typewriter-fade-out-up 0.35s ease-out forwards;
+}
+
+.typewriter-fade-in-up {
+  animation: typewriter-fade-in-up 0.4s ease-out forwards;
+}
+
+/* FortuneProcess: 모달 페이드아웃 */
+.fortune-modal-exit {
+  animation: fortune-modal-fade-out 0.4s ease-out forwards;
+}
+
+@keyframes fortune-modal-fade-out {
+  to {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+/* FortuneProcess: 결과 스트리밍(순차) 노출 */
+.fortune-stream-reveal {
+  opacity: 0;
+  animation: fortune-stream-reveal 0.35s ease-out forwards;
+}
+
+@keyframes fortune-stream-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
