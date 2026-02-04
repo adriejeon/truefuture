@@ -115,6 +115,235 @@ export async function fetchConsultationHistory(userId) {
 }
 
 /**
+ * 궁합 내역 조회 (compatibility fortune_type만)
+ * @param {string} userId
+ * @returns {Promise<Array<{id, created_at, result_id, profile_id, profiles, fortune_results}>}
+ */
+export async function fetchCompatibilityHistory(userId) {
+  if (!userId) return [];
+
+  try {
+    // 먼저 fortune_history 조회
+    const { data: historyData, error: historyError } = await supabase
+      .from("fortune_history")
+      .select(`
+        id,
+        created_at,
+        result_id,
+        profile_id,
+        profiles!inner(id, name, birth_date)
+      `)
+      .eq("user_id", userId)
+      .eq("fortune_type", "compatibility")
+      .not("result_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (historyError) throw historyError;
+    if (!historyData || historyData.length === 0) return [];
+
+    // result_id 목록 추출
+    const resultIds = historyData
+      .map((h) => h.result_id)
+      .filter((id) => id !== null);
+
+    if (resultIds.length === 0) return [];
+
+    // fortune_results에서 user_info 조회
+    const { data: resultsData, error: resultsError } = await supabase
+      .from("fortune_results")
+      .select("id, user_info")
+      .in("id", resultIds);
+
+    if (resultsError) throw resultsError;
+
+    // 결과 병합
+    const resultsMap = new Map(
+      (resultsData || []).map((r) => [r.id, r])
+    );
+
+    const mergedData = historyData.map((historyItem) => ({
+      ...historyItem,
+      fortune_results: resultsMap.get(historyItem.result_id) || null,
+    }));
+
+    return mergedData;
+  } catch (err) {
+    console.error("❌ 궁합 내역 조회 실패:", err);
+    return [];
+  }
+}
+
+/**
+ * 특정 result_id로 운세 결과 조회
+ * @param {string} resultId - fortune_results.id
+ * @returns {Promise<{interpretation, chart, chart2, shareId}|null>}
+ */
+export async function fetchFortuneByResultId(resultId) {
+  if (!resultId) return null;
+
+  try {
+    const { data: resultRow, error: resultError } = await supabase
+      .from("fortune_results")
+      .select("id, fortune_text, chart_data, user_info")
+      .eq("id", resultId)
+      .single();
+
+    if (resultError || !resultRow?.fortune_text) {
+      return null;
+    }
+
+    const cd = resultRow.chart_data || {};
+    return {
+      interpretation: resultRow.fortune_text,
+      chart: cd.chart ?? null,
+      chart2: cd.chart2 ?? null,
+      shareId: resultRow.id,
+      userInfo: resultRow.user_info ?? null,
+    };
+  } catch (err) {
+    console.error(`❌ 운세 결과 조회 실패:`, err);
+    return null;
+  }
+}
+
+/**
+ * 만료된 데일리 운세 삭제 (하루 지난 것)
+ * @param {string} userId
+ */
+export async function deleteExpiredDailyFortunes(userId) {
+  if (!userId) return;
+
+  try {
+    const todayDate = getTodayDate();
+    const today = new Date(todayDate);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDate = yesterday.toISOString().split("T")[0];
+
+    // 어제 이전의 데일리 운세 이력 조회
+    const { data: expiredHistory, error: historyError } = await supabase
+      .from("fortune_history")
+      .select("result_id")
+      .eq("user_id", userId)
+      .eq("fortune_type", "daily")
+      .lt("fortune_date", todayDate)
+      .not("result_id", "is", null);
+
+    if (historyError) {
+      console.error("만료된 데일리 운세 이력 조회 실패:", historyError);
+      return;
+    }
+
+    if (!expiredHistory || expiredHistory.length === 0) return;
+
+    const resultIds = expiredHistory
+      .map((h) => h.result_id)
+      .filter((id) => id !== null);
+
+    if (resultIds.length === 0) return;
+
+    // fortune_results에서 삭제
+    const { error: deleteError } = await supabase
+      .from("fortune_results")
+      .delete()
+      .in("id", resultIds)
+      .eq("fortune_type", "daily");
+
+    if (deleteError) {
+      console.error("만료된 데일리 운세 삭제 실패:", deleteError);
+    } else {
+      console.log(`✅ 만료된 데일리 운세 ${resultIds.length}개 삭제 완료`);
+    }
+  } catch (err) {
+    console.error("만료된 데일리 운세 삭제 중 오류:", err);
+  }
+}
+
+/**
+ * 만료된 1년 운세 삭제 (생일 지난 것)
+ * @param {string} userId
+ */
+export async function deleteExpiredYearlyFortunes(userId) {
+  if (!userId) return;
+
+  try {
+    // 프로필 조회
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, birth_date")
+      .eq("user_id", userId);
+
+    if (profilesError || !profiles || profiles.length === 0) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentYear = today.getFullYear();
+
+    // 각 프로필별로 만료된 1년 운세 확인
+    for (const profile of profiles) {
+      const birthDate = new Date(profile.birth_date);
+      const thisYearBirthday = new Date(
+        currentYear,
+        birthDate.getMonth(),
+        birthDate.getDate(),
+      );
+      thisYearBirthday.setHours(0, 0, 0, 0);
+
+      // 올해 생일이 지났는지 확인
+      if (today < thisYearBirthday) continue; // 아직 생일 안 지남
+
+      // 이 프로필의 1년 운세 이력 조회
+      const { data: yearlyHistory, error: historyError } = await supabase
+        .from("fortune_history")
+        .select("id, result_id, year_period_end")
+        .eq("user_id", userId)
+        .eq("profile_id", profile.id)
+        .eq("fortune_type", "yearly")
+        .not("result_id", "is", null);
+
+      if (historyError || !yearlyHistory || yearlyHistory.length === 0) continue;
+
+      // year_period_end가 오늘보다 이전인 것들 찾기
+      const expiredHistory = yearlyHistory.filter((h) => {
+        if (!h.year_period_end) return false;
+        const periodEnd = new Date(h.year_period_end);
+        periodEnd.setHours(0, 0, 0, 0);
+        return periodEnd < today;
+      });
+
+      if (expiredHistory.length === 0) continue;
+
+      const resultIds = expiredHistory
+        .map((h) => h.result_id)
+        .filter((id) => id !== null);
+
+      if (resultIds.length === 0) continue;
+
+      // fortune_results에서 삭제
+      const { error: deleteError } = await supabase
+        .from("fortune_results")
+        .delete()
+        .in("id", resultIds)
+        .eq("fortune_type", "yearly");
+
+      if (deleteError) {
+        console.error(
+          `프로필 ${profile.id}의 만료된 1년 운세 삭제 실패:`,
+          deleteError,
+        );
+      } else {
+        console.log(
+          `✅ 프로필 ${profile.id}의 만료된 1년 운세 ${resultIds.length}개 삭제 완료`,
+        );
+      }
+    }
+  } catch (err) {
+    console.error("만료된 1년 운세 삭제 중 오류:", err);
+  }
+}
+
+/**
  * DB에서 운세 복구 (기기 변경/프로필 전환 시)
  * @param {string} profileId
  * @param {string} fortuneType - 'daily' | 'lifetime' | 'yearly' | 'compatibility'

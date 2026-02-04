@@ -5,14 +5,17 @@ function BottomNavigation({ activeTab }) {
   const location = useLocation();
 
   // 현재 경로에 따라 activeTab 결정 (하단 3개: 진짜미래, 궁합, 진짜운세)
+  // 메인 페이지(/)는 하단 네비게이션에 속하지 않으므로 선택 상태 없음
   const currentTab =
-    location.pathname === "/" || location.pathname.includes("/consultation")
+    location.pathname === "/"
+      ? null
+      : location.pathname.includes("/consultation")
       ? "consultation"
       : location.pathname.includes("/compatibility")
-        ? "compatibility"
-        : location.pathname.includes("/yearly")
-          ? "yearly"
-          : activeTab;
+      ? "compatibility"
+      : location.pathname.includes("/yearly")
+      ? "yearly"
+      : activeTab;
   const tabs = [
     {
       id: "consultation",
@@ -93,7 +96,11 @@ function BottomNavigation({ activeTab }) {
                 className={`
                   flex flex-col items-center justify-center py-3 px-2 sm:py-4 sm:px-4
                   transition-colors duration-200
-                  ${isActive ? "text-primary" : "hover:text-white hover:bg-slate-800/50"}
+                  ${
+                    isActive
+                      ? "text-primary"
+                      : "hover:text-white hover:bg-slate-800/50"
+                  }
                 `}
                 style={
                   isActive

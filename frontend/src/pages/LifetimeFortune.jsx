@@ -6,6 +6,7 @@ import FortuneResult from "../components/FortuneResult";
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
+import TypewriterLoader from "../components/TypewriterLoader";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -122,7 +123,10 @@ function LifetimeFortune() {
 
     (async () => {
       try {
-        const restored = await restoreFortuneIfExists(selectedProfile.id, "lifetime");
+        const restored = await restoreFortuneIfExists(
+          selectedProfile.id,
+          "lifetime"
+        );
         if (cancelled) return;
         if (restored) {
           console.log("✅ [복구] 인생 종합운 DB에서 복구");
@@ -151,7 +155,7 @@ function LifetimeFortune() {
       await createProfile(profileData);
       // 프로필 생성 후 모달은 ProfileModal의 onClose에서 처리됨
     },
-    [createProfile],
+    [createProfile]
   );
 
   const handleSubmit = async (e) => {
@@ -173,7 +177,7 @@ function LifetimeFortune() {
     // 운세 조회 가능 여부 체크
     const availability = await checkFortuneAvailability(
       selectedProfile.id,
-      "lifetime",
+      "lifetime"
     );
     if (!availability.available) {
       setError(availability.reason);
@@ -212,7 +216,7 @@ function LifetimeFortune() {
         "get-fortune",
         {
           body: requestBody,
-        },
+        }
       );
 
       if (functionError) {
@@ -236,7 +240,7 @@ function LifetimeFortune() {
         "🔍 [LifetimeFortune] API 응답 data.share_id:",
         data.share_id,
         "타입:",
-        typeof data.share_id,
+        typeof data.share_id
       );
       if (
         data.share_id &&
@@ -248,7 +252,7 @@ function LifetimeFortune() {
         setShareId(data.share_id);
       } else {
         console.warn(
-          "⚠️ [LifetimeFortune] share_id가 응답에 없거나 유효하지 않습니다.",
+          "⚠️ [LifetimeFortune] share_id가 응답에 없거나 유효하지 않습니다."
         );
         console.warn("  - data.share_id 값:", data.share_id);
         console.warn("  - data.share_id 타입:", typeof data.share_id);
@@ -262,7 +266,7 @@ function LifetimeFortune() {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`출생 시간: ${data.chart.date}`);
         console.log(
-          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`,
+          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
         );
 
         // 상승점
@@ -285,7 +289,9 @@ function LifetimeFortune() {
             "Pisces",
           ];
           console.log(
-            `\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`,
+            `\n상승점(Ascendant): ${
+              signs[ascSignIndex]
+            } ${ascDegreeInSign.toFixed(1)}°`
           );
         }
 
@@ -304,7 +310,11 @@ function LifetimeFortune() {
           Object.entries(data.chart.planets).forEach(([name, planet]) => {
             const displayName = planetNames[name] || name;
             console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`,
+              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
+                12
+              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
+                planet.house
+              })`
             );
           });
         }
@@ -312,7 +322,11 @@ function LifetimeFortune() {
         // 포르투나
         if (data.chart.fortuna) {
           console.log(
-            `\nPart of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart.fortuna.house})`,
+            `\nPart of Fortune: ${
+              data.chart.fortuna.sign
+            } ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${
+              data.chart.fortuna.house
+            })`
           );
         }
       }
@@ -347,7 +361,7 @@ function LifetimeFortune() {
         await saveFortuneHistory(
           selectedProfile.id,
           "lifetime",
-          data.share_id ?? undefined,
+          data.share_id ?? undefined
         );
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
@@ -392,7 +406,7 @@ function LifetimeFortune() {
           style={{ position: "relative", zIndex: 1 }}
         >
           <div
-            className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
+            className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
             style={{ position: "relative", zIndex: 1 }}
           >
             {/* 상단: 친구가 공유한 결과임을 안내 + 친구 생년월일만 */}
@@ -400,7 +414,7 @@ function LifetimeFortune() {
               <div className="flex items-start gap-3 mb-4">
                 <div className="text-2xl">🔮</div>
                 <div className="flex-1">
-                  <p className="text-purple-200 text-base mb-2">
+                  <p className="text-black text-base mb-2">
                     친구가 공유한 운세 결과예요.
                   </p>
                   {sharedUserInfo?.birthDate && (
@@ -453,7 +467,9 @@ function LifetimeFortune() {
             내 인생 사용 설명서
           </h2>
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-            내담자님이 태어난 순간, 별들이 그려낸 고유한 설계도입니다. 내가 타고난 기질과 잠재력, 그리고 인생의 방향성을 확인하고 나를 가장 잘 쓰는 방법을 알아보세요.
+            내담자님이 태어난 순간, 별들이 그려낸 고유한 설계도입니다. 내가
+            타고난 기질과 잠재력, 그리고 인생의 방향성을 확인하고 나를 가장 잘
+            쓰는 방법을 알아보세요.
           </p>
         </div>
 
@@ -465,6 +481,7 @@ function LifetimeFortune() {
             onSelectProfile={selectProfile}
             onCreateProfile={() => setShowProfileModal(true)}
             onDeleteProfile={deleteProfile}
+            loading={profilesLoading}
           />
         </div>
 
@@ -483,35 +500,23 @@ function LifetimeFortune() {
                 "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
             }}
           >
-            {loading ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4 sm:h-5 sm:w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>인생을 분석하는 중...</span>
-              </>
-            ) : (
-              <span>진짜미래 확인하기</span>
-            )}
+            <span>진짜미래 확인하기</span>
           </button>
         </form>
+
+        {/* 로딩 모달 */}
+        {loading && (
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.08] min-h-screen p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="운세 분석 중"
+          >
+            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+              <TypewriterLoader />
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">

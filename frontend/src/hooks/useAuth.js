@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import {
+  deleteExpiredDailyFortunes,
+  deleteExpiredYearlyFortunes,
+} from '../services/fortuneService'
 
 export function useAuth() {
   const [user, setUser] = useState(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const isInitialized = useRef(false)
+  const previousUserId = useRef(null)
 
   useEffect(() => {
     if (!supabase) {
@@ -26,6 +31,19 @@ export function useAuth() {
         localStorage.removeItem('birth_info_partner')
       }
       
+      // 새로 로그인한 경우 만료된 운세 삭제
+      if (newUser && previousUserId.current !== newUser.id) {
+        deleteExpiredDailyFortunes(newUser.id).catch((err) => {
+          console.error('만료된 데일리 운세 삭제 실패:', err)
+        })
+        deleteExpiredYearlyFortunes(newUser.id).catch((err) => {
+          console.error('만료된 1년 운세 삭제 실패:', err)
+        })
+        previousUserId.current = newUser.id
+      } else if (!newUser) {
+        previousUserId.current = null
+      }
+
       // 중복 상태 업데이트 방지: 동일한 유저 ID면 상태 업데이트 안 함
       setUser((currentUser) => {
         if (currentUser?.id === newUser?.id) {

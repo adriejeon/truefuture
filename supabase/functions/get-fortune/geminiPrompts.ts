@@ -5,6 +5,7 @@ import {
   ProfectionData,
   SolarReturnOverlay,
 } from "./types.ts";
+import type { SynastryResult } from "./utils/synastryCalculator.ts";
 
 /**
  * 🌟 진짜 미래(Real Future) 점성술 프롬프트 모듈
@@ -282,62 +283,213 @@ ${COMMON_RULES}
 }
 
 /**
+ * 차트 데이터를 간단한 문자열로 포맷팅하는 헬퍼 함수
+ */
+function formatChart(chart: ChartData): string {
+  const ascSign = getSignFromLongitude(
+    chart.houses?.angles?.ascendant ?? 0
+  ).sign;
+  
+  const planets = Object.entries(chart.planets)
+    .map(([name, planet]) => {
+      return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`;
+    })
+    .join("\n");
+
+  return `상승점(Ascendant): ${ascSign}
+
+행성 위치:
+${planets}
+
+Part of Fortune: ${chart.fortuna.sign} ${chart.fortuna.degreeInSign.toFixed(1)}° (House ${chart.fortuna.house})`;
+}
+
+/**
+ * getSignFromLongitude 헬퍼 함수 (간단 버전)
+ */
+function getSignFromLongitude(longitude: number): { sign: string } {
+  const SIGNS = [
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+  ];
+  const normalized = ((longitude % 360) + 360) % 360;
+  const signIndex = Math.floor(normalized / 30);
+  return { sign: SIGNS[signIndex] };
+}
+
+/**
  * 3. COMPATIBILITY (궁합) 프롬프트
  * * 핵심: 시너스트리(Synastry) 기법.
  * 노하우: 달-달 관계(정서), 금성-화성(케미), 흉각(충돌).
+ * 
+ * @param natalData1 - 내담자님(User 1)의 차트 데이터
+ * @param natalData2 - 상대방(User 2)의 차트 데이터
+ * @param synastryResult - 코드로 계산된 궁합 분석 결과
  */
-export function getCompatibilityPrompt(): string {
+export function getCompatibilityPrompt(
+  natalData1: ChartData,
+  natalData2: ChartData,
+  synastryResult: SynastryResult
+): string {
+  // 1. 차트 데이터 포맷팅
+  const chart1Formatted = formatChart(natalData1);
+  const chart2Formatted = formatChart(natalData2);
+
+  // 2. 계산된 결과 포맷팅 (업그레이드 버전)
+  const moon = synastryResult.moonRulerConnection;
+  const lot = synastryResult.marriageLotConnection;
+  const adjustment = synastryResult.beneficMaleficAdjustment;
+
+  // Moon Bond 포맷팅 (2단계 검증 결과)
+  const aToBMoonType = moon.aToB.type === "Destiny" ? "🔥 Destiny" : moon.aToB.type === "Potential" ? "✅ Potential" : "❌ None";
+  const bToAMoonType = moon.bToA.type === "Destiny" ? "🔥 Destiny" : moon.bToA.type === "Potential" ? "✅ Potential" : "❌ None";
+  
+  const aToBMoonDetails = moon.aToB.type !== "None"
+    ? `${aToBMoonType} - ${moon.aToB.description}${moon.aToB.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${moon.aToB.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
+    : `❌ None - ${moon.aToB.description}`;
+  
+  const bToAMoonDetails = moon.bToA.type !== "None"
+    ? `${bToAMoonType} - ${moon.bToA.description}${moon.bToA.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${moon.bToA.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
+    : `❌ None - ${moon.bToA.description}`;
+
+  const moonMutualStatus = moon.isMutual
+    ? "🔥🔥 YES (쌍방 Destiny - 운명적 인연 확정)"
+    : moon.aToB.type === "Destiny" || moon.bToA.type === "Destiny"
+    ? "🔥 Single Destiny (단방향 운명적 연결)"
+    : moon.aToB.type === "Potential" || moon.bToA.type === "Potential"
+    ? "✅ Potential (예선 통과, 본선 미달)"
+    : "❌ None (연결 없음)";
+
+  // Lot Bond 포맷팅 (2단계 검증 결과)
+  const aToBLotType = lot.aToB.type === "Destiny" ? "🔥 Destiny" : lot.aToB.type === "Potential" ? "✅ Potential" : "❌ None";
+  const bToALotType = lot.bToA.type === "Destiny" ? "🔥 Destiny" : lot.bToA.type === "Potential" ? "✅ Potential" : "❌ None";
+  
+  const aToBLotDetails = lot.aToB.type !== "None"
+    ? `${aToBLotType} - ${lot.aToB.description}${lot.aToB.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${lot.aToB.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
+    : `❌ None - ${lot.aToB.description}`;
+  
+  const bToALotDetails = lot.bToA.type !== "None"
+    ? `${bToALotType} - ${lot.bToA.description}${lot.bToA.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${lot.bToA.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
+    : `❌ None - ${lot.bToA.description}`;
+
+  const lotMutualStatus = lot.isMutual
+    ? "🔥🔥 YES (쌍방 Destiny - 결혼 적합성 매우 높음)"
+    : lot.aToB.type === "Destiny" || lot.bToA.type === "Destiny"
+    ? "🔥 Single Destiny (단방향 운명적 연결)"
+    : lot.aToB.type === "Potential" || lot.bToA.type === "Potential"
+    ? "✅ Potential (예선 통과, 본선 미달)"
+    : "❌ None (연결 없음)";
+
+  // 길흉 보정 포맷팅
+  const venusMarsInfo: string[] = [];
+  if (adjustment.venusMarsHarmony.aVenusBMars) {
+    const asp = adjustment.venusMarsHarmony.aVenusBMars;
+    venusMarsInfo.push(`내담자님 금성 ${asp.type} 상대방 화성 (orb ${asp.orb.toFixed(1)}°)`);
+  }
+  if (adjustment.venusMarsHarmony.bVenusAMars) {
+    const asp = adjustment.venusMarsHarmony.bVenusAMars;
+    venusMarsInfo.push(`상대방 금성 ${asp.type} 내담자님 화성 (orb ${asp.orb.toFixed(1)}°)`);
+  }
+
+  const saturnInfo: string[] = [];
+  adjustment.saturnHardAspects.aSaturnToBSensitive.forEach((asp) => {
+    saturnInfo.push(`내담자님 토성 ${asp.type} 상대방 ${asp.planetB} (orb ${asp.orb.toFixed(1)}°)`);
+  });
+  adjustment.saturnHardAspects.bSaturnToASensitive.forEach((asp) => {
+    saturnInfo.push(`상대방 토성 ${asp.type} 내담자님 ${asp.planetB} (orb ${asp.orb.toFixed(1)}°)`);
+  });
+
+  // Detriment/Fall 갈등 요소 포맷팅
+  const conflictInfo: string[] = [];
+  adjustment.conflicts.forEach((conflict) => {
+    conflictInfo.push(`⚠️ ${conflict.reason} (${conflict.type}, 점수 ${conflict.score})`);
+  });
+
+  const calculatedReport = `
+1. 🌙 Moon Ruler Connection (Step 1 결과 - 2단계 검증):
+   - 내담자 → 상대방: ${aToBMoonDetails}
+   - 상대방 → 내담자: ${bToAMoonDetails}
+   - 상호 연결 여부: ${moonMutualStatus}
+   - 점수: ${moon.isMutual ? "+40" : moon.aToB.type === "Destiny" || moon.bToA.type === "Destiny" ? "+20" : moon.aToB.score + moon.bToA.score > 0 ? `+${moon.aToB.score + moon.bToA.score}` : "0"}
+
+2. 💍 Marriage Lot Connection (Step 2 결과 - 2단계 검증):
+   - 내담자 → 상대방: ${aToBLotDetails}
+   - 상대방 → 내담자: ${bToALotDetails}
+   - 상호 연결 여부: ${lotMutualStatus}
+   - 점수: ${lot.isMutual ? "+40" : lot.aToB.type === "Destiny" || lot.bToA.type === "Destiny" ? "+20" : lot.aToB.score + lot.bToA.score > 0 ? `+${lot.aToB.score + lot.bToA.score}` : "0"}
+
+3. ⚡ 길흉 보정 (Step 3, 4 결과):
+   - 금성-화성 조화: ${venusMarsInfo.length > 0 ? venusMarsInfo.join(", ") : "특이 사항 없음"}
+   - 토성 흉각: ${saturnInfo.length > 0 ? saturnInfo.join(", ") : "특이 사항 없음"}
+   - Detriment/Fall 갈등 요소: ${conflictInfo.length > 0 ? conflictInfo.join(" | ") : "특이 사항 없음"}
+   - 갈등 점수: ${adjustment.conflictScore}
+`.trim();
+
+  // 3. 최종 프롬프트 반환
   return `
 당신은 관계 심리와 고전 점성술의 심오한 원리에 통달한 전문가 '진짜 미래'입니다.
-제공된 두 사람(User 1, User 2)의 차트 데이터를 바탕으로, 아래 **[분석 프로토콜]**을 엄격히 준수하여 '궁합(Synastry)'을 분석하십시오.
+제공된 두 사람(User 1, User 2)의 차트 데이터와 **[🧮 정밀 계산된 궁합 데이터]**를 바탕으로, 아래 **[출력 구조]**를 엄격히 준수하여 '궁합(Synastry)'을 분석하십시오.
+
 사용자 1을 표현할 때는 '내담자님'이라고 표현하고, 사용자 2를 표현할 때는 '상대방' 이라고 표햔합니다.
 중요: 절대 '달의 룰러', '어센던트', '디센던트'와 같은 점성학 용어를 사용하지 않습니다. 
 
 ${COMMON_RULES}
 
-**[⚠️ 중요: 내부 분석 로직 (출력 금지)]**
-**User Prompt에 제공된 [📋 내담자님(User 1) 기본 정보], [📋 상대방(User 2) 기본 정보], 그리고 각각의 [🌌 Natal Chart]를 반드시 참고하세요.**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[📋 내담자님(User 1) Natal Chart]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${chart1Formatted}
 
-당신은 출력을 작성하기 전에, 반드시 다음 4단계의 논리적 검증을 내부적으로 수행해야 합니다. (이 과정은 출력하지 말고 결과만 최종 답변에 반영하십시오.)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[📋 상대방(User 2) Natal Chart]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${chart2Formatted}
 
-1.  **Step 1: 달(Moon)의 룰러 추적 (Deep Connection)**
-    * A의 달이 위치한 사인의 주인(Domicile Ruler)이 B의 차트 앵글(1, 4, 7, 10하우스)에 있는지 확인.
-    * 반대로 B의 달의 룰러가 A의 앵글에 있는지 확인.
-    * *판단:* 하나라도 해당되면 '강력한 본능적 이끌림'으로 간주.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[🧮 정밀 계산된 궁합 데이터 (Calculated Data)]
+**이 데이터는 정확한 알고리즘에 의해 계산된 팩트입니다. 분석의 절대적인 기준(Ground Truth)으로 삼으십시오.**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${calculatedReport}
 
-2.  **Step 2: 결혼의 랏(Lot) 룰러 추적 (Marriage Reality)**
-    * A와 B 각각의 '결혼의 랏(Lot of Marriage)' 위치를 파악하고 그 주인(Ruler)을 찾음.
-    * 그 룰러가 상대방 차트의 앵글에 있는지 확인.
-    * *판단:* 해당되면 '결혼 생활 및 현실적 결합의 안정성'이 높음으로 간주.
+4. 🏆 Final Calculated Score: **${synastryResult.overallScore}점 / 100점**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-3.  **Step 3: 애스펙트(Aspect) 교차 검증 (Realization)**
-    * Step 1, 2에서 확인된 '핵심 룰러'가 상대방의 주요 감응점(태양, 달, Asc)과 각도(Conjunction, Trine, Square, Opposition)를 맺는지 확인.
-    * *판단:* 앵글에 있고 각까지 맺으면 '피할 수 없는 인연'으로 확정.
+**[⚠️ 중요: 분석 지침]**
+당신은 위 **[🧮 정밀 계산된 궁합 데이터]**를 읽고 해석(Translation)하는 역할을 수행합니다.
 
-4.  **Step 4: 길흉 보정 (Adjustment)**
-    * 금성-화성의 조화(매력도)와 토성의 흉각(장애물)을 확인하여 최종 톤앤매너 결정.
+1. **점수 산정:** 이미 계산된 **${synastryResult.overallScore}점**을 그대로 사용하십시오. 임의로 변경하지 마십시오.
+2. **Step 1 (운명적 끌림):** 위 데이터의 '1. Moon Ruler Connection' 내용을 바탕으로 작성하십시오.
+   - **Destiny (본선 통과):** 룰러가 앵글에 있으며 주요 감응점(Asc/Dsc/Sun/Moon)과 5도 이내 애스펙트를 맺는 경우. 매우 강력한 운명적 인연으로 묘사하십시오.
+   - **Potential (예선 통과):** 룰러가 앵글에 있지만 주요 감응점과의 애스펙트가 없는 경우. 잠재적 인연으로 묘사하십시오.
+   - **쌍방 Destiny:** 양방향 모두 Destiny일 경우 "피할 수 없는 인연"으로 강조하십시오.
+3. **Step 2 (결혼 적합성):** 위 데이터의 '2. Marriage Lot Connection' 내용을 바탕으로 작성하십시오.
+   - **Destiny:** 결혼 가능성이 매우 높음. 실제 결혼 생활에서 안정적일 가능성 높음.
+   - **Potential:** 결혼 가능성은 있으나 Destiny보다는 낮음.
+4. **Step 3 & 4 (갈등 및 솔루션):** 위 데이터의 '3. 길흉 보정'을 참고하여 갈등 요소와 솔루션을 도출하십시오.
+   - **Detriment/Fall 갈등:** 달이 싫어하는 행성이 상대방의 앵글에 있거나 주요 감응점과 애스펙트를 맺는 경우. 구체적으로 어떤 상황에서 불편함이 발생할지 예시를 들어 설명하십시오.
+   - **토성 흉각:** 토성이 주요 감응점과 Square/Opposition을 맺는 경우. 현실적 장애물로 설명하십시오.
 
 [출력 구조]
-## ❤️ 궁합 점수: OO점 / 100점
+## ❤️ 궁합 점수: ${synastryResult.overallScore}점 / 100점
 > (최종 궁합 한 줄 요약)
-(본문: Step 1~3의 충족 개수와 강도를 종합하여 산정함. 이 인연이 스쳐 가는 인연인지, 평생의 배필인지에 대한 최종적인 통찰)
+(본문: 위 계산된 점수와 데이터의 종합적인 강도를 근거로 작성. 이 인연이 스쳐 가는 인연인지, 평생의 배필인지에 대한 최종적인 통찰)
 
 ## 🧲 운명적 끌림 (인연의 깊이)
 > (끌림에 대한 한 줄 요약)
-(본문: Step 1 '달의 룰러' 분석 결과 반영. 왜 서로에게 강렬하게 끌리는지, 그것이 상대의 앵글(삶의 기둥)을 건드리기 때문임을 설명)
+(본문: [Calculated Data]의 'Moon Ruler Connection' 결과 반영. 왜 서로에게 강렬하게 끌리는지, 그것이 상대의 앵글(삶의 기둥)을 건드리기 때문임을 설명)
 
 ## 💍 결혼 및 현실적 적합성
 > (결혼 및 현실적 적합성 한 줄 요약)
-(본문: Step 2 '결혼의 랏' 분석 결과 반영. 연애 감정을 넘어, 실제 결혼 생활이나 동거 시 현실적인 흐름이 어떨지 설명)
+(본문: [Calculated Data]의 'Marriage Lot Connection' 결과 반영. 연애 감정을 넘어, 실제 결혼 생활이나 동거 시 현실적인 흐름이 어떨지 설명)
 
 ## ⚡ 주의해야 할 갈등 요소
 > (갈등 요소 한 줄 요약)
-(본문: Step 4의 토성/화성 흉각 및 기질적 차이 분석. 구체적으로 어떤 상황에서 부딪힐지 예시를 들어 경고)
+(본문: [Calculated Data]의 'Key Aspects' 중 토성/화성 흉각 및 기질적 차이 분석. 구체적으로 어떤 상황에서 부딪힐지 예시를 들어 경고)
 
 ## 🔑 관계 유지를 위한 솔루션
 > (솔루션 한 줄 요약)
 (본문: 위 분석을 바탕으로 이 관계를 오래 유지하기 위해 서로가 당장 실천해야 할 구체적 행동 지침)
-`;
+`.trim();
 }
 
 /**
@@ -599,15 +751,29 @@ ${categoryGuidelines}
 
 /**
  * FortuneType에 따라 적절한 프롬프트를 반환하는 메인 함수
+ * COMPATIBILITY 케이스의 경우 차트 데이터와 synastryResult가 필요합니다.
  */
-export function getSystemInstruction(fortuneType: FortuneType): string {
+export function getSystemInstruction(
+  fortuneType: FortuneType,
+  natalData1?: ChartData,
+  natalData2?: ChartData,
+  synastryResult?: SynastryResult
+): string {
   switch (fortuneType) {
     case FortuneType.DAILY:
       return getDailyPrompt();
     case FortuneType.LIFETIME:
       return getLifetimePrompt();
     case FortuneType.COMPATIBILITY:
-      return getCompatibilityPrompt();
+      if (natalData1 && natalData2 && synastryResult) {
+        return getCompatibilityPrompt(natalData1, natalData2, synastryResult);
+      }
+      // 폴백: 기본 프롬프트 (호환성을 위해 유지)
+      return getCompatibilityPrompt(
+        {} as ChartData,
+        {} as ChartData,
+        {} as SynastryResult
+      );
     case FortuneType.YEARLY:
       return getYearlyPrompt();
     case FortuneType.CONSULTATION:

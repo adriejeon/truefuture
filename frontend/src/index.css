@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --color-sub-text: #b9b9d9; /* colors.js에서 동기화 필요 */
+    --color-sub-text: #343261; /* colors.js에서 동기화 필요 */
   }
 }
 
@@ -14,9 +14,11 @@
 
 body {
   margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
-    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  background-color: #343261;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -189,4 +191,40 @@ a {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 칩 스크롤바: 기본적으로 숨김, 스크롤 중에만 표시 */
+.chip-scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.chip-scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.chip-scrollbar-show::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+  height: 8px;
+}
+
+.chip-scrollbar-show::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chip-scrollbar-show::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.chip-scrollbar-show::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.chip-scrollbar-show {
+  -ms-overflow-style: auto;
+  scrollbar-width: thin;
 }

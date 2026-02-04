@@ -4,7 +4,8 @@
  */
 
 const GEO_NAMES_USERNAME = "adriejeon";
-const DEBOUNCE_DELAY = 400; // 400ms 디바운스
+const DEBOUNCE_DELAY = 200; // 200ms 디바운스 (더 빠른 반응)
+const MIN_QUERY_LENGTH = 2; // 최소 2글자 이상 입력해야 검색
 
 /**
  * 도시 검색 자동완성 클래스
@@ -24,6 +25,7 @@ class CityAutocomplete {
     this.isSelecting = false; // 도시 선택 중 플래그 (재검색 방지)
     this.isSearching = false; // 검색 중 플래그 (중복 호출 방지)
     this.lastSearchQuery = null; // 마지막 검색 쿼리 (중복 호출 방지)
+    this.loadingIndicator = null; // 로딩 인디케이터 요소
 
     this.init();
   }
@@ -92,12 +94,22 @@ class CityAutocomplete {
     // 빈 값이면 드롭다운 숨기기
     if (!value || value.trim().length === 0) {
       this.hideDropdown();
+      this.hideLoadingIndicator();
+      return;
+    }
+
+    const trimmedValue = value.trim();
+
+    // 최소 길이 체크
+    if (trimmedValue.length < MIN_QUERY_LENGTH) {
+      this.hideDropdown();
+      this.hideLoadingIndicator();
       return;
     }
 
     // 디바운스 적용
     this.debounceTimer = setTimeout(() => {
-      this.searchCities(value.trim());
+      this.searchCities(trimmedValue);
     }, DEBOUNCE_DELAY);
   }
 
@@ -114,7 +126,7 @@ class CityAutocomplete {
         e.preventDefault();
         this.selectedIndex = Math.min(
           this.selectedIndex + 1,
-          this.searchResults.length - 1,
+          this.searchResults.length - 1
         );
         this.highlightItem(this.selectedIndex);
         break;
@@ -154,10 +166,15 @@ class CityAutocomplete {
     this.isSearching = true;
     this.lastSearchQuery = query;
 
+    // 로딩 인디케이터 표시
+    this.showLoadingIndicator();
+
     try {
       // HTTPS를 사용하거나 CORS 프록시를 통해 호출
       // GeoNames는 CORS를 지원하지 않으므로, 필요시 백엔드 프록시를 사용해야 할 수 있습니다
-      const url = `https://secure.geonames.org/searchJSON?q=${encodeURIComponent(query)}&maxRows=10&username=${GEO_NAMES_USERNAME}&style=FULL`;
+      const url = `https://secure.geonames.org/searchJSON?q=${encodeURIComponent(
+        query
+      )}&maxRows=10&username=${GEO_NAMES_USERNAME}&style=FULL`;
 
       const response = await fetch(url);
 
@@ -173,6 +190,9 @@ class CityAutocomplete {
         return;
       }
 
+      // 로딩 인디케이터 숨기기
+      this.hideLoadingIndicator();
+
       if (data.geonames && data.geonames.length > 0) {
         this.searchResults = data.geonames;
         this.displayResults(data.geonames);
@@ -181,6 +201,7 @@ class CityAutocomplete {
         this.hideDropdown();
       }
     } catch (error) {
+      this.hideLoadingIndicator();
       this.searchResults = [];
       this.hideDropdown();
     } finally {
@@ -244,7 +265,7 @@ class CityAutocomplete {
    */
   highlightItem(index) {
     const items = this.dropdownElement.querySelectorAll(
-      ".city-autocomplete-item",
+      ".city-autocomplete-item"
     );
     items.forEach((item, i) => {
       if (i === index) {
@@ -340,6 +361,55 @@ class CityAutocomplete {
   }
 
   /**
+   * 로딩 인디케이터 표시
+   */
+  showLoadingIndicator() {
+    if (!this.dropdownElement) return;
+
+    // 기존 드롭다운 내용 숨기기
+    this.dropdownElement.classList.remove("city-autocomplete-dropdown-hidden");
+    this.dropdownElement.innerHTML = "";
+
+    // 로딩 아이템 생성
+    const loadingItem = document.createElement("li");
+    loadingItem.className = "city-autocomplete-item city-autocomplete-loading";
+    loadingItem.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 0.5rem; color: rgb(148, 163, 184);">
+        <div style="width: 16px; height: 16px; border: 2px solid rgb(148, 163, 184); border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
+        <span>검색 중...</span>
+      </div>
+    `;
+
+    // 스타일 추가 (한 번만)
+    if (!document.getElementById("city-autocomplete-loading-style")) {
+      const style = document.createElement("style");
+      style.id = "city-autocomplete-loading-style";
+      style.textContent = `
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .city-autocomplete-loading {
+          pointer-events: none;
+          cursor: default;
+        }
+        .city-autocomplete-loading:hover {
+          background-color: transparent !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    this.dropdownElement.appendChild(loadingItem);
+  }
+
+  /**
+   * 로딩 인디케이터 숨기기
+   */
+  hideLoadingIndicator() {
+    // 로딩 인디케이터는 displayResults에서 자동으로 교체되므로 별도 처리 불필요
+  }
+
+  /**
    * 드롭다운 숨기기
    */
   hideDropdown() {
@@ -347,6 +417,7 @@ class CityAutocomplete {
       this.dropdownElement.classList.add("city-autocomplete-dropdown-hidden");
     }
     this.selectedIndex = -1;
+    this.hideLoadingIndicator();
   }
 
   /**
@@ -356,7 +427,7 @@ class CityAutocomplete {
     return (
       this.dropdownElement &&
       !this.dropdownElement.classList.contains(
-        "city-autocomplete-dropdown-hidden",
+        "city-autocomplete-dropdown-hidden"
       )
     );
   }

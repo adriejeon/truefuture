@@ -62,6 +62,7 @@ import {
   calculateProgressedEventsTimeline,
   calculateProfectionTimeline,
 } from "./utils/astrologyCalculator.ts";
+import { calculateSynastry } from "./utils/synastryCalculator.ts";
 
 // Neo4j 전문 해석 데이터 조회
 import {
@@ -436,7 +437,8 @@ async function getInterpretation(
   transitMoonHouse?: number,
   solarReturnChartData?: any,
   profectionData?: any,
-  solarReturnOverlay?: any
+  solarReturnOverlay?: any,
+  synastryResult?: any
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -462,7 +464,18 @@ async function getInterpretation(
       isDayChart
     );
 
-    const systemInstructionText = getSystemInstruction(fortuneType);
+    // COMPATIBILITY 케이스의 경우 synastryResult를 전달
+    const systemInstructionText =
+      fortuneType === FortuneType.COMPATIBILITY &&
+      compatibilityChartData &&
+      synastryResult
+        ? getSystemInstruction(
+            fortuneType,
+            chartData as ChartData,
+            compatibilityChartData as ChartData,
+            synastryResult
+          )
+        : getSystemInstruction(fortuneType);
 
     const systemInstruction = {
       parts: [
@@ -1484,11 +1497,26 @@ ${systemContext}`;
         );
       }
 
+      // 궁합 분석 계산 (성별은 기본값으로 처리, 필요시 requestData에서 가져올 수 있음)
+      const synastryResult = calculateSynastry(
+        chartData1,
+        chartData2,
+        "M", // user1 gender (기본값, 필요시 requestData에서 가져오기)
+        "M" // user2 gender (기본값, 필요시 requestData에서 가져오기)
+      );
+
       const interpretation = await getInterpretation(
         chartData1,
         fortuneType,
         apiKey,
-        chartData2
+        chartData2,
+        undefined, // transitChartData
+        undefined, // aspects
+        undefined, // transitMoonHouse
+        undefined, // solarReturnChartData
+        undefined, // profectionData
+        undefined, // solarReturnOverlay
+        synastryResult // synastryResult 추가
       );
 
       if (!interpretation.success || interpretation.error) {
@@ -1552,6 +1580,9 @@ ${systemContext}`;
       console.log(
         `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`
       );
+      console.log(
+        `🧮 [COMPATIBILITY] Synastry Result 점수: ${synastryResult.overallScore}점`
+      );
       return new Response(
         JSON.stringify({
           success: true,
@@ -1560,6 +1591,7 @@ ${systemContext}`;
           interpretation: interpretation.interpretation,
           fortuneType: fortuneType,
           share_id: shareId || null, // 공유 ID 추가 (null로 명시)
+          synastryResult: synastryResult, // 궁합 분석 계산 결과 추가
         }),
         {
           status: 200,

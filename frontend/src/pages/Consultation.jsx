@@ -90,6 +90,11 @@ function Consultation() {
   const [selectedTopic, setSelectedTopic] = useState("LOVE");
   const [userQuestion, setUserQuestion] = useState("");
   const [error, setError] = useState("");
+  const [selectedChipIndex, setSelectedChipIndex] = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const chipScrollRef = useRef(null);
+  const scrollTimeoutRef = useRef(null);
 
   // 공유 링크로 들어온 경우
   const [searchParams, setSearchParams] = useSearchParams();
@@ -100,6 +105,42 @@ function Consultation() {
   const { resultId } = useParams();
   const navigate = useNavigate();
   const [historyView, setHistoryView] = useState(null); // { question, interpretation }
+
+  // 칩 스크롤 감지
+  useEffect(() => {
+    const scrollContainer = chipScrollRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      const scrollLeft = scrollContainer.scrollLeft;
+      setIsScrolled(scrollLeft > 0);
+
+      // 스크롤 중 상태로 설정
+      setIsScrolling(true);
+
+      // 기존 타이머 클리어
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // 스크롤이 멈춘 후 500ms 후에 스크롤바 숨김
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 500);
+    };
+
+    // 초기 상태 설정
+    setIsScrolled(false);
+    setIsScrolling(false);
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [selectedTopic]);
 
   // 프로필 데이터를 API 형식으로 변환 (성별: 백엔드/제미나이용 M/F)
   const convertProfileToApiFormat = (profile) => {
@@ -260,7 +301,8 @@ function Consultation() {
       throw new Error("프로필을 선택해주세요.");
     }
     if (!userQuestion.trim()) throw new Error("질문을 입력해주세요.");
-    if (userQuestion.trim().length > 1000) throw new Error("질문은 1000자 이내로 입력해주세요.");
+    if (userQuestion.trim().length > 1000)
+      throw new Error("질문은 1000자 이내로 입력해주세요.");
 
     const formData = convertProfileToApiFormat(selectedProfile);
     if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
@@ -278,8 +320,10 @@ function Consultation() {
       { body: requestBody }
     );
 
-    if (functionError) throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-    if (!data || data.error) throw new Error(data?.error || "서버 오류가 발생했습니다.");
+    if (functionError)
+      throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+    if (!data || data.error)
+      throw new Error(data?.error || "서버 오류가 발생했습니다.");
 
     const parsedData = parseFortuneResult(data.interpretation);
     const answer = {
@@ -302,6 +346,7 @@ function Consultation() {
       );
     }
     setUserQuestion("");
+    setSelectedChipIndex(null);
     return answer;
   }, [user, selectedProfile, selectedTopic, userQuestion]);
 
@@ -320,7 +365,7 @@ function Consultation() {
   // 로그인 필요
   if (!user) {
     return (
-      <div className="w-full max-w-[600px] mx-auto px-6 py-12">
+      <div className="w-full max-w-[600px] mx-auto px-4 py-12">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-4">
             로그인이 필요합니다
@@ -330,7 +375,16 @@ function Consultation() {
           </p>
           <a
             href="/login"
-            className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            className="inline-block px-6 py-3 text-white font-medium rounded-lg transition-colors"
+            style={{
+              backgroundColor: colors.primary,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#C99A2F";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = colors.primary;
+            }}
           >
             로그인하기
           </a>
@@ -344,7 +398,7 @@ function Consultation() {
     return (
       <div className="w-full flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-400 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-slate-400">공유된 상담을 불러오는 중...</p>
         </div>
       </div>
@@ -355,13 +409,13 @@ function Consultation() {
   if (historyView) {
     return (
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
-        <div className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24">
+        <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
           <div className="py-8 sm:py-12">
             {/* 상단: 새로운 질문 버튼 */}
             <div className="mb-6">
               <button
                 onClick={() => navigate("/consultation")}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-black rounded-lg transition-colors"
               >
                 <svg
                   className="w-4 h-4"
@@ -385,8 +439,9 @@ function Consultation() {
               <div className="flex items-start gap-3">
                 <div className="text-2xl">💬</div>
                 <div className="flex-1">
-                  <p className="text-slate-300 text-sm mb-1">내 질문</p>
-                  <p className="text-white font-medium">{historyView.question}</p>
+                  <p className="text-white font-medium">
+                    {historyView.question}
+                  </p>
                 </div>
               </div>
             </div>
@@ -395,15 +450,17 @@ function Consultation() {
             {historyView.parsedData ? (
               <div className="space-y-5 mb-8">
                 {/* 요약 카드 */}
-                <div className="p-6 bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-purple-500/50 rounded-xl shadow-xl">
+                <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                   <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
                     {historyView.parsedData.summary?.title || "결론"}
                   </h2>
                   {historyView.parsedData.summary?.score != null && (
                     <div className="mb-4">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-slate-300">실현 가능성</span>
-                        <span className="text-2xl font-bold text-purple-300">
+                        <span className="text-sm text-blue-200">
+                          실현 가능성
+                        </span>
+                        <span className="text-2xl font-bold text-white">
                           {historyView.parsedData.summary.score}%
                         </span>
                         <span className="flex gap-0.5" aria-hidden>
@@ -411,9 +468,13 @@ function Consultation() {
                             <span
                               key={i}
                               className={
-                                i <= Math.round((historyView.parsedData.summary?.score || 0) / 20)
+                                i <=
+                                Math.round(
+                                  (historyView.parsedData.summary?.score || 0) /
+                                    20
+                                )
                                   ? "text-amber-400"
-                                  : "text-slate-600"
+                                  : "text-[#121230]"
                               }
                             >
                               ★
@@ -421,68 +482,86 @@ function Consultation() {
                           ))}
                         </span>
                       </div>
-                      <div className="w-full bg-slate-700/50 rounded-full h-2.5">
+                      <div className="w-full bg-[#121230] rounded-full h-2.5">
                         <div
-                          className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-500"
+                          className="h-2.5 rounded-full transition-all duration-500"
                           style={{
-                            width: `${historyView.parsedData.summary?.score || 0}%`,
+                            backgroundColor: colors.primary,
+                            width: `${
+                              historyView.parsedData.summary?.score || 0
+                            }%`,
                           }}
                         />
                       </div>
                     </div>
                   )}
-                  <div className="flex flex-wrap gap-2">
-                    {(historyView.parsedData.summary?.keywords || []).map((keyword, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1.5 bg-purple-600/40 border border-purple-400/50 rounded-full text-xs font-medium text-purple-100"
-                      >
-                        {keyword}
-                      </span>
-                    ))}
+                  <div className="flex flex-wrap gap-1">
+                    {(historyView.parsedData.summary?.keywords || []).map(
+                      (keyword, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
+                        >
+                          {keyword}
+                        </span>
+                      )
+                    )}
                   </div>
                 </div>
 
                 {/* 타임라인 */}
-                {historyView.parsedData.timeline && historyView.parsedData.timeline.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                      📅 타임라인
-                    </h3>
-                    <div className="space-y-3">
-                      {historyView.parsedData.timeline.map((item, idx) => {
-                        const isGood = item.type === "good";
-                        const isBad = item.type === "bad";
-                        const bgColor = isGood
-                          ? "bg-emerald-900/30 border-emerald-500/50"
-                          : isBad
-                          ? "bg-rose-900/30 border-rose-500/50"
-                          : "bg-slate-700/30 border-slate-500/50";
-                        const iconColor = isGood ? "text-emerald-400" : isBad ? "text-rose-400" : "text-slate-400";
-                        return (
-                          <div
-                            key={idx}
-                            className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
-                          >
-                            <div className={`text-xl flex-shrink-0 ${iconColor}`}>
-                              {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
+                {historyView.parsedData.timeline &&
+                  historyView.parsedData.timeline.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        📅 타임라인
+                      </h3>
+                      <div className="space-y-3">
+                        {historyView.parsedData.timeline.map((item, idx) => {
+                          const isGood = item.type === "good";
+                          const isBad = item.type === "bad";
+                          const bgColor = isGood
+                            ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
+                            : isBad
+                            ? "bg-rose-900/30 border-rose-500/50"
+                            : "bg-slate-700/30 border-slate-500/50";
+                          const iconColor = isGood
+                            ? "text-[#F2ACAC]"
+                            : isBad
+                            ? "text-rose-400"
+                            : "text-slate-400";
+                          return (
+                            <div
+                              key={idx}
+                              className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                            >
+                              <div
+                                className={`text-xl flex-shrink-0 ${iconColor}`}
+                              >
+                                {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-white mb-1">
+                                  {item.date}
+                                </p>
+                                <p className="text-sm text-slate-300 leading-relaxed">
+                                  {item.note}
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-white mb-1">{item.date}</p>
-                              <p className="text-sm text-slate-300 leading-relaxed">{item.note}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* 종합 분석 + 시기 분석 + Action Tip */}
                 <div className="space-y-5">
                   {historyView.parsedData.analysis?.general && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        🔮 종합 분석
+                      </h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                         {historyView.parsedData.analysis.general}
                       </p>
@@ -490,7 +569,9 @@ function Consultation() {
                   )}
                   {historyView.parsedData.analysis?.timing && (
                     <div className="border-t border-slate-600/40 pt-5">
-                      <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        ⏰ 시기 분석
+                      </h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                         {historyView.parsedData.analysis.timing}
                       </p>
@@ -498,8 +579,8 @@ function Consultation() {
                   )}
                   {historyView.parsedData.analysis?.advice && (
                     <div className="border-t border-slate-600/40 pt-5">
-                      <div className="p-4 bg-amber-900/25 border-2 border-amber-500/50 rounded-xl">
-                        <h3 className="text-lg font-semibold text-amber-200 mb-3 flex items-center gap-2">
+                      <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                        <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
                           💡 Action Tip
                         </h3>
                         <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
@@ -512,7 +593,9 @@ function Consultation() {
               </div>
             ) : (
               <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
-                <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                <h3 className="text-lg font-semibold text-white mb-3">
+                  🔮 답변
+                </h3>
                 <div className="prose prose-invert prose-sm sm:prose-base max-w-none text-slate-200">
                   <ReactMarkdown>{historyView.interpretation}</ReactMarkdown>
                 </div>
@@ -530,8 +613,18 @@ function Consultation() {
                     className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
                     title="주소 복사"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                      />
                     </svg>
                   </button>
                   <button
@@ -540,8 +633,18 @@ function Consultation() {
                     className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
                     title="카카오톡 공유하기"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -560,12 +663,10 @@ function Consultation() {
     );
     return (
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
-        <div className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24">
+        <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
           <div className="py-8 sm:py-12">
-            <div className="mb-6 p-4 bg-purple-900/30 border border-purple-600/50 rounded-lg">
-              <p className="text-purple-200 text-sm">
-                친구가 공유한 상담이에요
-              </p>
+            <div className="mb-6 p-4 bg-primary border border-primary rounded-lg">
+              <p className="text-black text-sm">친구가 공유한 상담이에요</p>
             </div>
             <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
               <div className="flex items-start gap-3">
@@ -585,15 +686,17 @@ function Consultation() {
             {sharedConsultation.parsedData ? (
               <div className="space-y-5 mb-8">
                 {/* Header Card */}
-                <div className="p-6 bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-purple-500/50 rounded-xl shadow-xl">
+                <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                   <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
                     {sharedConsultation.parsedData.summary?.title || "결론"}
                   </h2>
                   {sharedConsultation.parsedData.summary?.score != null && (
                     <div className="mb-4">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-slate-300">실현 가능성</span>
-                        <span className="text-2xl font-bold text-purple-300">
+                        <span className="text-sm text-blue-200">
+                          실현 가능성
+                        </span>
+                        <span className="text-2xl font-bold text-white">
                           {sharedConsultation.parsedData.summary.score}%
                         </span>
                         <span className="flex gap-0.5" aria-hidden>
@@ -607,7 +710,7 @@ function Consultation() {
                                     ?.score || 0) / 20
                                 )
                                   ? "text-amber-400"
-                                  : "text-slate-600"
+                                  : "text-[#121230]"
                               }
                             >
                               ★
@@ -615,10 +718,11 @@ function Consultation() {
                           ))}
                         </span>
                       </div>
-                      <div className="w-full bg-slate-700/50 rounded-full h-2.5">
+                      <div className="w-full bg-[#121230] rounded-full h-2.5">
                         <div
-                          className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-500"
+                          className="h-2.5 rounded-full transition-all duration-500"
                           style={{
+                            backgroundColor: colors.primary,
                             width: `${
                               sharedConsultation.parsedData.summary?.score || 0
                             }%`,
@@ -627,13 +731,13 @@ function Consultation() {
                       </div>
                     </div>
                   )}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1">
                     {(
                       sharedConsultation.parsedData.summary?.keywords || []
                     ).map((keyword, idx) => (
                       <span
                         key={idx}
-                        className="px-3 py-1.5 bg-purple-600/40 border border-purple-400/50 rounded-full text-xs font-medium text-purple-100"
+                        className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
                       >
                         {keyword}
                       </span>
@@ -654,12 +758,12 @@ function Consultation() {
                             const isGood = item.type === "good";
                             const isBad = item.type === "bad";
                             const bgColor = isGood
-                              ? "bg-emerald-900/30 border-emerald-500/50"
+                              ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
                               : isBad
                               ? "bg-rose-900/30 border-rose-500/50"
                               : "bg-slate-700/30 border-slate-500/50";
                             const iconColor = isGood
-                              ? "text-emerald-400"
+                              ? "text-[#F2ACAC]"
                               : isBad
                               ? "text-rose-400"
                               : "text-slate-400";
@@ -711,8 +815,8 @@ function Consultation() {
                   </div>
 
                   <div className="border-t border-slate-600/40 pt-5">
-                    <div className="p-4 bg-amber-900/25 border-2 border-amber-500/50 rounded-xl">
-                      <h3 className="text-lg font-semibold text-amber-200 mb-3 flex items-center gap-2">
+                    <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                      <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
                         💡 Action Tip
                       </h3>
                       <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
@@ -743,7 +847,7 @@ function Consultation() {
                 </p>
                 <a
                   href="/login"
-                  className="inline-block px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                  className="inline-block px-6 py-3 bg-primary hover:bg-primary/90 text-black font-medium rounded-lg transition-colors"
                 >
                   로그인하고 상담받기
                 </a>
@@ -752,7 +856,7 @@ function Consultation() {
             {user && (
               <a
                 href="/consultation"
-                className="block text-center py-3 text-purple-300 hover:text-purple-200 text-sm"
+                className="block text-center py-3 text-primary hover:text-primary/80 text-sm"
               >
                 진짜미래로 이동 →
               </a>
@@ -766,17 +870,15 @@ function Consultation() {
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
       <div
-        className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
+        className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
         <div className="py-8 sm:py-12">
           {/* 페이지 소개 */}
           <div className="mb-6 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-              ✨ 진짜미래
-            </h2>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              궁금한 것을 구체적으로 물어보세요. 점성술사 AI가 내담자님의 점성학 차트와 현재 우주의 흐름을 분석하여 진짜 미래를 알려드립니다.
+              궁금한 것을 구체적으로 물어보세요. 점성술사 AI가 내담자님의 점성학
+              차트와 현재 우주의 흐름을 분석하여 진짜 미래를 알려드립니다.
             </p>
           </div>
 
@@ -788,6 +890,7 @@ function Consultation() {
               onSelectProfile={selectProfile}
               onCreateProfile={() => setShowProfileModal(true)}
               onDeleteProfile={deleteProfile}
+              loading={profilesLoading}
             />
           </div>
 
@@ -796,15 +899,22 @@ function Consultation() {
             <label className="block text-sm font-medium text-slate-300 mb-3">
               카테고리 선택
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {TOPIC_OPTIONS.map((option) => (
                 <button
                   key={option.id}
                   type="button"
-                  onClick={() => setSelectedTopic(option.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  onClick={() => {
+                    setSelectedTopic(option.id);
+                    // 토픽 변경 시 선택된 칩 상태 초기화
+                    setSelectedChipIndex(null);
+                    // 스크롤 상태 초기화
+                    setIsScrolled(false);
+                    setIsScrolling(false);
+                  }}
+                  className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     selectedTopic === option.id
-                      ? "bg-purple-600 text-white shadow-lg"
+                      ? "bg-primary text-black shadow-lg"
                       : "bg-slate-700/50 text-slate-300 hover:bg-slate-600/50"
                   }`}
                 >
@@ -816,21 +926,39 @@ function Consultation() {
 
           {/* 질문 도우미 칩 (프리셋 질문) */}
           {PRESET_QUESTIONS[selectedTopic] && (
-            <div className="mb-6">
-              <p className="text-xs text-slate-400 mb-3 flex items-center gap-1">
-                💡 이런 질문은 어떠세요?
+            <div className="mb-6 -mx-4">
+              <p className="text-xs text-slate-400 mb-3 px-4">
+                이런 질문은 어떠세요?
               </p>
-              <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
-                {PRESET_QUESTIONS[selectedTopic].map((question, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setUserQuestion(question)}
-                    className="flex-shrink-0 px-4 py-2 bg-slate-700/40 hover:bg-purple-600/60 border border-slate-600/50 hover:border-purple-500/50 rounded-full text-xs sm:text-sm text-slate-200 hover:text-white transition-all duration-200 whitespace-nowrap shadow-sm hover:shadow-md"
-                  >
-                    {question}
-                  </button>
-                ))}
+              <div
+                ref={chipScrollRef}
+                className={`flex flex-nowrap gap-2 overflow-x-auto pb-2 ${
+                  isScrolling
+                    ? "chip-scrollbar-show scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent"
+                    : "chip-scrollbar-hide"
+                } ${isScrolled ? "" : "pl-4"}`}
+              >
+                {PRESET_QUESTIONS[selectedTopic].map((question, idx) => {
+                  const isSelected =
+                    selectedChipIndex === idx && userQuestion === question;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setUserQuestion(question);
+                        setSelectedChipIndex(idx);
+                      }}
+                      className={`flex-shrink-0 px-4 py-2 border rounded-full text-xs sm:text-sm transition-all duration-200 whitespace-nowrap shadow-sm hover:shadow-md ${
+                        isSelected
+                          ? "bg-primary border-primary text-black"
+                          : "bg-slate-700/40 hover:bg-primary border-slate-600/50 hover:border-primary text-slate-200 hover:text-black"
+                      }`}
+                    >
+                      {question}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -842,11 +970,15 @@ function Consultation() {
             </label>
             <textarea
               value={userQuestion}
-              onChange={(e) => setUserQuestion(e.target.value)}
+              onChange={(e) => {
+                setUserQuestion(e.target.value);
+                // 사용자가 직접 입력하면 선택 상태 해제
+                setSelectedChipIndex(null);
+              }}
               placeholder="구체적으로 질문할수록 더 정확한 답변을 받을 수 있어요. (예: 지금 만나는 사람과 내년에 결혼할 수 있을까요?)"
               maxLength={1000}
               rows={5}
-              className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
             />
             <div className="flex items-center justify-between mt-2">
               <span className="text-xs text-slate-400">
@@ -863,194 +995,218 @@ function Consultation() {
             <FortuneProcess
               onRequest={requestConsultation}
               renderResult={(answer) => (
-            <div className="mb-8">
-              {answer.shareId && (
-                <div className="flex items-center justify-end gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyLink(answer.shareId)}
-                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                    title="주소 복사"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleKakaoShare(answer.shareId)}
-                    className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                    title="카카오톡 공유하기"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-              <div className="mb-4 p-4 bg-purple-900/30 border border-purple-600/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl flex-shrink-0" aria-hidden>
-                    {TOPIC_OPTIONS.find((t) => t.id === answer.topic)?.emoji}
-                  </span>
-                  <p className="text-white font-medium flex-1 min-w-0">{answer.question}</p>
-                </div>
-              </div>
-
-              {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
-              {answer.parsedData ? (
-                <div className="space-y-5">
-                  {/* Header Card */}
-                  <div className="p-6 bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-purple-500/50 rounded-xl shadow-xl">
-                    <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                      {answer.parsedData.summary?.title || "결론"}
-                    </h2>
-                    {answer.parsedData.summary?.score != null && (
-                      <div className="mb-4">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-sm text-slate-300">실현 가능성</span>
-                          <span className="text-2xl font-bold text-purple-300">
-                            {answer.parsedData.summary.score}%
-                          </span>
-                          <span className="flex gap-0.5" aria-hidden>
-                            {[1, 2, 3, 4, 5].map((i) => (
-                              <span
-                                key={i}
-                                className={
-                                  i <=
-                                  Math.round(
-                                    (answer.parsedData.summary.score ||
-                                      0) / 20
-                                  )
-                                    ? "text-amber-400"
-                                    : "text-slate-600"
-                                }
-                              >
-                                ★
-                              </span>
-                            ))}
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-700/50 rounded-full h-2.5">
-                          <div
-                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-2.5 rounded-full transition-all duration-500"
-                            style={{
-                              width: `${answer.parsedData.summary.score}%`,
-                            }}
+                <div className="mb-8">
+                  {answer.shareId && (
+                    <div className="flex items-center justify-end gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyLink(answer.shareId)}
+                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                        title="주소 복사"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
                           />
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {(answer.parsedData.summary?.keywords || []).map(
-                        (keyword, idx) => (
-                          <span
-                            key={idx}
-                            className="px-3 py-1.5 bg-purple-600/40 border border-purple-400/50 rounded-full text-xs font-medium text-purple-100"
-                          >
-                            {keyword}
-                          </span>
-                        )
-                      )}
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleKakaoShare(answer.shareId)}
+                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                        title="카카오톡 공유하기"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  <div className="mb-4 p-4 bg-primary border border-primary rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0" aria-hidden>
+                        {
+                          TOPIC_OPTIONS.find((t) => t.id === answer.topic)
+                            ?.emoji
+                        }
+                      </span>
+                      <p className="text-black font-medium flex-1 min-w-0">
+                        {answer.question}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Timeline Section */}
-                  {answer.parsedData.timeline &&
-                    answer.parsedData.timeline.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                          📅 타임라인
-                        </h3>
-                        <div className="space-y-3">
-                          {answer.parsedData.timeline.map(
-                            (item, idx) => {
-                              const isGood = item.type === "good";
-                              const isBad = item.type === "bad";
-                              const isNeutral = item.type === "neutral";
-                              const bgColor = isGood
-                                ? "bg-emerald-900/30 border-emerald-500/50"
-                                : isBad
-                                ? "bg-rose-900/30 border-rose-500/50"
-                                : "bg-slate-700/30 border-slate-500/50";
-                              const iconColor = isGood
-                                ? "text-emerald-400"
-                                : isBad
-                                ? "text-rose-400"
-                                : "text-slate-400";
-
-                              return (
-                                <div
-                                  key={idx}
-                                  className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
-                                >
-                                  <div
-                                    className={`text-xl flex-shrink-0 ${iconColor}`}
+                  {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
+                  {answer.parsedData ? (
+                    <div className="space-y-5">
+                      {/* Header Card */}
+                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                        <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
+                          {answer.parsedData.summary?.title || "결론"}
+                        </h2>
+                        {answer.parsedData.summary?.score != null && (
+                          <div className="mb-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-sm text-blue-200">
+                                실현 가능성
+                              </span>
+                              <span className="text-2xl font-bold text-white">
+                                {answer.parsedData.summary.score}%
+                              </span>
+                              <span className="flex gap-0.5" aria-hidden>
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                  <span
+                                    key={i}
+                                    className={
+                                      i <=
+                                      Math.round(
+                                        (answer.parsedData.summary.score || 0) /
+                                          20
+                                      )
+                                        ? "text-amber-400"
+                                        : "text-slate-600"
+                                    }
                                   >
-                                    {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-white mb-1">
-                                      {item.date}
-                                    </p>
-                                    <p className="text-sm text-slate-300 leading-relaxed">
-                                      {item.note}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            }
+                                    ★
+                                  </span>
+                                ))}
+                              </span>
+                            </div>
+                            <div className="w-full bg-[#121230] rounded-full h-2.5">
+                              <div
+                                className="h-2.5 rounded-full transition-all duration-500"
+                                style={{
+                                  backgroundColor: colors.primary,
+                                  width: `${answer.parsedData.summary.score}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {(answer.parsedData.summary?.keywords || []).map(
+                            (keyword, idx) => (
+                              <span
+                                key={idx}
+                                className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
+                              >
+                                {keyword}
+                              </span>
+                            )
                           )}
                         </div>
                       </div>
-                    )}
 
-                  {/* Analysis Section */}
-                  <div className="space-y-5">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white mb-3">
-                        🔮 종합 분석
-                      </h3>
-                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {answer.parsedData.analysis?.general || ""}
-                      </p>
-                    </div>
+                      {/* Timeline Section */}
+                      {answer.parsedData.timeline &&
+                        answer.parsedData.timeline.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                              📅 타임라인
+                            </h3>
+                            <div className="space-y-3">
+                              {answer.parsedData.timeline.map((item, idx) => {
+                                const isGood = item.type === "good";
+                                const isBad = item.type === "bad";
+                                const isNeutral = item.type === "neutral";
+                                const bgColor = isGood
+                                  ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
+                                  : isBad
+                                  ? "bg-rose-900/30 border-rose-500/50"
+                                  : "bg-slate-700/30 border-slate-500/50";
+                                const iconColor = isGood
+                                  ? "text-[#F2ACAC]"
+                                  : isBad
+                                  ? "text-rose-400"
+                                  : "text-slate-400";
 
-                    <div className="border-t border-slate-600/40 pt-5">
-                      <h3 className="text-lg font-semibold text-white mb-3">
-                        ⏰ 시기 분석
-                      </h3>
-                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {answer.parsedData.analysis?.timing || ""}
-                      </p>
-                    </div>
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                                  >
+                                    <div
+                                      className={`text-xl flex-shrink-0 ${iconColor}`}
+                                    >
+                                      {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-white mb-1">
+                                        {item.date}
+                                      </p>
+                                      <p className="text-sm text-slate-300 leading-relaxed">
+                                        {item.note}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
-                    <div className="border-t border-slate-600/40 pt-5">
-                      <div className="p-4 bg-amber-900/25 border-2 border-amber-500/50 rounded-xl">
-                        <h3 className="text-lg font-semibold text-amber-200 mb-3 flex items-center gap-2">
-                          💡 Action Tip
-                        </h3>
-                        <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                          {answer.parsedData.analysis?.advice || ""}
-                        </p>
+                      {/* Analysis Section */}
+                      <div className="space-y-5">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            🔮 종합 분석
+                          </h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {answer.parsedData.analysis?.general || ""}
+                          </p>
+                        </div>
+
+                        <div className="border-t border-slate-600/40 pt-5">
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            ⏰ 시기 분석
+                          </h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {answer.parsedData.analysis?.timing || ""}
+                          </p>
+                        </div>
+
+                        <div className="border-t border-slate-600/40 pt-5">
+                          <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                            <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
+                              💡 Action Tip
+                            </h3>
+                            <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                              {answer.parsedData.analysis?.advice || ""}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* Fallback: Raw Text (JSON 파싱 실패 시) */
+                    <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
+                      <h3 className="text-lg font-semibold text-white mb-4">
+                        🔮 답변
+                      </h3>
+                      <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
+                        <ReactMarkdown>{answer.interpretation}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                /* Fallback: Raw Text (JSON 파싱 실패 시) */
-                <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    🔮 답변
-                  </h3>
-                  <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
-                    <ReactMarkdown>
-                      {answer.interpretation}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              )}
-            </div>
               )}
             >
               <button
@@ -1062,11 +1218,10 @@ function Consultation() {
                     "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
                 }}
               >
-                답변 받기
+                진짜미래 확인하기
               </button>
             </FortuneProcess>
           </form>
-
         </div>
       </div>
 

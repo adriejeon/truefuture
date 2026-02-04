@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { parseMarkdownToSections } from "../utils/markdownParser";
+import { colors } from "../constants/colors";
 
 function FortuneResult({ title, interpretation, shareId, isShared = false }) {
   // 디버깅: shareId 확인
@@ -109,7 +110,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
 
     console.log(
       "📤 [카카오 공유 설정]",
-      JSON.stringify(kakaoShareConfig, null, 2),
+      JSON.stringify(kakaoShareConfig, null, 2)
     );
 
     try {
@@ -135,8 +136,18 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
               className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
               title="주소 복사"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                />
               </svg>
             </button>
             <button
@@ -144,8 +155,18 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
               className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
               title="카카오톡 공유하기"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
               </svg>
             </button>
           </div>
@@ -174,7 +195,16 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
                 {/* 아코디언 헤더 (버튼) - 타이틀만 포함 */}
                 <button
                   onClick={() => toggleSection(index)}
-                  className="w-full flex items-center justify-between p-4 sm:p-5 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors duration-200"
+                  className="w-full flex items-center justify-between p-4 sm:p-5 text-left focus:outline-none transition-colors duration-200"
+                  style={{
+                    boxShadow: "none",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = "#201F44";
                   }}

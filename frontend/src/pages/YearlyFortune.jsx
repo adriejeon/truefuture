@@ -6,6 +6,7 @@ import FortuneResult from "../components/FortuneResult";
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
+import TypewriterLoader from "../components/TypewriterLoader";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -255,7 +256,7 @@ function YearlyFortune() {
       await createProfile(profileData);
       // 프로필 생성 후 모달은 ProfileModal의 onClose에서 처리됨
     },
-    [createProfile],
+    [createProfile]
   );
 
   const handleSubmitDaily = async (e) => {
@@ -309,8 +310,10 @@ function YearlyFortune() {
         "get-fortune",
         { body: requestBody }
       );
-      if (functionError) throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      if (!data || data.error) throw new Error(data?.error || "서버 오류가 발생했습니다.");
+      if (functionError)
+        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+      if (!data || data.error)
+        throw new Error(data?.error || "서버 오류가 발생했습니다.");
       logDebugInfoIfPresent(data);
       if (data.interpretation && typeof data.interpretation === "string") {
         const todayDate = getTodayDate();
@@ -393,7 +396,7 @@ function YearlyFortune() {
         "get-fortune",
         {
           body: requestBody,
-        },
+        }
       );
 
       if (functionError) {
@@ -417,7 +420,7 @@ function YearlyFortune() {
         "🔍 [YearlyFortune] API 응답 data.share_id:",
         data.share_id,
         "타입:",
-        typeof data.share_id,
+        typeof data.share_id
       );
       if (
         data.share_id &&
@@ -429,7 +432,7 @@ function YearlyFortune() {
         setShareId(data.share_id);
       } else {
         console.warn(
-          "⚠️ [YearlyFortune] share_id가 응답에 없거나 유효하지 않습니다.",
+          "⚠️ [YearlyFortune] share_id가 응답에 없거나 유효하지 않습니다."
         );
         console.warn("  - data.share_id 값:", data.share_id);
         console.warn("  - data.share_id 타입:", typeof data.share_id);
@@ -443,7 +446,7 @@ function YearlyFortune() {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`출생 시간: ${data.chart.date}`);
         console.log(
-          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`,
+          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
         );
 
         // 상승점
@@ -466,7 +469,9 @@ function YearlyFortune() {
             "Pisces",
           ];
           console.log(
-            `\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`,
+            `\n상승점(Ascendant): ${
+              signs[ascSignIndex]
+            } ${ascDegreeInSign.toFixed(1)}°`
           );
         }
 
@@ -485,7 +490,11 @@ function YearlyFortune() {
           Object.entries(data.chart.planets).forEach(([name, planet]) => {
             const displayName = planetNames[name] || name;
             console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`,
+              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
+                12
+              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
+                planet.house
+              })`
             );
           });
         }
@@ -493,7 +502,11 @@ function YearlyFortune() {
         // 포르투나
         if (data.chart.fortuna) {
           console.log(
-            `\nPart of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart.fortuna.house})`,
+            `\nPart of Fortune: ${
+              data.chart.fortuna.sign
+            } ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${
+              data.chart.fortuna.house
+            })`
           );
         }
       }
@@ -505,7 +518,7 @@ function YearlyFortune() {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`Solar Return 시간: ${data.solarReturnChart.date}`);
         console.log(
-          `위치: 위도 ${data.solarReturnChart.location?.lat}, 경도 ${data.solarReturnChart.location?.lng}`,
+          `위치: 위도 ${data.solarReturnChart.location?.lat}, 경도 ${data.solarReturnChart.location?.lng}`
         );
 
         // Solar Return 상승점
@@ -528,7 +541,9 @@ function YearlyFortune() {
             "Pisces",
           ];
           console.log(
-            `\nSolar Return Ascendant: ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`,
+            `\nSolar Return Ascendant: ${
+              signs[ascSignIndex]
+            } ${ascDegreeInSign.toFixed(1)}°`
           );
         }
 
@@ -548,9 +563,13 @@ function YearlyFortune() {
             ([name, planet]) => {
               const displayName = planetNames[name] || name;
               console.log(
-                `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (SR House ${planet.house})`,
+                `  - ${displayName
+                  .toUpperCase()
+                  .padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign
+                  .toFixed(1)
+                  .padStart(5)}° (SR House ${planet.house})`
               );
-            },
+            }
           );
         }
       }
@@ -562,16 +581,16 @@ function YearlyFortune() {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`나이: ${data.profectionData.age}세 (만 나이)`);
         console.log(
-          `활성화된 하우스 (Profection House): ${data.profectionData.profectionHouse}번째 하우스`,
+          `활성화된 하우스 (Profection House): ${data.profectionData.profectionHouse}번째 하우스`
         );
         console.log(
-          `프로펙션 별자리 (Profection Sign): ${data.profectionData.profectionSign}`,
+          `프로펙션 별자리 (Profection Sign): ${data.profectionData.profectionSign}`
         );
         console.log(
-          `올해의 주인 (Lord of the Year): ${data.profectionData.lordOfTheYear}`,
+          `올해의 주인 (Lord of the Year): ${data.profectionData.lordOfTheYear}`
         );
         console.log(
-          `\n💡 해석 힌트: 올해는 ${data.profectionData.profectionHouse}번째 하우스의 주제가 인생의 중심이 되며, ${data.profectionData.lordOfTheYear}가 1년의 길흉을 주관합니다.`,
+          `\n💡 해석 힌트: 올해는 ${data.profectionData.profectionHouse}번째 하우스의 주제가 인생의 중심이 되며, ${data.profectionData.lordOfTheYear}가 1년의 길흉을 주관합니다.`
         );
       }
 
@@ -581,7 +600,7 @@ function YearlyFortune() {
         console.log("🔮 [Solar Return Overlay - SR 행성의 Natal 하우스 위치]");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(
-          `Solar Return Ascendant는 Natal 차트의 ${data.solarReturnOverlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.`,
+          `Solar Return Ascendant는 Natal 차트의 ${data.solarReturnOverlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.`
         );
         console.log("\nSolar Return 행성들의 Natal 차트 하우스 위치:");
         if (data.solarReturnOverlay.planetsInNatalHouses) {
@@ -598,13 +617,13 @@ function YearlyFortune() {
             ([name, house]) => {
               const displayName = planetNames[name] || name;
               console.log(
-                `  - ${displayName.padEnd(12)}: Natal ${house}번째 하우스`,
+                `  - ${displayName.padEnd(12)}: Natal ${house}번째 하우스`
               );
-            },
+            }
           );
         }
         console.log(
-          "\n💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 올해 그 영역에서 해당 행성의 영향력이 강하게 나타납니다.",
+          "\n💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 올해 그 영역에서 해당 행성의 영향력이 강하게 나타납니다."
         );
       }
 
@@ -638,7 +657,7 @@ function YearlyFortune() {
         await saveFortuneHistory(
           selectedProfile.id,
           "yearly",
-          data.share_id ?? undefined,
+          data.share_id ?? undefined
         );
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
@@ -688,8 +707,10 @@ function YearlyFortune() {
         "get-fortune",
         { body: requestBody }
       );
-      if (functionError) throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      if (!data || data.error) throw new Error(data?.error || "서버 오류가 발생했습니다.");
+      if (functionError)
+        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+      if (!data || data.error)
+        throw new Error(data?.error || "서버 오류가 발생했습니다.");
       logDebugInfoIfPresent(data);
       if (data.interpretation && typeof data.interpretation === "string") {
         setInterpretation(data.interpretation);
@@ -742,7 +763,7 @@ function YearlyFortune() {
           style={{ position: "relative", zIndex: 1 }}
         >
           <div
-            className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
+            className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
             style={{ position: "relative", zIndex: 1 }}
           >
             {/* 상단: 친구가 공유한 결과임을 안내 + 친구 생년월일만 */}
@@ -750,7 +771,7 @@ function YearlyFortune() {
               <div className="flex items-start gap-3 mb-4">
                 <div className="text-2xl">🔮</div>
                 <div className="flex-1">
-                  <p className="text-purple-200 text-base mb-2">
+                  <p className="text-black text-base mb-2">
                     친구가 공유한 운세 결과예요.
                   </p>
                   {sharedUserInfo?.birthDate && (
@@ -807,21 +828,18 @@ function YearlyFortune() {
       style={{ position: "relative", zIndex: 1 }}
     >
       <div
-        className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
+        className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
         {/* 페이지 타이틀 - 진짜 운세 */}
         <div className="mb-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-            진짜 운세
-          </h2>
           <p className="text-slate-300 text-sm sm:text-base">
             데일리 운세, 1년 운세, 종합 운세를 확인해 보세요.
           </p>
         </div>
 
         {/* 탭: 데일리 운세 | 1년 운세 | 종합 운세 */}
-        <div className="flex gap-1 mb-6 p-1 bg-slate-800/50 rounded-lg">
+        <div className="flex gap-1 mb-6 p-1 rounded-lg" style={{ backgroundColor: '#121230' }}>
           {[
             { id: "daily", label: "데일리 운세" },
             { id: "yearly", label: "1년 운세" },
@@ -836,7 +854,7 @@ function YearlyFortune() {
               }}
               className={`flex-1 py-2.5 px-3 text-sm font-medium rounded-md transition-colors ${
                 fortuneTab === tab.id
-                  ? "bg-purple-600 text-white"
+                  ? "bg-primary text-black"
                   : "text-slate-300 hover:text-white hover:bg-slate-700/50"
               }`}
             >
@@ -852,7 +870,9 @@ function YearlyFortune() {
               오늘의 우주 날씨
             </h3>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              비가 오면 우산을 챙기듯, 오늘의 운을 미리 확인하세요. 매일 달라지는 행성들의 배치가 오늘 당신의 기분과 사건에 어떤 영향을 주는지 알려드립니다.
+              비가 오면 우산을 챙기듯, 오늘의 운을 미리 확인하세요. 매일
+              달라지는 행성들의 배치가 오늘 당신의 기분과 사건에 어떤 영향을
+              주는지 알려드립니다.
             </p>
           </div>
         )}
@@ -865,7 +885,8 @@ function YearlyFortune() {
               이번 연도 생일부터 다음 연도 생일까지.
             </p>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              점성학의 1년은 내 생일부터 시작됩니다. 이번 생일부터 다음 생일까지, 주어진 1년의 테마와 구체적인 행동 전략을 제안합니다.
+              점성학의 1년은 내 생일부터 시작됩니다. 이번 생일부터 다음
+              생일까지, 주어진 1년의 테마와 구체적인 행동 전략을 제안합니다.
             </p>
           </div>
         )}
@@ -875,7 +896,8 @@ function YearlyFortune() {
               내 인생 사용 설명서
             </h3>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              태어난 순간, 별들이 그려낸 고유한 설계도입니다. 타고난 기질과 잠재력, 인생의 방향성을 확인하고 나를 잘 쓰는 방법을 알아보세요.
+              태어난 순간, 별들이 그려낸 고유한 설계도입니다. 타고난 기질과
+              잠재력, 인생의 방향성을 확인하고 나를 잘 쓰는 방법을 알아보세요.
             </p>
           </div>
         )}
@@ -888,6 +910,7 @@ function YearlyFortune() {
             onSelectProfile={selectProfile}
             onCreateProfile={() => setShowProfileModal(true)}
             onDeleteProfile={deleteProfile}
+            loading={profilesLoading}
           />
         </div>
 
@@ -910,41 +933,23 @@ function YearlyFortune() {
                 "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
             }}
           >
-            {loading ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4 sm:h-5 sm:w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>
-                  {fortuneTab === "daily"
-                    ? "미래를 계산하는 중..."
-                    : fortuneTab === "yearly"
-                      ? "1년을 분석하는 중..."
-                      : "인생을 분석하는 중..."}
-                </span>
-              </>
-            ) : (
-              <span>진짜미래 확인하기</span>
-            )}
+            <span>진짜미래 확인하기</span>
           </button>
         </form>
+
+        {/* 로딩 모달 */}
+        {loading && (
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.08] min-h-screen p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="운세 분석 중"
+          >
+            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+              <TypewriterLoader />
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">
@@ -961,11 +966,16 @@ function YearlyFortune() {
             이전 결과 불러오는 중...
           </div>
         )}
-        {fortuneTab === "daily" && fromCache && interpretation && !loadingCache && (
-          <div className="mb-4 px-4 py-2 border rounded-lg border-slate-600">
-            <p className="text-slate-300 text-sm">내일 새로운 운세를 확인하러 또 오세요!</p>
-          </div>
-        )}
+        {fortuneTab === "daily" &&
+          fromCache &&
+          interpretation &&
+          !loadingCache && (
+            <div className="mb-4 px-4 py-2 border rounded-lg border-slate-600">
+              <p className="text-slate-300 text-sm">
+                내일 새로운 운세를 확인하러 또 오세요!
+              </p>
+            </div>
+          )}
         {!showLoadingCache && !showRestoring && interpretation && (
           <FortuneResult
             title={getResultTitle()}

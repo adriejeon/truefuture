@@ -7,10 +7,10 @@ function Footer() {
       className="mt-auto py-6 sm:py-8 pb-24 sm:pb-28 border-t border-white/10"
       style={{ backgroundColor: "#0F0F2B" }}
     >
-      <div className="max-w-[600px] mx-auto px-6">
+      <div className="max-w-[600px] mx-auto px-4">
         {/* 회사 정보 */}
         <div
-          className="text-center mb-6 text-sm space-y-1"
+          className="text-left mb-6 text-sm space-y-1"
           style={{ color: colors.subText }}
         >
           <p className="font-semibold">진짜미래</p>
@@ -29,7 +29,7 @@ function Footer() {
 
         {/* 링크 */}
         <div
-          className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 text-sm mb-4"
+          className="flex flex-col sm:flex-row items-end justify-end gap-4 sm:gap-6 text-sm mb-4"
           style={{ color: colors.subText }}
         >
           <Link

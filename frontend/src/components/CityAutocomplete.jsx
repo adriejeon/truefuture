@@ -79,7 +79,7 @@ const CityAutocompleteComponent = memo(function CityAutocompleteComponent({
         ref={inputRef}
         type="text"
         id="cityInput"
-        placeholder="도시 이름을 입력하세요 (예: Seoul, Tokyo)"
+        placeholder="태어난 도시"
         className="city-autocomplete-input"
       />
 

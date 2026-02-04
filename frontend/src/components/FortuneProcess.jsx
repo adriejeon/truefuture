@@ -1,4 +1,11 @@
-import { useState, useCallback, useEffect, cloneElement, isValidElement, Children } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  cloneElement,
+  isValidElement,
+  Children,
+} from "react";
 import TypewriterLoader from "./TypewriterLoader";
 
 const MODAL_EXIT_DURATION = 400;
@@ -13,7 +20,12 @@ const STREAM_REVEAL_DELAY_MS = 50;
  * [상태 3] ready  - 같은 모달 안에 "운명의 조각들이 모두 맞춰졌습니다." + "진짜미래 확인하기" 버튼.
  * [상태 4] view   - 모달 페이드아웃 후, 결과를 스트리밍처럼 순차 노출.
  */
-function FortuneProcess({ children, onRequest, renderResult, readyButtonText = "진짜미래 확인하기" }) {
+function FortuneProcess({
+  children,
+  onRequest,
+  renderResult,
+  readyButtonText = "진짜미래 확인하기",
+}) {
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -69,10 +81,7 @@ function FortuneProcess({ children, onRequest, renderResult, readyButtonText = "
     const isExiting = modalExiting && status === "view";
     const modalContent =
       status === "loading" ? (
-        <>
-          <TypewriterLoader />
-          <p className="mt-4 text-center text-slate-400 text-sm">잠시만 기다려 주세요...</p>
-        </>
+        <TypewriterLoader />
       ) : (
         <>
           <p className="text-slate-200 text-lg sm:text-xl text-center mb-6">
@@ -93,19 +102,25 @@ function FortuneProcess({ children, onRequest, renderResult, readyButtonText = "
         </>
       );
 
+    const isLoading = status === "loading";
+    
     return (
       <>
         <div
-          className={`fixed inset-0 z-[10001] flex items-center justify-center bg-black/70 p-4 ${
-            isExiting ? "fortune-modal-exit" : ""
-          }`}
+          className={`fixed inset-0 z-[10001] flex items-center justify-center p-4 ${
+            isLoading ? "bg-black/[0.08] min-h-screen" : "bg-black/70"
+          } ${isExiting ? "fortune-modal-exit" : ""}`}
           role="dialog"
           aria-modal="true"
           aria-label={status === "loading" ? "운세 생성 중" : "결과 확인"}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-slate-600/60 p-6 sm:p-8 shadow-2xl"
-            style={{ backgroundColor: "rgba(15, 15, 43, 0.95)" }}
+            className={`w-full max-w-md min-h-[300px] flex items-center justify-center ${
+              isLoading
+                ? ""
+                : "rounded-xl border border-slate-600/60 p-6 sm:p-8 shadow-2xl"
+            }`}
+            style={isLoading ? {} : { backgroundColor: "rgba(15, 15, 43, 0.95)" }}
           >
             {modalContent}
           </div>
@@ -135,9 +150,10 @@ function FortuneResultStreaming({ result, renderResult }) {
   const content = renderResult(result);
   if (!content) return null;
 
-  const children = isValidElement(content) && content.props?.children != null
-    ? Children.toArray(content.props.children)
-    : [content];
+  const children =
+    isValidElement(content) && content.props?.children != null
+      ? Children.toArray(content.props.children)
+      : [content];
 
   const wrappedChildren = children.map((child, i) => (
     <div
@@ -153,11 +169,7 @@ function FortuneResultStreaming({ result, renderResult }) {
     return cloneElement(content, {}, wrappedChildren);
   }
 
-  return (
-    <div className="mb-6 sm:mb-8">
-      {wrappedChildren}
-    </div>
-  );
+  return <div className="mb-6 sm:mb-8">{wrappedChildren}</div>;
 }
 
 export default FortuneProcess;

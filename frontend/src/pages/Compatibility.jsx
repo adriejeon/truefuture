@@ -6,10 +6,14 @@ import FortuneResult from "../components/FortuneResult";
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
+import TypewriterLoader from "../components/TypewriterLoader";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
-import { restoreFortuneIfExists } from "../services/fortuneService";
+import {
+  restoreFortuneIfExists,
+  fetchFortuneByResultId,
+} from "../services/fortuneService";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
@@ -50,12 +54,22 @@ function Compatibility() {
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
     const sharedId = searchParams.get("id");
+    const fromHistory = searchParams.get("from") === "history"; // 내역에서 클릭한 경우
 
     if (sharedId) {
-      console.log("🔗 공유된 궁합 ID 발견:", sharedId);
-      loadShared(sharedId);
+      console.log("🔗 궁합 ID 발견:", sharedId, "내역에서:", fromHistory);
+      if (fromHistory && user) {
+        // 내역에서 클릭한 경우
+        loadFromHistory(sharedId);
+      } else if (!user) {
+        // 비로그인 사용자: 공유 링크로 간주
+        loadShared(sharedId);
+      } else {
+        // 로그인한 사용자가 직접 URL로 접근한 경우도 공유 링크로 간주
+        loadShared(sharedId);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, user]);
 
   // 공유된 운세 조회 함수
   const loadShared = async (id) => {
@@ -74,6 +88,32 @@ function Compatibility() {
       setSharedUserInfo(data.userInfo);
     } catch (err) {
       console.error("❌ 공유된 궁합 조회 실패:", err);
+      setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
+      setSearchParams({});
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 내역에서 클릭한 운세 조회 함수
+  const loadFromHistory = async (id) => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await fetchFortuneByResultId(id);
+
+      if (!data) {
+        throw new Error("운세를 찾을 수 없습니다.");
+      }
+
+      console.log("✅ 궁합 내역 조회 성공:", id);
+      setInterpretation(data.interpretation);
+      setShareId(data.shareId);
+      setIsSharedFortune(false); // 내역에서 불러온 것이므로 공유 링크 아님
+      setError("");
+    } catch (err) {
+      console.error("❌ 궁합 내역 조회 실패:", err);
       setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
       setSearchParams({});
     } finally {
@@ -124,7 +164,7 @@ function Compatibility() {
   // 로그인 계정에 저장된 이전 궁합 결과 복구 (다른 기기/새로고침 후에도 결과 유지)
   useEffect(() => {
     if (!profile1 || isSharedFortune || !user) return;
-    if (searchParams.get("id")) return;
+    if (searchParams.get("id")) return; // URL에 id가 있으면 복구하지 않음
 
     setRestoring(true);
     let cancelled = false;
@@ -133,7 +173,7 @@ function Compatibility() {
       try {
         const restored = await restoreFortuneIfExists(
           profile1.id,
-          "compatibility",
+          "compatibility"
         );
         if (cancelled) return;
         if (restored) {
@@ -146,8 +186,7 @@ function Compatibility() {
           setShareId(null);
         }
       } catch (err) {
-        if (!cancelled)
-          setError(err.message || "복구 중 오류가 발생했습니다.");
+        if (!cancelled) setError(err.message || "복구 중 오류가 발생했습니다.");
       } finally {
         if (!cancelled) setRestoring(false);
       }
@@ -164,7 +203,7 @@ function Compatibility() {
       await createProfile(profileData);
       // 프로필 생성 후 모달은 ProfileModal의 onClose에서 처리됨
     },
-    [createProfile],
+    [createProfile]
   );
 
   const handleSubmit = async (e) => {
@@ -220,11 +259,11 @@ function Compatibility() {
       console.log("=".repeat(60));
       console.log(
         "사용자1 (나):",
-        `생년월일시 ${user1.birthDate}, 위치 위도 ${user1.lat}, 경도 ${user1.lng}`,
+        `생년월일시 ${user1.birthDate}, 위치 위도 ${user1.lat}, 경도 ${user1.lng}`
       );
       console.log(
         "사용자2 (상대방):",
-        `생년월일시 ${user2.birthDate}, 위치 위도 ${user2.lat}, 경도 ${user2.lng}`,
+        `생년월일시 ${user2.birthDate}, 위치 위도 ${user2.lat}, 경도 ${user2.lng}`
       );
       console.log("전체 요청 본문:", JSON.stringify(requestBody, null, 2));
       console.log("=".repeat(60) + "\n");
@@ -233,7 +272,7 @@ function Compatibility() {
         "get-fortune",
         {
           body: requestBody,
-        },
+        }
       );
 
       if (functionError) {
@@ -251,13 +290,39 @@ function Compatibility() {
       console.log("📥 API 응답 받은 데이터 (궁합)");
       console.log("=".repeat(60));
 
+      // Synastry 계산 결과 로그
+      if (data.synastryResult) {
+        console.log("\n🧮 [Synastry Calculation] 상세 계산 내역:");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("📊 종합 점수:", data.synastryResult.overallScore, "점 / 100점");
+        console.log("\n🌙 Moon Ruler Connection:");
+        console.log("  - 내담자 → 상대방:", data.synastryResult.moonRulerConnection.aToB);
+        console.log("  - 상대방 → 내담자:", data.synastryResult.moonRulerConnection.bToA);
+        console.log("  - 상호 연결:", data.synastryResult.moonRulerConnection.isMutual ? "🔥 YES" : "NO");
+        console.log("\n💍 Marriage Lot Connection:");
+        console.log("  - 내담자 → 상대방:", data.synastryResult.marriageLotConnection.aToB);
+        console.log("  - 상대방 → 내담자:", data.synastryResult.marriageLotConnection.bToA);
+        console.log("  - 상호 연결:", data.synastryResult.marriageLotConnection.isMutual ? "🔥 YES" : "NO");
+        console.log("\n⚡ 갈등 요소:");
+        if (data.synastryResult.beneficMaleficAdjustment.conflicts.length > 0) {
+          data.synastryResult.beneficMaleficAdjustment.conflicts.forEach((conflict, idx) => {
+            console.log(`  ${idx + 1}. ${conflict.reason} (${conflict.type}, 점수: ${conflict.score})`);
+          });
+        } else {
+          console.log("  - 특이 사항 없음");
+        }
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+      } else {
+        console.warn("⚠️ [Compatibility] synastryResult가 응답에 없습니다.");
+      }
+
       // share_id 저장
       console.log("🔍 [Compatibility] API 응답 전체:", data);
       console.log(
         "🔍 [Compatibility] API 응답 data.share_id:",
         data.share_id,
         "타입:",
-        typeof data.share_id,
+        typeof data.share_id
       );
       if (
         data.share_id &&
@@ -269,7 +334,7 @@ function Compatibility() {
         setShareId(data.share_id);
       } else {
         console.warn(
-          "⚠️ [Compatibility] share_id가 응답에 없거나 유효하지 않습니다.",
+          "⚠️ [Compatibility] share_id가 응답에 없거나 유효하지 않습니다."
         );
         console.warn("  - data.share_id 값:", data.share_id);
         console.warn("  - data.share_id 타입:", typeof data.share_id);
@@ -284,7 +349,7 @@ function Compatibility() {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`출생 시간: ${data.chart.date}`);
         console.log(
-          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`,
+          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
         );
 
         // 상승점
@@ -307,7 +372,9 @@ function Compatibility() {
             "Pisces",
           ];
           console.log(
-            `\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`,
+            `\n상승점(Ascendant): ${
+              signs[ascSignIndex]
+            } ${ascDegreeInSign.toFixed(1)}°`
           );
         }
 
@@ -326,7 +393,11 @@ function Compatibility() {
           Object.entries(data.chart.planets).forEach(([name, planet]) => {
             const displayName = planetNames[name] || name;
             console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`,
+              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
+                12
+              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
+                planet.house
+              })`
             );
           });
         }
@@ -334,7 +405,11 @@ function Compatibility() {
         // 포르투나
         if (data.chart.fortuna) {
           console.log(
-            `\nPart of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart.fortuna.house})`,
+            `\nPart of Fortune: ${
+              data.chart.fortuna.sign
+            } ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${
+              data.chart.fortuna.house
+            })`
           );
         }
       }
@@ -346,7 +421,7 @@ function Compatibility() {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`출생 시간: ${data.chart2.date}`);
         console.log(
-          `출생 위치: 위도 ${data.chart2.location?.lat}, 경도 ${data.chart2.location?.lng}`,
+          `출생 위치: 위도 ${data.chart2.location?.lat}, 경도 ${data.chart2.location?.lng}`
         );
 
         // 상승점
@@ -369,7 +444,9 @@ function Compatibility() {
             "Pisces",
           ];
           console.log(
-            `\n상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`,
+            `\n상승점(Ascendant): ${
+              signs[ascSignIndex]
+            } ${ascDegreeInSign.toFixed(1)}°`
           );
         }
 
@@ -388,7 +465,11 @@ function Compatibility() {
           Object.entries(data.chart2.planets).forEach(([name, planet]) => {
             const displayName = planetNames[name] || name;
             console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${planet.house})`,
+              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
+                12
+              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
+                planet.house
+              })`
             );
           });
         }
@@ -396,7 +477,11 @@ function Compatibility() {
         // 포르투나
         if (data.chart2.fortuna) {
           console.log(
-            `\nPart of Fortune: ${data.chart2.fortuna.sign} ${data.chart2.fortuna.degreeInSign.toFixed(1)}° (House ${data.chart2.fortuna.house})`,
+            `\nPart of Fortune: ${
+              data.chart2.fortuna.sign
+            } ${data.chart2.fortuna.degreeInSign.toFixed(1)}° (House ${
+              data.chart2.fortuna.house
+            })`
           );
         }
       }
@@ -427,11 +512,7 @@ function Compatibility() {
         setInterpretation(data.interpretation);
         if (data.share_id) {
           setShareId(data.share_id);
-          await saveFortuneHistory(
-            profile1.id,
-            "compatibility",
-            data.share_id,
-          );
+          await saveFortuneHistory(profile1.id, "compatibility", data.share_id);
         }
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
@@ -457,7 +538,9 @@ function Compatibility() {
   // 공유 링크 확인 (URL에 id 파라미터가 있는지)
   // 공유 링크: 로그인 여부 무관하게 '친구가 공유한 운세 결과'만 표시 (프로필 선택기 없음)
   const sharedId = searchParams.get("id");
-  if (sharedId) {
+  const fromHistory = searchParams.get("from") === "history"; // 내역에서 클릭한 경우
+  if (sharedId && !fromHistory) {
+    // 내역에서 클릭한 경우가 아닐 때만 공유 링크 화면 표시
     if (loading) {
       return (
         <div className="w-full flex items-center justify-center py-20">
@@ -477,7 +560,7 @@ function Compatibility() {
           style={{ position: "relative", zIndex: 1 }}
         >
           <div
-            className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
+            className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
             style={{ position: "relative", zIndex: 1 }}
           >
             {/* 상단: 친구가 공유한 결과임을 안내 + 친구(두 명) 생년월일만 */}
@@ -485,7 +568,7 @@ function Compatibility() {
               <div className="flex items-start gap-3 mb-4">
                 <div className="text-2xl">🔮</div>
                 <div className="flex-1">
-                  <p className="text-purple-200 text-base mb-2">
+                  <p className="text-black text-base mb-2">
                     친구가 공유한 운세 결과예요.
                   </p>
                   {sharedUserInfo?.user1 && sharedUserInfo?.user2 && (
@@ -494,13 +577,17 @@ function Compatibility() {
                         <p className="text-slate-200 font-semibold mb-1">
                           💙 첫 번째 사람
                         </p>
-                        <p>📅 {formatBirthDate(sharedUserInfo.user1.birthDate)}</p>
+                        <p>
+                          📅 {formatBirthDate(sharedUserInfo.user1.birthDate)}
+                        </p>
                       </div>
                       <div className="bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
                         <p className="text-slate-200 font-semibold mb-1">
                           💗 두 번째 사람
                         </p>
-                        <p>📅 {formatBirthDate(sharedUserInfo.user2.birthDate)}</p>
+                        <p>
+                          📅 {formatBirthDate(sharedUserInfo.user2.birthDate)}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -540,16 +627,15 @@ function Compatibility() {
       style={{ position: "relative", zIndex: 1 }}
     >
       <div
-        className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24"
+        className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
         {/* 페이지 소개 - 진짜 궁합 (Synastry) */}
         <div className="mb-6 sm:mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-            진짜 궁합
-          </h2>
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-            단순히 좋고 나쁨을 따지는 것이 아닙니다. 두 사람의 우주가 만났을 때 어떤 시너지가 나고 어디서 부딪히는지, 서로를 깊이 이해하고 조율하기 위한 지혜를 드립니다.
+            단순히 좋고 나쁨을 따지는 것이 아닙니다. 두 사람의 우주가 만났을 때
+            어떤 시너지가 나고 어디서 부딪히는지, 서로를 깊이 이해하고 조율하기
+            위한 지혜를 드립니다.
           </p>
         </div>
 
@@ -566,6 +652,7 @@ function Compatibility() {
               onSelectProfile={setProfile1}
               onCreateProfile={() => setShowProfileModal(true)}
               onDeleteProfile={deleteProfile}
+              loading={profilesLoading}
             />
           </div>
 
@@ -573,7 +660,7 @@ function Compatibility() {
           <div className="flex items-center justify-center py-2">
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
             <div className="px-4 sm:px-6">
-              <span className="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
+              <span className="text-2xl sm:text-3xl font-bold text-primary">
                 VS
               </span>
             </div>
@@ -591,6 +678,7 @@ function Compatibility() {
               onSelectProfile={setProfile2}
               onCreateProfile={() => setShowProfileModal(true)}
               onDeleteProfile={deleteProfile}
+              loading={profilesLoading}
             />
           </div>
         </div>
@@ -611,36 +699,23 @@ function Compatibility() {
                 "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
             }}
           >
-            {loading ? (
-              <>
-                {/* 로딩 스피너 */}
-                <svg
-                  className="animate-spin h-4 w-4 sm:h-5 sm:w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>궁합을 분석하는 중...</span>
-              </>
-            ) : (
-              <span>💕 진짜 궁합 확인하기</span>
-            )}
+            <span>💕 진짜 궁합 확인하기</span>
           </button>
         </form>
+
+        {/* 로딩 모달 */}
+        {loading && (
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.08] min-h-screen p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="궁합 분석 중"
+          >
+            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+              <TypewriterLoader />
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">

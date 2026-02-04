@@ -9,6 +9,7 @@ function GNB() {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const dropdownRef = useRef(null);
 
   const handleAuthClick = () => {
@@ -40,6 +41,22 @@ function GNB() {
     return "U";
   };
 
+  // 스크롤 감지
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      setIsScrolled(scrollTop > 0);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    // 초기 상태 확인
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -70,10 +87,21 @@ function GNB() {
         onClose={() => setIsDrawerOpen(false)}
       />
       <header
-        className="w-full py-4 sm:py-5 relative z-10"
-        style={{ backgroundColor: "#343261" }}
+        className="w-full py-4 sm:py-5 sticky top-0 z-50"
+        style={{
+          backgroundColor: isScrolled ? "rgba(52, 50, 97, 0.1)" : "#343261",
+          backdropFilter: isScrolled ? "blur(16px) saturate(100%)" : "none",
+          WebkitBackdropFilter: isScrolled
+            ? "blur(16px) saturate(100%)"
+            : "none",
+          boxShadow: isScrolled
+            ? "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
+            : "none",
+          transition:
+            "background-color 0.15s ease-out, backdrop-filter 0.15s ease-out, box-shadow 0.15s ease-out",
+        }}
       >
-        <div className="max-w-[600px] mx-auto px-6">
+        <div className="max-w-[600px] mx-auto px-4 relative z-10">
           <div className="flex items-center justify-between relative">
             {/* 좌측: 대화 목록 버튼 (로그인 시) 또는 빈 공간 */}
             <div className="flex-1 flex items-center justify-start min-w-0">
@@ -114,44 +142,44 @@ function GNB() {
 
             {/* 우측: 로그인 버튼 또는 프로필 이미지 */}
             <div className="flex-1 flex items-center justify-end min-w-0">
-          {!user ? (
-            <button
-              onClick={handleAuthClick}
-              className="px-4 py-2 text-sm sm:text-base bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20 transition-all duration-200 font-medium"
-            >
-              로그인
-            </button>
-          ) : (
-            <div className="relative" ref={dropdownRef}>
-              {getProfileImage() ? (
-                <img
-                  src={getProfileImage()}
-                  alt="프로필"
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 object-cover cursor-pointer hover:border-white/50 transition-all duration-200"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                />
-              ) : (
-                <div
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center text-white font-semibold text-sm sm:text-base cursor-pointer hover:bg-white/30 hover:border-white/50 transition-all duration-200"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              {!user ? (
+                <button
+                  onClick={handleAuthClick}
+                  className="px-4 py-2 text-sm sm:text-base bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20 transition-all duration-200 font-medium"
                 >
-                  {getUserInitial()}
-                </div>
-              )}
+                  로그인
+                </button>
+              ) : (
+                <div className="relative" ref={dropdownRef}>
+                  {getProfileImage() ? (
+                    <img
+                      src={getProfileImage()}
+                      alt="프로필"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 object-cover cursor-pointer hover:border-white/50 transition-all duration-200"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    />
+                  ) : (
+                    <div
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center text-white font-semibold text-sm sm:text-base cursor-pointer hover:bg-white/30 hover:border-white/50 transition-all duration-200"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    >
+                      {getUserInitial()}
+                    </div>
+                  )}
 
-              {/* 드롭다운 메뉴 */}
-              {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden z-50">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left"
-                  >
-                    로그아웃
-                  </button>
+                  {/* 드롭다운 메뉴 */}
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden z-50">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left"
+                      >
+                        로그아웃
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
             </div>
           </div>
         </div>

@@ -17,11 +17,7 @@ import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
 function Home() {
   const { user, loadingAuth } = useAuth();
-  const {
-    profiles,
-    loading: profilesLoading,
-    createProfile,
-  } = useProfiles();
+  const { profiles, loading: profilesLoading, createProfile } = useProfiles();
   const [searchParams, setSearchParams] = useSearchParams();
   const [inAppBrowserWarning, setInAppBrowserWarning] = useState(null);
   const [interpretation, setInterpretation] = useState("");
@@ -139,13 +135,13 @@ function Home() {
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
       <div
-        className={`w-full max-w-[600px] mx-auto px-6 ${
+        className={`w-full max-w-[600px] mx-auto px-4 ${
           !user && !interpretation ? "" : "pb-20 sm:pb-24"
         }`}
         style={{ position: "relative", zIndex: 1 }}
       >
-        {/* 로그아웃 상태: 메인 이미지 + 로그인 CTA */}
-        {!user && !interpretation && (
+        {/* 메인 이미지 + 로그인 CTA (로그인 여부와 관계없이 표시) */}
+        {!interpretation && (
           <div className="w-full">
             <div className="relative w-full inline-block">
               <img
@@ -153,7 +149,7 @@ function Home() {
                 alt="진짜미래"
                 className="w-full h-auto object-contain block"
               />
-              <div className="absolute top-[44.5%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[15%] sm:w-[12%] md:w-[10%] max-w-[320px] aspect-square z-10">
+              <div className="absolute top-[42.8%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[15%] sm:w-[12%] md:w-[10%] max-w-[320px] aspect-square z-10">
                 <img
                   src="/assets/article.png"
                   alt=""
@@ -168,7 +164,7 @@ function Home() {
             </div>
             <div className="w-full mt-6 sm:mt-8 mb-6 sm:mb-8 px-0">
               <Link
-                to="/login"
+                to={user ? "/consultation" : "/login"}
                 className="block w-full py-4 px-6 rounded-full text-center font-semibold text-base sm:text-lg transition-all duration-200 hover:opacity-90"
                 style={{
                   backgroundColor: colors.primary,
@@ -220,11 +216,11 @@ function Home() {
         {/* 공유된 운세 표시 */}
         {isSharedFortune && interpretation && (
           <div className="mb-6 sm:mb-8">
-            <div className="p-4 bg-purple-900/30 border border-purple-600/50 rounded-lg mb-4">
+            <div className="p-4 bg-primary border border-primary rounded-lg mb-4">
               <div className="flex items-start gap-3">
                 <div className="text-2xl">🔮</div>
                 <div className="flex-1">
-                  <p className="text-purple-200 text-base mb-2">
+                  <p className="text-black text-base mb-2">
                     친구가 공유한 운세 결과예요.
                   </p>
                   {sharedUserInfo?.birthDate && (
@@ -250,87 +246,6 @@ function Home() {
                 <SocialLoginButtons />
               </div>
             )}
-          </div>
-        )}
-
-        {/* 로그인 후 홈 대시보드: 진짜 운세 / 진짜 궁합 카드 */}
-        {!isSharedFortune && user && (
-          <div className="py-8 sm:py-12">
-            <div className="mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-                진짜미래에 오신 걸 환영해요
-              </h2>
-              <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-                데일리 운세, 1년 운세, 종합 운세를 확인하거나 진짜 궁합을
-                알아보세요.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <Link
-                to="/yearly"
-                className="block w-full p-4 bg-gradient-to-r from-purple-600/30 to-pink-600/30 border border-purple-500/50 rounded-lg hover:border-purple-400 transition-all duration-300 shadow-lg hover:shadow-purple-500/20"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl">✨</div>
-                    <div>
-                      <h3 className="text-base sm:text-lg font-semibold text-white">
-                        진짜 운세
-                      </h3>
-                      <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                        데일리 · 1년 · 종합 운세
-                      </p>
-                    </div>
-                  </div>
-                  <svg
-                    className="w-5 h-5 text-slate-300"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </div>
-              </Link>
-
-              <Link
-                to="/compatibility"
-                className="block w-full p-4 bg-gradient-to-r from-purple-600/30 to-pink-600/30 border border-purple-500/50 rounded-lg hover:border-purple-400 transition-all duration-300 shadow-lg hover:shadow-purple-500/20"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl">💕</div>
-                    <div>
-                      <h3 className="text-base sm:text-lg font-semibold text-white">
-                        진짜 궁합
-                      </h3>
-                      <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                        우리 사이 궁합 확인하기
-                      </p>
-                    </div>
-                  </div>
-                  <svg
-                    className="w-5 h-5 text-slate-300"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </div>
-              </Link>
-            </div>
           </div>
         )}
       </div>

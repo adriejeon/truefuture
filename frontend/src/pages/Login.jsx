@@ -27,7 +27,7 @@ function Login() {
 
   return (
     <div className="w-full py-8 sm:py-12">
-      <div className="w-full max-w-[600px] mx-auto px-6 pb-20 sm:pb-24">
+      <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
         <div className="mb-8 sm:mb-12">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4">
             로그인

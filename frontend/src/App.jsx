@@ -1,4 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import Compatibility from "./pages/Compatibility";
 import YearlyFortune from "./pages/YearlyFortune";
 import Consultation from "./pages/Consultation";
@@ -10,9 +16,9 @@ import Footer from "./components/Footer";
 import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
 
-/** 로그인 여부에 따라 / → 메인(Home) 또는 /consultation으로 보냄 */
+/** 로그인 여부와 관계없이 / → 메인(Home)으로 보냄 */
 function RootRoute() {
-  const { user, loadingAuth } = useAuth();
+  const { loadingAuth } = useAuth();
   if (loadingAuth) {
     return (
       <div className="w-full flex items-center justify-center py-20">
@@ -23,37 +29,44 @@ function RootRoute() {
       </div>
     );
   }
-  if (user) {
-    return <Navigate to="/consultation" replace />;
-  }
   return <Home />;
+}
+
+function AppContent() {
+  const location = useLocation();
+  // 메인 페이지(/)에서만 Footer 표시
+  const showFooter = location.pathname === "/";
+
+  return (
+    <div className="min-h-screen text-white flex flex-col">
+      <GNB />
+      <main
+        className="flex-1 w-full"
+        style={{
+          background: "linear-gradient(to bottom, #343261 0%, #0F0F2B 100%)",
+        }}
+      >
+        <Routes>
+          <Route path="/" element={<RootRoute />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/lifetime" element={<Navigate to="/yearly" replace />} />
+          <Route path="/compatibility" element={<Compatibility />} />
+          <Route path="/yearly" element={<YearlyFortune />} />
+          <Route path="/consultation" element={<Consultation />} />
+          <Route path="/consultation/:resultId" element={<Consultation />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<Terms />} />
+        </Routes>
+      </main>
+      {showFooter && <Footer />}
+    </div>
+  );
 }
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen text-white flex flex-col">
-        <GNB />
-        <main
-          className="flex-1 w-full"
-          style={{
-            background: "linear-gradient(to bottom, #343261 0%, #0F0F2B 100%)",
-          }}
-        >
-          <Routes>
-            <Route path="/" element={<RootRoute />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/lifetime" element={<Navigate to="/yearly" replace />} />
-            <Route path="/compatibility" element={<Compatibility />} />
-            <Route path="/yearly" element={<YearlyFortune />} />
-            <Route path="/consultation" element={<Consultation />} />
-            <Route path="/consultation/:resultId" element={<Consultation />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<Terms />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <AppContent />
     </BrowserRouter>
   );
 }

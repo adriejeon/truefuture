@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { IMaskInput } from "react-imask";
 import CityAutocompleteComponent from "./CityAutocomplete";
+import { colors } from "../constants/colors";
 
 /**
  * 프로필 생성/편집 모달
@@ -26,7 +27,9 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
       const birthDate = new Date(initialData.birth_date);
       setFormData({
         name: initialData.name,
-        birthDate: `${birthDate.getFullYear()}.${String(birthDate.getMonth() + 1).padStart(2, "0")}.${String(birthDate.getDate()).padStart(2, "0")}`,
+        birthDate: `${birthDate.getFullYear()}.${String(
+          birthDate.getMonth() + 1
+        ).padStart(2, "0")}.${String(birthDate.getDate()).padStart(2, "0")}`,
         birthTime: initialData.birth_time,
         gender: initialData.gender,
         cityName: initialData.city_name,
@@ -108,13 +111,13 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
       onClick={onClose}
     >
       <div
-        className="bg-[#0F0F2B] rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-slate-700"
+        className="bg-[#0F0F2B] rounded-lg shadow-xl max-w-md w-full max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border border-slate-700"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
         <div className="sticky top-0 bg-[#0F0F2B] border-b border-slate-700 z-10">
-          <div className="px-4 sm:px-6 py-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+            <h2 className="text-lg sm:text-xl font-semibold text-white">
               {initialData ? "프로필 수정" : "새로운 프로필 등록"}
             </h2>
             <button
@@ -139,74 +142,83 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
         </div>
 
         {/* 폼 */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="p-4 sm:p-6 space-y-3 sm:space-y-4"
+        >
           {/* 이름 */}
           <div>
-            <label className="block text-base font-medium text-slate-300 mb-2">
-              이름
-            </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder="원하는 이름을 입력해 주세요."
-              className="w-full px-4 py-2.5 text-base border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="이름"
+              className="w-full px-4 py-3 text-base border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent"
               style={{ backgroundColor: "#0F0F2B" }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = "none";
+              }}
             />
             {errors.name && (
-              <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+              <p className="mt-1.5 text-sm text-red-400">{errors.name}</p>
             )}
           </div>
 
           {/* 생년월일 */}
           <div>
-            <label className="block text-base font-medium text-slate-300 mb-2">
-              생년월일
-            </label>
             <IMaskInput
               mask="0000.00.00"
               value={formData.birthDate}
               onAccept={(value) =>
                 setFormData({ ...formData, birthDate: value })
               }
-              placeholder="YYYY.MM.DD"
+              placeholder="생년월일 (YYYY.MM.DD)"
               inputMode="numeric"
-              className="w-full px-4 py-2.5 text-base border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 text-base border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent"
               style={{ backgroundColor: "#0F0F2B" }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = "none";
+              }}
             />
             {errors.birthDate && (
-              <p className="mt-1 text-sm text-red-400">{errors.birthDate}</p>
+              <p className="mt-1.5 text-sm text-red-400">{errors.birthDate}</p>
             )}
           </div>
 
           {/* 태어난 시간 */}
           <div>
-            <label className="block text-base font-medium text-slate-300 mb-2">
-              태어난 시간
-            </label>
             <IMaskInput
               mask="00:00"
               value={formData.birthTime}
               onAccept={(value) =>
                 setFormData({ ...formData, birthTime: value })
               }
-              placeholder="HH:mm (24시간제)"
+              placeholder="태어난 시간 (HH:mm)"
               inputMode="numeric"
-              className="w-full px-4 py-2.5 text-base border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 text-base border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent"
               style={{ backgroundColor: "#0F0F2B" }}
+              onFocus={(e) => {
+                e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.boxShadow = "none";
+              }}
             />
             {errors.birthTime && (
-              <p className="mt-1 text-sm text-red-400">{errors.birthTime}</p>
+              <p className="mt-1.5 text-sm text-red-400">{errors.birthTime}</p>
             )}
           </div>
 
           {/* 성별 */}
           <div>
-            <label className="block text-base font-medium text-slate-300 mb-2">
-              성별
-            </label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -217,7 +229,16 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                   onChange={(e) =>
                     setFormData({ ...formData, gender: e.target.value })
                   }
-                  className="w-4 h-4 text-blue-500 border-slate-600 focus:ring-2 focus:ring-blue-500"
+                  className="w-4 h-4 border-slate-600 focus:ring-2"
+                  style={{
+                    accentColor: colors.primary,
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
                 <span className="text-base text-slate-300">남자</span>
               </label>
@@ -230,7 +251,16 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                   onChange={(e) =>
                     setFormData({ ...formData, gender: e.target.value })
                   }
-                  className="w-4 h-4 text-blue-500 border-slate-600 focus:ring-2 focus:ring-blue-500"
+                  className="w-4 h-4 border-slate-600 focus:ring-2"
+                  style={{
+                    accentColor: colors.primary,
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
                 <span className="text-base text-slate-300">여자</span>
               </label>
@@ -239,9 +269,6 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
 
           {/* 태어난 도시 */}
           <div style={{ position: "relative", zIndex: 10002 }}>
-            <label className="block text-base font-medium text-slate-300 mb-2">
-              태어난 도시
-            </label>
             <CityAutocompleteComponent
               onCitySelect={handleCitySelect}
               initialValue={formData.cityName}
@@ -253,22 +280,22 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
               </p>
             )}
             {errors.city && (
-              <p className="mt-1 text-sm text-red-400">{errors.city}</p>
+              <p className="mt-1.5 text-sm text-red-400">{errors.city}</p>
             )}
           </div>
 
           {/* 버튼 */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-2 sm:pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
+              className="flex-1 py-2.5 sm:py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
             >
               취소
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 px-4 text-black font-medium rounded-lg transition-all"
+              className="flex-1 py-2.5 sm:py-3 px-4 text-black font-medium rounded-lg transition-all"
               style={{
                 backgroundColor: "#E1AC3F",
               }}
