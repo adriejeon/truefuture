@@ -316,10 +316,12 @@ function formatChart(chart: ChartData): string {
   const ascSign = getSignFromLongitude(
     chart.houses?.angles?.ascendant ?? 0
   ).sign;
-  
+
   const planets = Object.entries(chart.planets)
     .map(([name, planet]) => {
-      return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`;
+      return `  - ${name.toUpperCase()}: ${
+        planet.sign
+      } ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`;
     })
     .join("\n");
 
@@ -328,7 +330,9 @@ function formatChart(chart: ChartData): string {
 행성 위치:
 ${planets}
 
-Part of Fortune: ${chart.fortuna.sign} ${chart.fortuna.degreeInSign.toFixed(1)}° (House ${chart.fortuna.house})`;
+Part of Fortune: ${chart.fortuna.sign} ${chart.fortuna.degreeInSign.toFixed(
+    1
+  )}° (House ${chart.fortuna.house})`;
 }
 
 /**
@@ -336,8 +340,18 @@ Part of Fortune: ${chart.fortuna.sign} ${chart.fortuna.degreeInSign.toFixed(1)}�
  */
 function getSignFromLongitude(longitude: number): { sign: string } {
   const SIGNS = [
-    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+    "Aries",
+    "Taurus",
+    "Gemini",
+    "Cancer",
+    "Leo",
+    "Virgo",
+    "Libra",
+    "Scorpio",
+    "Sagittarius",
+    "Capricorn",
+    "Aquarius",
+    "Pisces",
   ];
   const normalized = ((longitude % 360) + 360) % 360;
   const signIndex = Math.floor(normalized / 30);
@@ -348,7 +362,7 @@ function getSignFromLongitude(longitude: number): { sign: string } {
  * 3. COMPATIBILITY (궁합) 프롬프트
  * * 핵심: 시너스트리(Synastry) 기법.
  * 노하우: 달-달 관계(정서), 금성-화성(케미), 흉각(충돌).
- * 
+ *
  * @param natalData1 - 내담자님(User 1)의 차트 데이터
  * @param natalData2 - 상대방(User 2)의 차트 데이터
  * @param synastryResult - 코드로 계산된 궁합 분석 결과
@@ -368,16 +382,40 @@ export function getCompatibilityPrompt(
   const adjustment = synastryResult.beneficMaleficAdjustment;
 
   // Moon Bond 포맷팅 (2단계 검증 결과)
-  const aToBMoonType = moon.aToB.type === "Destiny" ? "🔥 Destiny" : moon.aToB.type === "Potential" ? "✅ Potential" : "❌ None";
-  const bToAMoonType = moon.bToA.type === "Destiny" ? "🔥 Destiny" : moon.bToA.type === "Potential" ? "✅ Potential" : "❌ None";
-  
-  const aToBMoonDetails = moon.aToB.type !== "None"
-    ? `${aToBMoonType} - ${moon.aToB.description}${moon.aToB.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${moon.aToB.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
-    : `❌ None - ${moon.aToB.description}`;
-  
-  const bToAMoonDetails = moon.bToA.type !== "None"
-    ? `${bToAMoonType} - ${moon.bToA.description}${moon.bToA.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${moon.bToA.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
-    : `❌ None - ${moon.bToA.description}`;
+  const aToBMoonType =
+    moon.aToB.type === "Destiny"
+      ? "🔥 Destiny"
+      : moon.aToB.type === "Potential"
+      ? "✅ Potential"
+      : "❌ None";
+  const bToAMoonType =
+    moon.bToA.type === "Destiny"
+      ? "🔥 Destiny"
+      : moon.bToA.type === "Potential"
+      ? "✅ Potential"
+      : "❌ None";
+
+  const aToBMoonDetails =
+    moon.aToB.type !== "None"
+      ? `${aToBMoonType} - ${moon.aToB.description}${
+          moon.aToB.keyPointAspects.length > 0
+            ? ` (주요 감응점 타격: ${moon.aToB.keyPointAspects
+                .map((a) => `${a.planetB} ${a.type}`)
+                .join(", ")})`
+            : ""
+        }`
+      : `❌ None - ${moon.aToB.description}`;
+
+  const bToAMoonDetails =
+    moon.bToA.type !== "None"
+      ? `${bToAMoonType} - ${moon.bToA.description}${
+          moon.bToA.keyPointAspects.length > 0
+            ? ` (주요 감응점 타격: ${moon.bToA.keyPointAspects
+                .map((a) => `${a.planetB} ${a.type}`)
+                .join(", ")})`
+            : ""
+        }`
+      : `❌ None - ${moon.bToA.description}`;
 
   const moonMutualStatus = moon.isMutual
     ? "🔥🔥 YES (쌍방 Destiny - 운명적 인연 확정)"
@@ -388,16 +426,40 @@ export function getCompatibilityPrompt(
     : "❌ None (연결 없음)";
 
   // Lot Bond 포맷팅 (2단계 검증 결과)
-  const aToBLotType = lot.aToB.type === "Destiny" ? "🔥 Destiny" : lot.aToB.type === "Potential" ? "✅ Potential" : "❌ None";
-  const bToALotType = lot.bToA.type === "Destiny" ? "🔥 Destiny" : lot.bToA.type === "Potential" ? "✅ Potential" : "❌ None";
-  
-  const aToBLotDetails = lot.aToB.type !== "None"
-    ? `${aToBLotType} - ${lot.aToB.description}${lot.aToB.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${lot.aToB.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
-    : `❌ None - ${lot.aToB.description}`;
-  
-  const bToALotDetails = lot.bToA.type !== "None"
-    ? `${bToALotType} - ${lot.bToA.description}${lot.bToA.keyPointAspects.length > 0 ? ` (주요 감응점 타격: ${lot.bToA.keyPointAspects.map(a => `${a.planetB} ${a.type}`).join(", ")})` : ""}`
-    : `❌ None - ${lot.bToA.description}`;
+  const aToBLotType =
+    lot.aToB.type === "Destiny"
+      ? "🔥 Destiny"
+      : lot.aToB.type === "Potential"
+      ? "✅ Potential"
+      : "❌ None";
+  const bToALotType =
+    lot.bToA.type === "Destiny"
+      ? "🔥 Destiny"
+      : lot.bToA.type === "Potential"
+      ? "✅ Potential"
+      : "❌ None";
+
+  const aToBLotDetails =
+    lot.aToB.type !== "None"
+      ? `${aToBLotType} - ${lot.aToB.description}${
+          lot.aToB.keyPointAspects.length > 0
+            ? ` (주요 감응점 타격: ${lot.aToB.keyPointAspects
+                .map((a) => `${a.planetB} ${a.type}`)
+                .join(", ")})`
+            : ""
+        }`
+      : `❌ None - ${lot.aToB.description}`;
+
+  const bToALotDetails =
+    lot.bToA.type !== "None"
+      ? `${bToALotType} - ${lot.bToA.description}${
+          lot.bToA.keyPointAspects.length > 0
+            ? ` (주요 감응점 타격: ${lot.bToA.keyPointAspects
+                .map((a) => `${a.planetB} ${a.type}`)
+                .join(", ")})`
+            : ""
+        }`
+      : `❌ None - ${lot.bToA.description}`;
 
   const lotMutualStatus = lot.isMutual
     ? "🔥🔥 YES (쌍방 Destiny - 결혼 적합성 매우 높음)"
@@ -411,25 +473,39 @@ export function getCompatibilityPrompt(
   const venusMarsInfo: string[] = [];
   if (adjustment.venusMarsHarmony.aVenusBMars) {
     const asp = adjustment.venusMarsHarmony.aVenusBMars;
-    venusMarsInfo.push(`내담자님 금성 ${asp.type} 상대방 화성 (orb ${asp.orb.toFixed(1)}°)`);
+    venusMarsInfo.push(
+      `내담자님 금성 ${asp.type} 상대방 화성 (orb ${asp.orb.toFixed(1)}°)`
+    );
   }
   if (adjustment.venusMarsHarmony.bVenusAMars) {
     const asp = adjustment.venusMarsHarmony.bVenusAMars;
-    venusMarsInfo.push(`상대방 금성 ${asp.type} 내담자님 화성 (orb ${asp.orb.toFixed(1)}°)`);
+    venusMarsInfo.push(
+      `상대방 금성 ${asp.type} 내담자님 화성 (orb ${asp.orb.toFixed(1)}°)`
+    );
   }
 
   const saturnInfo: string[] = [];
   adjustment.saturnHardAspects.aSaturnToBSensitive.forEach((asp) => {
-    saturnInfo.push(`내담자님 토성 ${asp.type} 상대방 ${asp.planetB} (orb ${asp.orb.toFixed(1)}°)`);
+    saturnInfo.push(
+      `내담자님 토성 ${asp.type} 상대방 ${asp.planetB} (orb ${asp.orb.toFixed(
+        1
+      )}°)`
+    );
   });
   adjustment.saturnHardAspects.bSaturnToASensitive.forEach((asp) => {
-    saturnInfo.push(`상대방 토성 ${asp.type} 내담자님 ${asp.planetB} (orb ${asp.orb.toFixed(1)}°)`);
+    saturnInfo.push(
+      `상대방 토성 ${asp.type} 내담자님 ${asp.planetB} (orb ${asp.orb.toFixed(
+        1
+      )}°)`
+    );
   });
 
   // Detriment/Fall 갈등 요소 포맷팅
   const conflictInfo: string[] = [];
   adjustment.conflicts.forEach((conflict) => {
-    conflictInfo.push(`⚠️ ${conflict.reason} (${conflict.type}, 점수 ${conflict.score})`);
+    conflictInfo.push(
+      `⚠️ ${conflict.reason} (${conflict.type}, 점수 ${conflict.score})`
+    );
   });
 
   const calculatedReport = `
@@ -437,18 +513,40 @@ export function getCompatibilityPrompt(
    - 내담자 → 상대방: ${aToBMoonDetails}
    - 상대방 → 내담자: ${bToAMoonDetails}
    - 상호 연결 여부: ${moonMutualStatus}
-   - 점수: ${moon.isMutual ? "+40" : moon.aToB.type === "Destiny" || moon.bToA.type === "Destiny" ? "+20" : moon.aToB.score + moon.bToA.score > 0 ? `+${moon.aToB.score + moon.bToA.score}` : "0"}
+   - 점수: ${
+     moon.isMutual
+       ? "+40"
+       : moon.aToB.type === "Destiny" || moon.bToA.type === "Destiny"
+       ? "+20"
+       : moon.aToB.score + moon.bToA.score > 0
+       ? `+${moon.aToB.score + moon.bToA.score}`
+       : "0"
+   }
 
 2. 💍 Marriage Lot Connection (Step 2 결과 - 2단계 검증):
    - 내담자 → 상대방: ${aToBLotDetails}
    - 상대방 → 내담자: ${bToALotDetails}
    - 상호 연결 여부: ${lotMutualStatus}
-   - 점수: ${lot.isMutual ? "+40" : lot.aToB.type === "Destiny" || lot.bToA.type === "Destiny" ? "+20" : lot.aToB.score + lot.bToA.score > 0 ? `+${lot.aToB.score + lot.bToA.score}` : "0"}
+   - 점수: ${
+     lot.isMutual
+       ? "+40"
+       : lot.aToB.type === "Destiny" || lot.bToA.type === "Destiny"
+       ? "+20"
+       : lot.aToB.score + lot.bToA.score > 0
+       ? `+${lot.aToB.score + lot.bToA.score}`
+       : "0"
+   }
 
 3. ⚡ 길흉 보정 (Step 3, 4 결과):
-   - 금성-화성 조화: ${venusMarsInfo.length > 0 ? venusMarsInfo.join(", ") : "특이 사항 없음"}
-   - 토성 흉각: ${saturnInfo.length > 0 ? saturnInfo.join(", ") : "특이 사항 없음"}
-   - Detriment/Fall 갈등 요소: ${conflictInfo.length > 0 ? conflictInfo.join(" | ") : "특이 사항 없음"}
+   - 금성-화성 조화: ${
+     venusMarsInfo.length > 0 ? venusMarsInfo.join(", ") : "특이 사항 없음"
+   }
+   - 토성 흉각: ${
+     saturnInfo.length > 0 ? saturnInfo.join(", ") : "특이 사항 없음"
+   }
+   - Detriment/Fall 갈등 요소: ${
+     conflictInfo.length > 0 ? conflictInfo.join(" | ") : "특이 사항 없음"
+   }
    - 갈등 점수: ${adjustment.conflictScore}
 `.trim();
 
