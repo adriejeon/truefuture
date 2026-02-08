@@ -213,7 +213,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
           </div>
 
           {/* 태어난 시간 */}
-          <div>
+          <div className="relative">
             <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
               <span className="text-base font-medium text-slate-300">태어난 시간</span>
               <label className="flex items-center gap-1.5 cursor-pointer group">
@@ -229,7 +229,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                 </span>
               </label>
               <span
-                className="relative inline-flex"
+                className="inline-flex"
                 onMouseEnter={() => setShowTimeTooltip(true)}
                 onMouseLeave={() => setShowTimeTooltip(false)}
                 onFocus={() => setShowTimeTooltip(true)}
@@ -249,16 +249,16 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                     d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                {showTimeTooltip && (
-                  <span
-                    className="absolute left-0 top-full mt-1.5 px-2.5 py-2 text-xs text-slate-200 bg-slate-800 border border-slate-600 rounded-lg shadow-xl whitespace-normal w-52 text-left z-[10003]"
-                    style={{ boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}
-                  >
-                    태어난 시간을 모르시면 임의의 시간(낮 12시)으로 계산할 수 있어요. 다만, 이때는 정확성이 떨어질 수 있어요.
-                  </span>
-                )}
               </span>
             </div>
+            {showTimeTooltip && (
+              <span
+                className="absolute left-0 top-full mt-1.5 px-2.5 py-2 text-xs text-slate-200 bg-slate-800 border border-slate-600 rounded-lg shadow-xl whitespace-normal w-52 max-w-full text-left z-[10003]"
+                style={{ boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}
+              >
+                태어난 시간을 모르시면 임의의 시간(낮 12시)으로 계산할 수 있어요. 다만, 이때는 정확성이 떨어질 수 있어요.
+              </span>
+            )}
             <IMaskInput
               mask="00:00"
               value={formData.birthTime}
