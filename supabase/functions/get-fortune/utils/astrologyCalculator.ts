@@ -150,9 +150,9 @@ export function ramcToEclipticLongitude(ramcDeg: number): number {
   const obliquity = 23.4392911;
   const obliquityRad = obliquity * (Math.PI / 180);
   const ramcRad = (normalizeDegrees(ramcDeg) * Math.PI) / 180;
-  // tan(λ) = tan(RAMC) / cos(ε) → λ = atan2(sin(RAMC)*cos(ε), cos(RAMC))
-  const y = Math.sin(ramcRad) * Math.cos(obliquityRad);
-  const x = Math.cos(ramcRad);
+  // tan(λ) = sin(RAMC) / (cos(RAMC) * cos(ε)) → λ = atan2(sin(RAMC), cos(RAMC) * cos(ε))
+  const y = Math.sin(ramcRad);
+  const x = Math.cos(ramcRad) * Math.cos(obliquityRad);
   const lambdaRad = Math.atan2(y, x);
   return normalizeDegrees((lambdaRad * 180) / Math.PI);
 }

@@ -73,10 +73,10 @@ export const FIXED_STARS: FixedStar[] = [
   },
   {
     name: "Antares",
-    longitude: 249.92, // 사수 9도
-    nature: "Mars/Jupiter (극단과 열정)",
+    longitude: 249.77, // 사수 9°46' (전갈의 심장) J2000
+    nature: "Mars/Jupiter",
     meaning:
-      "서쪽의 감시자. 전갈의 심장. 치명적인 매력, 전략적 성공, 불굴의 의지. 그러나 무모함이나 고집으로 인한 자기 파괴(Self-undoing) 위험.",
+      "전갈의 심장. 극단적인 열정, 군사적 성공, 모험. 무모함 주의.",
     combinations: {
       Sun: "타협 없는 야망. 종교적/철학적 열정. 명예를 얻으나 끝이 좋지 않을 수 있음(건강/구설).",
       Moon: "대중을 선동하는 힘. 철학적 깊이. 그러나 정서적 불안정과 가정 불화.",
@@ -347,30 +347,37 @@ export const FIXED_STARS: FixedStar[] = [
   },
   {
     name: "Acrux",
-    longitude: 222.1, // 전갈 12도
+    longitude: 221.87, // 전갈 11°52' (남십자성) J2000
     nature: "Jupiter",
     meaning:
-      "남십자성. 종교적/영적 사명. 물질적 고난이 있어도 정신적 승리를 거둠. 신비주의.",
+      "남십자성. 종교적/영적 사명, 희생, 물질적 고난 속 정신적 승리.",
   },
   {
     name: "Zuben Elgenubi",
-    longitude: 225.26, // 전갈 15도
+    longitude: 225.08, // 전갈 15°05' (남쪽 저울) J2000
     nature: "Saturn/Mars",
     meaning:
       "남쪽 저울. 사회적 봉사, 희생. 보상 없는 노력이나 타인을 위한 손해를 주의해야 함.",
   },
   {
-    name: "Unukalhai",
-    longitude: 232.23, // 전갈 22도
-    nature: "Saturn/Mars",
-    meaning:
-      "뱀의 목. 의학, 치유, 독. 의사나 치유자에게는 길하나, 중독이나 감염, 사기 피해 주의.",
-  },
-  {
     name: "Zuben Eschamali",
-    longitude: 239.5, // 전갈 19도
+    longitude: 229.22, // 전갈 19°13' (북쪽 저울) J2000
     nature: "Jupiter/Mercury",
     meaning: "북쪽 저울. 명예, 좋은 평판, 사회적 성공. 야망을 실현하는 힘.",
+  },
+  {
+    name: "Unukalhai",
+    longitude: 232.0, // 전갈 22° (뱀의 목) J2000
+    nature: "Saturn/Mars",
+    meaning:
+      "뱀의 목. 의학, 치유, 독. 건강 문제나 의료 관련 직업.",
+  },
+  {
+    name: "Bungula (Toliman)",
+    longitude: 239.53, // 전갈 29°31' (켄타우루스의 발) J2000
+    nature: "Venus/Jupiter",
+    meaning:
+      "맹세, 친구, 희생, 자비. 관계에서의 배움과 성장.",
   },
   {
     name: "Dschubba",
