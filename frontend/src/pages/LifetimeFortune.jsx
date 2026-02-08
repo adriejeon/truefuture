@@ -38,6 +38,8 @@ function LifetimeFortune() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  // 종합 운세 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
+  const [canViewLifetime, setCanViewLifetime] = useState(null);
 
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
@@ -149,6 +151,21 @@ function LifetimeFortune() {
       cancelled = true;
     };
   }, [selectedProfile?.id, isSharedFortune, user, searchParams]);
+
+  // 프로필 선택 시 종합 운세 조회 가능 여부 체크 (버튼 비활성화용)
+  useEffect(() => {
+    if (!selectedProfile?.id || !user || isSharedFortune) {
+      setCanViewLifetime(null);
+      return;
+    }
+    let cancelled = false;
+    checkFortuneAvailability(selectedProfile.id, "lifetime").then((res) => {
+      if (!cancelled) setCanViewLifetime(res.available);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProfile?.id, user, isSharedFortune, checkFortuneAvailability]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -366,6 +383,7 @@ function LifetimeFortune() {
           "lifetime",
           data.share_id ?? undefined
         );
+        setCanViewLifetime(false);
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
       }
@@ -480,7 +498,11 @@ function LifetimeFortune() {
         >
           <PrimaryButton
             type="submit"
-            disabled={loading || !selectedProfile}
+            disabled={
+              loading ||
+              !selectedProfile ||
+              canViewLifetime !== true
+            }
             fullWidth
           >
             진짜미래 확인하기

@@ -50,6 +50,11 @@ function YearlyFortune() {
   const [fromCache, setFromCache] = useState(false);
   const [fortuneDate, setFortuneDate] = useState("");
   const [loadingCache, setLoadingCache] = useState(false);
+  // 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
+  const [fortuneAvailability, setFortuneAvailability] = useState({
+    daily: null,
+    lifetime: null,
+  });
 
   // 데일리 운세용: 한국 시간 기준 오늘 날짜
   const getKoreaTime = () => {
@@ -260,6 +265,29 @@ function YearlyFortune() {
     };
   }, [selectedProfile?.id, isSharedFortune, user, searchParams, fortuneTab]);
 
+  // 프로필 선택 시 데일리/종합 운세 조회 가능 여부 체크 (버튼 비활성화용)
+  useEffect(() => {
+    if (!selectedProfile?.id || !user) {
+      setFortuneAvailability({ daily: null, lifetime: null });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [dailyRes, lifetimeRes] = await Promise.all([
+        checkFortuneAvailability(selectedProfile.id, "daily"),
+        checkFortuneAvailability(selectedProfile.id, "lifetime"),
+      ]);
+      if (cancelled) return;
+      setFortuneAvailability({
+        daily: dailyRes.available,
+        lifetime: lifetimeRes.available,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProfile?.id, user, checkFortuneAvailability]);
+
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
     async (profileData) => {
@@ -344,6 +372,7 @@ function YearlyFortune() {
           "daily",
           currentShareId ?? undefined
         );
+        setFortuneAvailability((prev) => ({ ...prev, daily: false }));
         setInterpretation(data.interpretation);
         setFromCache(false);
         setFortuneDate(todayDate);
@@ -410,6 +439,7 @@ function YearlyFortune() {
           "lifetime",
           data.share_id ?? undefined
         );
+        setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
       }
@@ -419,6 +449,12 @@ function YearlyFortune() {
       setLoading(false);
     }
   };
+
+  // 데일리: 이미 오늘 조회함(DB 또는 로컬캐시) 또는 조회 불가면 버튼 비활성화
+  const canViewDaily =
+    fortuneAvailability.daily === true &&
+    !getTodayFortuneFromStorage(selectedProfile?.id);
+  const canViewLifetime = fortuneAvailability.lifetime === true;
 
   if (loadingAuth) {
     return (
@@ -587,7 +623,9 @@ function YearlyFortune() {
             disabled={
               loading ||
               !selectedProfile ||
-              (fortuneTab === "daily" && loadingCache)
+              (fortuneTab === "daily" && loadingCache) ||
+              (fortuneTab === "daily" && !canViewDaily) ||
+              (fortuneTab === "lifetime" && !canViewLifetime)
             }
             fullWidth
           >
