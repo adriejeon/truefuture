@@ -19,6 +19,8 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
   });
 
   const [errors, setErrors] = useState({});
+  const [birthTimeUnknown, setBirthTimeUnknown] = useState(false);
+  const [showTimeTooltip, setShowTimeTooltip] = useState(false);
 
   // 초기 데이터 설정
   useEffect(() => {
@@ -37,6 +39,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
         lng: initialData.lng,
         timezone: initialData.timezone,
       });
+      setBirthTimeUnknown(false);
     } else {
       // 생성 모드
       setFormData({
@@ -49,6 +52,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
         lng: null,
         timezone: "",
       });
+      setBirthTimeUnknown(false);
     }
     setErrors({});
   }, [initialData, isOpen]);
@@ -64,7 +68,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
       newErrors.birthDate = "올바른 생년월일을 입력해주세요";
     }
 
-    if (!formData.birthTime || formData.birthTime.length < 5) {
+    if (!birthTimeUnknown && (!formData.birthTime || formData.birthTime.length < 5)) {
       newErrors.birthTime = "올바른 시간을 입력해주세요";
     }
 
@@ -83,12 +87,27 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
       return;
     }
 
+    // 태어난 시간을 모르는 경우 제출 시 12:00으로 전달
+    const submitData = birthTimeUnknown
+      ? { ...formData, birthTime: "12:00" }
+      : formData;
+
     try {
-      await onSubmit(formData);
+      await onSubmit(submitData);
       onClose();
     } catch (err) {
       console.error("프로필 저장 실패:", err);
       alert("프로필 저장에 실패했습니다. 다시 시도해주세요.");
+    }
+  };
+
+  const handleBirthTimeUnknownChange = (checked) => {
+    setBirthTimeUnknown(checked);
+    if (checked) {
+      setFormData((prev) => ({ ...prev, birthTime: "12:00" }));
+      setErrors((prev) => ({ ...prev, birthTime: "" }));
+    } else {
+      setFormData((prev) => ({ ...prev, birthTime: "" }));
     }
   };
 
@@ -195,6 +214,51 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
 
           {/* 태어난 시간 */}
           <div>
+            <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
+              <span className="text-base font-medium text-slate-300">태어난 시간</span>
+              <label className="flex items-center gap-1.5 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={birthTimeUnknown}
+                  onChange={(e) => handleBirthTimeUnknownChange(e.target.checked)}
+                  className="w-4 h-4 border-slate-600 rounded focus:ring-2 focus:ring-offset-0 focus:ring-offset-[#0F0F2B]"
+                  style={{ accentColor: colors.primary }}
+                />
+                <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">
+                  태어난 시간을 몰라요
+                </span>
+              </label>
+              <span
+                className="relative inline-flex"
+                onMouseEnter={() => setShowTimeTooltip(true)}
+                onMouseLeave={() => setShowTimeTooltip(false)}
+                onFocus={() => setShowTimeTooltip(true)}
+                onBlur={() => setShowTimeTooltip(false)}
+              >
+                <svg
+                  className="w-4 h-4 text-slate-500 hover:text-slate-400 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-label="도움말"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                {showTimeTooltip && (
+                  <span
+                    className="absolute left-0 top-full mt-1.5 px-2.5 py-2 text-xs text-slate-200 bg-slate-800 border border-slate-600 rounded-lg shadow-xl whitespace-normal w-52 text-left z-[10003]"
+                    style={{ boxShadow: "0 4px 14px rgba(0,0,0,0.4)" }}
+                  >
+                    태어난 시간을 모르시면 임의의 시간(낮 12시)으로 계산할 수 있어요. 다만, 이때는 정확성이 떨어질 수 있어요.
+                  </span>
+                )}
+              </span>
+            </div>
             <IMaskInput
               mask="00:00"
               value={formData.birthTime}
@@ -203,15 +267,27 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
               }
               placeholder="태어난 시간 (HH:mm)"
               inputMode="numeric"
-              className="w-full px-4 py-3 text-base border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ backgroundColor: "#0F0F2B" }}
+              disabled={birthTimeUnknown}
+              className={`w-full px-4 py-3 text-base border rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                birthTimeUnknown
+                  ? "border-slate-700 bg-slate-800/50 text-slate-500 cursor-not-allowed"
+                  : "border-slate-600 text-white"
+              }`}
+              style={{
+                backgroundColor: birthTimeUnknown ? "#1e293b" : "#0F0F2B",
+              }}
               onFocus={(e) => {
-                e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
+                if (!birthTimeUnknown) e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.primary}`;
               }}
               onBlur={(e) => {
                 e.currentTarget.style.boxShadow = "none";
               }}
             />
+            {birthTimeUnknown && (
+              <p className="mt-1.5 text-xs text-slate-500">
+                낮 12시로 계산됩니다.
+              </p>
+            )}
             {errors.birthTime && (
               <p className="mt-1.5 text-sm text-red-400">{errors.birthTime}</p>
             )}
