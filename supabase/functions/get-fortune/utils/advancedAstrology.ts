@@ -155,7 +155,7 @@ export const FIXED_STARS: FixedStar[] = [
   },
   {
     name: "Vega",
-    longitude: 285.38, // 염소 15도
+    longitude: 285.31, // 염소 15°19'
     nature: "Venus/Mercury (카리스마)",
     meaning:
       "마법 같은 매력. 예술적 재능, 음악, 연기. 겉치레나 허영심을 조심하면 사회적 명성을 얻음.",
@@ -381,21 +381,21 @@ export const FIXED_STARS: FixedStar[] = [
   },
   {
     name: "Dschubba",
-    longitude: 242.76, // 사수 2도
+    longitude: 242.57, // 사수 2°34'
     nature: "Mars/Saturn",
     meaning:
       "전갈의 이마. 비밀을 파헤치는 능력. 연구원, 탐정. 교활함이나 악의를 조심해야 함.",
   },
   {
     name: "Acrab",
-    longitude: 243.31, // 사수 3도
+    longitude: 243.19, // 사수 3°11'
     nature: "Mars/Saturn",
     meaning:
       "전갈의 머리. 깊은 통찰력, 지식 추구. 그러나 종교적 위선이나 잔인함을 경계해야 함.",
   },
   {
     name: "Ras Alhague",
-    longitude: 262.66, // 사수 22도
+    longitude: 262.45, // 사수 22°27'
     nature: "Saturn/Venus",
     meaning:
       "뱀주인자리 머리. 치유의 힘. 의술, 교육. 타인의 아픔을 치료하며 명예를 얻음. 독극물/감염 주의.",
