@@ -53,6 +53,7 @@ import {
   analyzeLordInteraction,
   analyzeCareerPotential,
   analyzeWealthPotential,
+  analyzeHealthPotential,
   calculateLotOfMarriage,
   analyzeLoveQualities,
   identifySpouseCandidate,
@@ -61,8 +62,18 @@ import {
   calculatePrimaryDirections,
   calculateProgressedEventsTimeline,
   calculateProfectionTimeline,
+  calculateLordOfYearTransitAspects,
+  getLordOfYearTransitStatus,
 } from "./utils/astrologyCalculator.ts";
 import { calculateSynastry } from "./utils/synastryCalculator.ts";
+import {
+  scanShortTermEvents,
+  formatShortTermEventsForPrompt,
+} from "./utils/predictiveScanner.ts";
+import {
+  analyzeNatalFixedStars,
+  formatNatalFixedStarsForPrompt,
+} from "./utils/advancedAstrology.ts";
 
 // Neo4j 전문 해석 데이터 조회
 import {
@@ -184,9 +195,17 @@ function buildUserPrompt(
   transitMoonHouse?: number,
   solarReturnChartData?: any,
   profectionData?: any,
-  solarReturnOverlay?: any
+  solarReturnOverlay?: any,
+  timeLordRetrogradeAlert?: { planet: string; isRetrograde: boolean } | null,
+  lordTransitAspects?: any[],
+  lordTransitStatus?: {
+    isRetrograde: boolean;
+    isDayChart: boolean;
+    sectStatus: "day_sect" | "night_sect" | "neutral";
+    isInSect: boolean;
+  }
 ): string {
-  // DAILY 운세의 경우 새로운 상세 프롬프트 사용
+  // DAILY 운세의 경우 새로운 상세 프롬프트 사용 (프로펙션/연주 + 연주 행성 트랜짓 상태·각도 포함)
   if (
     fortuneType === FortuneType.DAILY &&
     transitChartData &&
@@ -197,7 +216,11 @@ function buildUserPrompt(
       chartData as ChartData,
       transitChartData as ChartData,
       aspects,
-      transitMoonHouse
+      transitMoonHouse,
+      timeLordRetrogradeAlert ?? null,
+      profectionData ?? null,
+      lordTransitStatus ?? null,
+      lordTransitAspects
     );
   }
 
@@ -431,6 +454,9 @@ async function getInterpretation(
   chartData: any,
   fortuneType: FortuneType,
   apiKey: string,
+  gender?: string,
+  birthDate?: string,
+  location?: { lat: number; lng: number },
   compatibilityChartData?: any,
   transitChartData?: any,
   aspects?: any[],
@@ -438,7 +464,16 @@ async function getInterpretation(
   solarReturnChartData?: any,
   profectionData?: any,
   solarReturnOverlay?: any,
-  synastryResult?: any
+  synastryResult?: any,
+  shortTermPromptSection?: string,
+  timeLordRetrogradeAlert?: { planet: string; isRetrograde: boolean } | null,
+  lordTransitAspects?: any[],
+  lordTransitStatus?: {
+    isRetrograde: boolean;
+    isDayChart: boolean;
+    sectStatus: "day_sect" | "night_sect" | "neutral";
+    isInSect: boolean;
+  }
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -450,6 +485,9 @@ async function getInterpretation(
       return await generateLifetimeFortune(
         chartData,
         apiKey,
+        gender,
+        birthDate,
+        location,
         compatibilityChartData,
         transitChartData,
         aspects,
@@ -457,12 +495,12 @@ async function getInterpretation(
       );
     }
 
-    // Neo4j 전문 해석 데이터 조회 (차트 계산 직후, planets + 낮/밤 차트 판단)
+    // Neo4j 전문 해석 데이터: 데일리 운세에서는 Gemini 인풋에 넣지 않음
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
-    const neo4jContext = await getNeo4jContext(
-      chartData?.planets ?? null,
-      isDayChart
-    );
+    const neo4jContext =
+      fortuneType === FortuneType.DAILY
+        ? null
+        : await getNeo4jContext(chartData?.planets ?? null, isDayChart);
 
     // COMPATIBILITY 케이스의 경우 synastryResult를 전달
     const systemInstructionText =
@@ -494,11 +532,18 @@ async function getInterpretation(
       transitMoonHouse,
       solarReturnChartData,
       profectionData,
-      solarReturnOverlay
+      solarReturnOverlay,
+      timeLordRetrogradeAlert,
+      lordTransitAspects,
+      lordTransitStatus
     );
 
     if (neo4jContext) {
       userPrompt = userPrompt + NEO4J_SECTION_HEADER + neo4jContext;
+    }
+
+    if (shortTermPromptSection) {
+      userPrompt = userPrompt + "\n\n" + shortTermPromptSection;
     }
 
     const requestBody = {
@@ -558,6 +603,9 @@ async function getInterpretation(
 async function generateLifetimeFortune(
   chartData: any,
   apiKey: string,
+  gender?: string,
+  birthDate?: string,
+  location?: { lat: number; lng: number },
   compatibilityChartData?: any,
   transitChartData?: any,
   aspects?: any[],
@@ -569,6 +617,56 @@ async function generateLifetimeFortune(
       chartData?.planets ?? null,
       isDayChart
     );
+
+    // 지표성 계산 (Love, Career, Wealth)
+    let analysisData = "";
+    
+    // 연애/결혼 지표성
+    if (gender) {
+      const genderCode = gender === "F" || gender === "female" || gender === "여자" ? "F" : "M";
+      const lotOfMarriage = calculateLotOfMarriage(chartData, genderCode);
+      const loveQualities = analyzeLoveQualities(chartData);
+      const spouseCandidate = identifySpouseCandidate(chartData, genderCode);
+      
+      analysisData += "\n\n## 연애/결혼 지표성\n";
+      analysisData += `- Lot of Marriage: ${lotOfMarriage.sign} ${Math.round(lotOfMarriage.longitude)}°\n`;
+      analysisData += `- Love Quality Score: ${loveQualities.score} (${loveQualities.statusDescription})\n`;
+      analysisData += `- Best Spouse Candidate: ${spouseCandidate.bestSpouseCandidate}\n`;
+      analysisData += `- Candidate Scores: ${Object.entries(spouseCandidate.scores)
+        .filter(([_, score]) => score > 0)
+        .map(([planet, score]) => `${planet}(${score})`)
+        .join(", ")}\n`;
+    }
+    
+    // 직업 지표성
+    const careerAnalysis = analyzeCareerPotential(chartData);
+    const bestCareer =
+      careerAnalysis.candidates.length > 0
+        ? careerAnalysis.candidates.reduce((a, b) =>
+            b.score > a.score ? b : a
+          )
+        : null;
+    analysisData += "\n## 직업 지표성\n";
+    analysisData += `- POF Sign: ${careerAnalysis.pofSign}\n`;
+    analysisData += `- Best Candidate: ${bestCareer?.planetName ?? "—"} (${bestCareer?.role ?? "—"}, score ${bestCareer?.score ?? 0})\n`;
+    analysisData += `- Candidates: ${careerAnalysis.candidates.map((c) => `${c.planetName}(${c.role})`).join(", ") || "—"}\n`;
+    
+    // 금전 지표성
+    const wealthAnalysis = analyzeWealthPotential(chartData);
+    analysisData += "\n## 금전 지표성\n";
+    analysisData += `- Acquisition Sign: ${wealthAnalysis.acquisitionSign}\n`;
+    analysisData += `- Ruler: ${wealthAnalysis.ruler.planetName} (score ${wealthAnalysis.ruler.score})\n`;
+    analysisData += `- Occupants: ${wealthAnalysis.occupants.map((o) => o.planetName).join(", ") || "—"}\n`;
+
+    // 건강 지표성
+    const healthAnalysis = analyzeHealthPotential(chartData);
+    analysisData += "\n## 건강 지표성\n";
+    analysisData += `- Overall Score: ${healthAnalysis.overallScore}/10\n`;
+    analysisData += `- Moon Affliction: ${healthAnalysis.moonHealth.isAfflicted ? "Yes" : "No"}\n`;
+    analysisData += `- Mental Health Risk: ${healthAnalysis.mentalHealth.riskLevel}\n`;
+    analysisData += `- Physical Health Risk: ${healthAnalysis.physicalHealth.riskLevel}\n`;
+    analysisData += `- Congenital Issues: ${healthAnalysis.congenitalIssues.hasRisk ? "Yes" : "No"}${healthAnalysis.congenitalIssues.bodyParts.length > 0 ? ` (취약 부위: ${healthAnalysis.congenitalIssues.bodyParts.join(", ")})` : ""}\n`;
+    analysisData += `- Summary: ${healthAnalysis.summary}\n`;
 
     const natureSystemText = getLifetimePrompt_Nature();
     const loveSystemText = getLifetimePrompt_Love();
@@ -583,17 +681,47 @@ async function generateLifetimeFortune(
       aspects,
       transitMoonHouse
     );
-    if (neo4jContext) {
-      userPrompt = userPrompt + NEO4J_SECTION_HEADER + neo4jContext;
-    }
+    
+    // 지표성 데이터 추가
+    userPrompt += analysisData;
 
-    // Nature 요청 본문
+    // 네이탈 항성 회합 분석 (세차 보정, Identity/Career/Love/Roots/Health)
+    const natalFixedStars = analyzeNatalFixedStars(
+      chartData,
+      birthDate ?? chartData.date
+    );
+    const fixedStarNature = formatNatalFixedStarsForPrompt(natalFixedStars, {
+      themes: ["Identity", "Roots"],
+      includeHealth: false,
+    });
+    const fixedStarLove = formatNatalFixedStarsForPrompt(natalFixedStars, {
+      themes: ["Love"],
+      includeHealth: false,
+    });
+    const fixedStarCareer = formatNatalFixedStarsForPrompt(natalFixedStars, {
+      themes: ["Career"],
+      includeHealth: false,
+    });
+    const fixedStarHealth = formatNatalFixedStarsForPrompt(natalFixedStars, {
+      themes: ["Health"],
+      includeHealth: true,
+    });
+
+    const userPromptBase = neo4jContext
+      ? userPrompt + NEO4J_SECTION_HEADER + neo4jContext
+      : userPrompt;
+
+    // Nature 요청 본문 (Identity + Roots 항성)
     const requestBodyNature = {
       contents: [
         {
           parts: [
             {
-              text: userPrompt,
+              text:
+                userPromptBase +
+                (natalFixedStars.length > 0
+                  ? "\n\n" + fixedStarNature
+                  : ""),
             },
           ],
         },
@@ -613,13 +741,17 @@ async function generateLifetimeFortune(
       },
     };
 
-    // Love 요청 본문
+    // Love 요청 본문 (Love 항성)
     const requestBodyLove = {
       contents: [
         {
           parts: [
             {
-              text: userPrompt,
+              text:
+                userPromptBase +
+                (natalFixedStars.length > 0
+                  ? "\n\n" + fixedStarLove
+                  : ""),
             },
           ],
         },
@@ -639,13 +771,17 @@ async function generateLifetimeFortune(
       },
     };
 
-    // MoneyCareer 요청 본문
+    // MoneyCareer 요청 본문 (Career 항성)
     const requestBodyMoneyCareer = {
       contents: [
         {
           parts: [
             {
-              text: userPrompt,
+              text:
+                userPromptBase +
+                (natalFixedStars.length > 0
+                  ? "\n\n" + fixedStarCareer
+                  : ""),
             },
           ],
         },
@@ -665,13 +801,17 @@ async function generateLifetimeFortune(
       },
     };
 
-    // HealthTotal 요청 본문
+    // HealthTotal 요청 본문 (Health 항성: 6/8/12 로드 + 흉성)
     const requestBodyHealthTotal = {
       contents: [
         {
           parts: [
             {
-              text: userPrompt,
+              text:
+                userPromptBase +
+                (natalFixedStars.length > 0
+                  ? "\n\n" + fixedStarHealth
+                  : ""),
             },
           ],
         },
@@ -1029,11 +1169,16 @@ serve(async (req) => {
         );
       }
 
-      // Neo4j 상담 컨텍스트(질문 카테고리별 핵심 행성 지식) — 다른 계산과 병렬 수행
-      const graphKnowledgePromise = fetchConsultationContext(
-        requestData.consultationTopic || "GENERAL",
-        chartData
-      );
+      // Neo4j 상담 컨텍스트: 주간/월간 운세에서는 Gemini 인풋에 넣지 않음
+      const topic = (requestData.consultationTopic || "GENERAL").toUpperCase();
+      const skipNeo4jForConsultation =
+        topic === "WEEKLY" || topic === "MONTHLY";
+      const graphKnowledgePromise = skipNeo4jForConsultation
+        ? Promise.resolve("")
+        : fetchConsultationContext(
+            requestData.consultationTopic || "GENERAL",
+            chartData
+          );
 
       // 2. Firdaria
       const firdariaResult = calculateFirdaria(
@@ -1141,7 +1286,7 @@ serve(async (req) => {
       }
 
       // 6. Prediction Prompt 생성 (내담자 기본 정보 + Natal Chart + Analysis Data + TIMING DATA 10년 + graphKnowledge)
-      const systemContext = generatePredictionPrompt(
+      let systemContext = generatePredictionPrompt(
         chartData,
         requestData.birthDate,
         { lat: requestData.lat, lng: requestData.lng },
@@ -1158,6 +1303,21 @@ serve(async (req) => {
         progressionTimeline,
         profectionTimeline
       );
+
+      // 6a. CONSULTATION: 향후 6개월 단기 이벤트 스캔 (타임로드 역행·항성·역행/정지) → 프롬프트에 주입
+      try {
+        const scanResult = scanShortTermEvents(chartData, now, 6);
+        const shortTermSection = formatShortTermEventsForPrompt(scanResult);
+        systemContext = systemContext + "\n\n" + shortTermSection;
+        console.log(
+          `📅 [CONSULTATION] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`
+        );
+      } catch (scanErr: any) {
+        console.warn(
+          "⚠️ [CONSULTATION] 단기 이벤트 스캔 실패 (무시하고 진행):",
+          scanErr
+        );
+      }
 
       // 7. Gemini 호출
       const apiKey = Deno.env.get("GEMINI_API_KEY");
@@ -1497,18 +1657,31 @@ ${systemContext}`;
         );
       }
 
-      // 궁합 분석 계산 (성별은 기본값으로 처리, 필요시 requestData에서 가져올 수 있음)
+      // 궁합 분석 계산 (성별: 요청에 없으면 기본 M)
+      const user1Gender =
+        (user1 as { gender?: string }).gender === "F" ||
+        (user1 as { gender?: string }).gender === "여자"
+          ? "F"
+          : "M";
+      const user2Gender =
+        (user2 as { gender?: string }).gender === "F" ||
+        (user2 as { gender?: string }).gender === "여자"
+          ? "F"
+          : "M";
       const synastryResult = calculateSynastry(
         chartData1,
         chartData2,
-        "M", // user1 gender (기본값, 필요시 requestData에서 가져오기)
-        "M" // user2 gender (기본값, 필요시 requestData에서 가져오기)
+        user1Gender,
+        user2Gender
       );
 
       const interpretation = await getInterpretation(
         chartData1,
         fortuneType,
         apiKey,
+        user1Gender,
+        user1.birthDate,
+        { lat: user1.lat, lng: user1.lng },
         chartData2,
         undefined, // transitChartData
         undefined, // aspects
@@ -1577,28 +1750,29 @@ ${systemContext}`;
         console.error("에러 스택:", saveError.stack);
       }
 
-      // 성공 응답 반환
+      // 성공 응답 반환 (프론트 콘솔 로깅용 userPrompt/systemInstruction/debugInfo 포함)
       console.log(
         `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`
       );
       console.log(
         `🧮 [COMPATIBILITY] Synastry Result 점수: ${synastryResult.overallScore}점`
       );
-      return new Response(
-        JSON.stringify({
-          success: true,
-          chart: chartData1,
-          chart2: chartData2,
-          interpretation: interpretation.interpretation,
-          fortuneType: fortuneType,
-          share_id: shareId || null, // 공유 ID 추가 (null로 명시)
-          synastryResult: synastryResult, // 궁합 분석 계산 결과 추가
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      const compatResponse: any = {
+        success: true,
+        chart: chartData1,
+        chart2: chartData2,
+        interpretation: interpretation.interpretation,
+        fortuneType: fortuneType,
+        share_id: shareId || null,
+        synastryResult: synastryResult,
+      };
+      if (interpretation.userPrompt) compatResponse.userPrompt = interpretation.userPrompt;
+      if (interpretation.systemInstruction) compatResponse.systemInstruction = interpretation.systemInstruction;
+      if (interpretation.debugInfo) compatResponse.debugInfo = interpretation.debugInfo;
+      return new Response(JSON.stringify(compatResponse), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // 일반 운세 (1명의 데이터)
@@ -1800,6 +1974,83 @@ ${systemContext}`;
       }
     }
 
+    // DAILY: 프로펙션/연주 계산 + 타임로드 역행 여부 + 연주 행성의 트랜짓 상태·각도
+    let timeLordRetrogradeAlert: { planet: string; isRetrograde: boolean } | null =
+      null;
+    let dailyLordTransitAspects: any[] | undefined;
+    let dailyLordTransitStatus: {
+      isRetrograde: boolean;
+      isDayChart: boolean;
+      sectStatus: "day_sect" | "night_sect" | "neutral";
+      isInSect: boolean;
+    } | undefined;
+    if (fortuneType === FortuneType.DAILY && transitChartData) {
+      try {
+        const now = new Date();
+        const natalAscSign = getSignFromLongitude(
+          chartData.houses.angles.ascendant
+        ).sign;
+        const dailyProfection = calculateProfection(
+          birthDateTime,
+          now,
+          natalAscSign,
+          false
+        );
+        profectionData = dailyProfection;
+        const lordName = dailyProfection.lordOfTheYear;
+        const lordKeyMap: Record<string, string> = {
+          Sun: "sun",
+          Moon: "moon",
+          Mercury: "mercury",
+          Venus: "venus",
+          Mars: "mars",
+          Jupiter: "jupiter",
+          Saturn: "saturn",
+        };
+        const lordKey = lordKeyMap[lordName];
+        const transitLord = lordKey
+          ? (transitChartData.planets as Record<string, { isRetrograde?: boolean }>)?.[lordKey]
+          : undefined;
+        const isRetrograde = transitLord?.isRetrograde === true;
+        timeLordRetrogradeAlert = {
+          planet: lordName,
+          isRetrograde,
+        };
+        dailyLordTransitAspects = calculateLordOfYearTransitAspects(
+          transitChartData,
+          lordName
+        );
+        dailyLordTransitStatus = getLordOfYearTransitStatus(
+          transitChartData,
+          lordName
+        );
+        if (isRetrograde) {
+          console.log(
+            `⚠️ [DAILY] 타임로드 ${lordName} 역행 — [CRITICAL WARNING] 프롬프트 주입`
+          );
+        }
+      } catch (err: any) {
+        console.warn(
+          "⚠️ [DAILY] 타임로드/연주 계산 실패 (무시):",
+          err?.message
+        );
+      }
+    }
+
+    // YEARLY: 향후 6개월 단기 이벤트 스캔 (타임로드–항성, 역행/정지)
+    let shortTermPromptSection: string | undefined;
+    if (fortuneType === FortuneType.YEARLY) {
+      try {
+        const scanResult = scanShortTermEvents(chartData, new Date(), 6);
+        shortTermPromptSection = formatShortTermEventsForPrompt(scanResult);
+        console.log(
+          `📅 [YEARLY] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`
+        );
+      } catch (scanErr: any) {
+        console.warn("⚠️ [YEARLY] 단기 이벤트 스캔 실패 (무시하고 진행):", scanErr);
+      }
+    }
+
     // 2단계: AI 해석 요청
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
@@ -1816,13 +2067,21 @@ ${systemContext}`;
       chartData,
       fortuneType,
       apiKey,
+      requestData.gender, // gender
+      birthDate, // birthDate
+      { lat: requestData.lat, lng: requestData.lng }, // location
       undefined,
       transitChartData,
       aspects,
       transitMoonHouse,
       solarReturnChartData,
       profectionData,
-      solarReturnOverlay
+      solarReturnOverlay,
+      undefined,
+      shortTermPromptSection,
+      timeLordRetrogradeAlert,
+      dailyLordTransitAspects,
+      dailyLordTransitStatus
     );
 
     if (!interpretation.success || interpretation.error) {

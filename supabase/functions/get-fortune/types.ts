@@ -39,6 +39,10 @@ export interface PlanetPosition {
   degree: number;
   degreeInSign: number;
   house: number;
+  /** 역행 여부 (태양·달은 항상 false) */
+  isRetrograde: boolean;
+  /** 황경 속도 (deg/일, 정지/Station 구간 판별용, 선택) */
+  speed?: number;
 }
 
 // 차트 데이터 타입

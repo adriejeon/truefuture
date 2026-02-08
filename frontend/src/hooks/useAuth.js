@@ -1,21 +1,21 @@
-import { useState, useEffect, useRef } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabaseClient";
 import {
   deleteExpiredDailyFortunes,
   deleteExpiredYearlyFortunes,
-} from '../services/fortuneService'
+} from "../services/fortuneService";
 
 export function useAuth() {
-  const [user, setUser] = useState(null)
-  const [loadingAuth, setLoadingAuth] = useState(true)
-  const isInitialized = useRef(false)
-  const previousUserId = useRef(null)
+  const [user, setUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const isInitialized = useRef(false);
+  const previousUserId = useRef(null);
 
   useEffect(() => {
     if (!supabase) {
-      console.error('Supabase 클라이언트가 초기화되지 않았습니다.')
-      setLoadingAuth(false)
-      return
+      console.error("Supabase 클라이언트가 초기화되지 않았습니다.");
+      setLoadingAuth(false);
+      return;
     }
 
     // onAuthStateChange만 사용하여 인증 상태 관리 (Supabase 권장 패턴)
@@ -23,62 +23,62 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      const newUser = session?.user ?? null
-      
+      const newUser = session?.user ?? null;
+
       // 로그아웃 감지: 사용자가 null이 되었을 때 생년월일 정보 초기화
       if (!newUser) {
-        localStorage.removeItem('birth_info_me')
-        localStorage.removeItem('birth_info_partner')
+        localStorage.removeItem("birth_info_me");
+        localStorage.removeItem("birth_info_partner");
       }
-      
+
       // 새로 로그인한 경우 만료된 운세 삭제
       if (newUser && previousUserId.current !== newUser.id) {
         deleteExpiredDailyFortunes(newUser.id).catch((err) => {
-          console.error('만료된 데일리 운세 삭제 실패:', err)
-        })
+          console.error("만료된 데일리 운세 삭제 실패:", err);
+        });
         deleteExpiredYearlyFortunes(newUser.id).catch((err) => {
-          console.error('만료된 1년 운세 삭제 실패:', err)
-        })
-        previousUserId.current = newUser.id
+          console.error("만료된 1년 운세 삭제 실패:", err);
+        });
+        previousUserId.current = newUser.id;
       } else if (!newUser) {
-        previousUserId.current = null
+        previousUserId.current = null;
       }
 
       // 중복 상태 업데이트 방지: 동일한 유저 ID면 상태 업데이트 안 함
       setUser((currentUser) => {
         if (currentUser?.id === newUser?.id) {
-          return currentUser // 동일한 유저면 상태 변경 없음
+          return currentUser; // 동일한 유저면 상태 변경 없음
         }
-        return newUser
-      })
+        return newUser;
+      });
 
       // 로딩 상태는 초기화가 완전히 끝난 시점에 딱 한 번만 false로 변경
       if (!isInitialized.current) {
-        isInitialized.current = true
-        setLoadingAuth(false)
+        isInitialized.current = true;
+        setLoadingAuth(false);
       }
-    })
+    });
 
-    return () => subscription.unsubscribe()
-  }, [])
+    return () => subscription.unsubscribe();
+  }, []);
 
   const logout = async () => {
     if (!supabase) {
-      console.error('Supabase 클라이언트가 초기화되지 않았습니다.')
-      return
+      console.error("Supabase 클라이언트가 초기화되지 않았습니다.");
+      return;
     }
     try {
-      await supabase.auth.signOut()
+      await supabase.auth.signOut();
       // 로그아웃 시에는 명시적으로 상태 업데이트
-      setUser(null)
-      
-      // 로그아웃 시 생년월일 정보 초기화
-      localStorage.removeItem('birth_info_me')
-      localStorage.removeItem('birth_info_partner')
-    } catch (error) {
-      console.error('로그아웃 오류:', error.message)
-    }
-  }
+      setUser(null);
 
-  return { user, loadingAuth, logout }
+      // 로그아웃 시 생년월일 정보 초기화
+      localStorage.removeItem("birth_info_me");
+      localStorage.removeItem("birth_info_partner");
+    } catch (error) {
+      console.error("로그아웃 오류:", error.message);
+    }
+  };
+
+  return { user, loadingAuth, logout };
 }

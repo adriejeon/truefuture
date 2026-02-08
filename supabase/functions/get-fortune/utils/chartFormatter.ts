@@ -21,8 +21,13 @@ import {
   type PrimaryDirectionHit,
   type ProgressedEventItem,
   type ProfectionTimelineItem,
+  analyzeHealthPotential,
 } from "./astrologyCalculator.ts";
 import { SIGNS } from "./astrologyCalculator.ts";
+import {
+  analyzeNatalFixedStars,
+  formatNatalFixedStarsForPrompt,
+} from "./advancedAstrology.ts";
 
 /** 12별자리 성향 키워드 (내부 사용: 풍부한 해석용) */
 const SIGN_KEYWORDS: Record<string, string> = {
@@ -87,14 +92,36 @@ export function getSignDisplay(longitude: number): string {
 }
 
 /**
+ * DAILY: 타임로드 역행 시 프롬프트에 넣을 경고 정보
+ */
+export type TimeLordRetrogradeAlert = {
+  planet: string;
+  isRetrograde: boolean;
+} | null;
+
+/** 연주 행성의 트랜짓 상태 (데일리 운세용) */
+export type LordOfYearTransitStatus = {
+  isRetrograde: boolean;
+  isDayChart: boolean;
+  sectStatus: "day_sect" | "night_sect" | "neutral";
+  isInSect: boolean;
+};
+
+/**
  * DAILY 운세를 위한 User Prompt 생성 함수
  * Natal 차트, Transit 차트, 계산된 Aspect 정보를 포맷팅하여 반환합니다.
+ * 타임로드가 역행 중이면 [CRITICAL WARNING] 섹션을 추가합니다.
+ * 프로펙션/연주 정보와 연주 행성의 트랜짓 상태·각도를 포함할 수 있습니다.
  */
 export function generateDailyUserPrompt(
   natalData: ChartData,
   transitData: ChartData,
   aspects: Aspect[],
-  transitMoonHouse: number
+  transitMoonHouse: number,
+  timeLordRetrogradeAlert?: TimeLordRetrogradeAlert,
+  profectionData?: ProfectionData | null,
+  lordTransitStatus?: LordOfYearTransitStatus | null,
+  lordTransitAspects?: Aspect[]
 ): string {
   // Natal 차트 포맷팅
   const natalPlanets = Object.entries(natalData.planets)
@@ -158,13 +185,59 @@ ${transitPlanets}
 [Transit Moon House]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Transit Moon은 Natal 차트의 ${transitMoonHouse}번째 하우스에 위치합니다.
+${
+  profectionData
+    ? `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Annual Profection - 연주]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+연주(Annual Profection)란: 만 나이에 따라 1년 동안 특정 하우스·별자리가 활성화되고, 그 별자리의 지배 행성(연주의 주인, Lord of the Year)이 그 해의 길흉을 주관합니다. 오늘의 하루도 이 연주 행성의 영향 아래 있습니다.
+
+나이: ${profectionData.age}세 (만 나이)
+활성화된 하우스 (Profection House): ${profectionData.profectionHouse}번째 하우스
+프로펙션 별자리 (Profection Sign): ${profectionData.profectionSign}
+올해의 주인 (Lord of the Year): ${profectionData.lordOfTheYear}
+
+💡 해석 힌트: 올해는 ${profectionData.profectionHouse}번째 하우스의 주제가 인생의 중심이 되며, ${profectionData.lordOfTheYear}가 1년의 길흉을 주관합니다. 오늘의 운세 해석 시 연주 행성의 트랜짓 상태와 다른 행성과의 각도를 반드시 반영하세요.`
+    : ""
+}
+${
+  lordTransitStatus || (lordTransitAspects && lordTransitAspects.length > 0)
+    ? `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[연주 행성의 트랜짓 상태 및 각도]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+현재 트랜짓 차트에서 연주 행성(올해의 주인)의 상태:
+${lordTransitStatus ? `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}
+- 현재 하늘: ${lordTransitStatus.isDayChart ? "낮 차트 (Day Chart, 태양이 7~12하우스)" : "밤 차트 (Night Chart, 태양이 1~6하우스)"}
+- 연주 행성의 섹트: ${lordTransitStatus.sectStatus === "day_sect" ? "낮의 섹트 (Sun/Jupiter/Saturn)" : lordTransitStatus.sectStatus === "night_sect" ? "밤의 섹트 (Moon/Venus/Mars)" : "중성 (Mercury)"}
+- 섹트 적합 여부: ${lordTransitStatus.isInSect ? "섹트 적합 (연주 행성이 현재 차트에 유리함)" : "섹트 부적합 (연주 행성이 현재 차트에 다소 불리함)"}` : ""}
+${lordTransitAspects && lordTransitAspects.length > 0 ? `
+연주 행성이 오늘 트랜짓 차트에서 다른 행성들과 맺는 각도 (해석 시 이 각도들의 영향을 반드시 반영하세요):
+${lordTransitAspects.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n")}` : ""}
+`
+    : ""
+}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [Calculated Aspects - 주요 각도 관계]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${aspectsList || "  (오늘은 주요 Aspect가 형성되지 않았습니다)"}
+${
+  timeLordRetrogradeAlert?.isRetrograde
+    ? `
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CRITICAL WARNING] 타임로드 역행 — 핵심 변곡점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+현재 회원님의 1년을 관장하는 행성인 ${timeLordRetrogradeAlert.planet}이(가) 역행하고 있습니다.
+오늘은 돌발적인 변화나 과거의 문제가 다시 불거질 수 있는 중요한 변곡점입니다.
+직업·금전·연애·건강 등 인생의 흐름이 바뀌거나 대형 이벤트가 발생할 확률이 높은 시기이므로, 해석 시 이를 반드시 강조하세요.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : ""
+}
 
 위 데이터를 기반으로 오늘의 운세를 분석해 주세요.
 `.trim();
@@ -398,6 +471,28 @@ export function generateCompatibilityUserPrompt(
   const natalAscendant2 = natalData2.houses.angles.ascendant;
   const natalAscSign2 = getSignDisplay(natalAscendant2);
 
+  // 네이탈 항성 회합 (세차 보정) — 두 사용자 모두
+  const stars1 = analyzeNatalFixedStars(natalData1, natalData1.date);
+  const stars2 = analyzeNatalFixedStars(natalData2, natalData2.date);
+  const block1 = formatNatalFixedStarsForPrompt(stars1);
+  const block2 = formatNatalFixedStarsForPrompt(stars2);
+
+  const deepSoulSection =
+    stars1.length > 0 || stars2.length > 0
+      ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[DEEP SOUL CHARACTER ANALYSIS — Fixed Star Influences]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**User1 (내담자님) 타고난 항성 기질:**
+${block1}
+
+**User2 (상대방) 타고난 항성 기질:**
+${block2}
+
+**해석 지침:** 두 사람의 항성적 기질이 서로 조화를 이루는지, 아니면 둘 다 Royal Star(Regulus 등)나 강한 항성이 겹쳐서 부딪힐 수 있는지 Synastry 해석에 반드시 포함하세요. "User1은 [Star]의 영향을 받아 [Character]한 성향이 있고, User2는 [Star]의 영향으로 [Character]합니다." 형식으로 입체적으로 분석하세요.
+`
+      : "";
+
   // 최종 User Prompt 생성
   return `
 궁합 분석을 위한 데이터입니다.
@@ -448,7 +543,7 @@ Part of Fortune: ${
 [📅 분석 시점]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 현재 시점: ${currentYear}년 ${currentMonth}월
-
+${deepSoulSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 위 두 사람의 차트 데이터를 기반으로 궁합을 분석해 주세요.
@@ -516,6 +611,16 @@ export function generatePredictionPrompt(
 - Ascendant: ${ascDisplay}${ascCharacter ? ` (Character: ${ascCharacter})` : ""}
 ${planetLines}
 - 7th House Ruler: ${seventhRuler}`);
+
+  // --- [NATAL CHART HIGHLIGHTS] — 타고난 항성(네이탈 Fixed Star) 그릇
+  const natalStars = analyzeNatalFixedStars(chartData, birthDate);
+  if (natalStars.length > 0) {
+    const natalStarBlock = formatNatalFixedStarsForPrompt(natalStars);
+    sections.push(`[NATAL CHART HIGHLIGHTS — 타고난 그릇 (Fixed Star Influences)]
+${natalStarBlock}
+
+**해석 가이드:** 상담 주제가 무엇이든, 내담자의 "타고난 그릇(Natal Star)"과 "현재 들어온 운(Transit Star, 단기 이벤트에 제공됨)"을 연결해서 답변하세요. 예: "회원님은 원래 [항성]의 기질을 타고나셨는데(Natal), 마침 이번에 [항성] 운이 들어왔으니(Transit), ..."`);
+  }
 
   // --- [Analysis Data] ---
   const analysisParts: string[] = [];
@@ -850,6 +955,75 @@ ${careerAnalysis.candidates
 Instruction: 제미나이에게 "이 데이터를 바탕으로 내담자의 연애 스타일, 미래 배우자의 특징(성격/직업), 그리고 결혼이 유력한 시기를 구체적으로 서술하라"고 지시해.`);
   }
 
+  // --- [🏥 Health Analysis] (consultationTopic HEALTH 시) ---
+  if (
+    consultationTopic === "HEALTH" ||
+    consultationTopic.toUpperCase() === "HEALTH"
+  ) {
+    const healthAnalysis = analyzeHealthPotential(chartData);
+    const moonIssueList =
+      healthAnalysis.moonHealth.issues.length > 0
+        ? healthAnalysis.moonHealth.issues
+            .map((i) => `${i.issue} (${i.severity})`)
+            .join("; ")
+        : "None";
+    const mentalList =
+      healthAnalysis.mentalHealth.factors.length > 0
+        ? healthAnalysis.mentalHealth.factors.join("; ")
+        : "None";
+    const physicalList =
+      healthAnalysis.physicalHealth.factors.length > 0
+        ? healthAnalysis.physicalHealth.factors.join("; ")
+        : "None";
+    const congenitalList =
+      healthAnalysis.congenitalIssues.factors.length > 0
+        ? healthAnalysis.congenitalIssues.factors.join("; ")
+        : "None";
+    const affectedBodyParts =
+      healthAnalysis.congenitalIssues.bodyParts.length > 0
+        ? healthAnalysis.congenitalIssues.bodyParts.join(", ")
+        : "—";
+
+    sections.push(`[🏥 Health Analysis (Deep Scan)]
+
+1. Moon Health (달의 상태):
+   - Afflicted: ${healthAnalysis.moonHealth.isAfflicted ? "Yes" : "No"}
+   - Issues: ${moonIssueList}
+   - Interpretation: "${healthAnalysis.moonHealth.description}"
+
+2. Mental Health (정신 건강):
+   - Risk Level: ${healthAnalysis.mentalHealth.riskLevel}
+   - Factors: ${mentalList}
+   - Interpretation: "${healthAnalysis.mentalHealth.description}"
+
+3. Physical Health (신체 건강):
+   - Risk Level: ${healthAnalysis.physicalHealth.riskLevel}
+   - Malefics in 6th House: ${
+     healthAnalysis.physicalHealth.maleficsIn6th.length > 0
+       ? healthAnalysis.physicalHealth.maleficsIn6th.join(", ")
+       : "None"
+   }
+   - Factors: ${physicalList}
+   - Interpretation: "${healthAnalysis.physicalHealth.description}"
+
+4. Congenital Issues (선천적 건강 문제):
+   - Risk Present: ${healthAnalysis.congenitalIssues.hasRisk ? "Yes" : "No"}
+   - Factors: ${congenitalList}
+   - Affected Body Parts (흉성 위치 사인 기반): ${affectedBodyParts}
+   - Interpretation: "${healthAnalysis.congenitalIssues.description}"
+
+5. Overall Score: ${healthAnalysis.overallScore} / 10
+   - Summary: "${healthAnalysis.summary}"
+
+**Interpretation Instruction:**
+- 달이 흉성에게 공격받으면 전반적 건강과 회복력이 약함.
+- 12하우스 연관(달/토성)은 정신 건강(우울/불안) 위험을 시사함.
+- 6하우스 흉성(화성/토성)은 신체적 질병이나 수술 위험을 나타냄.
+- 어센던트가 흉성에게 공격받고 리젝션 관계면 선천적 문제 가능.
+- 흉성(프로미터)이 위치한 사인의 신체 부위가 취약할 수 있음 (예: Aries → 머리/얼굴, Scorpio → 생식기).
+- 내담자의 질문에 맞춰 현재 건강 상태, 회복 시기, 치료 방법, 정신 건강 관리를 구체적으로 조언하세요.`);
+  }
+
   sections.push(`[📚 Knowledge Base (from Neo4j)]
 ${(graphKnowledge ?? "").trim() || "(없음)"}`);
 
@@ -1125,6 +1299,25 @@ export function getCategorySignificators(
     };
   }
 
+  if (cat === "HEALTH") {
+    const lord6 = getHouseRuler(asc, 6);
+    const lord12 = getHouseRuler(asc, 12);
+    addPrimary("Moon", "Ascendant", lord6, lord12, "Saturn", "Mars");
+    houseLordsBlock = [
+      `Ruler of 6th House (질병/치료): ${lord6}`,
+      `Ruler of 12th House (정신 건강/은둔): ${lord12}`,
+      "Moon (건강 전반), Ascendant (체질), Saturn (만성 질환), Mars (급성 질환/사고).",
+    ].join("\n");
+    return {
+      primary: [...primarySet],
+      houseLordsBlock,
+      timingFilterInstruction: buildTimingFilterInstruction("HEALTH", {
+        primary: ["Moon", lord6, lord12],
+        secondary: ["Saturn", "Mars"],
+      }),
+    };
+  }
+
   if (cat === "OTHER" || cat === "GENERAL" || !cat) {
     const lord1 = getHouseRuler(asc, 1);
     addPrimary(lord1, "Moon", "Sun");
@@ -1274,6 +1467,16 @@ You must analyze timing by integrating data from all 4 predictive techniques pro
 **Additional Guidance for MOVE:**
 - Prioritize Primary Direction hits **to IC (Imum Coeli)** as these are the strongest indicators for relocation.
 - Ruler of 4th (home/real estate) and Ruler of 7th (contracts/relocation) are key.`;
+  }
+
+  if (category === "HEALTH") {
+    return baseInstruction + `
+
+**Additional Guidance for HEALTH:**
+- Moon is the primary indicator for overall vitality and recovery.
+- Saturn aspects indicate chronic conditions or slow recovery; Mars aspects indicate acute issues, inflammation, or surgery.
+- Ruler of 6th (illness/treatment) and Ruler of 12th (mental health/hospitalization) are key.
+- Challenging transits or progressions to Ascendant may indicate physical vulnerability periods.`;
   }
 
   if (category === "LOVE") {

@@ -12,7 +12,7 @@ import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
-import { logDebugInfoIfPresent } from "../utils/debugFortune";
+import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
 
 function LifetimeFortune() {
   const { user, loadingAuth } = useAuth();
@@ -228,6 +228,7 @@ function LifetimeFortune() {
       }
 
       logDebugInfoIfPresent(data);
+      logFortuneInput(data, { fortuneType: "lifetime" });
 
       // 디버깅: 받은 응답 로그
       console.log("\n" + "=".repeat(60));

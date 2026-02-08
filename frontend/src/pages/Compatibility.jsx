@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
@@ -15,7 +15,7 @@ import {
   fetchFortuneByResultId,
 } from "../services/fortuneService";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
-import { logDebugInfoIfPresent } from "../utils/debugFortune";
+import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
 
 function Compatibility() {
   const { user, loadingAuth } = useAuth();
@@ -38,11 +38,25 @@ function Compatibility() {
   const [profile1, setProfile1] = useState(null);
   const [profile2, setProfile2] = useState(null);
   const [shareId, setShareId] = useState(null);
+  const [synastryResult, setSynastryResult] = useState(null); // 궁합 점수 등 (카카오 공유 요약용)
   const [isSharedFortune, setIsSharedFortune] = useState(false);
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [restoring, setRestoring] = useState(false);
+
+  // 카카오 공유용 궁합 한 줄 요약 (점수 + 이름)
+  const compatibilityShareSummary = useMemo(() => {
+    if (synastryResult?.overallScore == null) return null;
+    const score = Number(synastryResult.overallScore);
+    const name1 = profile1?.name || "첫 번째 사람";
+    const name2 = profile2?.name || "두 번째 사람";
+    let phrase = "서로 이해하려는 노력이 필요해요!";
+    if (score >= 80) phrase = "크게 거슬리는 게 없는 관계에요!";
+    else if (score >= 60) phrase = "잘 맞는 편이에요!";
+    else if (score >= 40) phrase = "서로 맞춰 나가면 좋아요!";
+    return `${name1}님과 ${name2}님의 궁합 점수 ${score}점! ${phrase}`;
+  }, [synastryResult, profile1?.name, profile2?.name]);
 
   // 프로필이 변경되면 첫 번째 프로필 자동 선택
   useEffect(() => {
@@ -284,6 +298,7 @@ function Compatibility() {
       }
 
       logDebugInfoIfPresent(data);
+      logFortuneInput(data, { fortuneType: "compatibility" });
 
       // 디버깅: 받은 응답 로그
       console.log("\n" + "=".repeat(60));
@@ -315,6 +330,7 @@ function Compatibility() {
       } else {
         console.warn("⚠️ [Compatibility] synastryResult가 응답에 없습니다.");
       }
+      setSynastryResult(data.synastryResult ?? null);
 
       // share_id 저장
       console.log("🔍 [Compatibility] API 응답 전체:", data);
@@ -600,6 +616,7 @@ function Compatibility() {
               interpretation={interpretation}
               shareId={shareId}
               isShared={true}
+              shareSummary={compatibilityShareSummary}
             />
 
             {!user && (
@@ -732,6 +749,7 @@ function Compatibility() {
             title="진짜 궁합"
             interpretation={interpretation}
             shareId={shareId}
+            shareSummary={compatibilityShareSummary}
           />
         )}
       </div>

@@ -12,9 +12,16 @@ import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
-import { logDebugInfoIfPresent } from "../utils/debugFortune";
+import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
+
+// 운세 타입 탭
+const FORTUNE_TABS = [
+  { id: "daily", label: "데일리 운세", type: "daily" },
+  { id: "lifetime", label: "종합 운세", type: "lifetime" },
+];
 
 function YearlyFortune() {
+  const [activeTab, setActiveTab] = useState("daily");
   const { user, loadingAuth } = useAuth();
   const {
     profiles,
@@ -224,7 +231,7 @@ function YearlyFortune() {
 
     setRestoring(true);
     let cancelled = false;
-    const type = fortuneTab === "yearly" ? "yearly" : "lifetime";
+    const type = "lifetime"; // daily가 아니면 lifetime만 사용
 
     (async () => {
       try {
@@ -315,6 +322,7 @@ function YearlyFortune() {
       if (!data || data.error)
         throw new Error(data?.error || "서버 오류가 발생했습니다.");
       logDebugInfoIfPresent(data);
+      logFortuneInput(data, { fortuneType: "daily" });
       if (data.interpretation && typeof data.interpretation === "string") {
         const todayDate = getTodayDate();
         const currentShareId = data.share_id || null;
@@ -335,330 +343,6 @@ function YearlyFortune() {
         setInterpretation(data.interpretation);
         setFromCache(false);
         setFortuneDate(todayDate);
-      } else {
-        setInterpretation("결과를 불러올 수 없습니다.");
-      }
-    } catch (err) {
-      setError(err.message || "요청 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmitYearly = async (e) => {
-    e.preventDefault();
-
-    if (isSharedFortune && !user) {
-      handleRequireLogin();
-      return;
-    }
-    if (!selectedProfile) {
-      setError("프로필을 선택해주세요.");
-      setShowProfileModal(true);
-      return;
-    }
-    const availability = await checkFortuneAvailability(
-      selectedProfile.id,
-      "yearly"
-    );
-    if (!availability.available) {
-      setError(availability.reason);
-      return;
-    }
-    const formData = convertProfileToApiFormat(selectedProfile);
-    if (!formData) {
-      setError("프로필 정보가 올바르지 않습니다.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setInterpretation("");
-    setShareId(null);
-
-    try {
-      const requestBody = {
-        ...formData,
-        fortuneType: "yearly",
-        reportType: "yearly",
-      };
-
-      // 디버깅: 전송하는 데이터 로그
-      console.log("\n" + "=".repeat(60));
-      console.log("📤 API 요청 전송 데이터");
-      console.log("=".repeat(60));
-      console.log("생년월일시:", formData.birthDate);
-      console.log("위치:", `위도 ${formData.lat}, 경도 ${formData.lng}`);
-      console.log("전체 요청 본문:", JSON.stringify(requestBody, null, 2));
-      console.log("=".repeat(60) + "\n");
-
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        {
-          body: requestBody,
-        }
-      );
-
-      if (functionError) {
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      }
-
-      if (!data || data.error) {
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      }
-
-      logDebugInfoIfPresent(data);
-
-      // 디버깅: 받은 응답 로그
-      console.log("\n" + "=".repeat(60));
-      console.log("📥 API 응답 받은 데이터");
-      console.log("=".repeat(60));
-
-      // share_id 저장
-      console.log("🔍 [YearlyFortune] API 응답 전체:", data);
-      console.log(
-        "🔍 [YearlyFortune] API 응답 data.share_id:",
-        data.share_id,
-        "타입:",
-        typeof data.share_id
-      );
-      if (
-        data.share_id &&
-        data.share_id !== "undefined" &&
-        data.share_id !== null &&
-        data.share_id !== "null"
-      ) {
-        console.log("🔗 Share ID 저장:", data.share_id);
-        setShareId(data.share_id);
-      } else {
-        console.warn(
-          "⚠️ [YearlyFortune] share_id가 응답에 없거나 유효하지 않습니다."
-        );
-        console.warn("  - data.share_id 값:", data.share_id);
-        console.warn("  - data.share_id 타입:", typeof data.share_id);
-        setShareId(null); // 명시적으로 null 설정
-      }
-
-      // 1. Natal Chart (출생 차트)
-      if (data.chart) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🌟 [Natal Chart - 출생 차트]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(`출생 시간: ${data.chart.date}`);
-        console.log(
-          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
-        );
-
-        // 상승점
-        if (data.chart.houses?.angles?.ascendant !== undefined) {
-          const asc = data.chart.houses.angles.ascendant;
-          const ascSignIndex = Math.floor(asc / 30);
-          const ascDegreeInSign = asc % 30;
-          const signs = [
-            "Aries",
-            "Taurus",
-            "Gemini",
-            "Cancer",
-            "Leo",
-            "Virgo",
-            "Libra",
-            "Scorpio",
-            "Sagittarius",
-            "Capricorn",
-            "Aquarius",
-            "Pisces",
-          ];
-          console.log(
-            `\n상승점(Ascendant): ${
-              signs[ascSignIndex]
-            } ${ascDegreeInSign.toFixed(1)}°`
-          );
-        }
-
-        // 행성 위치
-        console.log("\n행성 위치:");
-        if (data.chart.planets) {
-          const planetNames = {
-            sun: "Sun",
-            moon: "Moon",
-            mercury: "Mercury",
-            venus: "Venus",
-            mars: "Mars",
-            jupiter: "Jupiter",
-            saturn: "Saturn",
-          };
-          Object.entries(data.chart.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name;
-            console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
-                12
-              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
-                planet.house
-              })`
-            );
-          });
-        }
-
-        // 포르투나
-        if (data.chart.fortuna) {
-          console.log(
-            `\nPart of Fortune: ${
-              data.chart.fortuna.sign
-            } ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${
-              data.chart.fortuna.house
-            })`
-          );
-        }
-      }
-
-      // 2. Solar Return Chart (솔라 리턴 차트)
-      if (data.solarReturnChart) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🌞 [Solar Return Chart - 솔라 리턴 차트]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(`Solar Return 시간: ${data.solarReturnChart.date}`);
-        console.log(
-          `위치: 위도 ${data.solarReturnChart.location?.lat}, 경도 ${data.solarReturnChart.location?.lng}`
-        );
-
-        // Solar Return 상승점
-        if (data.solarReturnChart.houses?.angles?.ascendant !== undefined) {
-          const asc = data.solarReturnChart.houses.angles.ascendant;
-          const ascSignIndex = Math.floor(asc / 30);
-          const ascDegreeInSign = asc % 30;
-          const signs = [
-            "Aries",
-            "Taurus",
-            "Gemini",
-            "Cancer",
-            "Leo",
-            "Virgo",
-            "Libra",
-            "Scorpio",
-            "Sagittarius",
-            "Capricorn",
-            "Aquarius",
-            "Pisces",
-          ];
-          console.log(
-            `\nSolar Return Ascendant: ${
-              signs[ascSignIndex]
-            } ${ascDegreeInSign.toFixed(1)}°`
-          );
-        }
-
-        // Solar Return 행성 위치
-        console.log("\n행성 위치:");
-        if (data.solarReturnChart.planets) {
-          const planetNames = {
-            sun: "Sun",
-            moon: "Moon",
-            mercury: "Mercury",
-            venus: "Venus",
-            mars: "Mars",
-            jupiter: "Jupiter",
-            saturn: "Saturn",
-          };
-          Object.entries(data.solarReturnChart.planets).forEach(
-            ([name, planet]) => {
-              const displayName = planetNames[name] || name;
-              console.log(
-                `  - ${displayName
-                  .toUpperCase()
-                  .padEnd(8)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign
-                  .toFixed(1)
-                  .padStart(5)}° (SR House ${planet.house})`
-              );
-            }
-          );
-        }
-      }
-
-      // 3. Profection 정보 (연주법)
-      if (data.profectionData) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📅 [Annual Profection - 연주법]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(`나이: ${data.profectionData.age}세 (만 나이)`);
-        console.log(
-          `활성화된 하우스 (Profection House): ${data.profectionData.profectionHouse}번째 하우스`
-        );
-        console.log(
-          `프로펙션 별자리 (Profection Sign): ${data.profectionData.profectionSign}`
-        );
-        console.log(
-          `올해의 주인 (Lord of the Year): ${data.profectionData.lordOfTheYear}`
-        );
-        console.log(
-          `\n💡 해석 힌트: 올해는 ${data.profectionData.profectionHouse}번째 하우스의 주제가 인생의 중심이 되며, ${data.profectionData.lordOfTheYear}가 1년의 길흉을 주관합니다.`
-        );
-      }
-
-      // 4. Solar Return Overlay 정보
-      if (data.solarReturnOverlay) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🔮 [Solar Return Overlay - SR 행성의 Natal 하우스 위치]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(
-          `Solar Return Ascendant는 Natal 차트의 ${data.solarReturnOverlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.`
-        );
-        console.log("\nSolar Return 행성들의 Natal 차트 하우스 위치:");
-        if (data.solarReturnOverlay.planetsInNatalHouses) {
-          const planetNames = {
-            sun: "SR Sun",
-            moon: "SR Moon",
-            mercury: "SR Mercury",
-            venus: "SR Venus",
-            mars: "SR Mars",
-            jupiter: "SR Jupiter",
-            saturn: "SR Saturn",
-          };
-          Object.entries(data.solarReturnOverlay.planetsInNatalHouses).forEach(
-            ([name, house]) => {
-              const displayName = planetNames[name] || name;
-              console.log(
-                `  - ${displayName.padEnd(12)}: Natal ${house}번째 하우스`
-              );
-            }
-          );
-        }
-        console.log(
-          "\n💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 올해 그 영역에서 해당 행성의 영향력이 강하게 나타납니다."
-        );
-      }
-
-      // 5. 제미나이에게 전달한 프롬프트 (디버깅용)
-      if (data.userPrompt) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📝 [제미나이에게 전달한 User Prompt]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(data.userPrompt);
-      }
-
-      if (data.systemInstruction) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📋 [제미나이에게 전달한 System Instruction]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(data.systemInstruction);
-      }
-
-      // 6. 제미나이 해석 결과
-      console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("✨ [제미나이 해석 결과]");
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log(data.interpretation);
-      console.log("\n" + "=".repeat(60) + "\n");
-
-      if (data.interpretation && typeof data.interpretation === "string") {
-        setInterpretation(data.interpretation);
-        if (data.share_id) setShareId(data.share_id);
-
-        // 운세 이력 저장 (share_id를 result_id로 저장하여 복구 가능)
-        await saveFortuneHistory(
-          selectedProfile.id,
-          "yearly",
-          data.share_id ?? undefined
-        );
       } else {
         setInterpretation("결과를 불러올 수 없습니다.");
       }
@@ -712,6 +396,7 @@ function YearlyFortune() {
       if (!data || data.error)
         throw new Error(data?.error || "서버 오류가 발생했습니다.");
       logDebugInfoIfPresent(data);
+      logFortuneInput(data, { fortuneType: "lifetime" });
       if (data.interpretation && typeof data.interpretation === "string") {
         setInterpretation(data.interpretation);
         setShareId(data.share_id || null);
@@ -811,12 +496,10 @@ function YearlyFortune() {
 
   const getSubmitHandler = () => {
     if (fortuneTab === "daily") return handleSubmitDaily;
-    if (fortuneTab === "yearly") return handleSubmitYearly;
     return handleSubmitLifetime;
   };
   const getResultTitle = () => {
     if (fortuneTab === "daily") return "오늘의 우주 날씨";
-    if (fortuneTab === "yearly") return "나만의 1년 공략법";
     return "내 인생 사용 설명서";
   };
   const showRestoring = fortuneTab !== "daily" && restoring && !interpretation;
@@ -834,15 +517,14 @@ function YearlyFortune() {
         {/* 페이지 타이틀 - 진짜 운세 */}
         <div className="mb-4">
           <p className="text-slate-300 text-sm sm:text-base">
-            데일리 운세, 1년 운세, 종합 운세를 확인해 보세요.
+            데일리 운세와 종합 운세를 확인해 보세요.
           </p>
         </div>
 
-        {/* 탭: 데일리 운세 | 1년 운세 | 종합 운세 */}
+        {/* 탭: 데일리 운세 | 종합 운세 */}
         <div className="flex gap-1 mb-6 p-1 rounded-lg" style={{ backgroundColor: '#121230' }}>
           {[
             { id: "daily", label: "데일리 운세" },
-            { id: "yearly", label: "1년 운세" },
             { id: "lifetime", label: "종합 운세" },
           ].map((tab) => (
             <button
@@ -873,20 +555,6 @@ function YearlyFortune() {
               비가 오면 우산을 챙기듯, 오늘의 운을 미리 확인하세요. 매일
               달라지는 행성들의 배치가 오늘 당신의 기분과 사건에 어떤 영향을
               주는지 알려드립니다.
-            </p>
-          </div>
-        )}
-        {fortuneTab === "yearly" && (
-          <div className="mb-6 sm:mb-8">
-            <h3 className="text-lg font-semibold text-white mb-2">
-              나만의 1년 공략법
-            </h3>
-            <p className="text-slate-400 text-sm mb-1">
-              이번 연도 생일부터 다음 연도 생일까지.
-            </p>
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              점성학의 1년은 내 생일부터 시작됩니다. 이번 생일부터 다음
-              생일까지, 주어진 1년의 테마와 구체적인 행동 전략을 제안합니다.
             </p>
           </div>
         )}

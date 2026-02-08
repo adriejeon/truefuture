@@ -34,7 +34,7 @@ export async function saveFortuneHistory(
   fortuneType,
   resultId = null,
   profile = null,
-  userQuestion = null,
+  userQuestion = null
 ) {
   if (!userId || !profileId) return;
 
@@ -48,7 +48,8 @@ export async function saveFortuneHistory(
       fortune_type: fortuneType,
       fortune_date: getTodayDate(),
       ...(resultId && { result_id: resultId }),
-      ...(userQuestion && fortuneType === "consultation" && { user_question: userQuestion }),
+      ...(userQuestion &&
+        fortuneType === "consultation" && { user_question: userQuestion }),
     };
 
     if (fortuneType === "yearly" && profile?.birth_date) {
@@ -58,19 +59,19 @@ export async function saveFortuneHistory(
       const thisYearBirthday = new Date(
         currentYear,
         birthDate.getMonth(),
-        birthDate.getDate(),
+        birthDate.getDate()
       );
       const nextYearBirthday = new Date(
         currentYear + 1,
         birthDate.getMonth(),
-        birthDate.getDate(),
+        birthDate.getDate()
       );
 
       historyData.year_period_start = thisYearBirthday
         .toISOString()
         .split("T")[0];
       historyData.year_period_end = new Date(
-        nextYearBirthday.getTime() - 86400000,
+        nextYearBirthday.getTime() - 86400000
       )
         .toISOString()
         .split("T")[0];
@@ -126,13 +127,15 @@ export async function fetchCompatibilityHistory(userId) {
     // 먼저 fortune_history 조회
     const { data: historyData, error: historyError } = await supabase
       .from("fortune_history")
-      .select(`
+      .select(
+        `
         id,
         created_at,
         result_id,
         profile_id,
         profiles!inner(id, name, birth_date)
-      `)
+      `
+      )
       .eq("user_id", userId)
       .eq("fortune_type", "compatibility")
       .not("result_id", "is", null)
@@ -158,9 +161,7 @@ export async function fetchCompatibilityHistory(userId) {
     if (resultsError) throw resultsError;
 
     // 결과 병합
-    const resultsMap = new Map(
-      (resultsData || []).map((r) => [r.id, r])
-    );
+    const resultsMap = new Map((resultsData || []).map((r) => [r.id, r]));
 
     const mergedData = historyData.map((historyItem) => ({
       ...historyItem,
@@ -286,7 +287,7 @@ export async function deleteExpiredYearlyFortunes(userId) {
       const thisYearBirthday = new Date(
         currentYear,
         birthDate.getMonth(),
-        birthDate.getDate(),
+        birthDate.getDate()
       );
       thisYearBirthday.setHours(0, 0, 0, 0);
 
@@ -302,7 +303,8 @@ export async function deleteExpiredYearlyFortunes(userId) {
         .eq("fortune_type", "yearly")
         .not("result_id", "is", null);
 
-      if (historyError || !yearlyHistory || yearlyHistory.length === 0) continue;
+      if (historyError || !yearlyHistory || yearlyHistory.length === 0)
+        continue;
 
       // year_period_end가 오늘보다 이전인 것들 찾기
       const expiredHistory = yearlyHistory.filter((h) => {
@@ -330,11 +332,11 @@ export async function deleteExpiredYearlyFortunes(userId) {
       if (deleteError) {
         console.error(
           `프로필 ${profile.id}의 만료된 1년 운세 삭제 실패:`,
-          deleteError,
+          deleteError
         );
       } else {
         console.log(
-          `✅ 프로필 ${profile.id}의 만료된 1년 운세 ${resultIds.length}개 삭제 완료`,
+          `✅ 프로필 ${profile.id}의 만료된 1년 운세 ${resultIds.length}개 삭제 완료`
         );
       }
     }

@@ -192,6 +192,42 @@ export function getPlanetLongitude(body: any, time: any): number {
   }
 }
 
+/** 1시간(ms) — 역행/속도 계산용 델타 */
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * 두 시점의 황경 차이를 signed delta(도)로 반환 (역행 시 음수).
+ * 360도 wrap을 고려한다.
+ */
+function signedLongitudeDelta(lon1: number, lon2: number): number {
+  let d = normalizeDegrees(lon2) - normalizeDegrees(lon1);
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+/**
+ * 행성의 역행 여부와 속도(deg/일) 계산.
+ * t와 t+1시간의 황경을 비교. 태양·달은 항상 isRetrograde: false.
+ */
+export function getPlanetRetrogradeAndSpeed(
+  body: any,
+  time: any,
+  date: Date
+): { isRetrograde: boolean; speed: number } {
+  const lonNow = getPlanetLongitude(body, time);
+  const datePlus1h = new Date(date.getTime() + ONE_HOUR_MS);
+  const timePlus1h = MakeTime(datePlus1h);
+  const lonLater = getPlanetLongitude(body, timePlus1h);
+
+  const deltaDeg = signedLongitudeDelta(lonNow, lonLater);
+  const speedPerDay = deltaDeg * 24;
+
+  const isRetrograde = speedPerDay < 0;
+
+  return { isRetrograde, speed: speedPerDay };
+}
+
 // ========== 주요 계산 함수 ==========
 
 /**
@@ -248,8 +284,9 @@ export async function calculateChart(
     );
     const ascendantSignInfo = getSignFromLongitude(ascendant);
 
-    // 행성 위치 계산
+    // 행성 위치 계산 (역행·속도 포함)
     const planetsData: any = {};
+    const luminaries = new Set(["sun", "moon"]);
 
     for (const [planetName, body] of Object.entries(PLANETS)) {
       try {
@@ -257,11 +294,26 @@ export async function calculateChart(
         const signInfo = getSignFromLongitude(longitude);
         const house = getWholeSignHouse(longitude, ascendant);
 
+        let isRetrograde = false;
+        let speed: number | undefined;
+
+        if (luminaries.has(planetName)) {
+          isRetrograde = false;
+          const motion = getPlanetRetrogradeAndSpeed(body, time, date);
+          speed = motion.speed;
+        } else {
+          const motion = getPlanetRetrogradeAndSpeed(body, time, date);
+          isRetrograde = motion.isRetrograde;
+          speed = motion.speed;
+        }
+
         planetsData[planetName] = {
           sign: signInfo.sign,
           degree: longitude,
           degreeInSign: signInfo.degreeInSign,
           house: house,
+          isRetrograde,
+          ...(speed !== undefined && { speed }),
         };
       } catch (planetError: any) {
         console.error(`❌ ${planetName} 계산 실패:`, planetError);
@@ -298,6 +350,7 @@ export async function calculateChart(
         degree: fortunaLon,
         degreeInSign: fortunaSignInfo.degreeInSign,
         house: fortunaHouse,
+        isRetrograde: false,
       },
     };
 
@@ -594,6 +647,99 @@ export function getTransitMoonHouseInNatalChart(
   const natalAscendant = natalChart.houses.angles.ascendant;
 
   return getWholeSignHouse(transitMoonLongitude, natalAscendant);
+}
+
+/** 행성 표기명 → 차트 키 (연주/트랜짓 계산용) */
+const LORD_NAME_TO_KEY: Record<string, string> = {
+  Sun: "sun",
+  Moon: "moon",
+  Mercury: "mercury",
+  Venus: "venus",
+  Mars: "mars",
+  Jupiter: "jupiter",
+  Saturn: "saturn",
+};
+
+/**
+ * 연주 행성(Lord of the Year)이 트랜짓 차트에서 다른 트랜짓 행성과 맺는 각도를 계산합니다.
+ * 데일리 운세에서 "연주가 오늘 하늘에서 어떤 행성과 각도를 맺는지" 해석용.
+ */
+export function calculateLordOfYearTransitAspects(
+  transitChart: ChartData,
+  lordOfTheYear: string
+): Aspect[] {
+  const lordKey = LORD_NAME_TO_KEY[lordOfTheYear];
+  if (!lordKey) return [];
+  const lordPlanet = transitChart.planets?.[lordKey as keyof typeof transitChart.planets];
+  if (!lordPlanet) return [];
+
+  const lordDegree = lordPlanet.degree;
+  const aspects: Aspect[] = [];
+
+  for (const [otherKey, otherPlanet] of Object.entries(transitChart.planets)) {
+    if (otherKey === lordKey) continue;
+    const otherName = PLANET_NAMES[otherKey];
+    if (!otherName) continue;
+
+    const angleDiff = calculateAngleDifference(lordDegree, otherPlanet.degree);
+
+    for (const [, aspectType] of Object.entries(ASPECT_TYPES)) {
+      const expectedAngle = aspectType.angle;
+      const orb = aspectType.orb;
+      const actualOrb = Math.abs(angleDiff - expectedAngle);
+
+      if (actualOrb <= orb) {
+        aspects.push({
+          type: aspectType.name,
+          orb: actualOrb,
+          transitPlanet: lordOfTheYear,
+          natalPlanet: otherName,
+          description: `연주 행성(${lordOfTheYear}) ${aspectType.name} Transit ${otherName} (orb ${actualOrb.toFixed(1)}°)`,
+        });
+        break; // 한 행성당 하나의 가장 강한 각도만
+      }
+    }
+  }
+
+  aspects.sort((a, b) => a.orb - b.orb);
+  return aspects;
+}
+
+/**
+ * 연주 행성의 트랜짓 차트 내 상태: 역행 여부, 섹트(낮/밤 차트 및 연주 행성의 섹트 적합 여부).
+ * 데일리 운세 프롬프트에 "연주 행성의 현재 트랜짓에서의 상태"로 넘길 때 사용.
+ */
+export function getLordOfYearTransitStatus(
+  transitChart: ChartData,
+  lordOfTheYear: string
+): {
+  isRetrograde: boolean;
+  isDayChart: boolean;
+  sectStatus: "day_sect" | "night_sect" | "neutral";
+  isInSect: boolean;
+} {
+  const lordKey = LORD_NAME_TO_KEY[lordOfTheYear];
+  const lordPlanet = lordKey
+    ? transitChart.planets?.[lordKey as keyof typeof transitChart.planets]
+    : null;
+
+  const isRetrograde = lordPlanet?.isRetrograde === true;
+
+  const sunHouse = transitChart.planets?.sun?.house;
+  const isDayChart =
+    sunHouse != null ? sunHouse >= 7 && sunHouse <= 12 : true;
+
+  const sectStatus: "day_sect" | "night_sect" | "neutral" = DAY_SECT_PLANETS.has(lordOfTheYear)
+    ? "day_sect"
+    : NIGHT_SECT_PLANETS.has(lordOfTheYear)
+      ? "night_sect"
+      : "neutral";
+
+  const isInSect =
+    (isDayChart && DAY_SECT_PLANETS.has(lordOfTheYear)) ||
+    (!isDayChart && NIGHT_SECT_PLANETS.has(lordOfTheYear));
+
+  return { isRetrograde, isDayChart, sectStatus, isInSect };
 }
 
 // ========== Secondary Progression (진행 달) ==========
@@ -1142,6 +1288,345 @@ export function analyzeWealthPotential(
   };
 }
 
+// ========== Health Analysis (Hellenistic) ==========
+
+export interface HealthIssue {
+  issue: string;
+  severity: "High" | "Medium" | "Low";
+  affectedBodyPart?: string;
+}
+
+export interface HealthAnalysisResult {
+  moonHealth: {
+    isAfflicted: boolean;
+    issues: HealthIssue[];
+    description: string;
+  };
+  mentalHealth: {
+    riskLevel: "High" | "Medium" | "Low" | "None";
+    factors: string[];
+    description: string;
+  };
+  physicalHealth: {
+    riskLevel: "High" | "Medium" | "Low" | "None";
+    factors: string[];
+    maleficsIn6th: string[];
+    description: string;
+  };
+  congenitalIssues: {
+    hasRisk: boolean;
+    factors: string[];
+    bodyParts: string[];
+    description: string;
+  };
+  overallScore: number; // -10 (very weak) ~ +10 (very strong)
+  summary: string;
+}
+
+const SIGN_BODY_PARTS: { [key: string]: string } = {
+  Aries: "머리/얼굴",
+  Taurus: "목/인후",
+  Gemini: "어깨/팔/폐",
+  Cancer: "위/가슴",
+  Leo: "심장/등",
+  Virgo: "소화기/장",
+  Libra: "신장/허리",
+  Scorpio: "생식기/배설기",
+  Sagittarius: "허벅지/간",
+  Capricorn: "무릎/뼈/치아",
+  Aquarius: "종아리/순환계",
+  Pisces: "발/림프계",
+};
+
+/**
+ * 건강 지표성 분석 (헬레니스틱 점성학)
+ * - 달의 흉성 공격 (특히 토성)
+ * - 12하우스 연관성 (정신 건강)
+ * - 6하우스 흉성 (신체 건강 취약점)
+ * - 어센던트 흉성 공격 + 리젝션 (선천적 건강 문제)
+ */
+export function analyzeHealthPotential(
+  chartData: ChartData
+): HealthAnalysisResult {
+  const planets = chartData.planets ?? {};
+  const moon = planets.moon;
+  const saturn = planets.saturn;
+  const mars = planets.mars;
+  const asc = chartData.houses?.angles?.ascendant ?? 0;
+  const ascSign = getSignFromLongitude(asc).sign;
+
+  let overallScore = 10; // Start optimistic
+  const moonIssues: HealthIssue[] = [];
+  const mentalFactors: string[] = [];
+  const physicalFactors: string[] = [];
+  const congenitalFactors: string[] = [];
+  const congenitalBodyParts: string[] = [];
+  const maleficsIn6th: string[] = [];
+
+  // === 1. 달의 상태 체크 (흉성 공격, 특히 토성) ===
+  let moonAfflicted = false;
+  if (moon && saturn) {
+    const aspect = getNatalAspect(moon.degree, saturn.degree, {
+      squareOrb: 8,
+      oppositionOrb: 8,
+    });
+    if (aspect && (aspect.type === "Square" || aspect.type === "Opposition")) {
+      moonAfflicted = true;
+      moonIssues.push({
+        issue: `달이 토성에게 ${aspect.type} 공격을 받음`,
+        severity: "High",
+      });
+      overallScore -= 4;
+    }
+  }
+  if (moon && mars) {
+    const aspect = getNatalAspect(moon.degree, mars.degree, {
+      squareOrb: 8,
+      oppositionOrb: 8,
+    });
+    if (aspect && (aspect.type === "Square" || aspect.type === "Opposition")) {
+      moonAfflicted = true;
+      moonIssues.push({
+        issue: `달이 화성에게 ${aspect.type} 공격을 받음`,
+        severity: "Medium",
+      });
+      overallScore -= 2;
+    }
+  }
+
+  const moonDesc = moonAfflicted
+    ? "달이 흉성의 공격을 받아 건강이 취약함"
+    : "달의 상태가 양호함";
+
+  // === 2. 정신 건강 (12하우스 연관성) ===
+  let mentalRiskLevel: "High" | "Medium" | "Low" | "None" = "None";
+
+  // 2.1 달이 12하우스에 위치
+  if (moon) {
+    const moonHouse =
+      moon.house ?? getWholeSignHouse(moon.degree, asc);
+    if (moonHouse === 12) {
+      mentalFactors.push("달이 12하우스에 위치 (우울/불안 경향)");
+      overallScore -= 3;
+      mentalRiskLevel = "High";
+    }
+  }
+
+  // 2.2 달이 12하우스 로드
+  const house12Sign = getSignFromLongitude(normalizeDegrees(asc + 330)).sign; // 12th house cusp
+  const house12Ruler = getSignRuler(house12Sign);
+  if (moon && PLANET_NAMES.moon === house12Ruler) {
+    mentalFactors.push("달이 12하우스의 로드 (정신 건강 취약)");
+    overallScore -= 2;
+    if (mentalRiskLevel === "None") mentalRiskLevel = "Medium";
+  }
+
+  // 2.3 토성이 12하우스에 위치
+  if (saturn) {
+    const saturnHouse =
+      saturn.house ?? getWholeSignHouse(saturn.degree, asc);
+    if (saturnHouse === 12) {
+      mentalFactors.push("토성이 12하우스에 위치 (우울증/고독 경향)");
+      overallScore -= 3;
+      mentalRiskLevel = "High";
+    }
+  }
+
+  // 2.4 토성이 12하우스 로드
+  if (saturn && PLANET_NAMES.saturn === house12Ruler) {
+    mentalFactors.push("토성이 12하우스의 로드 (만성 우울/불안)");
+    overallScore -= 2;
+    if (mentalRiskLevel === "None") mentalRiskLevel = "Medium";
+  }
+
+  const mentalDesc =
+    mentalRiskLevel === "High"
+      ? "정신 건강에 높은 주의 필요 (우울/불안 경향)"
+      : mentalRiskLevel === "Medium"
+      ? "정신 건강에 중간 수준 주의 필요"
+      : "정신 건강 양호";
+
+  // === 3. 신체 건강 (6하우스 흉성) ===
+  let physicalRiskLevel: "High" | "Medium" | "Low" | "None" = "None";
+  const house6Sign = getSignFromLongitude(normalizeDegrees(asc + 150)).sign; // 6th house cusp
+  const house6Ruler = getSignRuler(house6Sign);
+
+  // 3.1 6하우스에 화성이나 토성 위치
+  if (mars) {
+    const marsHouse = mars.house ?? getWholeSignHouse(mars.degree, asc);
+    if (marsHouse === 6) {
+      maleficsIn6th.push("Mars");
+      physicalFactors.push("화성이 6하우스에 위치 (사고/수술 위험)");
+      overallScore -= 3;
+      physicalRiskLevel = "High";
+    }
+  }
+  if (saturn) {
+    const saturnHouse =
+      saturn.house ?? getWholeSignHouse(saturn.degree, asc);
+    if (saturnHouse === 6) {
+      maleficsIn6th.push("Saturn");
+      physicalFactors.push("토성이 6하우스에 위치 (만성 질환)");
+      overallScore -= 3;
+      physicalRiskLevel = "High";
+    }
+  }
+
+  // 3.2 6하우스 로드가 흉성에게 공격
+  const house6RulerKey = PLANET_NAME_TO_KEY[house6Ruler];
+  if (house6RulerKey) {
+    const rulerData = planets[house6RulerKey];
+    if (rulerData && saturn) {
+      const asp = getNatalAspect(rulerData.degree, saturn.degree, {
+        squareOrb: 8,
+        oppositionOrb: 8,
+      });
+      if (asp && (asp.type === "Square" || asp.type === "Opposition")) {
+        physicalFactors.push(
+          `6하우스 로드(${house6Ruler})가 토성에게 ${asp.type} 공격받음`
+        );
+        overallScore -= 2;
+        if (physicalRiskLevel === "None") physicalRiskLevel = "Medium";
+      }
+    }
+    if (rulerData && mars) {
+      const asp = getNatalAspect(rulerData.degree, mars.degree, {
+        squareOrb: 8,
+        oppositionOrb: 8,
+      });
+      if (asp && (asp.type === "Square" || asp.type === "Opposition")) {
+        physicalFactors.push(
+          `6하우스 로드(${house6Ruler})가 화성에게 ${asp.type} 공격받음`
+        );
+        overallScore -= 2;
+        if (physicalRiskLevel === "None") physicalRiskLevel = "Medium";
+      }
+    }
+  }
+
+  const physicalDesc =
+    physicalRiskLevel === "High"
+      ? "신체 건강에 높은 취약점 존재"
+      : physicalRiskLevel === "Medium"
+      ? "신체 건강에 중간 수준 주의 필요"
+      : "신체 건강 양호";
+
+  // === 4. 선천적 건강 문제 (어센던트 + 흉성 공격 + 리젝션) ===
+  let hasCongenitalRisk = false;
+
+  // 4.1 어센던트가 흉성에게 공격받는지 체크
+  if (saturn) {
+    const ascSaturnAsp = getNatalAspect(asc, saturn.degree, {
+      squareOrb: 6,
+      oppositionOrb: 6,
+    });
+    if (
+      ascSaturnAsp &&
+      (ascSaturnAsp.type === "Square" || ascSaturnAsp.type === "Opposition")
+    ) {
+      // 리젝션 체크: 어센던트 사인이 토성을 리젝션으로 뱉는지
+      const saturnSign = getSignFromLongitude(saturn.degree).sign;
+      const isRejection = checkRejection(ascSign, saturnSign);
+      if (isRejection) {
+        hasCongenitalRisk = true;
+        congenitalFactors.push(
+          `어센던트가 토성에게 ${ascSaturnAsp.type} 공격받고, 리젝션 관계`
+        );
+        congenitalBodyParts.push(SIGN_BODY_PARTS[saturnSign] ?? saturnSign);
+        overallScore -= 4;
+      }
+    }
+  }
+  if (mars) {
+    const ascMarsAsp = getNatalAspect(asc, mars.degree, {
+      squareOrb: 6,
+      oppositionOrb: 6,
+    });
+    if (
+      ascMarsAsp &&
+      (ascMarsAsp.type === "Square" || ascMarsAsp.type === "Opposition")
+    ) {
+      const marsSign = getSignFromLongitude(mars.degree).sign;
+      const isRejection = checkRejection(ascSign, marsSign);
+      if (isRejection) {
+        hasCongenitalRisk = true;
+        congenitalFactors.push(
+          `어센던트가 화성에게 ${ascMarsAsp.type} 공격받고, 리젝션 관계`
+        );
+        congenitalBodyParts.push(SIGN_BODY_PARTS[marsSign] ?? marsSign);
+        overallScore -= 3;
+      }
+    }
+  }
+
+  const congenitalDesc = hasCongenitalRisk
+    ? `선천적 건강 문제 가능성 높음 (${congenitalBodyParts.join(", ")} 취약)`
+    : "선천적 건강 문제 없음";
+
+  // === 5. 종합 요약 ===
+  const summaryParts: string[] = [];
+  if (moonAfflicted) summaryParts.push("달 공격");
+  if (mentalRiskLevel !== "None")
+    summaryParts.push(`정신건강 ${mentalRiskLevel}`);
+  if (physicalRiskLevel !== "None")
+    summaryParts.push(`신체건강 ${physicalRiskLevel}`);
+  if (hasCongenitalRisk) summaryParts.push("선천적 문제");
+
+  const summary =
+    summaryParts.length > 0
+      ? summaryParts.join(" / ")
+      : "전반적으로 건강 양호";
+
+  return {
+    moonHealth: {
+      isAfflicted: moonAfflicted,
+      issues: moonIssues,
+      description: moonDesc,
+    },
+    mentalHealth: {
+      riskLevel: mentalRiskLevel,
+      factors: mentalFactors,
+      description: mentalDesc,
+    },
+    physicalHealth: {
+      riskLevel: physicalRiskLevel,
+      factors: physicalFactors,
+      maleficsIn6th,
+      description: physicalDesc,
+    },
+    congenitalIssues: {
+      hasRisk: hasCongenitalRisk,
+      factors: congenitalFactors,
+      bodyParts: congenitalBodyParts,
+      description: congenitalDesc,
+    },
+    overallScore,
+    summary,
+  };
+}
+
+/**
+ * 리젝션 체크: sign1이 sign2를 리젝션으로 뱉는지
+ * (예: 양자리가 전갈자리를 리젝션, 황소자리가 양자리를 리젝션 등)
+ */
+function checkRejection(sign1: string, sign2: string): boolean {
+  const REJECTION_MAP: { [key: string]: string[] } = {
+    Aries: ["Scorpio", "Virgo"],
+    Taurus: ["Aries", "Libra"],
+    Gemini: ["Scorpio", "Sagittarius"],
+    Cancer: ["Aquarius", "Capricorn"],
+    Leo: ["Capricorn", "Aquarius"],
+    Virgo: ["Aries", "Pisces"],
+    Libra: ["Taurus", "Pisces"],
+    Scorpio: ["Aries", "Gemini"],
+    Sagittarius: ["Gemini", "Taurus"],
+    Capricorn: ["Cancer", "Leo"],
+    Aquarius: ["Cancer", "Leo"],
+    Pisces: ["Virgo", "Libra"],
+  };
+  return REJECTION_MAP[sign1]?.includes(sign2) ?? false;
+}
+
 // ========== Love & Marriage (Hellenistic) ==========
 
 /**
@@ -1250,8 +1735,9 @@ export interface SpouseCandidateResult {
 }
 
 /**
- * 배우자 후보 행성 선정: 7th Ruler, Lot Ruler, Venus, Luminary(M=Moon, F=Sun)를 지표로
+ * 배우자 후보 행성 선정: 7th Ruler, 7th House에 위치한 행성, Lot Ruler, Venus, Luminary(M=Moon, F=Sun)를 지표로
  * 다른 행성들이 이들과 맺는 각도에 따라 점수 부여. Luminary가 가장 먼저 만나는(Applying) 행성 +30.
+ * 7th House에 위치한 행성들에게 +15점 추가.
  */
 export function identifySpouseCandidate(
   chartData: ChartData,
@@ -1290,23 +1776,37 @@ export function identifySpouseCandidate(
     scores[PLANET_NAMES[key]] = 0;
   }
 
+  // 7th House에 위치한 행성들에게 가산점 부여
+  for (const key of planetKeys) {
+    const planet = planets[key];
+    if (!planet) continue;
+    const house = planet.house ?? getWholeSignHouse(planet.degree, asc);
+    if (house === 7) {
+      scores[PLANET_NAMES[key]] += 15; // 7하우스 위치 보너스
+    }
+  }
+
   for (const key of planetKeys) {
     const otherLon = planets[key]?.degree;
     if (otherLon == null) continue;
     const name = PLANET_NAMES[key];
 
+    // 7th Ruler와의 각도
     if (seventhRulerLon != null) {
       const asp = getNatalAspect(otherLon, seventhRulerLon);
       if (asp) scores[name] += 10;
     }
+    // Venus와의 각도
     const aspVenus = getNatalAspect(otherLon, venusLon);
     if (aspVenus) scores[name] += 10;
+    // Lot Ruler와의 각도
     if (lotRulerLon != null) {
       const aspLot = getNatalAspect(otherLon, lotRulerLon);
       if (aspLot) scores[name] += 5;
     }
   }
 
+  // Luminary가 가장 먼저 만나는 행성 (Applying Aspect)
   let bestApplyingOrb = Infinity;
   let luminaryFirstPlanet: string | null = null;
   for (const key of planetKeys) {

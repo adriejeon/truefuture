@@ -10,24 +10,28 @@ import BottomNavigation from "../components/BottomNavigation";
 import FortuneProcess from "../components/FortuneProcess";
 import ReactMarkdown from "react-markdown";
 import { colors } from "../constants/colors";
+import { logFortuneInput } from "../utils/debugFortune";
 
 // 카테고리 옵션 (백엔드 consultationTopic과 일치)
 const TOPIC_OPTIONS = [
   { id: "LOVE", label: "💘 연애/결혼", emoji: "💘" },
   { id: "MONEY", label: "💰 재물/사업", emoji: "💰" },
   { id: "WORK", label: "💼 직업/이직", emoji: "💼" },
+  { id: "HEALTH", label: "🏥 건강/체력", emoji: "🏥" },
   { id: "EXAM", label: "📝 시험/합격", emoji: "📝" },
   { id: "MOVE", label: "🏡 이사/이동", emoji: "🏡" },
+  { id: "WEEKLY", label: "📅 주간 운세", emoji: "📅" },
+  { id: "MONTHLY", label: "🗓️ 월간 운세", emoji: "🗓️" },
   { id: "OTHER", label: "🔮 기타", emoji: "🔮" },
 ];
 
 // 프리셋 질문 (카테고리별 자주 묻는 질문)
 const PRESET_QUESTIONS = {
   LOVE: [
-    "짝사랑 중인데 이 사람과 연인이 될 수 있을까요?",
-    "지금 만나는 사람과 언제쯤 결혼할 수 있을까요?",
+    "짝사랑 중인데 연인이 될 수 있을까요?",
+    "저는 언제 결혼할까요?",
     "헤어진 연인과 재회할 가능성이 있을까요?",
-    "저랑 이 사람의 속궁합이나 성격 합이 잘 맞나요?",
+    "자녀는 언제 낳을 수 있을까요?",
   ],
   MONEY: [
     "지금 준비 중인 사업을 시작해도 될까요?",
@@ -37,19 +41,35 @@ const PRESET_QUESTIONS = {
   ],
   WORK: [
     "지금 회사를 그만두고 이직하는 게 좋을까요?",
-    "이 직무가 저의 적성에 맞는지 궁금해요.",
+    "사업을 시작할까요?",
     "언제쯤 승진하거나 인정받을 수 있을까요?",
-    "프리랜서로 전향해도 성공할 수 있을까요?",
+    "프리랜서로 전향해도 좋을까요?",
   ],
   EXAM: [
     "이번 시험에 합격할 가능성이 몇 % 정도 될까요?",
-    "면접 결과가 긍정적으로 나올까요?",
+    "이번에 공부가 잘 될까요?",
     "자격증 시험 합격운이 가장 좋은 시기는 언제인가요?",
   ],
   MOVE: [
     "지금 사는 곳에서 이사하는 게 좋을까요, 머무는 게 좋을까요?",
     "해외로 이동하거나 유학을 가도 될까요?",
     "문서운(부동산 계약)이 들어오는 시기가 언제인가요?",
+  ],
+  WEEKLY: [
+    "이번 주 면접 발표가 긍정적일까요?",
+    "이번 주 데이트가 성공적일까요?",
+    "이번 주 있을 중요한 미팅이 성공적일까요?",
+  ],
+  MONTHLY: [
+    "이번 달에 진행되는 프로젝트가 긍정적일까요?",
+    "이번 달에 있을 소개팅이 괜찮을까요?",
+    "이번 달에 있을 중요한 미팅이 성공적일까요?",
+  ],
+  HEALTH: [
+    "요즘 건강 상태가 좋지 않은데 언제쯤 회복될까요?",
+    "지금 겪고 있는 만성 질환의 원인이 뭔가요?",
+    "정신 건강(우울/불안)이 언제쯤 안정될까요?",
+    "수술이나 치료를 받기 좋은 시기는 언제인가요?",
   ],
 };
 
@@ -87,7 +107,7 @@ function Consultation() {
 
   // UI 상태
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState("LOVE");
+  const [selectedTopic, setSelectedTopic] = useState(null); // null: 미선택 상태
   const [userQuestion, setUserQuestion] = useState("");
   const [error, setError] = useState("");
   const [selectedChipIndex, setSelectedChipIndex] = useState(null);
@@ -262,7 +282,19 @@ function Consultation() {
     );
   };
 
-  const handleKakaoShare = (shareId) => {
+  /** 상담 결과 한 줄 요약 생성 (parsedData.summary 기반) */
+  const buildConsultationShareSummary = (parsedData) => {
+    if (!parsedData?.summary) return null;
+    const title = parsedData.summary.title?.trim();
+    const score = parsedData.summary.score;
+    if (!title && score == null) return null;
+    const parts = [];
+    if (title) parts.push(title);
+    if (score != null) parts.push(`실현 가능성 ${score}%`);
+    return parts.join(" · ") || null;
+  };
+
+  const handleKakaoShare = (shareId, shareSummary = null) => {
     if (!window.Kakao?.isInitialized()) {
       alert("카카오톡 공유 기능을 사용할 수 없습니다.");
       return;
@@ -272,12 +304,14 @@ function Consultation() {
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
       : `${window.location.origin}/assets/truefuture.png`;
+    const description = shareSummary?.trim() || "AI 점성술로 분석한 맞춤 상담 결과를 확인해보세요.";
+    const title = shareSummary ? "진짜미래 - 상담 결과 공유" : "진짜미래 - 자유 질문 상담 결과를 공유했어요";
     try {
       window.Kakao.Share.sendDefault({
         objectType: "feed",
         content: {
-          title: "진짜미래 - 자유 질문 상담 결과를 공유했어요",
-          description: "AI 점성술로 분석한 맞춤 상담 결과를 확인해보세요.",
+          title,
+          description,
           imageUrl,
           link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
         },
@@ -324,6 +358,9 @@ function Consultation() {
       throw new Error(functionError.message || "서버 오류가 발생했습니다.");
     if (!data || data.error)
       throw new Error(data?.error || "서버 오류가 발생했습니다.");
+
+    // 프론트 콘솔에서 차트·프롬프트·항성 등 Gemini 인풋 확인
+    logFortuneInput(data, { fortuneType: "consultation" });
 
     const parsedData = parseFortuneResult(data.interpretation);
     const answer = {
@@ -629,7 +666,12 @@ function Consultation() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleKakaoShare(historyView.shareId)}
+                    onClick={() =>
+                      handleKakaoShare(
+                        historyView.shareId,
+                        buildConsultationShareSummary(historyView.parsedData)
+                      )
+                    }
                     className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
                     title="카카오톡 공유하기"
                   >
@@ -897,7 +939,7 @@ function Consultation() {
           {/* 토픽 선택 */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-slate-300 mb-3">
-              카테고리 선택
+              먼저 카테고리를 선택해주세요
             </label>
             <div className="grid grid-cols-3 gap-2">
               {TOPIC_OPTIONS.map((option) => (
@@ -906,9 +948,8 @@ function Consultation() {
                   type="button"
                   onClick={() => {
                     setSelectedTopic(option.id);
-                    // 토픽 변경 시 선택된 칩 상태 초기화
+                    setUserQuestion("");
                     setSelectedChipIndex(null);
-                    // 스크롤 상태 초기화
                     setIsScrolled(false);
                     setIsScrolling(false);
                   }}
@@ -924,304 +965,325 @@ function Consultation() {
             </div>
           </div>
 
-          {/* 질문 도우미 칩 (프리셋 질문) */}
-          {PRESET_QUESTIONS[selectedTopic] && (
-            <div className="mb-6 -mx-4">
-              <p className="text-xs text-slate-400 mb-3 px-4">
-                이런 질문은 어떠세요?
-              </p>
-              <div
-                ref={chipScrollRef}
-                className={`flex flex-nowrap gap-2 overflow-x-auto pb-2 ${
-                  isScrolling
-                    ? "chip-scrollbar-show scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent"
-                    : "chip-scrollbar-hide"
-                } ${isScrolled ? "" : "pl-4"}`}
-              >
-                {PRESET_QUESTIONS[selectedTopic].map((question, idx) => {
-                  const isSelected =
-                    selectedChipIndex === idx && userQuestion === question;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setUserQuestion(question);
-                        setSelectedChipIndex(idx);
-                      }}
-                      className={`flex-shrink-0 px-4 py-2 border rounded-full text-xs sm:text-sm transition-all duration-200 whitespace-nowrap shadow-sm hover:shadow-md ${
-                        isSelected
-                          ? "bg-primary border-primary text-black"
-                          : "bg-slate-700/40 hover:bg-primary border-slate-600/50 hover:border-primary text-slate-200 hover:text-black"
-                      }`}
-                    >
-                      {question}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 질문 입력 */}
-          <form onSubmit={(e) => e.preventDefault()} className="mb-6 sm:mb-8">
-            <label className="block text-sm font-medium text-slate-300 mb-3">
-              질문 입력
-            </label>
-            <textarea
-              value={userQuestion}
-              onChange={(e) => {
-                setUserQuestion(e.target.value);
-                // 사용자가 직접 입력하면 선택 상태 해제
-                setSelectedChipIndex(null);
-              }}
-              placeholder="구체적으로 질문할수록 더 정확한 답변을 받을 수 있어요. (예: 지금 만나는 사람과 내년에 결혼할 수 있을까요?)"
-              maxLength={1000}
-              rows={5}
-              className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-            />
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-xs text-slate-400">
-                {userQuestion.length}/1000
-              </span>
-            </div>
-
-            {error && (
-              <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
-                {error}
-              </div>
-            )}
-
-            <FortuneProcess
-              onRequest={requestConsultation}
-              renderResult={(answer) => (
-                <div className="mb-8">
-                  {answer.shareId && (
-                    <div className="flex items-center justify-end gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyLink(answer.shareId)}
-                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                        title="주소 복사"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+          {/* 카테고리가 선택된 경우에만 질문 입력 영역 표시 */}
+          {selectedTopic && (
+            <>
+              {/* 질문 도우미 칩 (프리셋 질문) */}
+              {PRESET_QUESTIONS[selectedTopic] && (
+                <div className="mb-6 -mx-4">
+                  <p className="text-xs text-slate-400 mb-3 px-4">
+                    이런 질문은 어떠세요?
+                  </p>
+                  <div
+                    ref={chipScrollRef}
+                    className={`flex flex-nowrap gap-2 overflow-x-auto pb-2 ${
+                      isScrolling
+                        ? "chip-scrollbar-show scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent"
+                        : "chip-scrollbar-hide"
+                    } ${isScrolled ? "" : "pl-4"}`}
+                  >
+                    {PRESET_QUESTIONS[selectedTopic].map((question, idx) => {
+                      const isSelected =
+                        selectedChipIndex === idx && userQuestion === question;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setUserQuestion(question);
+                            setSelectedChipIndex(idx);
+                          }}
+                          className={`flex-shrink-0 px-4 py-2 border rounded-full text-xs sm:text-sm transition-all duration-200 whitespace-nowrap shadow-sm hover:shadow-md ${
+                            isSelected
+                              ? "bg-primary border-primary text-black"
+                              : "bg-slate-700/40 hover:bg-primary border-slate-600/50 hover:border-primary text-slate-200 hover:text-black"
+                          }`}
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleKakaoShare(answer.shareId)}
-                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                        title="카카오톡 공유하기"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                  <div className="mb-4 p-4 bg-primary border border-primary rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl flex-shrink-0" aria-hidden>
-                        {
-                          TOPIC_OPTIONS.find((t) => t.id === answer.topic)
-                            ?.emoji
-                        }
-                      </span>
-                      <p className="text-black font-medium flex-1 min-w-0">
-                        {answer.question}
-                      </p>
-                    </div>
+                          {question}
+                        </button>
+                      );
+                    })}
                   </div>
-
-                  {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
-                  {answer.parsedData ? (
-                    <div className="space-y-5">
-                      {/* Header Card */}
-                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
-                        <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                          {answer.parsedData.summary?.title || "결론"}
-                        </h2>
-                        {answer.parsedData.summary?.score != null && (
-                          <div className="mb-4">
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="text-sm text-blue-200">
-                                실현 가능성
-                              </span>
-                              <span className="text-2xl font-bold text-white">
-                                {answer.parsedData.summary.score}%
-                              </span>
-                              <span className="flex gap-0.5" aria-hidden>
-                                {[1, 2, 3, 4, 5].map((i) => (
-                                  <span
-                                    key={i}
-                                    className={
-                                      i <=
-                                      Math.round(
-                                        (answer.parsedData.summary.score || 0) /
-                                          20
-                                      )
-                                        ? "text-amber-400"
-                                        : "text-slate-600"
-                                    }
-                                  >
-                                    ★
-                                  </span>
-                                ))}
-                              </span>
-                            </div>
-                            <div className="w-full bg-[#121230] rounded-full h-2.5">
-                              <div
-                                className="h-2.5 rounded-full transition-all duration-500"
-                                style={{
-                                  backgroundColor: colors.primary,
-                                  width: `${answer.parsedData.summary.score}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex flex-wrap gap-1">
-                          {(answer.parsedData.summary?.keywords || []).map(
-                            (keyword, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
-                              >
-                                {keyword}
-                              </span>
-                            )
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Timeline Section */}
-                      {answer.parsedData.timeline &&
-                        answer.parsedData.timeline.length > 0 && (
-                          <div>
-                            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                              📅 타임라인
-                            </h3>
-                            <div className="space-y-3">
-                              {answer.parsedData.timeline.map((item, idx) => {
-                                const isGood = item.type === "good";
-                                const isBad = item.type === "bad";
-                                const isNeutral = item.type === "neutral";
-                                const bgColor = isGood
-                                  ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
-                                  : isBad
-                                  ? "bg-rose-900/30 border-rose-500/50"
-                                  : "bg-slate-700/30 border-slate-500/50";
-                                const iconColor = isGood
-                                  ? "text-[#F2ACAC]"
-                                  : isBad
-                                  ? "text-rose-400"
-                                  : "text-slate-400";
-
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
-                                  >
-                                    <div
-                                      className={`text-xl flex-shrink-0 ${iconColor}`}
-                                    >
-                                      {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-semibold text-white mb-1">
-                                        {item.date}
-                                      </p>
-                                      <p className="text-sm text-slate-300 leading-relaxed">
-                                        {item.note}
-                                      </p>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Analysis Section */}
-                      <div className="space-y-5">
-                        <div>
-                          <h3 className="text-lg font-semibold text-white mb-3">
-                            🔮 종합 분석
-                          </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {answer.parsedData.analysis?.general || ""}
-                          </p>
-                        </div>
-
-                        <div className="border-t border-slate-600/40 pt-5">
-                          <h3 className="text-lg font-semibold text-white mb-3">
-                            ⏰ 시기 분석
-                          </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {answer.parsedData.analysis?.timing || ""}
-                          </p>
-                        </div>
-
-                        <div className="border-t border-slate-600/40 pt-5">
-                          <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
-                            <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
-                              💡 Action Tip
-                            </h3>
-                            <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                              {answer.parsedData.analysis?.advice || ""}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Fallback: Raw Text (JSON 파싱 실패 시) */
-                    <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
-                      <h3 className="text-lg font-semibold text-white mb-4">
-                        🔮 답변
-                      </h3>
-                      <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
-                        <ReactMarkdown>{answer.interpretation}</ReactMarkdown>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
-            >
-              <button
-                type="button"
-                disabled={!selectedProfile || !userQuestion.trim()}
-                className="w-full mt-4 py-3 px-4 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{
-                  background:
-                    "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
-                }}
+
+              {/* 질문 입력 */}
+              <form
+                onSubmit={(e) => e.preventDefault()}
+                className="mb-6 sm:mb-8"
               >
-                진짜미래 확인하기
-              </button>
-            </FortuneProcess>
-          </form>
+                <label className="block text-sm font-medium text-slate-300 mb-3">
+                  질문 입력
+                </label>
+                <textarea
+                  value={userQuestion}
+                  onChange={(e) => {
+                    setUserQuestion(e.target.value);
+                    // 사용자가 직접 입력하면 선택 상태 해제
+                    setSelectedChipIndex(null);
+                  }}
+                  placeholder="구체적으로 질문할수록 더 정확한 답변을 받을 수 있어요. (예: 지금 만나는 사람과 내년에 결혼할 수 있을까요?)"
+                  maxLength={1000}
+                  rows={5}
+                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-slate-400">
+                    {userQuestion.length}/1000
+                  </span>
+                </div>
+
+                {error && (
+                  <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <FortuneProcess
+                  onRequest={requestConsultation}
+                  renderResult={(answer) => (
+                    <div className="mb-8">
+                      {answer.shareId && (
+                        <div className="flex items-center justify-end gap-2 mb-3">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink(answer.shareId)}
+                            className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                            title="주소 복사"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleKakaoShare(
+                                answer.shareId,
+                                buildConsultationShareSummary(answer.parsedData)
+                              )
+                            }
+                            className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                            title="카카오톡 공유하기"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                      <div className="mb-4 p-4 bg-primary border border-primary rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl flex-shrink-0" aria-hidden>
+                            {
+                              TOPIC_OPTIONS.find((t) => t.id === answer.topic)
+                                ?.emoji
+                            }
+                          </span>
+                          <p className="text-black font-medium flex-1 min-w-0">
+                            {answer.question}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
+                      {answer.parsedData ? (
+                        <div className="space-y-5">
+                          {/* Header Card */}
+                          <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
+                              {answer.parsedData.summary?.title || "결론"}
+                            </h2>
+                            {answer.parsedData.summary?.score != null && (
+                              <div className="mb-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <span className="text-sm text-blue-200">
+                                    실현 가능성
+                                  </span>
+                                  <span className="text-2xl font-bold text-white">
+                                    {answer.parsedData.summary.score}%
+                                  </span>
+                                  <span className="flex gap-0.5" aria-hidden>
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                      <span
+                                        key={i}
+                                        className={
+                                          i <=
+                                          Math.round(
+                                            (answer.parsedData.summary.score ||
+                                              0) / 20
+                                          )
+                                            ? "text-amber-400"
+                                            : "text-slate-600"
+                                        }
+                                      >
+                                        ★
+                                      </span>
+                                    ))}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-[#121230] rounded-full h-2.5">
+                                  <div
+                                    className="h-2.5 rounded-full transition-all duration-500"
+                                    style={{
+                                      backgroundColor: colors.primary,
+                                      width: `${answer.parsedData.summary.score}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-1">
+                              {(answer.parsedData.summary?.keywords || []).map(
+                                (keyword, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
+                                  >
+                                    {keyword}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Timeline Section */}
+                          {answer.parsedData.timeline &&
+                            answer.parsedData.timeline.length > 0 && (
+                              <div>
+                                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                  📅 타임라인
+                                </h3>
+                                <div className="space-y-3">
+                                  {answer.parsedData.timeline.map(
+                                    (item, idx) => {
+                                      const isGood = item.type === "good";
+                                      const isBad = item.type === "bad";
+                                      const isNeutral = item.type === "neutral";
+                                      const bgColor = isGood
+                                        ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
+                                        : isBad
+                                        ? "bg-rose-900/30 border-rose-500/50"
+                                        : "bg-slate-700/30 border-slate-500/50";
+                                      const iconColor = isGood
+                                        ? "text-[#F2ACAC]"
+                                        : isBad
+                                        ? "text-rose-400"
+                                        : "text-slate-400";
+
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                                        >
+                                          <div
+                                            className={`text-xl flex-shrink-0 ${iconColor}`}
+                                          >
+                                            {isGood
+                                              ? "✨"
+                                              : isBad
+                                              ? "⚠️"
+                                              : "⏳"}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-white mb-1">
+                                              {item.date}
+                                            </p>
+                                            <p className="text-sm text-slate-300 leading-relaxed">
+                                              {item.note}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                          {/* Analysis Section */}
+                          <div className="space-y-5">
+                            <div>
+                              <h3 className="text-lg font-semibold text-white mb-3">
+                                🔮 종합 분석
+                              </h3>
+                              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                                {answer.parsedData.analysis?.general || ""}
+                              </p>
+                            </div>
+
+                            <div className="border-t border-slate-600/40 pt-5">
+                              <h3 className="text-lg font-semibold text-white mb-3">
+                                ⏰ 시기 분석
+                              </h3>
+                              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                                {answer.parsedData.analysis?.timing || ""}
+                              </p>
+                            </div>
+
+                            <div className="border-t border-slate-600/40 pt-5">
+                              <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                                <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
+                                  💡 Action Tip
+                                </h3>
+                                <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                                  {answer.parsedData.analysis?.advice || ""}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Fallback: Raw Text (JSON 파싱 실패 시) */
+                        <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
+                          <h3 className="text-lg font-semibold text-white mb-4">
+                            🔮 답변
+                          </h3>
+                          <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
+                            <ReactMarkdown>
+                              {answer.interpretation}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                >
+                  <button
+                    type="button"
+                    disabled={!selectedProfile || !userQuestion.trim()}
+                    className="w-full mt-4 py-3 px-4 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background:
+                        "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
+                    }}
+                  >
+                    진짜미래 확인하기
+                  </button>
+                </FortuneProcess>
+              </form>
+            </>
+          )}
         </div>
       </div>
 

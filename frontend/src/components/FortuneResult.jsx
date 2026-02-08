@@ -3,7 +3,38 @@ import ReactMarkdown from "react-markdown";
 import { parseMarkdownToSections } from "../utils/markdownParser";
 import { colors } from "../constants/colors";
 
-function FortuneResult({ title, interpretation, shareId, isShared = false }) {
+/** 운세 한 줄 요약을 intro/섹션에서 추출 (최대 100자) */
+function getDefaultShareSummary(intro, accordionSections) {
+  const firstLine = (intro || "").trim().split(/\n/)[0]?.replace(/#{1,6}\s*/, "").trim() || "";
+  const fromSection = accordionSections?.[0]?.summary?.trim();
+  const text = firstLine || fromSection || (intro || "").trim().slice(0, 100);
+  if (!text) return null;
+  return text.length > 100 ? text.slice(0, 97) + "…" : text;
+}
+
+/** 데일리 운세 점수 추출 (## 오늘의 운세 점수 섹션에서 **오전:** XX점, **오후:** XX점 파싱) */
+function parseDailyScores(interpretation) {
+  if (!interpretation) return null;
+  
+  // "## 오늘의 운세 점수" 섹션 찾기
+  const scoreMatch = interpretation.match(/##\s*오늘의 운세 점수\s*\n([\s\S]*?)(?=\n##|$)/i);
+  if (!scoreMatch) return null;
+  
+  const scoreSection = scoreMatch[1];
+  
+  // **오전:** XX점, **오후:** XX점 파싱
+  const morningMatch = scoreSection.match(/\*\*오전[:\s]*\*\*\s*(\d+)\s*점/i);
+  const afternoonMatch = scoreSection.match(/\*\*오후[:\s]*\*\*\s*(\d+)\s*점/i);
+  
+  if (!morningMatch && !afternoonMatch) return null;
+  
+  return {
+    morning: morningMatch ? parseInt(morningMatch[1], 10) : null,
+    afternoon: afternoonMatch ? parseInt(afternoonMatch[1], 10) : null,
+  };
+}
+
+function FortuneResult({ title, interpretation, shareId, isShared = false, shareSummary: shareSummaryProp }) {
   // 디버깅: shareId 확인
   useEffect(() => {
     console.log(`[FortuneResult] ${title} - shareId:`, shareId);
@@ -13,6 +44,26 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
   const { intro, accordionSections } = useMemo(() => {
     return parseMarkdownToSections(interpretation);
   }, [interpretation]);
+
+  // 데일리 운세 점수 파싱
+  const dailyScores = useMemo(() => {
+    return parseDailyScores(interpretation);
+  }, [interpretation]);
+
+  // 카카오 공유용 한 줄 요약 (데일리 운세 시 점수 포함, prop 우선, 없으면 intro/첫 섹션 요약에서 추출)
+  const shareSummary = useMemo(() => {
+    if (shareSummaryProp && shareSummaryProp.trim()) return shareSummaryProp.trim();
+    
+    // 데일리 운세 점수가 있으면 점수 포함해서 요약 생성
+    if (dailyScores) {
+      const avgScore = dailyScores.morning && dailyScores.afternoon
+        ? Math.round((dailyScores.morning + dailyScores.afternoon) / 2)
+        : dailyScores.morning || dailyScores.afternoon || 0;
+      return `오늘의 운세 점수는 ${avgScore}점입니다`;
+    }
+    
+    return getDefaultShareSummary(intro, accordionSections);
+  }, [shareSummaryProp, intro, accordionSections, dailyScores]);
 
   // 아코디언 열림/닫힘 상태 관리 (첫 번째는 기본적으로 열림)
   const [openSections, setOpenSections] = useState(() => new Set([0]));
@@ -84,12 +135,13 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
     console.log("  - 이미지 URL:", imageUrl);
     console.log("  - Origin:", window.location.origin);
 
-    // 카카오 공유 설정 객체
+    // 카카오 공유 설정 객체 (요약이 있으면 한 줄 요약으로 노출)
+    const description = shareSummary || "AI가 분석한 서양 점성술 결과입니다.";
     const kakaoShareConfig = {
       objectType: "feed",
       content: {
-        title: "진짜미래 - 당신의 운세를 확인해보세요",
-        description: "AI가 분석한 서양 점성술 결과입니다.",
+        title: shareSummary ? "진짜미래 - 운세 결과 공유" : "진짜미래 - 당신의 운세를 확인해보세요",
+        description,
         imageUrl: imageUrl,
         link: {
           mobileWebUrl: shareUrl,
@@ -177,6 +229,32 @@ function FortuneResult({ title, interpretation, shareId, isShared = false }) {
       {intro && (
         <div className="mb-4 sm:mb-6 prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
           <ReactMarkdown>{intro}</ReactMarkdown>
+        </div>
+      )}
+
+      {/* 데일리 운세 점수 표시 */}
+      {dailyScores && (dailyScores.morning || dailyScores.afternoon) && (
+        <div className="mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 gap-4">
+            {dailyScores.morning && (
+              <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-400/30">
+                <div className="text-center">
+                  <div className="text-sm text-slate-300 mb-2">☀️ 오전</div>
+                  <div className="text-4xl font-bold text-white mb-1">{dailyScores.morning}</div>
+                  <div className="text-xs text-slate-400">점</div>
+                </div>
+              </div>
+            )}
+            {dailyScores.afternoon && (
+              <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-orange-500/20 to-pink-500/20 border border-orange-400/30">
+                <div className="text-center">
+                  <div className="text-sm text-slate-300 mb-2">🌙 오후</div>
+                  <div className="text-4xl font-bold text-white mb-1">{dailyScores.afternoon}</div>
+                  <div className="text-xs text-slate-400">점</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
