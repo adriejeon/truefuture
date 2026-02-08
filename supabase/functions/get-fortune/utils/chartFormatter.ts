@@ -121,7 +121,8 @@ export function generateDailyUserPrompt(
   timeLordRetrogradeAlert?: TimeLordRetrogradeAlert,
   profectionData?: ProfectionData | null,
   lordTransitStatus?: LordOfYearTransitStatus | null,
-  lordTransitAspects?: Aspect[]
+  lordTransitAspects?: Aspect[],
+  lordStarConjunctionsText?: string | null
 ): string {
   // Natal 차트 포맷팅
   const natalPlanets = Object.entries(natalData.planets)
@@ -220,6 +221,11 @@ ${lordTransitAspects.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n")}` 
 `
     : ""
 }
+${lordStarConjunctionsText ? `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${lordStarConjunctionsText}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ""}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [Calculated Aspects - 주요 각도 관계]
@@ -585,7 +591,9 @@ export function generatePredictionPrompt(
   consultationTopic: string = "OTHER",
   profectionData?: ProfectionData,
   progressionTimeline?: ProgressedEventItem[],
-  profectionTimeline?: ProfectionTimelineItem[]
+  profectionTimeline?: ProfectionTimelineItem[],
+  solarReturnChartData?: ChartData,
+  solarReturnOverlay?: SolarReturnOverlay
 ): string {
   const sections: string[] = [];
 
@@ -749,6 +757,43 @@ ${natalStarBlock}
 
   sections.push(`[Analysis Data]
 ${analysisParts.join("\n")}`);
+
+  // --- [Solar Return Chart & Overlay] 추운(timing)용 ---
+  if (solarReturnChartData && solarReturnOverlay) {
+    const srAscDisplay = getSignDisplay(solarReturnChartData.houses.angles.ascendant);
+    const srPlanets = Object.entries(solarReturnChartData.planets)
+      .map(([name, planet]) => {
+        return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (SR House ${planet.house})`;
+      })
+      .join("\n");
+
+    const srOverlayInfo = `Solar Return Ascendant는 Natal 차트의 ${solarReturnOverlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.
+
+Solar Return 행성들의 Natal 차트 하우스 위치:
+  - SR Sun은 Natal ${solarReturnOverlay.planetsInNatalHouses.sun}번째 하우스
+  - SR Moon은 Natal ${solarReturnOverlay.planetsInNatalHouses.moon}번째 하우스
+  - SR Mercury는 Natal ${solarReturnOverlay.planetsInNatalHouses.mercury}번째 하우스
+  - SR Venus는 Natal ${solarReturnOverlay.planetsInNatalHouses.venus}번째 하우스
+  - SR Mars는 Natal ${solarReturnOverlay.planetsInNatalHouses.mars}번째 하우스
+  - SR Jupiter는 Natal ${solarReturnOverlay.planetsInNatalHouses.jupiter}번째 하우스
+  - SR Saturn은 Natal ${solarReturnOverlay.planetsInNatalHouses.saturn}번째 하우스
+
+💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 올해 그 영역에서 해당 행성의 영향력이 강하게 나타납니다. 질문과 관련된 하우스에 어떤 SR 행성이 들어왔는지 확인하세요.`;
+
+    sections.push(`[☀️ Solar Return Chart - 올해 솔라 리턴 차트]
+Solar Return 시간: ${solarReturnChartData.date}
+위치: 위도 ${solarReturnChartData.location.lat}, 경도 ${solarReturnChartData.location.lng}
+
+Solar Return Ascendant: ${srAscDisplay}
+
+행성 위치:
+${srPlanets}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Solar Return Overlay - SR 행성의 Natal 하우스 위치]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${srOverlayInfo}`);
+  }
 
   // --- [TIMING FILTER] 카테고리별 시기 예측용 지표성 및 강제 규칙 ---
   const significators = getCategorySignificators(chartData, consultationTopic, {

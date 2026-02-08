@@ -228,6 +228,40 @@ export function getPlanetRetrogradeAndSpeed(
   return { isRetrograde, speed: speedPerDay };
 }
 
+/** 행성 표기명(Lord of the Year 등) → 차트 키 */
+const PLANET_DISPLAY_NAME_TO_KEY: Record<string, string> = {
+  Sun: "sun",
+  Moon: "moon",
+  Mercury: "mercury",
+  Venus: "venus",
+  Mars: "mars",
+  Jupiter: "jupiter",
+  Saturn: "saturn",
+};
+
+/**
+ * 특정 시점에서 행성의 황경과 속도(deg/일)를 반환.
+ * 연주–항성 회합 등 트랜짓 판별용.
+ */
+export function getPlanetLongitudeAndSpeed(
+  planetKey: string,
+  date: Date
+): { longitude: number; speed: number } {
+  const body = (PLANETS as Record<string, unknown>)[planetKey];
+  if (!body) {
+    throw new Error(`Unknown planet key: ${planetKey}`);
+  }
+  const time = MakeTime(date);
+  const longitude = getPlanetLongitude(body, time);
+  const { speed } = getPlanetRetrogradeAndSpeed(body, time, date);
+  return { longitude, speed };
+}
+
+/** 연주 행성명(예: Jupiter) → 차트 키(예: jupiter) */
+export function getLordKeyFromName(lordName: string): string | null {
+  return PLANET_DISPLAY_NAME_TO_KEY[lordName] ?? null;
+}
+
 // ========== 주요 계산 함수 ==========
 
 /**

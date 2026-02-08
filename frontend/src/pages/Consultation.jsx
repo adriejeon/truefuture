@@ -22,6 +22,7 @@ const TOPIC_OPTIONS = [
   { id: "MOVE", label: "🏡 이사/이동", emoji: "🏡" },
   { id: "WEEKLY", label: "📅 주간 운세", emoji: "📅" },
   { id: "MONTHLY", label: "🗓️ 월간 운세", emoji: "🗓️" },
+  { id: "YEARLY", label: "📆 연간 운세", emoji: "📆" },
   { id: "OTHER", label: "🔮 기타", emoji: "🔮" },
 ];
 
@@ -64,6 +65,11 @@ const PRESET_QUESTIONS = {
     "이번 달에 진행되는 프로젝트가 긍정적일까요?",
     "이번 달에 있을 소개팅이 괜찮을까요?",
     "이번 달에 있을 중요한 미팅이 성공적일까요?",
+  ],
+  YEARLY: [
+    "1년 간 전체 운세 흐름이 어떻게 될까요?",
+    "1년 간 결혼·이직 같은 큰 일이 있을까요?",
+    "1년 간 금전운·사업운이 언제 가장 좋을까요?",
   ],
   HEALTH: [
     "요즘 건강 상태가 좋지 않은데 언제쯤 회복될까요?",
@@ -304,8 +310,12 @@ function Consultation() {
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
       : `${window.location.origin}/assets/truefuture.png`;
-    const description = shareSummary?.trim() || "AI 점성술로 분석한 맞춤 상담 결과를 확인해보세요.";
-    const title = shareSummary ? "진짜미래 - 상담 결과 공유" : "진짜미래 - 자유 질문 상담 결과를 공유했어요";
+    const description =
+      shareSummary?.trim() ||
+      "AI 점성술로 분석한 맞춤 상담 결과를 확인해보세요.";
+    const title = shareSummary
+      ? "진짜미래 - 상담 결과 공유"
+      : "진짜미래 - 자유 질문 상담 결과를 공유했어요";
     try {
       window.Kakao.Share.sendDefault({
         objectType: "feed",

@@ -64,6 +64,8 @@ import {
   calculateProfectionTimeline,
   calculateLordOfYearTransitAspects,
   getLordOfYearTransitStatus,
+  getPlanetLongitudeAndSpeed,
+  getLordKeyFromName,
 } from "./utils/astrologyCalculator.ts";
 import { calculateSynastry } from "./utils/synastryCalculator.ts";
 import {
@@ -73,6 +75,8 @@ import {
 import {
   analyzeNatalFixedStars,
   formatNatalFixedStarsForPrompt,
+  getLordOfYearFixedStarConjunctions,
+  formatLordStarConjunctionsForPrompt,
 } from "./utils/advancedAstrology.ts";
 
 // Neo4j 전문 해석 데이터 조회
@@ -203,9 +207,10 @@ function buildUserPrompt(
     isDayChart: boolean;
     sectStatus: "day_sect" | "night_sect" | "neutral";
     isInSect: boolean;
-  }
+  },
+  lordStarConjunctionsText?: string
 ): string {
-  // DAILY 운세의 경우 새로운 상세 프롬프트 사용 (프로펙션/연주 + 연주 행성 트랜짓 상태·각도 포함)
+  // DAILY 운세의 경우 새로운 상세 프롬프트 사용 (프로펙션/연주 + 연주 행성 트랜짓 상태·각도·항성 회합 포함)
   if (
     fortuneType === FortuneType.DAILY &&
     transitChartData &&
@@ -220,7 +225,8 @@ function buildUserPrompt(
       timeLordRetrogradeAlert ?? null,
       profectionData ?? null,
       lordTransitStatus ?? null,
-      lordTransitAspects
+      lordTransitAspects,
+      lordStarConjunctionsText ?? null
     );
   }
 
@@ -473,7 +479,8 @@ async function getInterpretation(
     isDayChart: boolean;
     sectStatus: "day_sect" | "night_sect" | "neutral";
     isInSect: boolean;
-  }
+  },
+  lordStarConjunctionsText?: string
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -535,7 +542,8 @@ async function getInterpretation(
       solarReturnOverlay,
       timeLordRetrogradeAlert,
       lordTransitAspects,
-      lordTransitStatus
+      lordTransitStatus,
+      lordStarConjunctionsText
     );
 
     if (neo4jContext) {
@@ -1235,6 +1243,29 @@ serve(async (req) => {
         10
       );
 
+      // 5a-3. Solar Return 차트 및 Overlay 계산 (자유 상담소 추운용)
+      let solarReturnChartData: ChartData | undefined;
+      let solarReturnOverlay: any | undefined;
+      try {
+        const solarReturnYear = getActiveSolarReturnYear(birthDateTime, now);
+        const natalSunLongitude = chartData.planets.sun.degree;
+        const solarReturnDateTime = calculateSolarReturnDateTime(
+          birthDateTime,
+          solarReturnYear,
+          natalSunLongitude
+        );
+        const timezoneOffsetHours = Math.round(lng / 15);
+        solarReturnChartData = await calculateChart(
+          solarReturnDateTime,
+          { lat, lng },
+          timezoneOffsetHours
+        );
+        solarReturnOverlay = getSolarReturnOverlays(chartData, solarReturnChartData);
+        console.log(`✅ [CONSULTATION] Solar Return 차트 계산 완료`);
+      } catch (srErr: any) {
+        console.warn("⚠️ [CONSULTATION] Solar Return 계산 실패 (무시하고 진행):", srErr);
+      }
+
       // 5b. Career/Wealth/Love 분석 (consultationTopic에 따라)
       const consultationTopicUpper = (requestData.consultationTopic || "")
         .trim()
@@ -1301,7 +1332,9 @@ serve(async (req) => {
         requestData.consultationTopic || "OTHER",
         profectionData,
         progressionTimeline,
-        profectionTimeline
+        profectionTimeline,
+        solarReturnChartData,
+        solarReturnOverlay
       );
 
       // 6a. CONSULTATION: 향후 6개월 단기 이벤트 스캔 (타임로드 역행·항성·역행/정지) → 프롬프트에 주입
@@ -1316,6 +1349,32 @@ serve(async (req) => {
         console.warn(
           "⚠️ [CONSULTATION] 단기 이벤트 스캔 실패 (무시하고 진행):",
           scanErr
+        );
+      }
+
+      // 6b. CONSULTATION: 연주 행성–항성 회합 (현재 시점, 세차 적용) → 프롬프트에 주입
+      try {
+        const lordName = profectionData.lordOfTheYear;
+        const lordKey = getLordKeyFromName(lordName);
+        if (lordKey) {
+          const { longitude: lordLon, speed: lordSpeed } =
+            getPlanetLongitudeAndSpeed(lordKey, now);
+          const lordStarConjunctions = getLordOfYearFixedStarConjunctions(
+            lordLon,
+            lordSpeed,
+            lordName,
+            now.getFullYear()
+          );
+          const lordStarSection = formatLordStarConjunctionsForPrompt(
+            lordName,
+            lordStarConjunctions
+          );
+          systemContext = systemContext + "\n\n" + lordStarSection;
+        }
+      } catch (starErr: any) {
+        console.warn(
+          "⚠️ [CONSULTATION] 연주–항성 회합 계산 실패 (무시):",
+          starErr?.message
         );
       }
 
@@ -1984,6 +2043,7 @@ ${systemContext}`;
       sectStatus: "day_sect" | "night_sect" | "neutral";
       isInSect: boolean;
     } | undefined;
+    let dailyLordStarConjunctionsText: string | undefined;
     if (fortuneType === FortuneType.DAILY && transitChartData) {
       try {
         const now = new Date();
@@ -2024,6 +2084,26 @@ ${systemContext}`;
           transitChartData,
           lordName
         );
+        // 연주–항성 회합 (현재 시점, 세차 적용)
+        try {
+          const { longitude: lordLon, speed: lordSpeed } =
+            getPlanetLongitudeAndSpeed(lordKey, now);
+          const lordStarConjunctions = getLordOfYearFixedStarConjunctions(
+            lordLon,
+            lordSpeed,
+            lordName,
+            now.getFullYear()
+          );
+          dailyLordStarConjunctionsText = formatLordStarConjunctionsForPrompt(
+            lordName,
+            lordStarConjunctions
+          );
+        } catch (starErr: any) {
+          console.warn(
+            "⚠️ [DAILY] 연주–항성 회합 계산 실패 (무시):",
+            starErr?.message
+          );
+        }
         if (isRetrograde) {
           console.log(
             `⚠️ [DAILY] 타임로드 ${lordName} 역행 — [CRITICAL WARNING] 프롬프트 주입`
@@ -2081,7 +2161,8 @@ ${systemContext}`;
       shortTermPromptSection,
       timeLordRetrogradeAlert,
       dailyLordTransitAspects,
-      dailyLordTransitStatus
+      dailyLordTransitStatus,
+      dailyLordStarConjunctionsText
     );
 
     if (!interpretation.success || interpretation.error) {

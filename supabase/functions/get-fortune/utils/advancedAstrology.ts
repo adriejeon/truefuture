@@ -812,3 +812,81 @@ export function checkStarTransit(
     description,
   };
 }
+
+// ========== 연주(Lord of the Year) – 항성 회합 (현재 시점, 세차 적용) ==========
+
+export interface LordStarConjunctionItem {
+  starName: string;
+  meaning: string;
+  distance: number;
+  phase: "접근 중" | "분리 중";
+}
+
+/**
+ * 현재 시점에서 연주 행성(Profection Lord)이 트랜짓 상으로 어떤 항성과 회합하는지 계산.
+ * 항성 황경에 세차를 적용한 뒤(현재 연도 기준) 회합 여부를 판별합니다.
+ *
+ * @param lordLongitude - 연주 행성의 현재 황경 (도)
+ * @param lordSpeed - 연주 행성의 속도 (deg/일, 역행 시 음수)
+ * @param lordName - 연주 행성 표기명 (Sun | Moon | ... )
+ * @param currentYear - 현재 연도 (세차 보정용)
+ * @returns 회합하는 항성 목록 (없으면 빈 배열)
+ */
+export function getLordOfYearFixedStarConjunctions(
+  lordLongitude: number,
+  lordSpeed: number,
+  lordName: string,
+  currentYear: number
+): LordStarConjunctionItem[] {
+  const precession = (currentYear - 2000) * PRECESSION_PER_YEAR;
+  const results: LordStarConjunctionItem[] = [];
+
+  for (const star of FIXED_STARS) {
+    const adjustedLongitude = normalizeDegrees(star.longitude + precession);
+    const starAdjusted: FixedStar = { ...star, longitude: adjustedLongitude };
+
+    const result = checkStarTransit(
+      lordLongitude,
+      lordSpeed,
+      starAdjusted,
+      lordName as PlanetKey
+    );
+
+    if (result.matched && result.description) {
+      const effectText =
+        star.combinations?.[lordName as PlanetKey] ?? star.meaning;
+      results.push({
+        starName: star.name,
+        meaning: effectText,
+        distance: result.distance,
+        phase: result.applying ? "접근 중" : "분리 중",
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * 연주–항성 회합 목록을 Gemini 프롬프트용 문자열로 포맷.
+ */
+export function formatLordStarConjunctionsForPrompt(
+  lordName: string,
+  conjunctions: LordStarConjunctionItem[]
+): string {
+  if (conjunctions.length === 0) {
+    return `[연주 행성–항성 회합 (현재)]
+현재 연주 행성(${lordName})은 유의미한 항성 회합 범위(접근 0.67° / 분리 0.5° 이내)에 없습니다.`;
+  }
+
+  const lines = [
+    "[연주 행성–항성 회합 (현재)]",
+    "세차 적용한 현재 시점 기준, 연주의 주인(Lord of the Year)이 트랜짓 상으로 다음 항성과 회합하고 있습니다. 해석 시 반드시 반영하세요.",
+    "",
+    ...conjunctions.map(
+      (c, i) =>
+        `${i + 1}. ${c.starName} (${c.phase}, 거리 ${c.distance.toFixed(2)}°)\n   효과: ${c.meaning}`
+    ),
+  ];
+  return lines.join("\n");
+}
