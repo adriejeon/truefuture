@@ -1142,26 +1142,16 @@ function Consultation() {
                       </button>
                     </div>
                   )}
-                  <div className="mb-4">
-                    <p className="text-xs text-slate-400 mb-2">질문</p>
+                  <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
                     <div className="flex items-start gap-3">
-                      <span className="text-2xl flex-shrink-0" aria-hidden>
-                        {
-                          TOPIC_OPTIONS.find(
-                            (t) => t.id === consultationAnswer.topic
-                          )?.emoji
-                        }
-                      </span>
-                      <p className="text-slate-200 font-medium flex-1 min-w-0">
-                        {consultationAnswer.question}
-                      </p>
+                      <div className="text-2xl">💬</div>
+                      <div className="flex-1">
+                        <p className="text-white font-medium">
+                          {consultationAnswer.question}
+                        </p>
+                      </div>
                     </div>
                   </div>
-
-                  {/* 결과 타이틀 */}
-                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">
-                    진짜 운세를 확인하세요.
-                  </h2>
 
                   {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
                   {consultationAnswer.parsedData ? (
