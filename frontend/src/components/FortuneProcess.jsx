@@ -57,6 +57,17 @@ function FortuneProcess({
     return () => clearTimeout(t);
   }, [modalExiting, status]);
 
+  // 모달 열려 있을 때 body 스크롤 잠금 (모바일에서 화면 중앙 고정)
+  const showModal = status === "loading" || status === "ready" || modalExiting;
+  useEffect(() => {
+    if (!showModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showModal]);
+
   // ---------- 상태 1: idle ----------
   if (status === "idle") {
     const trigger =
@@ -76,7 +87,6 @@ function FortuneProcess({
   }
 
   // ---------- 모달: loading / ready / view(페이드아웃 중) ----------
-  const showModal = status === "loading" || status === "ready" || modalExiting;
   if (showModal) {
     const isExiting = modalExiting && status === "view";
     const modalContent =
@@ -107,8 +117,8 @@ function FortuneProcess({
     return (
       <>
         <div
-          className={`fixed inset-0 z-[10001] flex items-center justify-center p-4 ${
-            isLoading ? "bg-black/[0.80] min-h-screen" : "bg-black/70"
+          className={`fixed inset-0 z-[10001] flex items-center justify-center p-4 overflow-hidden min-h-screen min-h-[100dvh] ${
+            isLoading ? "bg-black/[0.95]" : "bg-black/70"
           } ${isExiting ? "fortune-modal-exit" : ""}`}
           role="dialog"
           aria-modal="true"

@@ -36,6 +36,7 @@ import {
   generateLifetimeUserPrompt,
   generateCompatibilityUserPrompt,
   generatePredictionPrompt,
+  formatLordOfYearTransitSectionForPrompt,
 } from "./utils/chartFormatter.ts";
 
 // 점성술 계산 유틸리티 import
@@ -1337,6 +1338,19 @@ serve(async (req) => {
         solarReturnOverlay
       );
 
+      // 5c. CONSULTATION: 현재 트랜짓 차트 (연주 트랜짓 상태·각도·항성용)
+      let consultationTransitChart: ChartData | undefined;
+      try {
+        const timezoneOffsetHours = Math.round(lng / 15);
+        consultationTransitChart = await calculateChart(
+          now,
+          { lat, lng },
+          timezoneOffsetHours
+        );
+      } catch (_) {
+        // 무시
+      }
+
       // 6a. CONSULTATION: 향후 6개월 단기 이벤트 스캔 (타임로드 역행·항성·역행/정지) → 프롬프트에 주입
       try {
         const scanResult = scanShortTermEvents(chartData, now, 6);
@@ -1352,10 +1366,213 @@ serve(async (req) => {
         );
       }
 
-      // 6b. CONSULTATION: 연주 행성–항성 회합 (현재 시점, 세차 적용) → 프롬프트에 주입
+      // 6b. CONSULTATION: 연주 트랜짓 각도·섹트·역행 + 연주–항성 회합
+      // 주간/월간/연간에 따라 기간별 트랜짓 스캔 + 프로펙션/솔라리턴 전환 시점 계산
       try {
         const lordName = profectionData.lordOfTheYear;
         const lordKey = getLordKeyFromName(lordName);
+        const topicUpper = topic.toUpperCase();
+
+        // 기간 판단
+        let scanDays = 0;
+        let periodLabel = "";
+        if (topicUpper === "WEEKLY") {
+          scanDays = 7;
+          periodLabel = "주간";
+        } else if (topicUpper === "MONTHLY") {
+          scanDays = 30;
+          periodLabel = "월간";
+        } else if (topicUpper === "YEARLY") {
+          scanDays = 365;
+          periodLabel = "연간";
+        }
+
+        // 월간/연간 운세: 생일 기준 프로펙션·솔라리턴 전환 시점 계산
+        if ((topicUpper === "MONTHLY" || topicUpper === "YEARLY") && scanDays > 0) {
+          const endDate = new Date(now);
+          endDate.setDate(endDate.getDate() + scanDays);
+
+          const birthMonth = birthDateTime.getUTCMonth();
+          const birthDay = birthDateTime.getUTCDate();
+
+          // 현재~종료 사이에 생일이 있는지 확인
+          const currentBirthday = new Date(
+            Date.UTC(now.getUTCFullYear(), birthMonth, birthDay)
+          );
+          const nextBirthday = new Date(
+            Date.UTC(now.getUTCFullYear() + 1, birthMonth, birthDay)
+          );
+
+          let upcomingBirthday: Date | null = null;
+          if (currentBirthday >= now && currentBirthday <= endDate) {
+            upcomingBirthday = currentBirthday;
+          } else if (nextBirthday >= now && nextBirthday <= endDate) {
+            upcomingBirthday = nextBirthday;
+          }
+
+          if (upcomingBirthday) {
+            // 생일 전: 현재 프로펙션·솔라리턴
+            // 생일 후: 다음 프로펙션·솔라리턴
+            const beforeBirthdayDays = Math.floor(
+              (upcomingBirthday.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+            );
+            const afterBirthdayDays = scanDays - beforeBirthdayDays;
+
+            // 현재 프로펙션·솔라리턴 (생일 전 기간)
+            const currentProfection = profectionData;
+            const currentSolarReturnYear = getActiveSolarReturnYear(
+              birthDateTime,
+              now
+            );
+            const currentSRDateTime = calculateSolarReturnDateTime(
+              birthDateTime,
+              currentSolarReturnYear,
+              chartData.planets.sun.degree
+            );
+            const timezoneOffsetHours = Math.round(lng / 15);
+            let currentSRChart: ChartData | undefined;
+            try {
+              currentSRChart = await calculateChart(
+                currentSRDateTime,
+                { lat, lng },
+                timezoneOffsetHours
+              );
+            } catch (_) {}
+
+            // 다음 프로펙션·솔라리턴 (생일 후 기간)
+            const afterBirthday = new Date(upcomingBirthday);
+            afterBirthday.setDate(afterBirthday.getDate() + 1);
+            const nextProfection = calculateProfection(
+              birthDateTime,
+              afterBirthday,
+              getSignFromLongitude(chartData.houses.angles.ascendant).sign,
+              false
+            );
+            const nextSolarReturnYear = getActiveSolarReturnYear(
+              birthDateTime,
+              afterBirthday
+            );
+            const nextSRDateTime = calculateSolarReturnDateTime(
+              birthDateTime,
+              nextSolarReturnYear,
+              chartData.planets.sun.degree
+            );
+            let nextSRChart: ChartData | undefined;
+            try {
+              nextSRChart = await calculateChart(
+                nextSRDateTime,
+                { lat, lng },
+                timezoneOffsetHours
+              );
+            } catch (_) {}
+
+            // 프롬프트에 추가
+            const transitionSection = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[${periodLabel} 운세: 프로펙션·솔라리턴 전환 시점 분석]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${periodLabel} 기간 중 ${upcomingBirthday.toISOString().split("T")[0]}에 생일을 맞이합니다.
+이는 프로펙션과 솔라 리턴이 전환되는 시점으로, 운세 해석 시 반드시 두 시기로 나눠 분석해야 합니다.
+
+**생일 전 (${now.toISOString().split("T")[0]} ~ ${upcomingBirthday.toISOString().split("T")[0]}, 약 ${beforeBirthdayDays}일):**
+- 프로펙션 하우스: ${currentProfection.profectionHouse}번째 하우스
+- 프로펙션 별자리: ${currentProfection.profectionSign}
+- 연주 (Lord of the Year): ${currentProfection.lordOfTheYear}
+${currentSRChart ? `- 솔라 리턴 ASC: ${getSignFromLongitude(currentSRChart.houses.angles.ascendant).sign}` : ""}
+
+**생일 후 (${upcomingBirthday.toISOString().split("T")[0]} ~ ${endDate.toISOString().split("T")[0]}, 약 ${afterBirthdayDays}일):**
+- 프로펙션 하우스: ${nextProfection.profectionHouse}번째 하우스
+- 프로펙션 별자리: ${nextProfection.profectionSign}
+- 연주 (Lord of the Year): ${nextProfection.lordOfTheYear}
+${nextSRChart ? `- 솔라 리턴 ASC: ${getSignFromLongitude(nextSRChart.houses.angles.ascendant).sign}` : ""}
+
+💡 해석 가이드: 생일을 기점으로 인생의 흐름이 완전히 바뀝니다. 생일 전에는 현재 연주(${currentProfection.lordOfTheYear})가, 생일 후에는 새로운 연주(${nextProfection.lordOfTheYear})가 주도권을 갖습니다. timeline 작성 시 이 전환점을 반드시 반영하세요.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+            systemContext = systemContext + "\n\n" + transitionSection;
+          } else {
+            // 생일이 기간 내에 없으면 단일 프로펙션·솔라리턴만 표시
+            const singlePeriodSection = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[${periodLabel} 운세: 기간 정보]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+분석 기간: ${now.toISOString().split("T")[0]} ~ ${endDate.toISOString().split("T")[0]} (${scanDays}일)
+이 기간 동안 프로펙션 전환은 없으며, 단일 연주(${profectionData.lordOfTheYear})가 전체 기간을 관장합니다.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+            systemContext = systemContext + "\n\n" + singlePeriodSection;
+          }
+        }
+
+        // 주간/월간/연간 기간별 트랜짓 스캔 (중간 시점 샘플링)
+        if (scanDays > 0 && consultationTransitChart && lordName) {
+          const sampleDates: Date[] = [];
+          const interval = scanDays <= 7 ? 1 : scanDays <= 30 ? 7 : 30;
+          for (let i = 0; i <= scanDays; i += interval) {
+            const sampleDate = new Date(now);
+            sampleDate.setDate(sampleDate.getDate() + i);
+            sampleDates.push(sampleDate);
+          }
+
+          const transitSummary: string[] = [];
+          transitSummary.push(`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[${periodLabel} 기간 연주 트랜짓 변화 추이]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 변화:`);
+
+          for (const sampleDate of sampleDates) {
+            try {
+              const timezoneOffsetHours = Math.round(lng / 15);
+              const sampleTransitChart = await calculateChart(
+                sampleDate,
+                { lat, lng },
+                timezoneOffsetHours
+              );
+              const sampleAspects = calculateLordOfYearTransitAspects(
+                sampleTransitChart,
+                lordName
+              );
+              const sampleStatus = getLordOfYearTransitStatus(
+                sampleTransitChart,
+                lordName
+              );
+
+              const dateStr = sampleDate.toISOString().split("T")[0];
+              transitSummary.push(
+                `\n[${dateStr}] 역행: ${sampleStatus.isRetrograde ? "O" : "X"}, 섹트 적합: ${sampleStatus.isInSect ? "O" : "X"}, 각도: ${sampleAspects.length}개`
+              );
+              if (sampleAspects.length > 0 && sampleAspects.length <= 3) {
+                sampleAspects.forEach((a) => {
+                  transitSummary.push(`  - ${a.description}`);
+                });
+              }
+            } catch (_) {}
+          }
+
+          transitSummary.push(`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+          systemContext = systemContext + "\n\n" + transitSummary.join("\n");
+        } else {
+          // 단일 시점 트랜짓 (기존 로직)
+          if (consultationTransitChart && lordName) {
+            const lordTransitAspects = calculateLordOfYearTransitAspects(
+              consultationTransitChart,
+              lordName
+            );
+            const lordTransitStatus = getLordOfYearTransitStatus(
+              consultationTransitChart,
+              lordName
+            );
+            const lordTransitSection = formatLordOfYearTransitSectionForPrompt(
+              lordTransitStatus,
+              lordTransitAspects
+            );
+            if (lordTransitSection) {
+              systemContext = systemContext + "\n\n" + lordTransitSection;
+            }
+          }
+        }
+
+        // 연주–항성 회합 (현재 시점, 세차 적용)
         if (lordKey) {
           const { longitude: lordLon, speed: lordSpeed } =
             getPlanetLongitudeAndSpeed(lordKey, now);
@@ -1373,7 +1590,7 @@ serve(async (req) => {
         }
       } catch (starErr: any) {
         console.warn(
-          "⚠️ [CONSULTATION] 연주–항성 회합 계산 실패 (무시):",
+          "⚠️ [CONSULTATION] 연주 트랜짓/항성 계산 실패 (무시):",
           starErr?.message
         );
       }

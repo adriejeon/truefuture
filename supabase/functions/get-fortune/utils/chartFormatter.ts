@@ -108,6 +108,51 @@ export type LordOfYearTransitStatus = {
 };
 
 /**
+ * 연주 행성의 트랜짓 상태·각도 섹션만 포맷 (자유 상담소 등에서 재사용)
+ */
+export function formatLordOfYearTransitSectionForPrompt(
+  lordTransitStatus?: LordOfYearTransitStatus | null,
+  lordTransitAspects?: Array<{ description: string }> | null
+): string {
+  const hasStatus = lordTransitStatus != null;
+  const hasAspects =
+    lordTransitAspects != null && lordTransitAspects.length > 0;
+  if (!hasStatus && !hasAspects) return "";
+
+  const lines: string[] = [
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "[연주 행성의 트랜짓 상태 및 각도]",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "현재 트랜짓 차트에서 연주 행성(올해의 주인)의 상태:",
+  ];
+  if (lordTransitStatus) {
+    lines.push(
+      `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}`
+    );
+    lines.push(
+      `- 현재 하늘: ${lordTransitStatus.isDayChart ? "낮 차트 (Day Chart, 태양이 7~12하우스)" : "밤 차트 (Night Chart, 태양이 1~6하우스)"}`
+    );
+    lines.push(
+      `- 연주 행성의 섹트: ${lordTransitStatus.sectStatus === "day_sect" ? "낮의 섹트 (Sun/Jupiter/Saturn)" : lordTransitStatus.sectStatus === "night_sect" ? "밤의 섹트 (Moon/Venus/Mars)" : "중성 (Mercury)"}`
+    );
+    lines.push(
+      `- 섹트 적합 여부: ${lordTransitStatus.isInSect ? "섹트 적합 (연주 행성이 현재 차트에 유리함)" : "섹트 부적합 (연주 행성이 현재 차트에 다소 불리함)"}`
+    );
+  }
+  if (hasAspects && lordTransitAspects) {
+    lines.push("");
+    lines.push(
+      "연주 행성이 현재 트랜짓 차트에서 다른 행성들과 맺는 각도 (해석 시 반영하세요):"
+    );
+    lordTransitAspects.forEach((a, i) => {
+      lines.push(`  ${i + 1}. ${a.description}`);
+    });
+  }
+  return lines.join("\n");
+}
+
+/**
  * DAILY 운세를 위한 User Prompt 생성 함수
  * Natal 차트, Transit 차트, 계산된 Aspect 정보를 포맷팅하여 반환합니다.
  * 타임로드가 역행 중이면 [CRITICAL WARNING] 섹션을 추가합니다.
