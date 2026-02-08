@@ -457,15 +457,15 @@ export const FIXED_STARS: FixedStar[] = [
   },
 ];
 
-/** Orb: 접근(Applying) 40분 ≈ 0.67도 이내 */
-export const STAR_TRANSIT_ORB_APPLYING_DEG = 0.67;
-/** Orb: 분리(Separating) 30분 ≈ 0.5도 이내 */
-export const STAR_TRANSIT_ORB_SEPARATING_DEG = 0.5;
+/** Orb: 접근(Applying) 40분 = 40/60도 */
+export const STAR_TRANSIT_ORB_APPLYING_DEG = 40 / 60;
+/** Orb: 분리(Separating) 30분 = 30/60도 */
+export const STAR_TRANSIT_ORB_SEPARATING_DEG = 30 / 60;
 
 /** 세차운동: (BirthYear - 2000) * PRECESSION_PER_YEAR → 항성 현재 황경 보정 */
 export const PRECESSION_PER_YEAR = 0.013969;
-/** 네이탈 회합 체크 시 최대 Orb (도). 접근 0.67° 기준 적용 */
-export const STAR_NATAL_ORB_DEG = 0.67;
+/** 네이탈 회합: 접근 40분 기준 (네이탈은 방향 구분 없이 40분 이내 적용) */
+export const STAR_NATAL_ORB_DEG = 40 / 60;
 
 // ========== 네이탈 항성 회합 분석 ==========
 
@@ -509,7 +509,7 @@ function angularDistance(a: number, b: number): number {
 /**
  * 네이탈 차트의 주요 감응점·행성이 항성과 회합(Conjunction)하는지 분석.
  * - 세차운동 보정: (BirthYear - 2000) * 0.013969
- * - 회합 Orb: 0.67° 이내 (strict)
+ * - 회합 Orb: 접근 40분(40/60°) 이내
  * - 테마별: Identity(Asc/Sun/Moon/Ruler Asc), Career(MC/Ruler MC/Mars/Saturn), Love(Des/Ruler 7th/Venus), Roots(IC/Ruler 4th)
  *
  * @param chartData - Natal Chart (planets, houses.angles)

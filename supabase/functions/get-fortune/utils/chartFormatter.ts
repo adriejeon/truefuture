@@ -83,21 +83,25 @@ function analyzeOuterPlanetAspects(
 
       const angleDiff = calculateAngleDifference(outerPlanetData.degree, innerPlanet.degree);
 
-      // Conjunction (0°, orb 8°)
-      if (angleDiff <= 8) {
+      // Conjunction (0°, orb 6°)
+      if (angleDiff <= 6) {
         natalAspects.push(`Natal ${outerName} Conjunction Natal ${innerKey.toUpperCase()} (orb ${angleDiff.toFixed(1)}°)`);
       }
-      // Opposition (180°, orb 8°)
-      else if (Math.abs(angleDiff - 180) <= 8) {
+      // Opposition (180°, orb 6°)
+      else if (Math.abs(angleDiff - 180) <= 6) {
         natalAspects.push(`Natal ${outerName} Opposition Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`);
       }
       // Square (90°, orb 6°)
       else if (Math.abs(angleDiff - 90) <= 6) {
         natalAspects.push(`Natal ${outerName} Square Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`);
       }
-      // Trine (120°, orb 6°)
-      else if (Math.abs(angleDiff - 120) <= 6) {
+      // Trine (120°, orb 4°)
+      else if (Math.abs(angleDiff - 120) <= 4) {
         natalAspects.push(`Natal ${outerName} Trine Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`);
+      }
+      // Sextile (60°, orb 4°)
+      else if (Math.abs(angleDiff - 60) <= 4) {
+        natalAspects.push(`Natal ${outerName} Sextile Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 60).toFixed(1)}°)`);
       }
     }
 
@@ -109,14 +113,16 @@ function analyzeOuterPlanetAspects(
       if (lordPlanet) {
         const angleDiff = calculateAngleDifference(transitOuter.degree, lordPlanet.degree);
 
-        if (angleDiff <= 8) {
+        if (angleDiff <= 6) {
           transitAspects.push(`Transit ${outerName} Conjunction Transit ${lordOfTheYear} (Lord of the Year) (orb ${angleDiff.toFixed(1)}°)`);
-        } else if (Math.abs(angleDiff - 180) <= 8) {
+        } else if (Math.abs(angleDiff - 180) <= 6) {
           transitAspects.push(`Transit ${outerName} Opposition Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`);
         } else if (Math.abs(angleDiff - 90) <= 6) {
           transitAspects.push(`Transit ${outerName} Square Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`);
-        } else if (Math.abs(angleDiff - 120) <= 6) {
+        } else if (Math.abs(angleDiff - 120) <= 4) {
           transitAspects.push(`Transit ${outerName} Trine Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`);
+        } else if (Math.abs(angleDiff - 60) <= 4) {
+          transitAspects.push(`Transit ${outerName} Sextile Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 60).toFixed(1)}°)`);
         }
       }
     }
@@ -269,7 +275,13 @@ export function generateDailyUserPrompt(
     .join("\n");
 
   const natalAscendant = natalData.houses.angles.ascendant;
+  const natalMC = natalData.houses.angles.midheaven;
+  const natalIC = normalizeDegrees(natalMC + 180);
+  const natalDsc = normalizeDegrees(natalAscendant + 180);
   const natalAscSign = getSignDisplay(natalAscendant);
+  const natalMCSign = getSignDisplay(natalMC);
+  const natalICSign = getSignDisplay(natalIC);
+  const natalDscSign = getSignDisplay(natalDsc);
 
   // Transit 차트 포맷팅
   const transitPlanets = Object.entries(transitData.planets)
@@ -305,7 +317,11 @@ export function generateDailyUserPrompt(
 출생 시간: ${natalData.date}
 출생 위치: 위도 ${natalData.location.lat}, 경도 ${natalData.location.lng}
 
-상승점(Ascendant): ${natalAscSign}
+감응점(앵글):
+  상승점(Ascendant): ${natalAscSign}
+  천정(MC): ${natalMCSign}
+  천저(IC): ${natalICSign}
+  하강점(Descendant): ${natalDscSign}
 
 행성 위치:
 ${natalPlanets}
@@ -321,11 +337,6 @@ Part of Fortune: ${
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 행성 위치:
 ${transitPlanets}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Transit Moon House]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Transit Moon은 Natal 차트의 ${transitMoonHouse}번째 하우스에 위치합니다.
 ${
   profectionData
     ? `
@@ -407,7 +418,13 @@ export function generateYearlyUserPrompt(
     .join("\n");
 
   const natalAscendant = natalData.houses.angles.ascendant;
+  const natalMC = natalData.houses.angles.midheaven;
+  const natalIC = normalizeDegrees(natalMC + 180);
+  const natalDsc = normalizeDegrees(natalAscendant + 180);
   const natalAscSign = getSignDisplay(natalAscendant);
+  const natalMCSign = getSignDisplay(natalMC);
+  const natalICSign = getSignDisplay(natalIC);
+  const natalDscSign = getSignDisplay(natalDsc);
 
   // Solar Return 차트 포맷팅
   const solarReturnPlanets = Object.entries(solarReturnData.planets)
@@ -457,7 +474,11 @@ Solar Return 행성들의 Natal 차트 하우스 위치:
 출생 시간: ${natalData.date}
 출생 위치: 위도 ${natalData.location.lat}, 경도 ${natalData.location.lng}
 
-상승점(Ascendant): ${natalAscSign}
+감응점(앵글):
+  상승점(Ascendant): ${natalAscSign}
+  천정(MC): ${natalMCSign}
+  천저(IC): ${natalICSign}
+  하강점(Descendant): ${natalDscSign}
 
 행성 위치:
 ${natalPlanets}
@@ -528,10 +549,13 @@ export function generateLifetimeUserPrompt(natalData: ChartData): string {
     .join("\n");
 
   const natalAscendant = natalData.houses.angles.ascendant;
-  const natalAscSign = getSignDisplay(natalAscendant);
-
   const natalMC = natalData.houses.angles.midheaven;
+  const natalIC = normalizeDegrees(natalMC + 180);
+  const natalDsc = normalizeDegrees(natalAscendant + 180);
+  const natalAscSign = getSignDisplay(natalAscendant);
   const natalMCSign = getSignDisplay(natalMC);
+  const natalICSign = getSignDisplay(natalIC);
+  const natalDscSign = getSignDisplay(natalDsc);
 
   // 최종 User Prompt 생성
   return `
@@ -550,8 +574,11 @@ export function generateLifetimeUserPrompt(natalData: ChartData): string {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [🌌 Natal Chart - 출생 차트]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-상승점(Ascendant): ${natalAscSign}
-중천(Midheaven/MC): ${natalMCSign}
+감응점(앵글):
+  상승점(Ascendant): ${natalAscSign}
+  천정(MC): ${natalMCSign}
+  천저(IC): ${natalICSign}
+  하강점(Descendant): ${natalDscSign}
 
 행성 위치:
 ${natalPlanets}
@@ -596,7 +623,13 @@ export function generateCompatibilityUserPrompt(
     .join("\n");
 
   const natalAscendant1 = natalData1.houses.angles.ascendant;
+  const natalMC1 = natalData1.houses.angles.midheaven;
+  const natalIC1 = normalizeDegrees(natalMC1 + 180);
+  const natalDsc1 = normalizeDegrees(natalAscendant1 + 180);
   const natalAscSign1 = getSignDisplay(natalAscendant1);
+  const natalMCSign1 = getSignDisplay(natalMC1);
+  const natalICSign1 = getSignDisplay(natalIC1);
+  const natalDscSign1 = getSignDisplay(natalDsc1);
 
   // 사용자 2 정보
   const birthDate2 = new Date(natalData2.date);
@@ -613,7 +646,13 @@ export function generateCompatibilityUserPrompt(
     .join("\n");
 
   const natalAscendant2 = natalData2.houses.angles.ascendant;
+  const natalMC2 = natalData2.houses.angles.midheaven;
+  const natalIC2 = normalizeDegrees(natalMC2 + 180);
+  const natalDsc2 = normalizeDegrees(natalAscendant2 + 180);
   const natalAscSign2 = getSignDisplay(natalAscendant2);
+  const natalMCSign2 = getSignDisplay(natalMC2);
+  const natalICSign2 = getSignDisplay(natalIC2);
+  const natalDscSign2 = getSignDisplay(natalDsc2);
 
   // 네이탈 항성 회합 (세차 보정) — 두 사용자 모두
   const stars1 = analyzeNatalFixedStars(natalData1, natalData1.date);
@@ -651,7 +690,7 @@ ${block2}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [🌌 내담자님 Natal Chart]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-상승점(Ascendant): ${natalAscSign1}
+감응점(앵글): 상승점 ${natalAscSign1} | MC ${natalMCSign1} | IC ${natalICSign1} | 하강점 ${natalDscSign1}
 
 행성 위치:
 ${natalPlanets1}
@@ -672,7 +711,7 @@ Part of Fortune: ${
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [🌌 상대방 Natal Chart]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-상승점(Ascendant): ${natalAscSign2}
+감응점(앵글): 상승점 ${natalAscSign2} | MC ${natalMCSign2} | IC ${natalICSign2} | 하강점 ${natalDscSign2}
 
 행성 위치:
 ${natalPlanets2}
@@ -746,6 +785,9 @@ export function generatePredictionPrompt(
 
   // --- [🌌 Natal Chart] ---
   const ascLong = chartData.houses?.angles?.ascendant ?? 0;
+  const mcLong = chartData.houses?.angles?.midheaven ?? 0;
+  const icLong = normalizeDegrees(mcLong + 180);
+  const dscLong = normalizeDegrees(ascLong + 180);
   const ascParts = getSignDisplay(ascLong).split(" ");
   const ascDisplay =
     ascParts.length >= 2
@@ -755,7 +797,7 @@ export function generatePredictionPrompt(
   const planetLines = formatNatalPlanets(chartData, { getSignCharacter });
   const seventhRuler = getSeventhHouseRuler(ascLong);
   sections.push(`[🌌 Natal Chart]
-- Ascendant: ${ascDisplay}${ascCharacter ? ` (Character: ${ascCharacter})` : ""}
+- 감응점(앵글): Ascendant: ${ascDisplay} | MC: ${getSignDisplay(mcLong)} | IC: ${getSignDisplay(icLong)} | Descendant: ${getSignDisplay(dscLong)}${ascCharacter ? ` (Asc Character: ${ascCharacter})` : ""}
 ${planetLines}
 - 7th House Ruler: ${seventhRuler}`);
 

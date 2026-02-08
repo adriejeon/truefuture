@@ -70,12 +70,12 @@ export const PLANET_NAMES: Record<string, string> = {
   pluto: "Pluto",
 };
 
-// Aspect 타입 정의
+// Aspect 타입 정의 (합/충/형 6°, 삼합/육합 4°)
 export const ASPECT_TYPES = {
-  CONJUNCTION: { name: "Conjunction", angle: 0, orb: 8 },
-  OPPOSITION: { name: "Opposition", angle: 180, orb: 8 },
+  CONJUNCTION: { name: "Conjunction", angle: 0, orb: 6 },
+  OPPOSITION: { name: "Opposition", angle: 180, orb: 6 },
   SQUARE: { name: "Square", angle: 90, orb: 6 },
-  TRINE: { name: "Trine", angle: 120, orb: 6 },
+  TRINE: { name: "Trine", angle: 120, orb: 4 },
   SEXTILE: { name: "Sextile", angle: 60, orb: 4 },
 };
 
@@ -1064,10 +1064,10 @@ function getNatalAspect(
 ): { type: string; angle: number; orb: number } | null {
   const diff = calculateAngleDifference(lon1, lon2);
   const orbs = {
-    trine: options.trineOrb ?? 6,
+    trine: options.trineOrb ?? 4,
     sextile: options.sextileOrb ?? 4,
     square: options.squareOrb ?? 6,
-    opposition: options.oppositionOrb ?? 8,
+    opposition: options.oppositionOrb ?? 6,
   };
   if (Math.abs(diff - 120) <= orbs.trine)
     return { type: "Trine", angle: 120, orb: Math.abs(diff - 120) };
@@ -1420,8 +1420,8 @@ export function analyzeHealthPotential(
   let moonAfflicted = false;
   if (moon && saturn) {
     const aspect = getNatalAspect(moon.degree, saturn.degree, {
-      squareOrb: 8,
-      oppositionOrb: 8,
+      squareOrb: 6,
+      oppositionOrb: 6,
     });
     if (aspect && (aspect.type === "Square" || aspect.type === "Opposition")) {
       moonAfflicted = true;
@@ -1434,8 +1434,8 @@ export function analyzeHealthPotential(
   }
   if (moon && mars) {
     const aspect = getNatalAspect(moon.degree, mars.degree, {
-      squareOrb: 8,
-      oppositionOrb: 8,
+      squareOrb: 6,
+      oppositionOrb: 6,
     });
     if (aspect && (aspect.type === "Square" || aspect.type === "Opposition")) {
       moonAfflicted = true;
@@ -1773,13 +1773,13 @@ function isApplyingAspect(
   return diff > aspectAngle && diff < 360;
 }
 
-/** Ptolemaic aspects: Conjunction, Opposition, Trine, Square, Sextile (orb 8/6/4) */
+/** Ptolemaic aspects: Conjunction, Opposition, Trine, Square, Sextile (합/충/형 6°, 삼합/육합 4°) */
 const PTOLEMAIC_ASPECTS = [
-  { angle: 0, orb: 8 },
+  { angle: 0, orb: 6 },
   { angle: 60, orb: 4 },
   { angle: 90, orb: 6 },
-  { angle: 120, orb: 6 },
-  { angle: 180, orb: 8 },
+  { angle: 120, orb: 4 },
+  { angle: 180, orb: 6 },
 ];
 
 export interface SpouseCandidateResult {
@@ -2455,7 +2455,7 @@ const PLANET_NAME_TO_KEY: Record<string, string> = {
   Saturn: "saturn",
 };
 
-const ASPECT_ORB_LORD = 6;
+const ASPECT_ORB_LORD = 5;
 
 /**
  * 메이저 로드와 서브 로드 간의 관계 분석 (Reception, Aspect, House)
@@ -2503,7 +2503,7 @@ export function analyzeLordInteraction(
     }
   }
 
-  // 2. Aspect (협력/갈등): 황경 차이, Orb ±6도
+  // 2. Aspect (협력/갈등): 황경 차이, Orb ±5도
   if (majorData && subData) {
     const angleDiff = calculateAngleDifference(
       majorData.degree,

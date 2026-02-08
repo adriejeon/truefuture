@@ -748,11 +748,11 @@ function analyzeBeneficMaleficAdjustment(
 
   const aVenusBMars =
     aVenusLon != null && bMarsLon != null
-      ? calculateMajorAspect(aVenusLon, bMarsLon, 8) // 금성-화성은 Orb 8도까지 허용
+      ? calculateMajorAspect(aVenusLon, bMarsLon, 5) // 금성-화성 Orb 5도
       : null;
   const bVenusAMars =
     bVenusLon != null && aMarsLon != null
-      ? calculateMajorAspect(bVenusLon, aMarsLon, 8)
+      ? calculateMajorAspect(bVenusLon, aMarsLon, 5)
       : null;
 
   // 조화 점수 계산

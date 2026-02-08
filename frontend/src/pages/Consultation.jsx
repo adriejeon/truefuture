@@ -7,7 +7,7 @@ import { saveFortuneHistory } from "../services/fortuneService";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
-import FortuneProcess from "../components/FortuneProcess";
+import TypewriterLoader from "../components/TypewriterLoader";
 import PrimaryButton from "../components/PrimaryButton";
 import ReactMarkdown from "react-markdown";
 import { colors } from "../constants/colors";
@@ -117,6 +117,8 @@ function Consultation() {
   const [selectedTopic, setSelectedTopic] = useState(null); // null: 미선택 상태
   const [userQuestion, setUserQuestion] = useState("");
   const [error, setError] = useState("");
+  const [loadingConsultation, setLoadingConsultation] = useState(false);
+  const [consultationAnswer, setConsultationAnswer] = useState(null);
   const [selectedChipIndex, setSelectedChipIndex] = useState(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
@@ -362,6 +364,16 @@ function Consultation() {
       profileName: selectedProfile.name || null,
     };
 
+    // 프론트 콘솔: 제미나이에 전달되는 입력(요청 본문) 로깅
+    console.groupCollapsed(
+      "🔍 [자유 상담소] get-fortune 요청 — 제미나이 인풋 기반 정보"
+    );
+    console.log("요청 본문 (requestBody):", requestBody);
+    console.log("프로필(생년월시, 성별, 좌표):", formData);
+    console.log("질문:", userQuestion.trim());
+    console.log("카테고리 (consultationTopic):", selectedTopic);
+    console.groupEnd();
+
     const { data, error: functionError } = await supabase.functions.invoke(
       "get-fortune",
       { body: requestBody }
@@ -399,6 +411,26 @@ function Consultation() {
     setSelectedChipIndex(null);
     return answer;
   }, [user, selectedProfile, selectedTopic, userQuestion]);
+
+  // 폼 제출: 로딩 후 바로 결과 표시 (데일리/종합/궁합과 동일 플로우)
+  const handleSubmit = useCallback(
+    async (e) => {
+      e?.preventDefault?.();
+      if (!selectedProfile || !userQuestion.trim()) return;
+      setError("");
+      setConsultationAnswer(null);
+      setLoadingConsultation(true);
+      try {
+        const answer = await requestConsultation();
+        setConsultationAnswer(answer);
+      } catch (err) {
+        setError(err?.message || "요청 중 오류가 발생했습니다.");
+      } finally {
+        setLoadingConsultation(false);
+      }
+    },
+    [selectedProfile, userQuestion, requestConsultation]
+  );
 
   // 인증 로딩 중
   if (loadingAuth) {
@@ -495,9 +527,6 @@ function Consultation() {
                   {historyView.parsedData.summary?.score != null && (
                     <div className="mb-4">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-blue-200">
-                          실현 가능성
-                        </span>
                         <span className="text-2xl font-bold text-white">
                           {historyView.parsedData.summary.score}%
                         </span>
@@ -606,7 +635,7 @@ function Consultation() {
                     </div>
                   )}
                   {historyView.parsedData.analysis?.timing && (
-                    <div className="border-t border-slate-600/40 pt-5">
+                    <div className="pt-5">
                       <h3 className="text-lg font-semibold text-white mb-3">
                         ⏰ 시기 분석
                       </h3>
@@ -616,7 +645,7 @@ function Consultation() {
                     </div>
                   )}
                   {historyView.parsedData.analysis?.advice && (
-                    <div className="border-t border-slate-600/40 pt-5">
+                    <div className="pt-5">
                       <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
                         <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
                           💡 Action Tip
@@ -701,9 +730,6 @@ function Consultation() {
   }
 
   if (sharedConsultation) {
-    const topicOption = TOPIC_OPTIONS.find(
-      (t) => t.id === sharedConsultation.topic
-    );
     const profileName = sharedConsultation.profileName?.trim() || "";
     const sharedTitle = profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요";
 
@@ -715,17 +741,9 @@ function Consultation() {
               {sharedTitle}
             </h2>
             <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
-              <div className="flex items-start gap-3">
-                <div className="text-2xl">{topicOption?.emoji || "🔮"}</div>
-                <div className="flex-1">
-                  <p className="text-slate-300 text-sm mb-1">
-                    {topicOption?.label || "상담"}
-                  </p>
-                  <p className="text-white font-medium">
-                    {sharedConsultation.question}
-                  </p>
-                </div>
-              </div>
+              <p className="text-white font-medium">
+                {sharedConsultation.question}
+              </p>
             </div>
 
             {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
@@ -739,9 +757,6 @@ function Consultation() {
                   {sharedConsultation.parsedData.summary?.score != null && (
                     <div className="mb-4">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-blue-200">
-                          실현 가능성
-                        </span>
                         <span className="text-2xl font-bold text-white">
                           {sharedConsultation.parsedData.summary.score}%
                         </span>
@@ -851,7 +866,7 @@ function Consultation() {
                     </p>
                   </div>
 
-                  <div className="border-t border-slate-600/40 pt-5">
+                  <div className="pt-5">
                     <h3 className="text-lg font-semibold text-white mb-3">
                       ⏰ 시기 분석
                     </h3>
@@ -860,7 +875,7 @@ function Consultation() {
                     </p>
                   </div>
 
-                  <div className="border-t border-slate-600/40 pt-5">
+                  <div className="pt-5">
                     <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
                       <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
                         💡 Action Tip
@@ -1013,7 +1028,7 @@ function Consultation() {
 
               {/* 질문 입력 */}
               <form
-                onSubmit={(e) => e.preventDefault()}
+                onSubmit={handleSubmit}
                 className="mb-6 sm:mb-8"
               >
                 <label className="block text-sm font-medium text-slate-300 mb-3">
@@ -1043,246 +1058,279 @@ function Consultation() {
                   </div>
                 )}
 
-                <FortuneProcess
-                  onRequest={requestConsultation}
-                  renderResult={(answer) => (
-                    <div className="mb-8">
-                      {answer.shareId && (
-                        <div className="flex items-center justify-end gap-2 mb-3">
-                          <button
-                            type="button"
-                            onClick={() => handleCopyLink(answer.shareId)}
-                            className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                            title="주소 복사"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                <PrimaryButton
+                  type="submit"
+                  disabled={
+                    !selectedProfile ||
+                    !userQuestion.trim() ||
+                    loadingConsultation
+                  }
+                  fullWidth
+                  className="mt-4"
+                >
+                  진짜미래 확인하기
+                </PrimaryButton>
+              </form>
+
+              {/* 로딩 모달 (데일리/종합/궁합과 동일) */}
+              {loadingConsultation && (
+                <div
+                  className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.80] min-h-screen p-4"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="운세 분석 중"
+                >
+                  <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+                    <TypewriterLoader />
+                  </div>
+                </div>
+              )}
+
+              {/* 상담 결과 (로딩 완료 후 바로 표시) */}
+              {consultationAnswer && (
+                <div className="mb-8">
+                  {consultationAnswer.shareId && (
+                    <div className="flex items-center justify-end gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopyLink(consultationAnswer.shareId)
+                        }
+                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                        title="주소 복사"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleKakaoShare(
+                            consultationAnswer.shareId,
+                            buildConsultationShareSummary(
+                              consultationAnswer.parsedData
+                            )
+                          )
+                        }
+                        className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+                        title="카카오톡 공유하기"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  <div className="mb-4">
+                    <p className="text-xs text-slate-400 mb-2">질문</p>
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0" aria-hidden>
+                        {
+                          TOPIC_OPTIONS.find(
+                            (t) => t.id === consultationAnswer.topic
+                          )?.emoji
+                        }
+                      </span>
+                      <p className="text-slate-200 font-medium flex-1 min-w-0">
+                        {consultationAnswer.question}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 결과 타이틀 */}
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">
+                    진짜 운세를 확인하세요.
+                  </h2>
+
+                  {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
+                  {consultationAnswer.parsedData ? (
+                    <div className="space-y-5">
+                      {/* Header Card */}
+                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                        <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
+                          {consultationAnswer.parsedData.summary?.title ||
+                            "결론"}
+                        </h2>
+                        {consultationAnswer.parsedData.summary?.score !=
+                          null && (
+                          <div className="mb-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-2xl font-bold text-white">
+                                {
+                                  consultationAnswer.parsedData.summary
+                                    .score
+                                }
+                                %
+                              </span>
+                              <span className="flex gap-0.5" aria-hidden>
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                  <span
+                                    key={i}
+                                    className={
+                                      i <=
+                                      Math.round(
+                                        (consultationAnswer.parsedData
+                                          .summary?.score || 0) / 20
+                                      )
+                                        ? "text-amber-400"
+                                        : "text-slate-600"
+                                    }
+                                  >
+                                    ★
+                                  </span>
+                                ))}
+                              </span>
+                            </div>
+                            <div className="w-full bg-[#121230] rounded-full h-2.5">
+                              <div
+                                className="h-2.5 rounded-full transition-all duration-500"
+                                style={{
+                                  backgroundColor: colors.primary,
+                                  width: `${consultationAnswer.parsedData.summary.score}%`,
+                                }}
                               />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleKakaoShare(
-                                answer.shareId,
-                                buildConsultationShareSummary(answer.parsedData)
-                              )
-                            }
-                            className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-                            title="카카오톡 공유하기"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {(
+                            consultationAnswer.parsedData.summary
+                              ?.keywords || []
+                          ).map((keyword, idx) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                      <div className="mb-4 p-4 bg-primary border border-primary rounded-lg">
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl flex-shrink-0" aria-hidden>
-                            {
-                              TOPIC_OPTIONS.find((t) => t.id === answer.topic)
-                                ?.emoji
-                            }
-                          </span>
-                          <p className="text-black font-medium flex-1 min-w-0">
-                            {answer.question}
-                          </p>
+                              {keyword}
+                            </span>
+                          ))}
                         </div>
                       </div>
 
-                      {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
-                      {answer.parsedData ? (
-                        <div className="space-y-5">
-                          {/* Header Card */}
-                          <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
-                            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                              {answer.parsedData.summary?.title || "결론"}
-                            </h2>
-                            {answer.parsedData.summary?.score != null && (
-                              <div className="mb-4">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <span className="text-sm text-blue-200">
-                                    실현 가능성
-                                  </span>
-                                  <span className="text-2xl font-bold text-white">
-                                    {answer.parsedData.summary.score}%
-                                  </span>
-                                  <span className="flex gap-0.5" aria-hidden>
-                                    {[1, 2, 3, 4, 5].map((i) => (
-                                      <span
-                                        key={i}
-                                        className={
-                                          i <=
-                                          Math.round(
-                                            (answer.parsedData.summary.score ||
-                                              0) / 20
-                                          )
-                                            ? "text-amber-400"
-                                            : "text-slate-600"
-                                        }
+                      {/* Timeline Section */}
+                      {consultationAnswer.parsedData.timeline &&
+                        consultationAnswer.parsedData.timeline.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                              📅 타임라인
+                            </h3>
+                            <div className="space-y-3">
+                              {consultationAnswer.parsedData.timeline.map(
+                                (item, idx) => {
+                                  const isGood = item.type === "good";
+                                  const isBad = item.type === "bad";
+                                  const bgColor = isGood
+                                    ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
+                                    : isBad
+                                    ? "bg-rose-900/30 border-rose-500/50"
+                                    : "bg-slate-700/30 border-slate-500/50";
+                                  const iconColor = isGood
+                                    ? "text-[#F2ACAC]"
+                                    : isBad
+                                    ? "text-rose-400"
+                                    : "text-slate-400";
+
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                                    >
+                                      <div
+                                        className={`text-xl flex-shrink-0 ${iconColor}`}
                                       >
-                                        ★
-                                      </span>
-                                    ))}
-                                  </span>
-                                </div>
-                                <div className="w-full bg-[#121230] rounded-full h-2.5">
-                                  <div
-                                    className="h-2.5 rounded-full transition-all duration-500"
-                                    style={{
-                                      backgroundColor: colors.primary,
-                                      width: `${answer.parsedData.summary.score}%`,
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            <div className="flex flex-wrap gap-1">
-                              {(answer.parsedData.summary?.keywords || []).map(
-                                (keyword, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
-                                  >
-                                    {keyword}
-                                  </span>
-                                )
+                                        {isGood
+                                          ? "✨"
+                                          : isBad
+                                          ? "⚠️"
+                                          : "⏳"}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-white mb-1">
+                                          {item.date}
+                                        </p>
+                                        <p className="text-sm text-slate-300 leading-relaxed">
+                                          {item.note}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                }
                               )}
                             </div>
                           </div>
+                        )}
 
-                          {/* Timeline Section */}
-                          {answer.parsedData.timeline &&
-                            answer.parsedData.timeline.length > 0 && (
-                              <div>
-                                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                  📅 타임라인
-                                </h3>
-                                <div className="space-y-3">
-                                  {answer.parsedData.timeline.map(
-                                    (item, idx) => {
-                                      const isGood = item.type === "good";
-                                      const isBad = item.type === "bad";
-                                      const isNeutral = item.type === "neutral";
-                                      const bgColor = isGood
-                                        ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
-                                        : isBad
-                                        ? "bg-rose-900/30 border-rose-500/50"
-                                        : "bg-slate-700/30 border-slate-500/50";
-                                      const iconColor = isGood
-                                        ? "text-[#F2ACAC]"
-                                        : isBad
-                                        ? "text-rose-400"
-                                        : "text-slate-400";
-
-                                      return (
-                                        <div
-                                          key={idx}
-                                          className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
-                                        >
-                                          <div
-                                            className={`text-xl flex-shrink-0 ${iconColor}`}
-                                          >
-                                            {isGood
-                                              ? "✨"
-                                              : isBad
-                                              ? "⚠️"
-                                              : "⏳"}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-white mb-1">
-                                              {item.date}
-                                            </p>
-                                            <p className="text-sm text-slate-300 leading-relaxed">
-                                              {item.note}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                          {/* Analysis Section */}
-                          <div className="space-y-5">
-                            <div>
-                              <h3 className="text-lg font-semibold text-white mb-3">
-                                🔮 종합 분석
-                              </h3>
-                              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                                {answer.parsedData.analysis?.general || ""}
-                              </p>
-                            </div>
-
-                            <div className="border-t border-slate-600/40 pt-5">
-                              <h3 className="text-lg font-semibold text-white mb-3">
-                                ⏰ 시기 분석
-                              </h3>
-                              <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                                {answer.parsedData.analysis?.timing || ""}
-                              </p>
-                            </div>
-
-                            <div className="border-t border-slate-600/40 pt-5">
-                              <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
-                                <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
-                                  💡 Action Tip
-                                </h3>
-                                <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                                  {answer.parsedData.analysis?.advice || ""}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        /* Fallback: Raw Text (JSON 파싱 실패 시) */
-                        <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
-                          <h3 className="text-lg font-semibold text-white mb-4">
-                            🔮 답변
+                      {/* Analysis Section */}
+                      <div className="space-y-5">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            🔮 종합 분석
                           </h3>
-                          <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
-                            <ReactMarkdown>
-                              {answer.interpretation}
-                            </ReactMarkdown>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {consultationAnswer.parsedData.analysis
+                              ?.general || ""}
+                          </p>
+                        </div>
+
+                        <div className="pt-5">
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            ⏰ 시기 분석
+                          </h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {consultationAnswer.parsedData.analysis?.timing ||
+                              ""}
+                          </p>
+                        </div>
+
+                        <div className="pt-5">
+                          <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                            <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
+                              💡 Action Tip
+                            </h3>
+                            <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                              {consultationAnswer.parsedData.analysis
+                                ?.advice || ""}
+                            </p>
                           </div>
                         </div>
-                      )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Fallback: Raw Text (JSON 파싱 실패 시) */
+                    <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
+                      <h3 className="text-lg font-semibold text-white mb-4">
+                        🔮 답변
+                      </h3>
+                      <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
+                        <ReactMarkdown>
+                          {consultationAnswer.interpretation}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   )}
-                >
-                  <PrimaryButton
-                    type="button"
-                    disabled={!selectedProfile || !userQuestion.trim()}
-                    fullWidth
-                    className="mt-4"
-                  >
-                    진짜미래 확인하기
-                  </PrimaryButton>
-                </FortuneProcess>
-              </form>
+                </div>
+              )}
             </>
           )}
         </div>

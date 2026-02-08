@@ -266,10 +266,13 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
         </div>
       )}
 
-      {/* 아코디언 섹션들 (## 헤더) - 컨테이너 밖 */}
+      {/* 아코디언 섹션들 (## 헤더) - Real Tip은 제외하고 아코디언으로 표시 */}
       {accordionSections.length > 0 ? (
         <div className="space-y-2 sm:space-y-3">
           {accordionSections.map((section, index) => {
+            const isRealTip = /Real\s*Tip/i.test((section.title || "").trim());
+            if (isRealTip) return null;
+
             const isOpen = openSections.has(index);
 
             return (
@@ -343,6 +346,35 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
               </div>
             );
           })}
+
+          {/* 데일리 운세 Real Tip: 아코디언 밖 별도 영역 (자유 상담소 Action Tip 스타일) */}
+          {(() => {
+            const realTipSection = accordionSections.find((s) =>
+              /Real\s*Tip/i.test((s.title || "").trim())
+            );
+            if (!realTipSection) return null;
+            // Gemini가 Real Tip 위에 넣는 메타/디바이스 문구 줄 제거
+            const metaKeywords = /디바이스|기기|화면\s*에서|앱\s*에서|인터페이스|사용자\s*경험|^\s*UI\s|^\s*UX\s/;
+            const tipContent = (realTipSection.content || "")
+              .split("\n")
+              .filter((line) => {
+                const t = line.trim();
+                return t && !metaKeywords.test(t);
+              })
+              .join("\n")
+              .trim();
+            if (!tipContent) return null;
+            return (
+              <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl mt-4">
+                <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
+                  💡 Real Tip
+                </h3>
+                <div className="prose prose-invert max-w-none prose-base text-slate-100 leading-relaxed text-base break-words">
+                  <ReactMarkdown>{tipContent}</ReactMarkdown>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       ) : (
         /* 헤더가 없는 경우 기존 방식으로 렌더링 */
