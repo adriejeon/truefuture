@@ -7,6 +7,7 @@ import {
   Children,
 } from "react";
 import TypewriterLoader from "./TypewriterLoader";
+import PrimaryButton from "./PrimaryButton";
 
 const MODAL_EXIT_DURATION = 400;
 const STREAM_REVEAL_DELAY_MS = 50;
@@ -97,18 +98,14 @@ function FortuneProcess({
           <p className="text-slate-200 text-lg sm:text-xl text-center mb-6">
             운명의 조각들이 모두 맞춰졌습니다.
           </p>
-          <button
+          <PrimaryButton
             type="button"
             onClick={handleShowResult}
             disabled={isExiting}
-            className="w-full py-3.5 px-6 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 hover:shadow-[0_0_12px_rgba(97,72,235,0.4),0_0_16px_rgba(255,82,82,0.3)] disabled:opacity-70"
-            style={{
-              background:
-                "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
-            }}
+            fullWidth
           >
             {readyButtonText}
-          </button>
+          </PrimaryButton>
         </>
       );
 

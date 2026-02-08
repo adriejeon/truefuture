@@ -7,6 +7,7 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
+import PrimaryButton from "../components/PrimaryButton";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -490,19 +491,13 @@ function LifetimeFortune() {
           onSubmit={handleSubmit}
           className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
         >
-          <button
+          <PrimaryButton
             type="submit"
             disabled={loading || !selectedProfile}
-            className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3 hover:shadow-[0_0_8px_rgba(97,72,235,0.3),0_0_12px_rgba(255,82,82,0.2)]"
-            style={{
-              zIndex: 1,
-              position: "relative",
-              background:
-                "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
-            }}
+            fullWidth
           >
-            <span>진짜미래 확인하기</span>
-          </button>
+            진짜미래 확인하기
+          </PrimaryButton>
         </form>
 
         {/* 로딩 모달 */}

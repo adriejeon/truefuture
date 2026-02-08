@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import CityAutocompleteComponent from "./CityAutocomplete";
+import PrimaryButton from "./PrimaryButton";
 
 function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
   const [birthDate, setBirthDate] = useState("");
@@ -116,46 +117,13 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
         </div>
       </div>
 
-      <button
+      <PrimaryButton
         type="submit"
-        disabled={loading}
-        className="w-full py-3 sm:py-3.5 px-4 sm:px-6 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative touch-manipulation flex items-center justify-center gap-2 sm:gap-3 hover:shadow-[0_0_8px_rgba(97,72,235,0.3),0_0_12px_rgba(255,82,82,0.2)]"
-        style={{
-          zIndex: 1,
-          position: "relative",
-          background:
-            "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
-        }}
+        loading={loading}
+        fullWidth
       >
-        {loading ? (
-          <>
-            {/* 로딩 스피너 */}
-            <svg
-              className="animate-spin h-4 w-4 sm:h-5 sm:w-5 text-white"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-            <span>미래를 계산하는 중...</span>
-          </>
-        ) : (
-          <span>진짜미래 확인하기</span>
-        )}
-      </button>
+        진짜미래 확인하기
+      </PrimaryButton>
     </form>
   );
 }

@@ -4,9 +4,9 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import FortuneResult from "../components/FortuneResult";
 import BottomNavigation from "../components/BottomNavigation";
 import ProfileModal from "../components/ProfileModal";
+import PrimaryButton from "../components/PrimaryButton";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
-import { colors } from "../constants/colors";
 import {
   detectInAppBrowser,
   redirectToExternalBrowser,
@@ -163,16 +163,14 @@ function Home() {
               </div>
             </div>
             <div className="w-full mt-6 sm:mt-8 mb-6 sm:mb-8 px-0">
-              <Link
+              <PrimaryButton
+                as={Link}
                 to={user ? "/consultation" : "/login"}
-                className="block w-full py-4 px-6 rounded-full text-center font-semibold text-base sm:text-lg transition-all duration-200 hover:opacity-90"
-                style={{
-                  backgroundColor: colors.primary,
-                  color: "#000000",
-                }}
+                variant="gold"
+                fullWidth
               >
                 진짜미래 보러가기
-              </Link>
+              </PrimaryButton>
             </div>
           </div>
         )}

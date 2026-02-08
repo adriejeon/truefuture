@@ -8,6 +8,7 @@ import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneProcess from "../components/FortuneProcess";
+import PrimaryButton from "../components/PrimaryButton";
 import ReactMarkdown from "react-markdown";
 import { colors } from "../constants/colors";
 import { logFortuneInput } from "../utils/debugFortune";
@@ -420,21 +421,9 @@ function Consultation() {
           <p className="text-slate-300 mb-6">
             진짜미래는 로그인 후 이용하실 수 있습니다.
           </p>
-          <a
-            href="/login"
-            className="inline-block px-6 py-3 text-white font-medium rounded-lg transition-colors"
-            style={{
-              backgroundColor: colors.primary,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#C99A2F";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = colors.primary;
-            }}
-          >
+          <PrimaryButton as="a" href="/login" variant="gold">
             로그인하기
-          </a>
+          </PrimaryButton>
         </div>
       </div>
     );
@@ -1279,17 +1268,14 @@ function Consultation() {
                     </div>
                   )}
                 >
-                  <button
+                  <PrimaryButton
                     type="button"
                     disabled={!selectedProfile || !userQuestion.trim()}
-                    className="w-full mt-4 py-3 px-4 text-lg text-white font-semibold rounded-lg shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      background:
-                        "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
-                    }}
+                    fullWidth
+                    className="mt-4"
                   >
                     진짜미래 확인하기
-                  </button>
+                  </PrimaryButton>
                 </FortuneProcess>
               </form>
             </>
