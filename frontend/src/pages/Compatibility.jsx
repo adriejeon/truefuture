@@ -14,7 +14,7 @@ import {
   restoreFortuneIfExists,
   fetchFortuneByResultId,
 } from "../services/fortuneService";
-import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
+import { loadSharedFortune } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
 
 function Compatibility() {
@@ -579,38 +579,6 @@ function Compatibility() {
             className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
             style={{ position: "relative", zIndex: 1 }}
           >
-            {/* 상단: 친구가 공유한 결과임을 안내 + 친구(두 명) 생년월일만 */}
-            <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="text-2xl">🔮</div>
-                <div className="flex-1">
-                  <p className="text-black text-base mb-2">
-                    친구가 공유한 운세 결과예요.
-                  </p>
-                  {sharedUserInfo?.user1 && sharedUserInfo?.user2 && (
-                    <div className="text-xs sm:text-sm text-slate-300 space-y-3 mt-3">
-                      <div className="bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
-                        <p className="text-slate-200 font-semibold mb-1">
-                          💙 첫 번째 사람
-                        </p>
-                        <p>
-                          📅 {formatBirthDate(sharedUserInfo.user1.birthDate)}
-                        </p>
-                      </div>
-                      <div className="bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
-                        <p className="text-slate-200 font-semibold mb-1">
-                          💗 두 번째 사람
-                        </p>
-                        <p>
-                          📅 {formatBirthDate(sharedUserInfo.user2.birthDate)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
             <FortuneResult
               title="관계의 화학작용 분석"
               interpretation={interpretation}

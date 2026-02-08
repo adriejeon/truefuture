@@ -52,6 +52,9 @@ export const PLANETS = {
   mars: Body.Mars,
   jupiter: Body.Jupiter,
   saturn: Body.Saturn,
+  uranus: Body.Uranus,
+  neptune: Body.Neptune,
+  pluto: Body.Pluto,
 };
 
 export const PLANET_NAMES: Record<string, string> = {
@@ -62,6 +65,9 @@ export const PLANET_NAMES: Record<string, string> = {
   mars: "Mars",
   jupiter: "Jupiter",
   saturn: "Saturn",
+  uranus: "Uranus",
+  neptune: "Neptune",
+  pluto: "Pluto",
 };
 
 // Aspect 타입 정의
@@ -71,6 +77,16 @@ export const ASPECT_TYPES = {
   SQUARE: { name: "Square", angle: 90, orb: 6 },
   TRINE: { name: "Trine", angle: 120, orb: 6 },
   SEXTILE: { name: "Sextile", angle: 60, orb: 4 },
+};
+
+// 3외행성 키워드 정의 (데일리 운세, 자유 상담소 시기 추운용)
+export const OUTER_PLANET_KEYWORDS: Record<string, string> = {
+  Uranus:
+    "갑작스러운 흉사, 예측 불가능한 사건, 교통사고, 탈것에 의한 사고, 갑작스러운 외적 사고, 급작스럽게 들이닥치는 변화",
+  Neptune:
+    "사리분별 불가, 흐릿해짐, 약물 복용, 잘못된 판단, 술로 인한 실수, 건강 악화로 인한 약 복용, 현실감각 상실",
+  Pluto:
+    "거시적 흉사, 개인 의지와 무관한 큰 사건, 큰 흐름에 휘말림, 새우 등 터지는 상황, 통제 불가능한 거대한 변화",
 };
 
 // ========== 유틸리티 함수 ==========
@@ -692,6 +708,9 @@ const LORD_NAME_TO_KEY: Record<string, string> = {
   Mars: "mars",
   Jupiter: "jupiter",
   Saturn: "saturn",
+  Uranus: "uranus",
+  Neptune: "neptune",
+  Pluto: "pluto",
 };
 
 /**

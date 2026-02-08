@@ -268,6 +268,7 @@ function Consultation() {
           interpretation: data.interpretation,
           parsedData, // 구조화된 JSON 데이터
           shareId: sharedId,
+          profileName: userInfo.profileName || null,
         });
       })
       .catch(() => setSharedConsultation(null))
@@ -358,6 +359,7 @@ function Consultation() {
       userQuestion: userQuestion.trim(),
       consultationTopic: selectedTopic,
       profileId: selectedProfile.id,
+      profileName: selectedProfile.name || null,
     };
 
     const { data, error: functionError } = await supabase.functions.invoke(
@@ -702,13 +704,16 @@ function Consultation() {
     const topicOption = TOPIC_OPTIONS.find(
       (t) => t.id === sharedConsultation.topic
     );
+    const profileName = sharedConsultation.profileName?.trim() || "";
+    const sharedTitle = profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요";
+
     return (
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
         <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
           <div className="py-8 sm:py-12">
-            <div className="mb-6 p-4 bg-primary border border-primary rounded-lg">
-              <p className="text-black text-sm">친구가 공유한 상담이에요</p>
-            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-primary mb-6">
+              {sharedTitle}
+            </h2>
             <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
               <div className="flex items-start gap-3">
                 <div className="text-2xl">{topicOption?.emoji || "🔮"}</div>

@@ -12,7 +12,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
-import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
+import { loadSharedFortune } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
 
 function LifetimeFortune() {
@@ -202,6 +202,7 @@ function LifetimeFortune() {
         ...formData,
         fortuneType: "lifetime",
         reportType: "lifetime", // 하위 호환성 유지
+        profileName: selectedProfile?.name || null,
       };
 
       // 디버깅: 전송하는 데이터 로그
@@ -402,6 +403,9 @@ function LifetimeFortune() {
       );
     }
     if (isSharedFortune && interpretation) {
+      const profileName = sharedUserInfo?.profileName?.trim() || "";
+      const sharedTitle = profileName ? `${profileName}님의 진짜 인생이에요` : "진짜 인생이에요";
+
       return (
         <div
           className="w-full py-8 sm:py-12"
@@ -411,25 +415,8 @@ function LifetimeFortune() {
             className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
             style={{ position: "relative", zIndex: 1 }}
           >
-            {/* 상단: 친구가 공유한 결과임을 안내 + 친구 생년월일만 */}
-            <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="text-2xl">🔮</div>
-                <div className="flex-1">
-                  <p className="text-black text-base mb-2">
-                    친구가 공유한 운세 결과예요.
-                  </p>
-                  {sharedUserInfo?.birthDate && (
-                    <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
-                      <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
             <FortuneResult
-              title="내 인생 사용 설명서"
+              title={sharedTitle}
               interpretation={interpretation}
               shareId={shareId}
               isShared={true}

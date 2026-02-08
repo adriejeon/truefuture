@@ -16,12 +16,14 @@ import {
   getSignFromLongitude,
   getSignRuler,
   normalizeDegrees,
+  calculateAngleDifference,
   type CareerAnalysisResult,
   type WealthAnalysisResult,
   type PrimaryDirectionHit,
   type ProgressedEventItem,
   type ProfectionTimelineItem,
   analyzeHealthPotential,
+  OUTER_PLANET_KEYWORDS,
 } from "./astrologyCalculator.ts";
 import { SIGNS } from "./astrologyCalculator.ts";
 import {
@@ -49,6 +51,103 @@ const SIGN_KEYWORDS: Record<string, string> = {
 function getSignCharacter(signName: string): string {
   const key = Object.keys(SIGN_KEYWORDS).find((k) => signName.includes(k));
   return key ? SIGN_KEYWORDS[key] : "";
+}
+
+/**
+ * 3외행성(Uranus, Neptune, Pluto)이 네이탈 행성과 맺는 각도 및 트랜짓 상으로 연주와 맺는 각도를 분석합니다.
+ * 데일리 운세와 자유 상담소에서만 사용됩니다.
+ */
+function analyzeOuterPlanetAspects(
+  natalData: ChartData,
+  transitData: ChartData,
+  lordOfTheYear?: string
+): string {
+  const outerPlanets = ["uranus", "neptune", "pluto"];
+  const sections: string[] = [];
+
+  for (const outerKey of outerPlanets) {
+    const outerPlanetData = natalData.planets[outerKey as keyof typeof natalData.planets];
+    if (!outerPlanetData) continue;
+
+    const outerName = outerKey.charAt(0).toUpperCase() + outerKey.slice(1);
+    const keyword = OUTER_PLANET_KEYWORDS[outerName] || "";
+
+    const natalAspects: string[] = [];
+    const transitAspects: string[] = [];
+
+    // 네이탈 3외행성과 네이탈 7행성(태양~토성) 간 각도
+    const innerPlanets = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"];
+    for (const innerKey of innerPlanets) {
+      const innerPlanet = natalData.planets[innerKey as keyof typeof natalData.planets];
+      if (!innerPlanet) continue;
+
+      const angleDiff = calculateAngleDifference(outerPlanetData.degree, innerPlanet.degree);
+
+      // Conjunction (0°, orb 8°)
+      if (angleDiff <= 8) {
+        natalAspects.push(`Natal ${outerName} Conjunction Natal ${innerKey.toUpperCase()} (orb ${angleDiff.toFixed(1)}°)`);
+      }
+      // Opposition (180°, orb 8°)
+      else if (Math.abs(angleDiff - 180) <= 8) {
+        natalAspects.push(`Natal ${outerName} Opposition Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`);
+      }
+      // Square (90°, orb 6°)
+      else if (Math.abs(angleDiff - 90) <= 6) {
+        natalAspects.push(`Natal ${outerName} Square Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`);
+      }
+      // Trine (120°, orb 6°)
+      else if (Math.abs(angleDiff - 120) <= 6) {
+        natalAspects.push(`Natal ${outerName} Trine Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`);
+      }
+    }
+
+    // 트랜짓 3외행성과 연주 행성 간 각도
+    const transitOuter = transitData.planets[outerKey as keyof typeof transitData.planets];
+    if (transitOuter && lordOfTheYear) {
+      const lordKey = lordOfTheYear.toLowerCase();
+      const lordPlanet = transitData.planets[lordKey as keyof typeof transitData.planets];
+      if (lordPlanet) {
+        const angleDiff = calculateAngleDifference(transitOuter.degree, lordPlanet.degree);
+
+        if (angleDiff <= 8) {
+          transitAspects.push(`Transit ${outerName} Conjunction Transit ${lordOfTheYear} (Lord of the Year) (orb ${angleDiff.toFixed(1)}°)`);
+        } else if (Math.abs(angleDiff - 180) <= 8) {
+          transitAspects.push(`Transit ${outerName} Opposition Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`);
+        } else if (Math.abs(angleDiff - 90) <= 6) {
+          transitAspects.push(`Transit ${outerName} Square Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`);
+        } else if (Math.abs(angleDiff - 120) <= 6) {
+          transitAspects.push(`Transit ${outerName} Trine Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`);
+        }
+      }
+    }
+
+    if (natalAspects.length > 0 || transitAspects.length > 0) {
+      let section = `\n${outerName} (${keyword}):\n`;
+      section += `  위치: ${outerPlanetData.sign} ${outerPlanetData.degreeInSign.toFixed(1)}° (House ${outerPlanetData.house})\n`;
+      if (natalAspects.length > 0) {
+        section += `  네이탈 각도:\n`;
+        natalAspects.forEach(a => section += `    - ${a}\n`);
+      }
+      if (transitAspects.length > 0) {
+        section += `  트랜짓 각도 (오늘):\n`;
+        transitAspects.forEach(a => section += `    - ${a}\n`);
+      }
+      sections.push(section);
+    }
+  }
+
+  if (sections.length === 0) {
+    return "";
+  }
+
+  return `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[3외행성 분석 - Outer Planets (천왕성, 해왕성, 명왕성)]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3외행성은 대체로 흉한 의미를 갖고 있으며, 갑작스러운 변화, 사리분별 불가, 거시적 흉사 등을 나타냅니다.
+${sections.join("\n")}
+💡 해석 힌트: 3외행성이 네이탈 행성과 각도를 맺거나 트랜짓에서 연주 행성과 각도를 맺을 때, 해당 키워드의 영향이 강하게 나타날 수 있습니다. 특히 Square나 Opposition은 흉한 영향을 강화시킵니다.`;
 }
 
 /** LOVE 토픽 시 generatePredictionPrompt에 전달되는 연애/결혼 분석 데이터 */
@@ -130,15 +229,6 @@ export function formatLordOfYearTransitSectionForPrompt(
     lines.push(
       `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}`
     );
-    lines.push(
-      `- 현재 하늘: ${lordTransitStatus.isDayChart ? "낮 차트 (Day Chart, 태양이 7~12하우스)" : "밤 차트 (Night Chart, 태양이 1~6하우스)"}`
-    );
-    lines.push(
-      `- 연주 행성의 섹트: ${lordTransitStatus.sectStatus === "day_sect" ? "낮의 섹트 (Sun/Jupiter/Saturn)" : lordTransitStatus.sectStatus === "night_sect" ? "밤의 섹트 (Moon/Venus/Mars)" : "중성 (Mercury)"}`
-    );
-    lines.push(
-      `- 섹트 적합 여부: ${lordTransitStatus.isInSect ? "섹트 적합 (연주 행성이 현재 차트에 유리함)" : "섹트 부적합 (연주 행성이 현재 차트에 다소 불리함)"}`
-    );
   }
   if (hasAspects && lordTransitAspects) {
     lines.push("");
@@ -198,6 +288,13 @@ export function generateDailyUserPrompt(
     })
     .join("\n");
 
+  // 3외행성 분석
+  const outerPlanetSection = analyzeOuterPlanetAspects(
+    natalData,
+    transitData,
+    profectionData?.lordOfTheYear
+  );
+
   // 최종 User Prompt 생성
   return `
 오늘의 운세 분석을 위한 데이터입니다.
@@ -222,8 +319,6 @@ Part of Fortune: ${
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [Transit Chart - 현재 하늘]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-현재 시간: ${transitData.date}
-
 행성 위치:
 ${transitPlanets}
 
@@ -256,10 +351,7 @@ ${
 [연주 행성의 트랜짓 상태 및 각도]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 현재 트랜짓 차트에서 연주 행성(올해의 주인)의 상태:
-${lordTransitStatus ? `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}
-- 현재 하늘: ${lordTransitStatus.isDayChart ? "낮 차트 (Day Chart, 태양이 7~12하우스)" : "밤 차트 (Night Chart, 태양이 1~6하우스)"}
-- 연주 행성의 섹트: ${lordTransitStatus.sectStatus === "day_sect" ? "낮의 섹트 (Sun/Jupiter/Saturn)" : lordTransitStatus.sectStatus === "night_sect" ? "밤의 섹트 (Moon/Venus/Mars)" : "중성 (Mercury)"}
-- 섹트 적합 여부: ${lordTransitStatus.isInSect ? "섹트 적합 (연주 행성이 현재 차트에 유리함)" : "섹트 부적합 (연주 행성이 현재 차트에 다소 불리함)"}` : ""}
+${lordTransitStatus ? `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}` : ""}
 ${lordTransitAspects && lordTransitAspects.length > 0 ? `
 연주 행성이 오늘 트랜짓 차트에서 다른 행성들과 맺는 각도 (해석 시 이 각도들의 영향을 반드시 반영하세요):
 ${lordTransitAspects.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n")}` : ""}
@@ -276,6 +368,7 @@ ${lordStarConjunctionsText}
 [Calculated Aspects - 주요 각도 관계]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${aspectsList || "  (오늘은 주요 Aspect가 형성되지 않았습니다)"}
+${outerPlanetSection}
 ${
   timeLordRetrogradeAlert?.isRetrograde
     ? `
@@ -638,7 +731,8 @@ export function generatePredictionPrompt(
   progressionTimeline?: ProgressedEventItem[],
   profectionTimeline?: ProfectionTimelineItem[],
   solarReturnChartData?: ChartData,
-  solarReturnOverlay?: SolarReturnOverlay
+  solarReturnOverlay?: SolarReturnOverlay,
+  consultationTransitChart?: ChartData
 ): string {
   const sections: string[] = [];
 
@@ -673,6 +767,18 @@ ${planetLines}
 ${natalStarBlock}
 
 **해석 가이드:** 상담 주제가 무엇이든, 내담자의 "타고난 그릇(Natal Star)"과 "현재 들어온 운(Transit Star, 단기 이벤트에 제공됨)"을 연결해서 답변하세요. 예: "회원님은 원래 [항성]의 기질을 타고나셨는데(Natal), 마침 이번에 [항성] 운이 들어왔으니(Transit), ..."`);
+  }
+
+  // --- [3외행성 분석] (자유 상담소 시기 추운용) ---
+  if (consultationTransitChart && profectionData) {
+    const outerPlanetSection = analyzeOuterPlanetAspects(
+      chartData,
+      consultationTransitChart,
+      profectionData.lordOfTheYear
+    );
+    if (outerPlanetSection) {
+      sections.push(outerPlanetSection);
+    }
   }
 
   // --- [Analysis Data] ---

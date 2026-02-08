@@ -1267,7 +1267,20 @@ serve(async (req) => {
         console.warn("⚠️ [CONSULTATION] Solar Return 계산 실패 (무시하고 진행):", srErr);
       }
 
-      // 5b. Career/Wealth/Love 분석 (consultationTopic에 따라)
+      // 5b. CONSULTATION: 현재 트랜짓 차트 (연주 트랜짓 상태·각도·항성·3외행성용)
+      let consultationTransitChart: ChartData | undefined;
+      try {
+        const timezoneOffsetHours = Math.round(lng / 15);
+        consultationTransitChart = await calculateChart(
+          now,
+          { lat, lng },
+          timezoneOffsetHours
+        );
+      } catch (_) {
+        // 무시
+      }
+
+      // 5c. Career/Wealth/Love 분석 (consultationTopic에 따라)
       const consultationTopicUpper = (requestData.consultationTopic || "")
         .trim()
         .toUpperCase();
@@ -1335,21 +1348,9 @@ serve(async (req) => {
         progressionTimeline,
         profectionTimeline,
         solarReturnChartData,
-        solarReturnOverlay
+        solarReturnOverlay,
+        consultationTransitChart
       );
-
-      // 5c. CONSULTATION: 현재 트랜짓 차트 (연주 트랜짓 상태·각도·항성용)
-      let consultationTransitChart: ChartData | undefined;
-      try {
-        const timezoneOffsetHours = Math.round(lng / 15);
-        consultationTransitChart = await calculateChart(
-          now,
-          { lat, lng },
-          timezoneOffsetHours
-        );
-      } catch (_) {
-        // 무시
-      }
 
       // 6a. CONSULTATION: 향후 6개월 단기 이벤트 스캔 (타임로드 역행·항성·역행/정지) → 프롬프트에 주입
       try {
@@ -1538,7 +1539,7 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
 
               const dateStr = sampleDate.toISOString().split("T")[0];
               transitSummary.push(
-                `\n[${dateStr}] 역행: ${sampleStatus.isRetrograde ? "O" : "X"}, 섹트 적합: ${sampleStatus.isInSect ? "O" : "X"}, 각도: ${sampleAspects.length}개`
+                `\n[${dateStr}] 역행: ${sampleStatus.isRetrograde ? "O" : "X"}, 각도: ${sampleAspects.length}개`
               );
               if (sampleAspects.length > 0 && sampleAspects.length <= 3) {
                 sampleAspects.forEach((a) => {
@@ -1677,7 +1678,7 @@ ${systemContext}`;
           .from("fortune_results")
           .insert({
             user_id: currentUserId,
-            user_info: { birthDate, lat, lng, userQuestion, consultationTopic }, // NOT NULL 컬럼
+            user_info: { birthDate, lat, lng, userQuestion, consultationTopic, profileName: requestData.profileName ?? null }, // NOT NULL 컬럼
             fortune_text: interpretation.interpretation,
             fortune_type: fortuneType,
             chart_data: {
@@ -2424,6 +2425,7 @@ ${systemContext}`;
         ? { chart: chartData }
         : null;
 
+    const profileName = requestData.profileName ?? null;
     try {
       console.log(`💾 [${fortuneType}] 운세 저장 시작...`);
       const { data: insertData, error: insertError } = await supabase
@@ -2433,6 +2435,7 @@ ${systemContext}`;
             birthDate: birthDate,
             lat: lat,
             lng: lng,
+            ...(profileName && { profileName }),
           },
           fortune_text: interpretation.interpretation,
           fortune_type: fortuneType,

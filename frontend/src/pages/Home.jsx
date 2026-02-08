@@ -12,7 +12,6 @@ import {
   redirectToExternalBrowser,
   getBrowserGuideMessage,
 } from "../utils/inAppBrowserDetector";
-import { formatBirthDate } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent } from "../utils/debugFortune";
 
 function Home() {
@@ -26,6 +25,7 @@ function Home() {
   const [shareId, setShareId] = useState(null);
   const [isSharedFortune, setIsSharedFortune] = useState(false);
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
+  const [sharedFortuneType, setSharedFortuneType] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
 
@@ -107,6 +107,7 @@ function Home() {
       setIsSharedFortune(true);
       setShareId(id);
       setSharedUserInfo(data.userInfo ?? null);
+      setSharedFortuneType(data.fortuneType ?? null);
     } catch (err) {
       console.error("❌ 공유된 운세 조회 실패:", err);
       setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
@@ -212,40 +213,37 @@ function Home() {
         )}
 
         {/* 공유된 운세 표시 */}
-        {isSharedFortune && interpretation && (
-          <div className="mb-6 sm:mb-8">
-            <div className="p-4 bg-primary border border-primary rounded-lg mb-4">
-              <div className="flex items-start gap-3">
-                <div className="text-2xl">🔮</div>
-                <div className="flex-1">
-                  <p className="text-black text-base mb-2">
-                    친구가 공유한 운세 결과예요.
-                  </p>
-                  {sharedUserInfo?.birthDate && (
-                    <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 py-3 rounded">
-                      <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <FortuneResult
-              title="공유된 운세"
-              interpretation={interpretation}
-              shareId={shareId}
-              isShared={true}
-            />
+        {isSharedFortune && interpretation && (() => {
+          const profileName = sharedUserInfo?.profileName?.trim() || "";
+          const sharedTitle =
+            sharedFortuneType === "consultation"
+              ? profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요"
+              : sharedFortuneType === "daily"
+              ? profileName ? `${profileName}님의 진짜 오늘이에요` : "진짜 오늘이에요"
+              : sharedFortuneType === "lifetime"
+              ? profileName ? `${profileName}님의 진짜 인생이에요` : "진짜 인생이에요"
+              : profileName ? `${profileName}님의 운세` : "공유된 운세";
 
-            {!user && (
-              <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-                <p className="text-center text-slate-300 mb-4 text-base">
-                  나도 내 운세를 확인하고 싶다면?
-                </p>
-                <SocialLoginButtons />
-              </div>
-            )}
-          </div>
-        )}
+          return (
+            <div className="mb-6 sm:mb-8">
+              <FortuneResult
+                title={sharedTitle}
+                interpretation={interpretation}
+                shareId={shareId}
+                isShared={true}
+              />
+
+              {!user && (
+                <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+                  <p className="text-center text-slate-300 mb-4 text-base">
+                    나도 내 운세를 확인하고 싶다면?
+                  </p>
+                  <SocialLoginButtons />
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
       {user && <BottomNavigation />}
 

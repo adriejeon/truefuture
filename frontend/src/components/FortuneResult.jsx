@@ -34,7 +34,7 @@ function parseDailyScores(interpretation) {
   };
 }
 
-function FortuneResult({ title, interpretation, shareId, isShared = false, shareSummary: shareSummaryProp }) {
+function FortuneResult({ title, interpretation, shareId, isShared = false, shareSummary: shareSummaryProp, profileName: profileNameProp }) {
   // 디버깅: shareId 확인
   useEffect(() => {
     console.log(`[FortuneResult] ${title} - shareId:`, shareId);
@@ -50,20 +50,28 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
     return parseDailyScores(interpretation);
   }, [interpretation]);
 
-  // 카카오 공유용 한 줄 요약 (데일리 운세 시 점수 포함, prop 우선, 없으면 intro/첫 섹션 요약에서 추출)
+  // 카카오 공유용 한 줄 요약 (데일리 운세 시 "xx님의 오전 N점, 오후 M점. 오늘의 운세 점수는 평균점" 포함)
   const shareSummary = useMemo(() => {
-    if (shareSummaryProp && shareSummaryProp.trim()) return shareSummaryProp.trim();
-    
-    // 데일리 운세 점수가 있으면 점수 포함해서 요약 생성
-    if (dailyScores) {
-      const avgScore = dailyScores.morning && dailyScores.afternoon
+    // 데일리 운세 점수가 있으면 카카오 메시지에 "xx님의 오전 N점, 오후 M점" + 오늘의 운세 중간 점수
+    if (dailyScores && (dailyScores.morning != null || dailyScores.afternoon != null)) {
+      const name = profileNameProp?.trim() ? `${profileNameProp}님의 ` : "";
+      const parts = [];
+      if (dailyScores.morning != null) parts.push(`오전 ${dailyScores.morning}점`);
+      if (dailyScores.afternoon != null) parts.push(`오후 ${dailyScores.afternoon}점`);
+      const avgScore = dailyScores.morning != null && dailyScores.afternoon != null
         ? Math.round((dailyScores.morning + dailyScores.afternoon) / 2)
-        : dailyScores.morning || dailyScores.afternoon || 0;
+        : dailyScores.morning ?? dailyScores.afternoon ?? 0;
+      if (parts.length) return `${name}${parts.join(", ")}. 오늘의 운세 점수는 ${avgScore}점입니다`;
+    }
+    if (shareSummaryProp && shareSummaryProp.trim()) return shareSummaryProp.trim();
+    if (dailyScores) {
+      const avgScore = dailyScores.morning != null && dailyScores.afternoon != null
+        ? Math.round((dailyScores.morning + dailyScores.afternoon) / 2)
+        : dailyScores.morning ?? dailyScores.afternoon ?? 0;
       return `오늘의 운세 점수는 ${avgScore}점입니다`;
     }
-    
     return getDefaultShareSummary(intro, accordionSections);
-  }, [shareSummaryProp, intro, accordionSections, dailyScores]);
+  }, [shareSummaryProp, intro, accordionSections, dailyScores, profileNameProp]);
 
   // 아코디언 열림/닫힘 상태 관리 (첫 번째는 기본적으로 열림)
   const [openSections, setOpenSections] = useState(() => new Set([0]));

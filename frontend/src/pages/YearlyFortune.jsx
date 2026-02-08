@@ -12,7 +12,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
-import { loadSharedFortune, formatBirthDate } from "../utils/sharedFortune";
+import { loadSharedFortune } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
 
 // 운세 타입 탭
@@ -42,6 +42,7 @@ function YearlyFortune() {
   const [shareId, setShareId] = useState(null);
   const [isSharedFortune, setIsSharedFortune] = useState(false);
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
+  const [sharedFortuneType, setSharedFortuneType] = useState(null); // "daily" | "lifetime" (공유 페이지 타이틀용)
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -132,6 +133,7 @@ function YearlyFortune() {
       setIsSharedFortune(true);
       setShareId(id);
       setSharedUserInfo(data.userInfo);
+      setSharedFortuneType(data.fortuneType || null);
     } catch (err) {
       console.error("❌ 공유된 1년 운세 조회 실패:", err);
       setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
@@ -313,6 +315,7 @@ function YearlyFortune() {
         ...formData,
         fortuneType: "daily",
         reportType: "daily",
+        profileName: selectedProfile.name || null,
       };
       const { data, error: functionError } = await supabase.functions.invoke(
         "get-fortune",
@@ -387,6 +390,7 @@ function YearlyFortune() {
         ...formData,
         fortuneType: "lifetime",
         reportType: "lifetime",
+        profileName: selectedProfile.name || null,
       };
       const { data, error: functionError } = await supabase.functions.invoke(
         "get-fortune",
@@ -443,6 +447,14 @@ function YearlyFortune() {
       );
     }
     if (isSharedFortune && interpretation) {
+      const profileName = sharedUserInfo?.profileName?.trim() || "";
+      const sharedTitle =
+        sharedFortuneType === "daily"
+          ? `${profileName ? `${profileName}님의 ` : ""}진짜 오늘이에요`
+          : sharedFortuneType === "lifetime"
+          ? `${profileName ? `${profileName}님의 ` : ""}진짜 인생이에요`
+          : profileName ? `${profileName}님의 운세` : "공유된 운세";
+
       return (
         <div
           className="w-full py-8 sm:py-12"
@@ -452,25 +464,8 @@ function YearlyFortune() {
             className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
             style={{ position: "relative", zIndex: 1 }}
           >
-            {/* 상단: 친구가 공유한 결과임을 안내 + 친구 생년월일만 */}
-            <div className="mb-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="text-2xl">🔮</div>
-                <div className="flex-1">
-                  <p className="text-black text-base mb-2">
-                    친구가 공유한 운세 결과예요.
-                  </p>
-                  {sharedUserInfo?.birthDate && (
-                    <div className="text-xs sm:text-sm text-slate-300 mt-3 bg-slate-700/50 px-4 sm:px-6 py-3 rounded">
-                      <p>📅 {formatBirthDate(sharedUserInfo.birthDate)}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
             <FortuneResult
-              title="나만의 1년 공략법"
+              title={sharedTitle}
               interpretation={interpretation}
               shareId={shareId}
               isShared={true}
@@ -644,6 +639,7 @@ function YearlyFortune() {
             title={getResultTitle()}
             interpretation={interpretation}
             shareId={shareId}
+            profileName={selectedProfile?.name}
           />
         )}
       </div>

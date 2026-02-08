@@ -64,6 +64,9 @@ export interface ChartData {
     mars: PlanetPosition;
     jupiter: PlanetPosition;
     saturn: PlanetPosition;
+    uranus: PlanetPosition;
+    neptune: PlanetPosition;
+    pluto: PlanetPosition;
   };
   fortuna: PlanetPosition;
 }
@@ -97,6 +100,9 @@ export interface SolarReturnOverlay {
     mars: number;
     jupiter: number;
     saturn: number;
+    uranus: number;
+    neptune: number;
+    pluto: number;
   };
 }
 
