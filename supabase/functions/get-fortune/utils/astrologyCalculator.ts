@@ -136,15 +136,36 @@ export function getWholeSignHouse(
   return house;
 }
 
+/** 상승점 계산 결과 (ascendant + RAMC for MC 계산) */
+export interface AscendantResult {
+  ascendant: number;
+  ramc: number;
+}
+
 /**
- * 상승점(Ascendant) 계산
+ * RAMC(천정의 적경)를 황도 경도로 변환 → MC(천정)의 황경.
+ * IC = MC + 180° 로 구하면 됨.
+ */
+export function ramcToEclipticLongitude(ramcDeg: number): number {
+  const obliquity = 23.4392911;
+  const obliquityRad = obliquity * (Math.PI / 180);
+  const ramcRad = (normalizeDegrees(ramcDeg) * Math.PI) / 180;
+  // tan(λ) = tan(RAMC) / cos(ε) → λ = atan2(sin(RAMC)*cos(ε), cos(RAMC))
+  const y = Math.sin(ramcRad) * Math.cos(obliquityRad);
+  const x = Math.cos(ramcRad);
+  const lambdaRad = Math.atan2(y, x);
+  return normalizeDegrees((lambdaRad * 180) / Math.PI);
+}
+
+/**
+ * 상승점(Ascendant) 계산. MC 계산을 위해 RAMC도 반환.
  */
 export function calculateAscendant(
   date: Date,
   lat: number,
   lng: number,
   time: any
-): number {
+): AscendantResult {
   // 1. 그리니치 항성시(GMST) 계산
   const gmst = SiderealTime(time); // 시간 단위로 반환
 
@@ -174,7 +195,10 @@ export function calculateAscendant(
     ascendant += 180;
   }
 
-  return normalizeDegrees(ascendant);
+  return {
+    ascendant: normalizeDegrees(ascendant),
+    ramc,
+  };
 }
 
 /**
@@ -325,8 +349,8 @@ export async function calculateChart(
       );
     }
 
-    // 상승점 계산 (현지 시간 기준)
-    const ascendant = calculateAscendant(
+    // 상승점 계산 (현지 시간 기준). MC는 RAMC → 황경 변환으로 정확히 계산.
+    const { ascendant, ramc } = calculateAscendant(
       localDateForHouses,
       lat,
       lng,
@@ -382,7 +406,7 @@ export async function calculateChart(
     const fortunaSignInfo = getSignFromLongitude(fortunaLon);
     const fortunaHouse = getWholeSignHouse(fortunaLon, ascendant);
 
-    const midheaven = normalizeDegrees(ascendant + 90);
+    const midheaven = ramcToEclipticLongitude(ramc);
 
     const result: ChartData = {
       date: date.toISOString(),

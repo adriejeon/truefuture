@@ -44,6 +44,7 @@ function Compatibility() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [relationshipType, setRelationshipType] = useState("연인"); // 관계 유형
 
   // 카카오 공유용 궁합 한 줄 요약 (점수 + 이름)
   const compatibilityShareSummary = useMemo(() => {
@@ -265,6 +266,7 @@ function Compatibility() {
         reportType: "compatibility",
         user1,
         user2,
+        relationshipType, // 관계 유형 추가
       };
 
       // 디버깅: 전송하는 데이터 로그
@@ -665,6 +667,37 @@ function Compatibility() {
               onDeleteProfile={deleteProfile}
               loading={profilesLoading}
             />
+          </div>
+        </div>
+
+        {/* 관계 유형 선택 */}
+        <div className="mb-6 sm:mb-8">
+          <h3 className="font-semibold text-white mb-3 text-lg">
+            🤝 어떤 관계인가요?
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+            {[
+              { value: "연인", emoji: "💕", label: "연인" },
+              { value: "친구", emoji: "👥", label: "친구" },
+              { value: "가족", emoji: "👨‍👩‍👧", label: "가족" },
+              { value: "직장 동료", emoji: "💼", label: "직장 동료" },
+              { value: "동업자", emoji: "🤝", label: "동업자" },
+              { value: "기타", emoji: "🙂", label: "기타" },
+            ].map((type) => (
+              <button
+                key={type.value}
+                type="button"
+                onClick={() => setRelationshipType(type.value)}
+                className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                  relationshipType === type.value
+                    ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
+                    : "bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 border border-slate-700"
+                }`}
+              >
+                <span className="text-xl mr-1">{type.emoji}</span>
+                <span className="text-sm sm:text-base">{type.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 

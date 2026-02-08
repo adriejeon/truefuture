@@ -481,7 +481,8 @@ async function getInterpretation(
     sectStatus: "day_sect" | "night_sect" | "neutral";
     isInSect: boolean;
   },
-  lordStarConjunctionsText?: string
+  lordStarConjunctionsText?: string,
+  relationshipType?: string // 관계 유형 추가
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -510,7 +511,7 @@ async function getInterpretation(
         ? null
         : await getNeo4jContext(chartData?.planets ?? null, isDayChart);
 
-    // COMPATIBILITY 케이스의 경우 synastryResult를 전달
+    // COMPATIBILITY 케이스의 경우 synastryResult와 relationshipType을 전달
     const systemInstructionText =
       fortuneType === FortuneType.COMPATIBILITY &&
       compatibilityChartData &&
@@ -519,7 +520,8 @@ async function getInterpretation(
             fortuneType,
             chartData as ChartData,
             compatibilityChartData as ChartData,
-            synastryResult
+            synastryResult,
+            relationshipType // 관계 유형 추가
           )
         : getSystemInstruction(fortuneType);
 
@@ -1945,6 +1947,11 @@ ${systemContext}`;
         (user2 as { gender?: string }).gender === "여자"
           ? "F"
           : "M";
+      
+      // 관계 유형 추출 (기본값: "연인")
+      const relationshipType = requestData.relationshipType || "연인";
+      console.log(`🤝 관계 유형: ${relationshipType}`);
+      
       const synastryResult = calculateSynastry(
         chartData1,
         chartData2,
@@ -1966,7 +1973,13 @@ ${systemContext}`;
         undefined, // solarReturnChartData
         undefined, // profectionData
         undefined, // solarReturnOverlay
-        synastryResult // synastryResult 추가
+        synastryResult, // synastryResult 추가
+        undefined, // shortTermPromptSection
+        undefined, // timeLordRetrogradeAlert
+        undefined, // lordTransitAspects
+        undefined, // lordTransitStatus
+        undefined, // lordStarConjunctionsText
+        relationshipType // 관계 유형 추가
       );
 
       if (!interpretation.success || interpretation.error) {

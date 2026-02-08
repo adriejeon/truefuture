@@ -371,6 +371,58 @@ function getSignFromLongitude(longitude: number): { sign: string } {
 }
 
 /**
+ * 관계 유형에 따른 톤앤보이스 가이드라인
+ */
+function getRelationshipGuidance(relationshipType: string): string {
+  const typeNormalized = relationshipType.trim();
+  
+  const guidanceMap: Record<string, string> = {
+    "연인": `**[관계 유형: 연인]**
+- 연애 관계에 초점을 맞춰 분석합니다.
+- "운명적 끌림", "결혼 가능성", "로맨틱한 케미" 등의 표현을 사용합니다.
+- 갈등 요소는 연애 관계에서 부딪힐 수 있는 감정적 차이로 설명합니다.
+- 솔루션은 서로의 사랑을 깊게 하는 방향으로 제시합니다.`,
+    
+    "친구": `**[관계 유형: 친구]**
+- 우정과 친구 관계에 초점을 맞춰 분석합니다.
+- "운명적 끌림"은 "깊은 유대감", "친구로서의 끌림"으로 재해석합니다.
+- "결혼 적합성"은 "장기적 우정 가능성", "평생 친구로 남을 가능성"으로 표현합니다.
+- 갈등 요소는 친구 관계에서 발생할 수 있는 가치관 차이, 오해 등으로 설명합니다.
+- 솔루션은 우정을 돈독히 하는 방향으로 제시합니다.`,
+    
+    "가족": `**[관계 유형: 가족]**
+- 가족 관계에 초점을 맞춰 분석합니다.
+- "운명적 끌림"은 "숙명적 인연", "가족으로서의 깊은 연결"로 재해석합니다.
+- "결혼 적합성"은 "가족으로서의 조화", "장기적 관계 안정성"으로 표현합니다.
+- 갈등 요소는 가족 간에 생길 수 있는 세대 차이, 가치관 충돌로 설명합니다.
+- 솔루션은 가족 관계를 개선하고 서로를 이해하는 방향으로 제시합니다.`,
+    
+    "직장 동료": `**[관계 유형: 직장 동료]**
+- 업무적 관계에 초점을 맞춰 분석합니다.
+- "운명적 끌림"은 "업무적 시너지", "협업의 호환성"으로 재해석합니다.
+- "결혼 적합성"은 "장기적 협업 가능성", "프로페셔널한 파트너십"으로 표현합니다.
+- 갈등 요소는 업무 스타일 차이, 커뮤니케이션 방식 차이로 설명합니다.
+- 솔루션은 원활한 협업과 업무 효율을 높이는 방향으로 제시합니다.`,
+    
+    "동업자": `**[관계 유형: 동업자]**
+- 비즈니스 파트너십에 초점을 맞춰 분석합니다.
+- "운명적 끌림"은 "비즈니스 궁합", "사업적 시너지"로 재해석합니다.
+- "결혼 적합성"은 "장기적 사업 파트너십", "동업 안정성"으로 표현합니다.
+- 갈등 요소는 의사결정 방식 차이, 리스크 감수 성향 차이로 설명합니다.
+- 솔루션은 사업을 성공시키고 파트너십을 유지하는 방향으로 제시합니다.`,
+    
+    "기타": `**[관계 유형: 기타]**
+- 일반적인 인간관계에 초점을 맞춰 분석합니다.
+- "운명적 끌림"은 "서로에 대한 이끌림", "특별한 인연"으로 재해석합니다.
+- "결혼 적합성"은 "장기적 관계 가능성", "관계의 안정성"으로 표현합니다.
+- 갈등 요소는 인간관계에서 발생할 수 있는 성향 차이로 설명합니다.
+- 솔루션은 상호 이해와 관계 유지 방향으로 제시합니다.`,
+  };
+  
+  return guidanceMap[typeNormalized] || guidanceMap["기타"];
+}
+
+/**
  * 3. COMPATIBILITY (궁합) 프롬프트
  * * 핵심: 시너스트리(Synastry) 기법.
  * 노하우: 달-달 관계(정서), 금성-화성(케미), 흉각(충돌).
@@ -378,11 +430,13 @@ function getSignFromLongitude(longitude: number): { sign: string } {
  * @param natalData1 - 내담자님(User 1)의 차트 데이터
  * @param natalData2 - 상대방(User 2)의 차트 데이터
  * @param synastryResult - 코드로 계산된 궁합 분석 결과
+ * @param relationshipType - 관계 유형 (연인, 친구, 가족 등)
  */
 export function getCompatibilityPrompt(
   natalData1: ChartData,
   natalData2: ChartData,
-  synastryResult: SynastryResult
+  synastryResult: SynastryResult,
+  relationshipType?: string
 ): string {
   // 1. 차트 데이터 포맷팅
   const chart1Formatted = formatChart(natalData1);
@@ -562,13 +616,20 @@ export function getCompatibilityPrompt(
    - 갈등 점수: ${adjustment.conflictScore}
 `.trim();
 
-  // 3. 최종 프롬프트 반환
+  // 3. 관계 유형에 따른 톤앤보이스 지침
+  const relationshipGuidance = relationshipType
+    ? getRelationshipGuidance(relationshipType)
+    : getRelationshipGuidance("연인");
+
+  // 4. 최종 프롬프트 반환
   return `
 당신은 관계 심리와 고전 점성술의 심오한 원리에 통달한 전문가 '진짜 미래'입니다.
 제공된 두 사람(User 1, User 2)의 차트 데이터와 **[🧮 정밀 계산된 궁합 데이터]**를 바탕으로, 아래 **[출력 구조]**를 엄격히 준수하여 '궁합(Synastry)'을 분석하십시오.
 
 사용자 1을 표현할 때는 '내담자님'이라고 표현하고, 사용자 2를 표현할 때는 '상대방' 이라고 표햔합니다.
 중요: 절대 '달의 룰러', '어센던트', '디센던트'와 같은 점성학 용어를 사용하지 않습니다. 
+
+${relationshipGuidance}
 
 ${COMMON_RULES}
 
@@ -971,7 +1032,8 @@ export function getSystemInstruction(
   fortuneType: FortuneType,
   natalData1?: ChartData,
   natalData2?: ChartData,
-  synastryResult?: SynastryResult
+  synastryResult?: SynastryResult,
+  relationshipType?: string // 관계 유형 추가
 ): string {
   switch (fortuneType) {
     case FortuneType.DAILY:
@@ -980,13 +1042,14 @@ export function getSystemInstruction(
       return getLifetimePrompt();
     case FortuneType.COMPATIBILITY:
       if (natalData1 && natalData2 && synastryResult) {
-        return getCompatibilityPrompt(natalData1, natalData2, synastryResult);
+        return getCompatibilityPrompt(natalData1, natalData2, synastryResult, relationshipType);
       }
       // 폴백: 기본 프롬프트 (호환성을 위해 유지)
       return getCompatibilityPrompt(
         {} as ChartData,
         {} as ChartData,
-        {} as SynastryResult
+        {} as SynastryResult,
+        relationshipType
       );
     case FortuneType.YEARLY:
       return getYearlyPrompt();
