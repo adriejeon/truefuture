@@ -23,6 +23,7 @@ import {
 import {
   getSystemInstruction,
   getConsultationSystemPrompt,
+  getSolarReturnPrompt,
   getLifetimePrompt_Nature,
   getLifetimePrompt_Love,
   getLifetimePrompt_MoneyCareer,
@@ -37,6 +38,7 @@ import {
   generateCompatibilityUserPrompt,
   generatePredictionPrompt,
   formatLordOfYearTransitSectionForPrompt,
+  formatSolarReturnBlockForPrompt,
 } from "./utils/chartFormatter.ts";
 
 // 점성술 계산 유틸리티 import
@@ -1469,7 +1471,46 @@ serve(async (req) => {
               );
             } catch (_) {}
 
-            // 프롬프트에 추가
+            // 생일 전/후 각 솔라리턴의 Overlay + 차트 내 각도 계산 (행성 위치·각도까지 프롬프트에 포함)
+            let currentSROverlay: Awaited<ReturnType<typeof getSolarReturnOverlays>> | null = null;
+            let nextSROverlay: Awaited<ReturnType<typeof getSolarReturnOverlays>> | null = null;
+            if (currentSRChart) {
+              try {
+                currentSROverlay = getSolarReturnOverlays(chartData, currentSRChart);
+              } catch (_) {}
+            }
+            if (nextSRChart) {
+              try {
+                nextSROverlay = getSolarReturnOverlays(chartData, nextSRChart);
+              } catch (_) {}
+            }
+            const currentSRAspects = currentSRChart
+              ? calculateAspects(currentSRChart, currentSRChart)
+              : [];
+            const nextSRAspects = nextSRChart
+              ? calculateAspects(nextSRChart, nextSRChart)
+              : [];
+
+            // 프롬프트에 추가 (프로펙션·연주 + 솔라리턴 전체: 행성 위치, Overlay, SR 내 각도)
+            const beforeBlock =
+              currentSRChart != null
+                ? formatSolarReturnBlockForPrompt(
+                    currentSRChart,
+                    currentSROverlay ?? undefined,
+                    currentSRAspects.length > 0 ? currentSRAspects : undefined,
+                    "생일 전"
+                  )
+                : "";
+            const afterBlock =
+              nextSRChart != null
+                ? formatSolarReturnBlockForPrompt(
+                    nextSRChart,
+                    nextSROverlay ?? undefined,
+                    nextSRAspects.length > 0 ? nextSRAspects : undefined,
+                    "생일 후"
+                  )
+                : "";
+
             const transitionSection = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [${periodLabel} 운세: 프로펙션·솔라리턴 전환 시점 분석]
@@ -1481,15 +1522,15 @@ ${periodLabel} 기간 중 ${upcomingBirthday.toISOString().split("T")[0]}에 생
 - 프로펙션 하우스: ${currentProfection.profectionHouse}번째 하우스
 - 프로펙션 별자리: ${currentProfection.profectionSign}
 - 연주 (Lord of the Year): ${currentProfection.lordOfTheYear}
-${currentSRChart ? `- 솔라 리턴 ASC: ${getSignFromLongitude(currentSRChart.houses.angles.ascendant).sign}` : ""}
+${beforeBlock ? "\n" + beforeBlock : ""}
 
 **생일 후 (${upcomingBirthday.toISOString().split("T")[0]} ~ ${endDate.toISOString().split("T")[0]}, 약 ${afterBirthdayDays}일):**
 - 프로펙션 하우스: ${nextProfection.profectionHouse}번째 하우스
 - 프로펙션 별자리: ${nextProfection.profectionSign}
 - 연주 (Lord of the Year): ${nextProfection.lordOfTheYear}
-${nextSRChart ? `- 솔라 리턴 ASC: ${getSignFromLongitude(nextSRChart.houses.angles.ascendant).sign}` : ""}
+${afterBlock ? "\n" + afterBlock : ""}
 
-💡 해석 가이드: 생일을 기점으로 인생의 흐름이 완전히 바뀝니다. 생일 전에는 현재 연주(${currentProfection.lordOfTheYear})가, 생일 후에는 새로운 연주(${nextProfection.lordOfTheYear})가 주도권을 갖습니다. timeline 작성 시 이 전환점을 반드시 반영하세요.
+💡 해석 가이드: 생일을 기점으로 인생의 흐름이 완전히 바뀝니다. 생일 전에는 현재 연주(${currentProfection.lordOfTheYear})가, 생일 후에는 새로운 연주(${nextProfection.lordOfTheYear})가 주도권을 갖습니다. 각 시기별 솔라 리턴 차트(행성 위치·Overlay·SR 내 각도)를 반드시 참고하여 timeline과 analysis에 반영하세요.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
             systemContext = systemContext + "\n\n" + transitionSection;
           } else {
@@ -1610,9 +1651,15 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
         );
       }
 
-      const consultationSystemText = getConsultationSystemPrompt(
+      let consultationSystemText = getConsultationSystemPrompt(
         requestData.consultationTopic || "General"
       );
+      // 월간/연간 운세 카테고리 선택 시: 솔라리턴 해석 방법 가이드 추가
+      const topicUpper = (requestData.consultationTopic || "").trim().toUpperCase();
+      if (topicUpper === "MONTHLY" || topicUpper === "YEARLY") {
+        consultationSystemText =
+          consultationSystemText + "\n\n" + getSolarReturnPrompt();
+      }
       const systemInstruction = {
         parts: [{ text: consultationSystemText }],
       };

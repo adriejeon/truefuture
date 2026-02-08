@@ -399,6 +399,57 @@ ${
 }
 
 /**
+ * 생일 전/후 등 구간별 솔라 리턴 블록 포맷 (자유 상담소 월간/연간 전환 시점용).
+ * SR 차트의 행성 위치, Overlay(SR 행성의 Natal 하우스), SR 차트 내 각도까지 포함합니다.
+ */
+export function formatSolarReturnBlockForPrompt(
+  srChartData: ChartData,
+  overlay: SolarReturnOverlay | null | undefined,
+  aspects: Array<{ description: string }> | null | undefined,
+  label?: string
+): string {
+  const lines: string[] = [];
+  const title = label ? `[${label} 솔라 리턴 차트]` : "[Solar Return Chart]";
+  lines.push(title);
+  lines.push(`Solar Return 시간: ${srChartData.date}`);
+  lines.push(`위치: 위도 ${srChartData.location.lat}, 경도 ${srChartData.location.lng}`);
+  const srAscDisplay = getSignDisplay(srChartData.houses.angles.ascendant);
+  lines.push(`Solar Return Ascendant: ${srAscDisplay}`);
+  lines.push("");
+  lines.push("행성 위치:");
+  const srPlanets = Object.entries(srChartData.planets)
+    .map(([name, planet]) => {
+      return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (SR House ${planet.house})`;
+    })
+    .join("\n");
+  lines.push(srPlanets);
+
+  if (overlay) {
+    lines.push("");
+    lines.push("[Solar Return Overlay - SR 행성의 Natal 하우스 위치]");
+    lines.push(`Solar Return Ascendant는 Natal 차트의 ${overlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.`);
+    lines.push("Solar Return 행성들의 Natal 차트 하우스 위치:");
+    lines.push(`  - SR Sun은 Natal ${overlay.planetsInNatalHouses.sun}번째 하우스`);
+    lines.push(`  - SR Moon은 Natal ${overlay.planetsInNatalHouses.moon}번째 하우스`);
+    lines.push(`  - SR Mercury는 Natal ${overlay.planetsInNatalHouses.mercury}번째 하우스`);
+    lines.push(`  - SR Venus는 Natal ${overlay.planetsInNatalHouses.venus}번째 하우스`);
+    lines.push(`  - SR Mars는 Natal ${overlay.planetsInNatalHouses.mars}번째 하우스`);
+    lines.push(`  - SR Jupiter는 Natal ${overlay.planetsInNatalHouses.jupiter}번째 하우스`);
+    lines.push(`  - SR Saturn은 Natal ${overlay.planetsInNatalHouses.saturn}번째 하우스`);
+    lines.push("");
+    lines.push("💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 해당 기간 그 영역에서 해당 행성의 영향력이 강하게 나타납니다.");
+  }
+
+  if (aspects && aspects.length > 0) {
+    lines.push("");
+    lines.push("[솔라 리턴 차트 내 각도 (SR 행성 간 주요 각도)]");
+    aspects.forEach((a) => lines.push(`  - ${a.description}`));
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * YEARLY 운세를 위한 User Prompt 생성 함수
  * Natal 차트, Solar Return 차트, Profection 정보, Overlay 정보를 포맷팅하여 반환합니다.
  */
