@@ -38,12 +38,13 @@ function AppContent() {
   const showFooter = location.pathname === "/";
 
   return (
-    <div className="min-h-screen text-white flex flex-col">
+    <div className="min-h-screen text-white flex flex-col" style={{ colorScheme: "dark light" }}>
       <GNB />
       <main
         className="flex-1 w-full"
         style={{
           background: "linear-gradient(to bottom, #343261 0%, #0F0F2B 100%)",
+          color: "#ffffff",
         }}
       >
         <Routes>
