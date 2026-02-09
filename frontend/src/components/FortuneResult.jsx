@@ -135,7 +135,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
     const isLocalhost = window.location.hostname === "localhost";
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
-      : `${window.location.origin}/assets/truefuture.png`;
+      : `${window.location.origin}/assets/800x800.png`;
 
     console.log("📍 [공유 URL 정보]");
     console.log("  - 현재 페이지:", window.location.href);

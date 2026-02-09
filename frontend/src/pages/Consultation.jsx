@@ -313,7 +313,7 @@ function Consultation() {
     const isLocalhost = window.location.hostname === "localhost";
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
-      : `${window.location.origin}/assets/truefuture.png`;
+      : `${window.location.origin}/assets/800x800.png`;
     const description =
       shareSummary?.trim() ||
       "AI 점성술로 분석한 맞춤 상담 결과를 확인해보세요.";
