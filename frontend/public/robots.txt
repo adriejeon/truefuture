@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://truefuture.pages.dev/sitemap.xml
+Sitemap: https://truefuture.kr/sitemap.xml
