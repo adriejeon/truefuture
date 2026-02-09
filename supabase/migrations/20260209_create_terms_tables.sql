@@ -1,0 +1,217 @@
+-- 약관 정의 테이블 생성
+CREATE TABLE IF NOT EXISTS public.terms_definitions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL CHECK (type IN ('terms', 'privacy')),
+  version TEXT NOT NULL,
+  content TEXT NOT NULL, -- HTML or Markdown content
+  is_mandatory BOOLEAN NOT NULL DEFAULT true,
+  effective_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- 같은 타입의 같은 버전은 중복될 수 없음
+  CONSTRAINT unique_type_version UNIQUE (type, version)
+);
+
+-- 사용자 동의 내역 테이블 생성
+CREATE TABLE IF NOT EXISTS public.user_agreements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  term_id UUID NOT NULL REFERENCES public.terms_definitions(id) ON DELETE CASCADE,
+  agreed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- 사용자당 같은 약관에 대한 중복 동의 방지
+  CONSTRAINT unique_user_term UNIQUE (user_id, term_id)
+);
+
+-- 인덱스 생성 (조회 성능 향상)
+CREATE INDEX IF NOT EXISTS idx_terms_definitions_type_effective 
+  ON public.terms_definitions(type, effective_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_agreements_user_id 
+  ON public.user_agreements(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_agreements_term_id 
+  ON public.user_agreements(term_id);
+
+-- RLS (Row Level Security) 활성화
+ALTER TABLE public.terms_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_agreements ENABLE ROW LEVEL SECURITY;
+
+-- 정책: 약관 정의는 모든 사용자가 조회 가능
+CREATE POLICY "Enable read access for all users"
+  ON public.terms_definitions
+  FOR SELECT
+  USING (true);
+
+-- 정책: 사용자는 자신의 동의 내역만 조회 가능
+CREATE POLICY "Users can view their own agreements"
+  ON public.user_agreements
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- 정책: 사용자는 자신의 동의 내역만 생성 가능
+CREATE POLICY "Users can insert their own agreements"
+  ON public.user_agreements
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- 주석 추가
+COMMENT ON TABLE public.terms_definitions IS '약관 및 개인정보처리방침 정의 테이블';
+COMMENT ON COLUMN public.terms_definitions.type IS '약관 타입: terms(이용약관) 또는 privacy(개인정보처리방침)';
+COMMENT ON COLUMN public.terms_definitions.version IS '약관 버전 (예: 1.0, 1.1)';
+COMMENT ON COLUMN public.terms_definitions.content IS '약관 내용 (HTML 또는 Markdown 형식)';
+COMMENT ON COLUMN public.terms_definitions.effective_at IS '약관 시행일';
+
+COMMENT ON TABLE public.user_agreements IS '사용자 약관 동의 내역 테이블';
+COMMENT ON COLUMN public.user_agreements.user_id IS '동의한 사용자 ID';
+COMMENT ON COLUMN public.user_agreements.term_id IS '동의한 약관 ID';
+
+-- 초기 데이터: 이용약관 1.0 버전
+INSERT INTO public.terms_definitions (type, version, is_mandatory, effective_at, content)
+VALUES (
+  'terms',
+  '1.0',
+  true,
+  NOW(),
+  $$
+<div class="terms-content">
+  <h3>제1조 (목적)</h3>
+  <p>본 약관은 <strong>주피터</strong>(이하 "회사")가 운영하는 웹사이트를 통해 제공하는 AI 기반 운세 서비스 <strong>"진짜미래"</strong>(이하 "서비스")의 이용과 관련하여 회사와 회원의 권리, 의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.</p>
+  
+  <h3>제2조 (용어의 정의)</h3>
+  <p>1. "서비스"란 단말기(PC, 휴대폰, 태블릿 등)의 종류와 상관없이 회원이 웹 브라우저를 통해 이용할 수 있는 진짜미래 홈페이지 및 관련 제반 서비스를 의미합니다.<br>
+  2. "회원"이란 본 약관에 동의하고 회사가 제공하는 서비스를 이용하는 자를 말합니다.<br>
+  3. <strong>"별"</strong>이란 서비스 내에서 유료 콘텐츠를 이용하기 위해 사용되는 가상의 데이터(지급수단)를 말하며, 회원이 대금을 지급하고 구입하는 <strong>'유료 별'</strong>과 회사가 이벤트 등을 통해 무상으로 지급하는 <strong>'무료 별'</strong>로 구분됩니다.<br>
+  4. "콘텐츠"란 회사가 유/무상으로 제공하는 텍스트, 이미지 등 모든 정보를 말하며, 이는 <strong>생성형 AI 기술을 활용하여 실시간으로 생성</strong>됩니다.</p>
+
+  <h3>제3조 (약관의 게시와 개정)</h3>
+  <p>1. 회사는 본 약관의 내용을 회원이 쉽게 알 수 있도록 서비스 초기 화면 또는 회원가입 화면에 게시합니다.<br>
+  2. 회사는 「전자상거래 등에서의 소비자보호에 관한 법률」 등 관련 법령을 위배하지 않는 범위에서 본 약관을 개정할 수 있습니다.<br>
+  3. 개정 시 적용일자 7일 전(불리한 경우 30일 전)부터 공지합니다.</p>
+
+  <h3>제4조 (회원가입 및 정보 수집)</h3>
+  <p>1. 이용자는 약관 동의 후 회원가입을 신청합니다.<br>
+  2. 회사는 원활한 서비스를 위해 생년월일, 태어난 시간, 성별 등을 수집할 수 있습니다.<br>
+  3. 회원은 언제든지 개인정보를 열람하고 수정할 수 있습니다.</p>
+
+  <h3>제5조 (서비스의 제공 및 변경)</h3>
+  <p>1. 서비스는 연중무휴 24시간 제공을 원칙으로 합니다.<br>
+  2. <strong>AI API 공급사의 장애</strong>, 통신 두절 등의 사유로 일시 중단될 수 있습니다.<br>
+  3. 운영상 필요에 따라 서비스의 일부를 변경하거나 중단할 수 있습니다.</p>
+
+  <h3>제6조 ('별'의 충전 및 이용)</h3>
+  <p>1. 회원은 신용카드, 휴대폰 결제 등을 통해 '별'을 충전합니다.<br>
+  2. 유료 콘텐츠 이용 시 명시된 액수(예: 990 별)만큼 차감됩니다.<br>
+  3. <strong>'무료 별'이 먼저 차감</strong>되고, 이후 '유료 별'이 차감됩니다.</p>
+
+  <h3>제7조 (청약철회 및 환불)</h3>
+  <p>1. <strong>[전액 환불]</strong> 구매일로부터 7일 이내 사용 내역이 없으면 전액 환불됩니다.<br>
+  2. <strong>[부분 환불]</strong> 7일이 지났거나 일부 사용한 경우, <strong>환불 수수료(잔액의 10% 또는 최소 1,000원 중 큰 금액)</strong>를 공제하고 환불합니다. 공제 후 잔액이 없으면 환불되지 않습니다.<br>
+  3. 이미 사용하여 소멸된 '별'이나 이벤트로 받은 '무료 별'은 환불되지 않습니다.</p>
+
+  <h3>제8조 ('별'의 유효기간 및 소멸)</h3>
+  <p>1. '유료 별'의 유효기간은 <strong>5년</strong>입니다.<br>
+  2. '무료 별'은 별도 고지 기간(기본 3개월) 경과 시 소멸됩니다.<br>
+  3. 회원 탈퇴 시 모든 '별'은 즉시 소멸됩니다.</p>
+
+  <h3>제9조 (회원의 의무)</h3>
+  <p>타인의 정보 도용, 서비스 방해, 불법적인 이용 행위를 금지합니다.</p>
+
+  <h3>제10조 (AI 서비스의 특성 및 면책)</h3>
+  <p>1. 운세 정보는 <strong>AI 기술로 생성된 결과물</strong>입니다.<br>
+  2. 회사는 결과의 <strong>정확성, 미래 예측의 확실성을 보장하지 않습니다.</strong><br>
+  3. 결과는 재미와 참고 용도로만 활용해야 하며, 이에 따른 중요한 의사결정에 대해 회사는 책임을 지지 않습니다.</p>
+
+  <h3>제11조 (분쟁의 해결)</h3>
+  <p>분쟁 발생 시 회사의 본점 소재지 관할 법원을 전속 관할법원으로 합니다.</p>
+</div>
+$$
+);
+
+-- 초기 데이터: 개인정보처리방침 1.0 버전
+INSERT INTO public.terms_definitions (type, version, is_mandatory, effective_at, content)
+VALUES (
+  'privacy',
+  '1.0',
+  true,
+  NOW(),
+  $$
+<div class="terms-content">
+  <h3>제1조 (총칙)</h3>
+  <p><strong>주피터</strong>(이하 "회사")는 회원의 개인정보를 소중하게 생각하며, 「개인정보보호법」 등 관련 법령을 준수합니다. 회사는 본 방침을 통해 회원이 제공하는 개인정보가 어떠한 용도와 방식으로 이용되고 있으며, 개인정보보호를 위해 어떠한 조치가 취해지고 있는지 알려드립니다.</p>
+
+  <h3>제2조 (개인정보의 수집 항목 및 목적)</h3>
+  <p>회사는 서비스 제공을 위해 필요한 최소한의 개인정보를 수집합니다.</p>
+  <ul>
+      <li><strong>[회원가입 시]</strong> (필수) 이메일, 비밀번호, 닉네임, 로그인 ID (소셜 로그인 시 해당 업체가 제공하는 식별값)</li>
+      <li><strong>[운세 서비스 이용 시]</strong> (필수) 이름, 생년월일, 태어난 시간, 성별, 출생지</li>
+      <li><strong>[유료 결제 시]</strong> (필수) 결제 카드사명, 결제 승인번호 (※ PG사를 통해 결제되므로 회사는 카드 번호 등 금융 정보를 직접 저장하지 않습니다.)</li>
+  </ul>
+
+  <h3>제3조 (개인정보의 보유 및 이용 기간)</h3>
+  <p>회사는 원칙적으로 개인정보 수집 및 이용 목적이 달성된 후에는 해당 정보를 지체 없이 파기합니다. 단, 관련 법령에 따라 일정 기간 보존이 필요한 경우에는 예외로 합니다.</p>
+  <ul>
+      <li><strong>계약 또는 청약철회 등에 관한 기록:</strong> 5년 (전자상거래법)</li>
+      <li><strong>대금결제 및 재화 등의 공급에 관한 기록:</strong> 5년 (전자상거래법)</li>
+      <li><strong>소비자의 불만 또는 분쟁처리에 관한 기록:</strong> 3년 (전자상거래법)</li>
+      <li><strong>로그인 기록:</strong> 3개월 (통신비밀보호법)</li>
+  </ul>
+
+  <h3>제4조 (개인정보의 제3자 제공 및 국외 이전)</h3>
+  <p>회사는 회원의 동의 없이 개인정보를 외부에 제공하지 않습니다. 단, AI 운세 분석 및 결제 처리를 위해 다음과 같이 업무를 위탁하거나 국외로 이전할 수 있습니다.</p>
+  <table border="1" style="width:100%; border-collapse: collapse; margin-top: 10px;">
+      <thead>
+          <tr>
+              <th>제공받는 자</th>
+              <th>목적</th>
+              <th>제공 항목</th>
+              <th>이전 국가</th>
+          </tr>
+      </thead>
+      <tbody>
+          <tr>
+              <td><strong>Google LLC</strong></td>
+              <td>AI 운세 결과 생성 및 분석</td>
+              <td>생년월일, 태어난 시간, 성별</td>
+              <td>미국 (API 전송)</td>
+          </tr>
+          <tr>
+              <td><strong>PG사 (토스페이먼츠 등)</strong></td>
+              <td>유료 '별' 충전 결제 처리</td>
+              <td>결제 정보</td>
+              <td>한국</td>
+          </tr>
+      </tbody>
+  </table>
+  <p style="background-color: #f1f3f5; padding: 10px; margin-top: 10px; border-radius: 5px;">
+      <strong>※ AI 데이터 보호 조치 (Zero Data Retention)</strong><br>
+      회사는 AI API 연동 시 <strong>'Zero Data Retention(데이터 무저장)'</strong> 정책을 적용하고 있습니다. 
+      전송된 회원의 개인정보(사주 정보 등)는 <strong>AI 모델의 학습(Training)에 절대 사용되지 않으며</strong>, 
+      분석 결과 생성 직후 시스템에서 즉시 파기되거나 식별할 수 없는 형태로 처리됩니다.
+  </p>
+
+  <h3>제5조 (개인정보의 파기 절차 및 방법)</h3>
+  <p>1. 회사는 보유 기간의 경과, 처리 목적 달성 등 개인정보가 불필요하게 되었을 때는 지체 없이 해당 개인정보를 파기합니다.<br>
+  2. 전자적 파일 형태의 정보는 기록을 재생할 수 없는 기술적 방법을 사용하여 삭제하며, 종이 문서는 분쇄하거나 소각하여 파기합니다.</p>
+
+  <h3>제6조 (이용자 및 법정대리인의 권리)</h3>
+  <p>1. 회원은 언제든지 자신의 개인정보를 조회하거나 수정할 수 있으며, 회원 탈퇴를 통해 개인정보의 수집 및 이용 동의를 철회할 수 있습니다.<br>
+  2. 회사가 법정대리인의 동의가 필요한 만 14세 미만 아동의 회원가입을 받을 경우, 법정대리인의 동의를 받습니다.</p>
+
+  <h3>제7조 (개인정보 자동 수집 장치의 설치·운영 및 거부)</h3>
+  <p>1. 회사는 회원에게 맞춤형 서비스를 제공하기 위해 쿠키(cookie)를 사용합니다.<br>
+  2. 회원은 쿠키 설치에 대한 선택권을 가지고 있으며, 웹 브라우저 설정을 통해 쿠키 저장을 거부할 수 있습니다. 단, 쿠키 저장을 거부할 경우 로그인이 필요한 일부 서비스 이용에 어려움이 있을 수 있습니다.</p>
+
+  <h3>제8조 (개인정보 보호책임자)</h3>
+  <p>회사는 회원의 개인정보를 보호하고 관련 불만을 처리하기 위해 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
+  <ul>
+      <li><strong>책임자:</strong>Adrie Jeon</li>
+      <li><strong>소속/직위:</strong> 주피터 / 대표</li>
+      <li><strong>이메일:</strong>jupiteradrie@gmail.com</li>
+  </ul>
+
+  <h3>부칙</h3>
+  <p>본 방침은 2026년 2월 14일부터 시행됩니다.</p>
+</div>
+$$
+);
