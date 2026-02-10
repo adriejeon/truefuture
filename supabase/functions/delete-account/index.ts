@@ -26,6 +26,9 @@ serve(async (req) => {
       );
     }
 
+    // Authorization 헤더에서 "Bearer " 제거하여 순수 JWT 토큰 추출
+    const token = authHeader.replace("Bearer ", "");
+
     // Supabase 환경 변수 가져오기
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -51,11 +54,11 @@ serve(async (req) => {
       },
     });
 
-    // 실제 유저 정보 검증 (Authorization 헤더를 통해 자동으로 검증됨)
+    // 실제 유저 정보 검증 (토큰을 명시적으로 전달)
     const {
       data: { user },
       error: authError,
-    } = await supabaseAuth.auth.getUser();
+    } = await supabaseAuth.auth.getUser(token);
 
     if (authError || !user) {
       console.error("❌ 유저 토큰 검증 실패:", authError);
