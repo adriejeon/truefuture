@@ -14,7 +14,8 @@ function Footer() {
           style={{ color: colors.subText }}
         >
           <p className="font-semibold">진짜미래</p>
-          <p>대표 Adrie Jeon</p>
+          <p>대표 전명희</p>
+          <p>서울시 관악구 인헌 16길 9-202 (08800)</p>
           <p>사업자등록번호 344-30-02017</p>
           <p>통신판매번호 2026-서울관악-0149</p>
           <p>

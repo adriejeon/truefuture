@@ -205,7 +205,7 @@ VALUES (
   <h3>제8조 (개인정보 보호책임자)</h3>
   <p>회사는 회원의 개인정보를 보호하고 관련 불만을 처리하기 위해 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
   <ul>
-      <li><strong>책임자:</strong>Adrie Jeon</li>
+      <li><strong>책임자:</strong> 전명희</li>
       <li><strong>소속/직위:</strong> 주피터 / 대표</li>
       <li><strong>이메일:</strong>jupiteradrie@gmail.com</li>
   </ul>
