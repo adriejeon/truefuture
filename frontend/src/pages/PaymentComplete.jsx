@@ -16,8 +16,6 @@ function PaymentComplete() {
 
   // 1. 세션 로딩 보장: getSession을 직접 호출하여 세션 복구 대기
   useEffect(() => {
-    alert("1. 페이지 로드됨");
-    
     const ensureSession = async () => {
       try {
         console.log("🔐 세션 확인 중...");
@@ -28,18 +26,15 @@ function PaymentComplete() {
         
         if (sessionError) {
           console.error("세션 확인 오류:", sessionError);
-          alert("3. 유저 정보: 세션 오류 - " + (sessionError.message || "알 수 없음"));
           setSessionLoading(false);
           return;
         }
 
         if (session?.user) {
           console.log("✅ 세션 확인 완료:", session.user.id);
-          alert("3. 유저 정보: " + (session.user ? session.user.id : "없음"));
           setSessionLoading(false);
         } else {
           console.log("⚠️ 세션이 없습니다. 인증 상태 변경 대기 중...");
-          alert("3. 유저 정보: 없음 (세션 대기 중)");
           
           // 3. 재시도 로직: onAuthStateChange로 세션 대기
           const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -48,12 +43,10 @@ function PaymentComplete() {
               
               if (session?.user) {
                 console.log("✅ 세션 복구 완료:", session.user.id);
-                alert("3. 유저 정보: " + (session.user ? session.user.id : "없음"));
                 setSessionLoading(false);
                 subscription.unsubscribe();
               } else if (event === "SIGNED_OUT") {
                 console.error("❌ 로그아웃 상태");
-                alert("3. 유저 정보: 없음 (로그아웃)");
                 setSessionLoading(false);
                 subscription.unsubscribe();
               }
@@ -73,7 +66,6 @@ function PaymentComplete() {
         }
       } catch (err) {
         console.error("❌ 세션 확인 예외:", err);
-        alert("3. 유저 정보: 예외 발생 - " + (err instanceof Error ? err.message : String(err)));
         setSessionLoading(false);
       }
     };
@@ -101,8 +93,6 @@ function PaymentComplete() {
         return;
       }
 
-      alert("4. 결제 로직 진입");
-
       // 2. User ID 확보 후 호출: 세션에서 user.id 확인
       let currentUser = user;
       
@@ -122,7 +112,6 @@ function PaymentComplete() {
           
           currentUser = fetchedUser;
           console.log("✅ 사용자 정보 확인 완료:", currentUser.id);
-          alert("3. 유저 정보: " + (currentUser ? currentUser.id : "없음"));
         } catch (err) {
           console.error("❌ getUser() 예외:", err);
           isProcessing.current = false;
@@ -130,8 +119,6 @@ function PaymentComplete() {
           setMessage("로그인 정보를 확인하는 중 오류가 발생했습니다.");
           return;
         }
-      } else {
-        alert("3. 유저 정보: " + (currentUser ? currentUser.id : "없음"));
       }
 
       // 처리 시작 표시
@@ -153,11 +140,19 @@ function PaymentComplete() {
         const code = searchParams.get("code");
         const errorMessage = searchParams.get("message");
 
-        // PortOne V1 파라미터 (구 아임포트 - 호환성 체크)
+        // PortOne V1 / KG이니시스 모바일 리다이렉트 파라미터
         const impUid = searchParams.get("imp_uid");
         const impSuccess = searchParams.get("imp_success");
-        const merchantUid = searchParams.get("merchant_uid");
+        let merchantUid = searchParams.get("merchant_uid");
         const errorMsg = searchParams.get("error_msg");
+
+        // 모바일 리다이렉트 시 URL에 merchant_uid가 빠진 경우 sessionStorage에서 복구
+        if (!merchantUid) {
+          try {
+            const stored = sessionStorage.getItem("payment_merchant_uid");
+            if (stored) merchantUid = stored;
+          } catch (_) {}
+        }
 
         console.log("V2 파라미터:", { paymentId, code, errorMessage });
         console.log("V1 파라미터:", { impUid, impSuccess, merchantUid, errorMsg });
@@ -172,13 +167,13 @@ function PaymentComplete() {
           return;
         }
 
-        // 1. 파라미터 추출: imp_uid가 없으면 merchant_uid라도 가져오기
+        // 1. 파라미터 추출: imp_uid 우선, 없으면 V2 paymentId가 imp_ 형식이면 사용 (null이 되지 않도록 URL에서만 사용)
         // imp_uid는 아임포트 결제 고유 ID (imp_로 시작해야 함)
         // merchant_uid는 주문 고유 ID (order_로 시작)
-        const finalImpUid = impUid || null;
+        const finalImpUid =
+          impUid ||
+          (paymentId && String(paymentId).startsWith("imp_") ? paymentId : null);
         const finalMerchantUid = merchantUid || null;
-
-        alert("2. 파라미터: " + finalImpUid + ", " + finalMerchantUid);
 
         // imp_uid 검증: imp_로 시작하는지 확인 (있을 때만)
         if (finalImpUid && !finalImpUid.startsWith("imp_")) {
@@ -237,7 +232,6 @@ function PaymentComplete() {
         }
         
         console.log("백엔드 호출 시작:", requestBody);
-        alert("5. 서버 호출 시도: " + (finalImpUid || finalMerchantUid || "없음"));
 
         const { data, error: purchaseError } = await supabase.functions.invoke(
           "purchase-stars",
@@ -247,8 +241,6 @@ function PaymentComplete() {
         );
 
         console.log("백엔드 응답:", { data, purchaseError });
-        
-        alert("6. 결과: " + (purchaseError ? purchaseError.message : (data?.success ? "성공" : data?.error || "알 수 없음")));
 
         // 3. "이미 처리된 결제"는 성공으로 간주
         if (purchaseError) {
@@ -268,6 +260,9 @@ function PaymentComplete() {
             setMessage(
               "🎉 별 충전이 완료되었습니다!\n\n이미 처리된 결제입니다. 별이 정상적으로 충전되었습니다."
             );
+            try {
+              sessionStorage.removeItem("payment_merchant_uid");
+            } catch (_) {}
             await refetchStars();
             setTimeout(() => {
               navigate("/purchase", { replace: true });
@@ -301,6 +296,9 @@ function PaymentComplete() {
             setMessage(
               "🎉 별 충전이 완료되었습니다!\n\n이미 처리된 결제입니다. 별이 정상적으로 충전되었습니다."
             );
+            try {
+              sessionStorage.removeItem("payment_merchant_uid");
+            } catch (_) {}
             await refetchStars();
             setTimeout(() => {
               navigate("/purchase", { replace: true });
@@ -328,6 +326,10 @@ function PaymentComplete() {
           }개`
         );
 
+        try {
+          sessionStorage.removeItem("payment_merchant_uid");
+        } catch (_) {}
+
         // 별 잔액 새로고침
         await refetchStars();
 
@@ -342,8 +344,6 @@ function PaymentComplete() {
         const errorMessage = err instanceof Error ? err.message : String(err);
         const errorString = errorMessage.toLowerCase();
         
-        alert("6. 결과: 예외 발생 - " + errorMessage);
-        
         // 이미 처리된 결제인지 확인
         const isAlreadyProcessed = 
           errorString.includes("이미 처리된 결제") ||
@@ -355,6 +355,9 @@ function PaymentComplete() {
           setMessage(
             "🎉 별 충전이 완료되었습니다!\n\n이미 처리된 결제입니다. 별이 정상적으로 충전되었습니다."
           );
+          try {
+            sessionStorage.removeItem("payment_merchant_uid");
+          } catch (_) {}
           await refetchStars();
           setTimeout(() => {
             navigate("/purchase", { replace: true });

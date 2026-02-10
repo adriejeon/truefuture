@@ -73,7 +73,14 @@ function Purchase() {
     try {
       const merchantUid = `order_${Date.now()}_${user.id.slice(0, 8)}`;
 
-      // 포트원 결제 요청
+      // 모바일 리다이렉트 후 URL 파라미터가 유실될 수 있어, 복구용으로 저장
+      const redirectBase = `${window.location.origin}/payment/complete`;
+      const redirectUrl = `${redirectBase}?merchant_uid=${encodeURIComponent(merchantUid)}`;
+      try {
+        sessionStorage.setItem("payment_merchant_uid", merchantUid);
+      } catch (_) {}
+
+      // 포트원 결제 요청 (모바일: redirectUrl로 돌아올 때 imp_uid, imp_success 등이 쿼리로 붙음)
       const response = await PortOne.requestPayment({
         storeId: import.meta.env.VITE_PORTONE_STORE_ID,
         channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
@@ -88,8 +95,8 @@ function Purchase() {
           phoneNumber: "010-0000-0000",
           email: prepareBuyerEmail(user),
         },
-        // 모바일 결제 시 리다이렉트 URL (필수)
-        redirectUrl: `${window.location.origin}/payment/complete?merchant_uid=${merchantUid}`,
+        // 모바일 결제 시 리다이렉트 URL (없으면 현재 페이지 기준으로 결제 완료 페이지로 복귀)
+        redirectUrl: redirectUrl,
       });
 
       console.log("포트원 결제 응답:", response);
