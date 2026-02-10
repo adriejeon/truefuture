@@ -104,18 +104,7 @@ serve(async (req) => {
       throw new Error("거래 내역 삭제 실패");
     }
 
-    // 3. fortune_consultations에서 데이터 삭제
-    const { error: consultationError } = await supabaseAdmin
-      .from("fortune_consultations")
-      .delete()
-      .eq("user_id", user_id);
-
-    if (consultationError) {
-      console.error("❌ fortune_consultations 삭제 실패:", consultationError);
-      throw new Error("상담 내역 삭제 실패");
-    }
-
-    // 5. auth.users에서 사용자 삭제 (Service Role Key 필요)
+    // 3. auth.users에서 사용자 삭제 (Service Role Key 필요)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
 
     if (deleteError) {
