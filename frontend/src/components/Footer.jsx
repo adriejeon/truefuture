@@ -19,6 +19,15 @@ function Footer() {
           <p>사업자등록번호 344-30-02017</p>
           <p>통신판매번호 2026-서울관악-0149</p>
           <p>
+            담당자 연락처{" "}
+            <a
+              href="tel:010-8185-0524"
+              className="hover:text-white transition-colors duration-200"
+            >
+              010.8185.0524
+            </a>
+          </p>
+          <p>
             <a
               href="mailto:jupiteradrie@gmail.com"
               className="hover:text-white transition-colors duration-200"
