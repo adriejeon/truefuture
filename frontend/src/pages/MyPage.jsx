@@ -107,12 +107,15 @@ function MyPage() {
 
     setIsDeleting(true);
     try {
-      // Supabase Edge Function 호출
+      // Supabase Edge Function 호출 (인증 토큰은 자동으로 전달됨)
       const { data, error } = await supabase.functions.invoke("delete-account", {
-        body: { user_id: user.id },
+        body: {},
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge Function 오류:", error);
+        throw error;
+      }
 
       if (!data?.success) {
         throw new Error(data?.error || "회원 탈퇴 처리 중 오류가 발생했습니다.");
