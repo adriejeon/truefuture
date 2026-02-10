@@ -9,9 +9,17 @@ import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
 import TypewriterLoader from "../components/TypewriterLoader";
 import PrimaryButton from "../components/PrimaryButton";
+import StarModal from "../components/StarModal";
 import ReactMarkdown from "react-markdown";
 import { colors } from "../constants/colors";
 import { logFortuneInput } from "../utils/debugFortune";
+import {
+  FORTUNE_STAR_COSTS,
+  FORTUNE_TYPE_NAMES,
+  fetchUserStars,
+  consumeStars,
+  checkStarBalance,
+} from "../utils/starConsumption";
 
 // 카테고리 옵션 (백엔드 consultationTopic과 일치)
 const TOPIC_OPTIONS = [
@@ -124,6 +132,15 @@ function Consultation() {
   const [isScrolling, setIsScrolling] = useState(false);
   const chipScrollRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
+
+  // 별 차감 모달 상태 (모달 열 때 한 번에 설정해 항상 최신 잔액 표시)
+  const [showStarModal, setShowStarModal] = useState(false);
+  const [starModalData, setStarModalData] = useState({
+    type: "confirm",
+    required: FORTUNE_STAR_COSTS.consultation,
+    current: 0,
+  });
+  const requiredStars = FORTUNE_STAR_COSTS.consultation;
 
   // 공유 링크로 들어온 경우
   const [searchParams, setSearchParams] = useSearchParams();
@@ -412,25 +429,79 @@ function Consultation() {
     return answer;
   }, [user, selectedProfile, selectedTopic, userQuestion]);
 
-  // 폼 제출: 로딩 후 바로 결과 표시 (데일리/종합/궁합과 동일 플로우)
+  // 폼 제출: 별 잔액 확인 → 모달 표시 → 차감 → API 호출
   const handleSubmit = useCallback(
     async (e) => {
       e?.preventDefault?.();
       if (!selectedProfile || !userQuestion.trim()) return;
+      if (!user?.id) {
+        setError("로그인이 필요합니다.");
+        return;
+      }
+
       setError("");
       setConsultationAnswer(null);
-      setLoadingConsultation(true);
+
       try {
-        const answer = await requestConsultation();
-        setConsultationAnswer(answer);
+        // 1. 별 잔액 조회
+        const stars = await fetchUserStars(user.id);
+        const totalStars = stars.total;
+
+        // 2. 잔액 확인 후 모달 데이터와 함께 한 번에 설정 (이전 값이 남지 않도록)
+        const balanceStatus = checkStarBalance(totalStars, requiredStars);
+
+        if (balanceStatus === "insufficient") {
+          const nextData = {
+            type: "alert",
+            required: requiredStars,
+            current: totalStars,
+          };
+          console.log("[별 모달] 잔액 부족 알림", {
+            필요한별: nextData.required,
+            보유별: nextData.current,
+          });
+          setStarModalData(nextData);
+          setShowStarModal(true);
+        } else {
+          const nextData = {
+            type: "confirm",
+            required: requiredStars,
+            current: totalStars,
+          };
+          setStarModalData(nextData);
+          setShowStarModal(true);
+        }
       } catch (err) {
-        setError(err?.message || "요청 중 오류가 발생했습니다.");
-      } finally {
-        setLoadingConsultation(false);
+        setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
       }
     },
-    [selectedProfile, userQuestion, requestConsultation]
+    [selectedProfile, userQuestion, user, requiredStars]
   );
+
+  // 별 차감 후 운세 조회
+  const handleConfirmStarUsage = useCallback(async () => {
+    if (!user?.id) return;
+
+    setLoadingConsultation(true);
+    setError("");
+
+    try {
+      // 1. 별 차감
+      await consumeStars(
+        user.id,
+        requiredStars,
+        `자유 질문: ${userQuestion.trim().slice(0, 50)}...`
+      );
+
+      // 2. 운세 조회
+      const answer = await requestConsultation();
+      setConsultationAnswer(answer);
+    } catch (err) {
+      setError(err?.message || "요청 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingConsultation(false);
+    }
+  }, [user, requiredStars, userQuestion, requestConsultation]);
 
   // 인증 로딩 중
   if (loadingAuth) {
@@ -1333,6 +1404,18 @@ function Consultation() {
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
         onSubmit={createProfile}
+      />
+
+      {/* 별 차감/부족 모달 - requiredAmount/currentBalance로 명시 전달해 혼동 방지 */}
+      <StarModal
+        key={`star-modal-${starModalData.current}-${starModalData.required}-${starModalData.type}`}
+        isOpen={showStarModal}
+        onClose={() => setShowStarModal(false)}
+        type={starModalData.type}
+        requiredAmount={starModalData.required}
+        currentBalance={starModalData.current}
+        onConfirm={handleConfirmStarUsage}
+        fortuneType={FORTUNE_TYPE_NAMES.consultation}
       />
     </div>
   );

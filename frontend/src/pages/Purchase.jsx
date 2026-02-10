@@ -1,0 +1,247 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import { useStars } from "../hooks/useStars";
+import { supabase } from "../lib/supabaseClient";
+import PrimaryButton from "../components/PrimaryButton";
+import * as PortOne from "@portone/browser-sdk/v2";
+
+const PACKAGES = [
+  {
+    id: "meteor",
+    name: "유성",
+    nameEn: "Meteor",
+    price: 1100,
+    paid: 10,
+    bonus: 0,
+    color: "from-blue-400 to-cyan-500",
+    icon: "☄️",
+  },
+  {
+    id: "comet",
+    name: "혜성",
+    nameEn: "Comet",
+    price: 3300,
+    paid: 30,
+    bonus: 1,
+    color: "from-purple-400 to-pink-500",
+    icon: "💫",
+  },
+  {
+    id: "planet",
+    name: "행성",
+    nameEn: "Planet",
+    price: 5500,
+    paid: 50,
+    bonus: 3,
+    color: "from-yellow-400 to-orange-500",
+    icon: "🪐",
+    badge: "BEST",
+  },
+  {
+    id: "galaxy",
+    name: "은하수",
+    nameEn: "Galaxy",
+    price: 11000,
+    paid: 100,
+    bonus: 15,
+    color: "from-indigo-400 to-purple-600",
+    icon: "🌌",
+    badge: "15% 혜택",
+  },
+];
+
+function Purchase() {
+  const { user } = useAuth();
+  const { stars, refetchStars } = useStars();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handlePurchase = async (pkg) => {
+    if (!user) {
+      alert("로그인이 필요합니다.");
+      navigate("/login");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const merchantUid = `order_${Date.now()}_${user.id.slice(0, 8)}`;
+
+      // 포트원 결제 요청
+      const response = await PortOne.requestPayment({
+        storeId: import.meta.env.VITE_PORTONE_STORE_ID,
+        channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
+        paymentId: merchantUid,
+        orderName: `${pkg.name} (${pkg.nameEn}) 패키지`,
+        totalAmount: pkg.price,
+        currency: "CURRENCY_KRW",
+        payMethod: "CARD",
+        customer: {
+          customerId: user.id,
+          fullName: "우주탐험가",
+          phoneNumber: "010-0000-0000",
+          email: user.email,
+        },
+      });
+
+      console.log("포트원 결제 응답:", response);
+
+      // 결제 실패 처리
+      if (response?.code != null) {
+        throw new Error(response.message || "결제에 실패했습니다.");
+      }
+
+      // 결제 성공 → 백엔드 함수 호출하여 별 충전
+      const { data, error: purchaseError } = await supabase.functions.invoke(
+        "purchase-stars",
+        {
+          body: {
+            user_id: user.id,
+            amount: pkg.price,
+            merchant_uid: merchantUid,
+            imp_uid: response?.paymentId || merchantUid,
+          },
+        }
+      );
+
+      if (purchaseError) throw purchaseError;
+
+      if (!data?.success) {
+        throw new Error(data?.error || "별 충전에 실패했습니다.");
+      }
+
+      // 성공 알림 및 잔액 새로고침
+      alert(
+        `🎉 별 충전 완료!\n\n충전된 별: ${pkg.paid + pkg.bonus}개\n새로운 잔액: ${data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars}개`
+      );
+      await refetchStars();
+    } catch (err) {
+      console.error("결제 오류:", err);
+      setError(err.message || "결제 처리 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen py-8 px-4">
+      <div className="max-w-5xl mx-auto">
+        {/* 헤더 */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+            별 충전하기
+          </h1>
+          <p className="text-slate-300 text-sm sm:text-base">
+            별을 충전하고 진짜미래를 확인하세요
+          </p>
+        </div>
+
+        {/* 현재 보유 별 - 자유 상담소 점수 영역과 동일 스타일 */}
+        <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-300 text-sm mb-1">현재 보유 중인 별</p>
+              <div className="flex items-center gap-3">
+                <span className="text-4xl">⭐</span>
+                <span className="text-4xl font-bold text-white">
+                  {stars.total.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex gap-3 mt-2 text-xs text-slate-400">
+                <span>유료: {stars.paid}개</span>
+                <span>보너스: {stars.bonus}개</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
+            <p className="text-red-200 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* 패키지 목록 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {PACKAGES.map((pkg) => (
+            <div
+              key={pkg.id}
+              className="relative bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:shadow-xl hover:shadow-purple-500/10"
+            >
+              {/* 뱃지 */}
+              {pkg.badge && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                    {pkg.badge}
+                  </span>
+                </div>
+              )}
+
+              {/* 아이콘 */}
+              <div className="text-5xl text-center mb-3">{pkg.icon}</div>
+
+              {/* 이름 */}
+              <h3 className="text-xl font-bold text-white text-center mb-1">
+                {pkg.name}
+              </h3>
+              <p className="text-slate-400 text-sm text-center mb-4">
+                {pkg.nameEn}
+              </p>
+
+              {/* 별 정보 */}
+              <div className="bg-slate-900/50 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-slate-300 text-sm">기본 별</span>
+                  <span className="text-white font-semibold">{pkg.paid}개</span>
+                </div>
+                {pkg.bonus > 0 && (
+                  <div className="flex items-center justify-between border-t border-slate-700 pt-2">
+                    <span className="text-yellow-400 text-sm">보너스 별</span>
+                    <span className="text-yellow-400 font-semibold">
+                      +{pkg.bonus}개
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* 가격 및 구매 버튼 */}
+              <div className="text-center mb-3">
+                <span className="text-2xl font-bold text-white">
+                  {pkg.price.toLocaleString()}
+                </span>
+                <span className="text-slate-400 ml-1">원</span>
+              </div>
+
+              <PrimaryButton
+                type="button"
+                variant="gold"
+                fullWidth
+                disabled={loading}
+                onClick={() => handlePurchase(pkg)}
+              >
+                {loading ? "처리 중..." : "구매하기"}
+              </PrimaryButton>
+            </div>
+          ))}
+        </div>
+
+        {/* 하단 링크 */}
+        <div className="text-center">
+          <button
+            onClick={() => navigate("/purchase/history")}
+            className="text-slate-400 hover:text-white text-sm underline transition-colors duration-200"
+          >
+            이전 구매 내역 보기 →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Purchase;

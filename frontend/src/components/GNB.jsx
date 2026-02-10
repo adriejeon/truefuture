@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useStars } from "../hooks/useStars";
 import ConversationDrawer from "./ConversationDrawer";
 import { colors } from "../constants/colors";
 
 function GNB() {
   const { user, logout } = useAuth();
+  const { stars } = useStars();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -140,8 +142,8 @@ function GNB() {
               </Link>
             </div>
 
-            {/* 우측: 로그인 버튼 또는 프로필 이미지 */}
-            <div className="flex-1 flex items-center justify-end min-w-0">
+            {/* 우측: 로그인 버튼 또는 별 잔액 + 프로필 이미지 */}
+            <div className="flex-1 flex items-center justify-end min-w-0 gap-2 sm:gap-3">
               {!user ? (
                 <button
                   onClick={handleAuthClick}
@@ -150,7 +152,18 @@ function GNB() {
                   로그인
                 </button>
               ) : (
-                <div className="relative" ref={dropdownRef}>
+                <>
+                  {/* 별 잔액 버튼 */}
+                  <button
+                    onClick={() => navigate("/purchase")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 hover:from-yellow-400/30 hover:to-yellow-600/30 backdrop-blur-sm text-white rounded-full border border-yellow-400/40 hover:border-yellow-400/60 transition-all duration-200 font-semibold text-xs sm:text-sm shadow-lg hover:shadow-yellow-400/20"
+                    aria-label="별 충전하기"
+                  >
+                    <span className="text-yellow-400 text-base sm:text-lg">⭐</span>
+                    <span className="whitespace-nowrap">{stars.total.toLocaleString()}</span>
+                  </button>
+
+                  <div className="relative" ref={dropdownRef}>
                   {getProfileImage() ? (
                     <img
                       src={getProfileImage()}
@@ -178,7 +191,8 @@ function GNB() {
                       </button>
                     </div>
                   )}
-                </div>
+                  </div>
+                </>
               )}
             </div>
           </div>

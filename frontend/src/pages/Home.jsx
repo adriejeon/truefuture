@@ -28,24 +28,35 @@ function Home() {
   const [sharedFortuneType, setSharedFortuneType] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
+  const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
+    useState(false);
 
-  // 프로필이 없을 때 모달 표시
+  // 프로필이 없을 때 모달 표시 (사용자가 "나중에 하기"로 닫은 적 없을 때만)
   useEffect(() => {
     if (
       user &&
       !profilesLoading &&
       profiles.length === 0 &&
       !showNoProfileModal &&
+      !userDismissedNoProfileModal &&
       !isSharedFortune
     ) {
       setShowNoProfileModal(true);
     }
-  }, [user, profilesLoading, profiles, showNoProfileModal, isSharedFortune]);
+  }, [
+    user,
+    profilesLoading,
+    profiles,
+    showNoProfileModal,
+    userDismissedNoProfileModal,
+    isSharedFortune,
+  ]);
 
   useEffect(() => {
     if (profiles.length > 0) {
       setShowNoProfileModal(false);
       setShowProfileModal(false);
+      setUserDismissedNoProfileModal(false); // 프로필 생기면 다음에 다시 보여줄 수 있도록
     }
   }, [profiles]);
 
@@ -295,7 +306,9 @@ function Home() {
               프로필 등록하기
             </button>
             <button
+              type="button"
               onClick={() => {
+                setUserDismissedNoProfileModal(true);
                 setShowNoProfileModal(false);
               }}
               className="w-full mt-3 py-2 px-4 text-slate-300 hover:text-white text-sm transition-colors"
