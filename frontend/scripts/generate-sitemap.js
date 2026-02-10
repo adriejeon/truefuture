@@ -1,4 +1,4 @@
-import { writeFileSync } from 'fs';
+import { writeFileSync, unlinkSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -63,3 +63,26 @@ const distPath = join(__dirname, '..', 'dist', 'sitemap.xml');
 writeFileSync(distPath, sitemap, 'utf-8');
 
 console.log('✅ sitemap.xml이 생성되었습니다:', distPath);
+
+// .DS_Store 파일 제거 (Cloudflare 배포 시 문제 방지)
+const distDir = join(__dirname, '..', 'dist');
+const removeDSStore = (dir) => {
+  try {
+    const files = readdirSync(dir);
+    files.forEach((file) => {
+      const filePath = join(dir, file);
+      const stat = statSync(filePath);
+      if (stat.isDirectory()) {
+        removeDSStore(filePath);
+      } else if (file === '.DS_Store') {
+        unlinkSync(filePath);
+        console.log('🗑️  제거됨:', filePath);
+      }
+    });
+  } catch (error) {
+    // 무시 (파일이 없거나 권한 문제 등)
+  }
+};
+
+removeDSStore(distDir);
+console.log('✅ 빌드 산출물 정리 완료');
