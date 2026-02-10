@@ -1,0 +1,9 @@
+# Cloudflare Pages 배포 시 제외할 파일/디렉토리
+# Supabase Functions는 Cloudflare Pages Functions와 호환되지 않으므로 제외
+
+supabase/
+wrangler.toml
+src/
+*.py
+__pycache__/
+.github/
