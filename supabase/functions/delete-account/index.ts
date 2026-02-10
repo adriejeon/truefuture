@@ -29,7 +29,17 @@ serve(async (req) => {
     // Supabase 환경 변수 가져오기
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    // PROJECT_ANON_KEY를 우선 사용하고, 없으면 SUPABASE_ANON_KEY 사용
+    const supabaseAnonKey = Deno.env.get("PROJECT_ANON_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // 디버깅: 로드된 환경 변수 확인 (키는 앞 5글자만 표시)
+    const maskedAnonKey = supabaseAnonKey 
+      ? `${supabaseAnonKey.substring(0, 5)}...` 
+      : "없음";
+    console.log("🔍 환경 변수 확인:", {
+      supabaseUrl,
+      supabaseAnonKey: maskedAnonKey,
+    });
 
     // 사용자 인증 클라이언트 초기화 (JWT 토큰 검증용)
     // ANON_KEY를 사용하고 Authorization 헤더를 전달하여 사용자 정보 가져오기
