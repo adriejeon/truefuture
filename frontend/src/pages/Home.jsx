@@ -230,8 +230,7 @@ function Home() {
               >
                 진짜미래 보러가기
               </PrimaryButton>
-              {(import.meta.env.VITE_TEST_LOGIN_EMAIL &&
-                import.meta.env.VITE_TEST_LOGIN_PASSWORD) && (
+              {!user && (
                 <div className="mt-3 text-center">
                   <button
                     type="button"
