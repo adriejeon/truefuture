@@ -1,25 +1,40 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 
 function PurchaseHistory() {
-  const { user } = useAuth();
+  const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [consumedAmounts, setConsumedAmounts] = useState({});
 
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
+    // 로딩 중이면 대기
+    if (loadingAuth) {
       return;
     }
 
-    fetchTransactions();
-  }, [user, navigate]);
+    // 로그인하지 않은 경우에만 리다이렉트 (현재 경로가 purchase/history일 때만)
+    if (!user && location.pathname === "/purchase/history") {
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    // 사용자가 있으면 거래 내역 조회
+    if (user) {
+      fetchTransactions();
+    }
+  }, [user, loadingAuth, location.pathname]);
 
   const fetchTransactions = async () => {
+    if (!user?.id) {
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -34,6 +49,34 @@ function PurchaseHistory() {
       if (fetchError) throw fetchError;
 
       setTransactions(data || []);
+
+      // 모든 CONSUME 거래를 한 번에 가져오기
+      if (data && data.length > 0) {
+        const { data: allConsumed } = await supabase
+          .from("star_transactions")
+          .select("amount, created_at")
+          .eq("user_id", user.id)
+          .eq("type", "CONSUME")
+          .order("created_at", { ascending: true });
+
+        // 각 CHARGE 거래별로 사용된 별 개수 계산 (FIFO 방식)
+        const consumedMap = {};
+        let totalConsumed = 0;
+        
+        // 시간순으로 정렬된 CHARGE 거래
+        const sortedCharges = [...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        
+        for (const tx of sortedCharges) {
+          // 해당 거래 이후의 CONSUME 거래만 계산
+          const consumedAfterTx = allConsumed
+            ?.filter(consume => new Date(consume.created_at) >= new Date(tx.created_at))
+            .reduce((sum, item) => sum + Math.abs(item.amount || 0), 0) || 0;
+          
+          consumedMap[tx.id] = consumedAfterTx;
+        }
+        
+        setConsumedAmounts(consumedMap);
+      }
     } catch (err) {
       console.error("❌ 구매 내역 조회 실패:", err);
       setError(err.message);
@@ -51,6 +94,55 @@ function PurchaseHistory() {
       hour: "2-digit",
       minute: "2-digit",
     }).format(date);
+  };
+
+  const formatDateForRefund = (dateString) => {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getPackageName = (description) => {
+    if (!description) return "별 충전";
+    
+    // "패키지 구매" 텍스트 제거
+    let packageName = description.replace(/패키지\s*구매/g, "").trim();
+    
+    // 패키지 이름만 추출 (예: "유성 패키지 구매" -> "유성")
+    const packageNames = ["유성", "혜성", "행성", "은하수"];
+    for (const name of packageNames) {
+      if (packageName.includes(name)) {
+        return name;
+      }
+    }
+    
+    return packageName || "별 충전";
+  };
+
+  const getStarStatus = (tx) => {
+    const consumed = consumedAmounts[tx.id] || 0;
+    const totalAmount = tx.amount || 0;
+    
+    // 만료된 경우
+    if (tx.is_expired) {
+      return { text: "만료됨", className: "bg-red-500/20 text-red-400" };
+    }
+    
+    // 사용 여부 확인
+    if (consumed >= totalAmount) {
+      return { text: "모두 사용", className: "bg-gray-500/20 text-gray-400" };
+    } else if (consumed > 0) {
+      return { text: "일부 사용", className: "bg-orange-500/20 text-orange-400" };
+    } else {
+      return { text: "보유 중", className: "bg-green-500/20 text-green-400" };
+    }
+  };
+
+  const handleRefundRequest = (tx) => {
+    const purchaseDate = formatDateForRefund(tx.created_at);
+    navigate(`/refund-inquiry?transactionId=${tx.id}&purchaseDate=${encodeURIComponent(purchaseDate)}`);
   };
 
   const getExpirationStatus = (tx) => {
@@ -73,23 +165,24 @@ function PurchaseHistory() {
 
   return (
     <div className="min-h-screen py-8 px-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-md mx-auto">
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-              구매 내역
-            </h1>
-            <p className="text-slate-300 text-sm sm:text-base">
-              별 충전 내역을 확인하세요
-            </p>
-          </div>
+        <div className="mb-8">
           <button
-            onClick={() => navigate("/purchase")}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
+            onClick={() => navigate(-1)}
+            className="mb-4 flex items-center text-slate-300 hover:text-white transition-colors"
           >
-            ← 돌아가기
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            뒤로
           </button>
+          <h1 className="text-2xl font-bold text-white mb-2">
+            구매 내역
+          </h1>
+          <p className="text-slate-300 text-sm">
+            별 충전 내역을 확인하세요
+          </p>
         </div>
 
         {/* 에러 메시지 */}
@@ -123,6 +216,7 @@ function PurchaseHistory() {
           <div className="space-y-4">
             {transactions.map((tx) => {
               const expirationStatus = getExpirationStatus(tx);
+              const packageName = getPackageName(tx.description);
               return (
                 <div
                   key={tx.id}
@@ -130,65 +224,33 @@ function PurchaseHistory() {
                     tx.is_expired ? "border-red-900/50 opacity-60" : "border-slate-700 hover:border-slate-600"
                   }`}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl">⭐</span>
-                        <h3 className="text-lg font-semibold text-white">
-                          {tx.description || "별 충전"}
-                        </h3>
-                      </div>
-                      <p className="text-slate-400 text-sm mb-1">
-                        구매: {formatDate(tx.created_at)}
-                      </p>
-                      {tx.expires_at && (
-                        <p className={`text-xs ${expirationStatus.className}`}>
-                          유효기간: {expirationStatus.text}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-yellow-400">
-                        +{tx.amount}
-                      </div>
-                      {(tx.paid_amount || tx.bonus_amount) && (
-                        <div className="text-xs text-slate-400 mt-1">
-                          {tx.paid_amount > 0 && `유료 ${tx.paid_amount}개`}
-                          {tx.paid_amount > 0 && tx.bonus_amount > 0 && " + "}
-                          {tx.bonus_amount > 0 && `보너스 ${tx.bonus_amount}개`}
-                        </div>
-                      )}
-                      <div className="text-xs text-slate-500 mt-1">
-                        {tx.related_item_id ? `주문번호: ${tx.related_item_id.slice(0, 12)}...` : ""}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-700">
-                    <span className="text-xs text-slate-500">
-                      거래 ID: {tx.id.slice(0, 8)}...
+                  {/* 패키지 이름과 상태 칩 */}
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-white">
+                      {packageName}
+                    </h3>
+                    <span className={`px-2 py-1 text-xs rounded-full ${getStarStatus(tx).className}`}>
+                      {getStarStatus(tx).text}
                     </span>
-                    <div className="flex gap-2">
-                      {tx.expires_at && (
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          tx.is_expired 
-                            ? "bg-red-500/20 text-red-400" 
-                            : expirationStatus.badge === "곧 만료"
-                            ? "bg-orange-500/20 text-orange-400"
-                            : "bg-green-500/20 text-green-400"
-                        }`}>
-                          {expirationStatus.badge}
-                        </span>
-                      )}
-                      {!tx.expires_at && (
-                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
-                          {expirationStatus.badge}
-                        </span>
-                      )}
-                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
-                        완료
-                      </span>
-                    </div>
                   </div>
+                  
+                  {/* 구매 일자, 거래 아이디 */}
+                  <div className="space-y-1 mb-3">
+                    <p className="text-xs text-slate-400">
+                      구매 일자: {formatDate(tx.created_at)}
+                    </p>
+                    <p className="text-xs text-slate-500 break-all">
+                      거래 ID: {tx.id}
+                    </p>
+                  </div>
+
+                  {/* 환불 요청 버튼 */}
+                  <button
+                    onClick={() => handleRefundRequest(tx)}
+                    className="text-xs text-slate-400 hover:text-slate-300 underline transition-colors"
+                  >
+                    환불 요청
+                  </button>
                 </div>
               );
             })}

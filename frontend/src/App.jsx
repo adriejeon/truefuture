@@ -15,6 +15,9 @@ import Login from "./pages/Login";
 import Purchase from "./pages/Purchase";
 import PurchaseHistory from "./pages/PurchaseHistory";
 import PaymentComplete from "./pages/PaymentComplete";
+import MyPage from "./pages/MyPage";
+import Contact from "./pages/Contact";
+import RefundInquiry from "./pages/RefundInquiry";
 import Footer from "./components/Footer";
 import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
@@ -61,6 +64,9 @@ function AppContent() {
           <Route path="/purchase" element={<Purchase />} />
           <Route path="/purchase/history" element={<PurchaseHistory />} />
           <Route path="/payment/complete" element={<PaymentComplete />} />
+          <Route path="/mypage" element={<MyPage />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/refund-inquiry" element={<RefundInquiry />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
         </Routes>

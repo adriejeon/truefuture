@@ -25,7 +25,10 @@ export function useStars() {
       });
 
       if (fetchError) {
-        // RPC가 없으면 기존 방식으로 폴백
+        // RPC 에러가 발생하면 기존 방식으로 폴백 (콘솔 에러는 조용히 처리)
+        // 400 에러는 함수가 없거나 파라미터 문제일 수 있으므로 폴백 처리
+        console.warn("⚠️ get_valid_stars RPC 실패, 폴백 모드 사용:", fetchError.message);
+        
         const { data: walletData, error: walletError } = await supabase
           .from("user_wallets")
           .select("paid_stars, bonus_stars")
@@ -38,6 +41,7 @@ export function useStars() {
         const bonus = walletData?.bonus_stars ?? 0;
         setStars({ paid, bonus, total: paid + bonus });
       } else {
+        // RPC 성공 시 데이터 사용
         const paid = data?.[0]?.paid_stars ?? 0;
         const bonus = data?.[0]?.bonus_stars ?? 0;
         setStars({ paid, bonus, total: paid + bonus });

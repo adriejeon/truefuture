@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
+import { colors } from "../constants/colors";
 
 const PACKAGES = [
   {
@@ -134,30 +135,28 @@ function Purchase() {
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-5xl mx-auto">
         {/* 헤더 */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-white mb-2">
             별 충전하기
           </h1>
-          <p className="text-slate-300 text-sm sm:text-base">
+          <p className="text-slate-300 text-sm">
             별을 충전하고 진짜미래를 확인하세요
           </p>
         </div>
 
-        {/* 현재 보유 별 - 자유 상담소 점수 영역과 동일 스타일 */}
-        <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-slate-300 text-sm mb-1">현재 보유 중인 별</p>
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">⭐</span>
-                <span className="text-4xl font-bold text-white">
-                  {stars.total.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex gap-3 mt-2 text-xs text-slate-400">
-                <span>유료: {stars.paid}개</span>
-                <span>보너스: {stars.bonus}개</span>
-              </div>
+        {/* 현재 보유 별 - 마이페이지와 동일 스타일 */}
+        <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-6">
+          <div className="text-center">
+            <p className="text-slate-300 text-sm mb-3">보유 별</p>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <span className="text-3xl">⭐</span>
+              <span className="text-3xl font-bold text-white">
+                {stars.total.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex gap-4 justify-center text-xs text-slate-400 mb-4">
+              <span>유료: {stars.paid}개</span>
+              <span>보너스: {stars.bonus}개</span>
             </div>
           </div>
         </div>
@@ -169,81 +168,61 @@ function Purchase() {
           </div>
         )}
 
-        {/* 유효기간 안내 */}
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl">ℹ️</span>
-            <div className="flex-1">
-              <h3 className="text-white font-semibold mb-1">별 유효기간 안내</h3>
-              <p className="text-blue-200 text-sm leading-relaxed">
-                구매하신 별은 <strong>결제일로부터 1년간</strong> 사용하실 수 있습니다. 
-                유효기간은 각 결제 건마다 별도로 적용되며, 구매 내역에서 확인 가능합니다.
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* 패키지 목록 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="space-y-3 mb-8">
           {PACKAGES.map((pkg) => (
-            <div
+            <button
               key={pkg.id}
-              className="relative bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:shadow-xl hover:shadow-purple-500/10"
+              type="button"
+              onClick={() => handlePurchase(pkg)}
+              disabled={loading}
+              className="w-full bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:shadow-xl hover:shadow-purple-500/10 disabled:opacity-50 disabled:cursor-not-allowed text-left"
             >
-              {/* 뱃지 */}
-              {pkg.badge && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                    {pkg.badge}
-                  </span>
-                </div>
-              )}
-
-              {/* 아이콘 */}
-              <div className="text-5xl text-center mb-3">{pkg.icon}</div>
-
-              {/* 이름 */}
-              <h3 className="text-xl font-bold text-white text-center mb-1">
-                {pkg.name}
-              </h3>
-              <p className="text-slate-400 text-sm text-center mb-4">
-                {pkg.nameEn}
-              </p>
-
-              {/* 별 정보 */}
-              <div className="bg-slate-900/50 rounded-lg p-3 mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-300 text-sm">기본 별</span>
-                  <span className="text-white font-semibold">{pkg.paid}개</span>
-                </div>
-                {pkg.bonus > 0 && (
-                  <div className="flex items-center justify-between border-t border-slate-700 pt-2">
-                    <span className="text-yellow-400 text-sm">보너스 별</span>
-                    <span className="text-yellow-400 font-semibold">
-                      +{pkg.bonus}개
-                    </span>
+              <div className="flex items-center justify-between">
+                {/* 왼쪽: 아이콘 + 패키지명 + 칩 */}
+                <div className="flex-1">
+                  {/* 첫 번째 줄: 아이콘 + 패키지명 + 칩 */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">{pkg.icon}</span>
+                    <h3 className="text-base font-bold text-white">
+                      {pkg.name}
+                    </h3>
+                    {pkg.badge && (
+                      <span 
+                        className="inline-block text-black text-xs font-bold px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: colors.primary
+                        }}
+                      >
+                        {pkg.badge}
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
+                  
+                  {/* 두 번째 줄: 기본 별 + 보너스 별 */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-300">
+                      기본 별 <span className="text-white font-semibold">{pkg.paid}개</span>
+                    </span>
+                    {pkg.bonus > 0 && (
+                      <>
+                        <span className="text-slate-600">|</span>
+                        <span className="text-yellow-400">
+                          보너스 별 <span className="font-semibold">+{pkg.bonus}개</span>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-              {/* 가격 및 구매 버튼 */}
-              <div className="text-center mb-3">
-                <span className="text-2xl font-bold text-white">
-                  {pkg.price.toLocaleString()}
-                </span>
-                <span className="text-slate-400 ml-1">원</span>
+                {/* 오른쪽: 가격 */}
+                <div className="text-right ml-4">
+                  <div className="text-xl font-bold text-white">
+                    {pkg.price.toLocaleString()}<span className="text-slate-400 text-sm ml-0.5">원</span>
+                  </div>
+                </div>
               </div>
-
-              <PrimaryButton
-                type="button"
-                variant="gold"
-                fullWidth
-                disabled={loading}
-                onClick={() => handlePurchase(pkg)}
-              >
-                {loading ? "처리 중..." : "구매하기"}
-              </PrimaryButton>
-            </div>
+            </button>
           ))}
         </div>
 

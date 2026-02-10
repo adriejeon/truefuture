@@ -62,24 +62,39 @@ function GNB() {
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // 드롭다운 내부 요소 클릭은 무시
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
     };
 
     if (isDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+      // 약간의 지연을 두어 버튼 클릭 이벤트가 먼저 처리되도록 함
+      const timeoutId = setTimeout(() => {
+        document.addEventListener("mousedown", handleClickOutside);
+      }, 100);
 
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
   }, [isDropdownOpen]);
 
   const handleLogout = async () => {
     await logout();
     setIsDropdownOpen(false);
     navigate("/");
+  };
+
+  const handleMyPageClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("handleMyPageClick 호출됨, navigate 실행 전");
+    setIsDropdownOpen(false);
+    console.log("navigate 실행 직전");
+    navigate("/mypage", { replace: false });
+    console.log("navigate 실행 완료");
   };
 
   return (
@@ -156,11 +171,10 @@ function GNB() {
                   {/* 별 잔액 버튼 */}
                   <button
                     onClick={() => navigate("/purchase")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 hover:from-yellow-400/30 hover:to-yellow-600/30 backdrop-blur-sm text-white rounded-full border border-yellow-400/40 hover:border-yellow-400/60 transition-all duration-200 font-semibold text-xs sm:text-sm shadow-lg hover:shadow-yellow-400/20"
+                    className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
                     aria-label="별 충전하기"
                   >
-                    <span className="text-yellow-400 text-base sm:text-lg">⭐</span>
-                    <span className="whitespace-nowrap">{stars.total.toLocaleString()}</span>
+                    <span className="text-yellow-400 text-sm">⭐</span>
                   </button>
 
                   <div className="relative" ref={dropdownRef}>
@@ -182,10 +196,30 @@ function GNB() {
 
                   {/* 드롭다운 메뉴 */}
                   {isDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden z-50">
+                    <div 
+                      className="absolute right-0 mt-2 w-36 bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden z-50"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
                       <button
-                        onClick={handleLogout}
+                        type="button"
+                        onClick={handleMyPageClick}
                         className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left"
+                      >
+                        마이페이지
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsDropdownOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left border-t border-slate-700"
                       >
                         로그아웃
                       </button>
