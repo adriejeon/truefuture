@@ -11,10 +11,76 @@ function PaymentComplete() {
   const { refetchStars } = useStars();
   const [status, setStatus] = useState("processing"); // processing, success, error
   const [message, setMessage] = useState("결제 결과를 확인하는 중입니다...");
+  const [sessionLoading, setSessionLoading] = useState(true); // 세션 로딩 상태
   const isProcessing = useRef(false); // 중복 호출 방지
+
+  // 1. 세션 로딩 보장: getSession을 직접 호출하여 세션 복구 대기
+  useEffect(() => {
+    const ensureSession = async () => {
+      try {
+        console.log("🔐 세션 확인 중...");
+        setMessage("로그인 정보를 확인하는 중입니다...");
+        
+        // getSession을 직접 호출하여 세션 복구 대기
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("세션 확인 오류:", sessionError);
+          setSessionLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          console.log("✅ 세션 확인 완료:", session.user.id);
+          setSessionLoading(false);
+        } else {
+          console.log("⚠️ 세션이 없습니다. 인증 상태 변경 대기 중...");
+          
+          // 3. 재시도 로직: onAuthStateChange로 세션 대기
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+              console.log("🔔 인증 상태 변경:", event, session?.user?.id);
+              
+              if (session?.user) {
+                console.log("✅ 세션 복구 완료:", session.user.id);
+                setSessionLoading(false);
+                subscription.unsubscribe();
+              } else if (event === "SIGNED_OUT") {
+                console.error("❌ 로그아웃 상태");
+                setSessionLoading(false);
+                subscription.unsubscribe();
+              }
+            }
+          );
+
+          // 최대 5초 대기 후 타임아웃
+          setTimeout(() => {
+            console.warn("⚠️ 세션 대기 타임아웃");
+            setSessionLoading(false);
+            subscription.unsubscribe();
+          }, 5000);
+
+          return () => {
+            subscription.unsubscribe();
+          };
+        }
+      } catch (err) {
+        console.error("❌ 세션 확인 예외:", err);
+        setSessionLoading(false);
+      }
+    };
+
+    ensureSession();
+  }, []);
 
   useEffect(() => {
     const processPayment = async () => {
+      // 세션 로딩 중이면 대기
+      if (sessionLoading) {
+        console.log("⏳ 세션 로딩 중... 대기");
+        return;
+      }
+
       // 1. 중복 호출 방지: 이미 처리 중이면 즉시 종료
       if (isProcessing.current) {
         console.log("⚠️ 이미 처리 중인 결제 요청이 있습니다. 중복 호출 방지.");
@@ -25,6 +91,34 @@ function PaymentComplete() {
       if (status === "success") {
         console.log("✅ 이미 성공 처리된 결제입니다. 추가 처리 건너뜀.");
         return;
+      }
+
+      // 2. User ID 확보 후 호출: 세션에서 user.id 확인
+      let currentUser = user;
+      
+      // user가 없으면 직접 getUser() 호출
+      if (!currentUser) {
+        console.log("🔍 user 객체가 없어서 직접 getUser() 호출...");
+        try {
+          const { data: { user: fetchedUser }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError || !fetchedUser) {
+            console.error("❌ 사용자 정보를 가져올 수 없습니다:", userError);
+            isProcessing.current = false;
+            setStatus("error");
+            setMessage("로그인 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
+            return;
+          }
+          
+          currentUser = fetchedUser;
+          console.log("✅ 사용자 정보 확인 완료:", currentUser.id);
+        } catch (err) {
+          console.error("❌ getUser() 예외:", err);
+          isProcessing.current = false;
+          setStatus("error");
+          setMessage("로그인 정보를 확인하는 중 오류가 발생했습니다.");
+          return;
+        }
       }
 
       // 처리 시작 표시
@@ -91,9 +185,9 @@ function PaymentComplete() {
             return;
           }
 
-          // 사용자 로그인 확인
-          if (!user) {
-            console.error("사용자 로그인 정보 없음");
+          // 사용자 로그인 확인 (이미 위에서 확인했지만 재확인)
+          if (!currentUser || !currentUser.id) {
+            console.error("❌ 사용자 정보 없음");
             isProcessing.current = false; // 처리 완료 표시
             setStatus("error");
             setMessage("로그인 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
@@ -109,7 +203,7 @@ function PaymentComplete() {
         // 백엔드 함수 호출하여 별 충전 처리
         setMessage("결제를 완료하고 별을 충전하고 있습니다...");
         console.log("백엔드 호출 시작:", {
-          user_id: user.id,
+          user_id: currentUser.id,
           imp_uid: finalImpUid,
           merchant_uid: finalMerchantUid,
         });
@@ -118,7 +212,7 @@ function PaymentComplete() {
           "purchase-stars",
           {
             body: {
-              user_id: user.id,
+              user_id: currentUser.id,
               imp_uid: finalImpUid,
               merchant_uid: finalMerchantUid,
             },
@@ -244,7 +338,7 @@ function PaymentComplete() {
     };
 
     processPayment();
-  }, [searchParams, user, navigate, refetchStars]);
+  }, [searchParams, user, navigate, refetchStars, sessionLoading, status]);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
