@@ -15,67 +15,105 @@ function PaymentComplete() {
   useEffect(() => {
     const processPayment = async () => {
       try {
-        // URL 파라미터에서 결제 정보 추출
+        // 모든 URL 파라미터 수집 및 로그
+        const allParams = {};
+        searchParams.forEach((value, key) => {
+          allParams[key] = value;
+        });
+        
+        console.log("=== 결제 완료 페이지 진입 ===");
+        console.log("전체 URL:", window.location.href);
+        console.log("모든 파라미터:", allParams);
+
+        // PortOne V2 파라미터 (새 버전)
         const paymentId = searchParams.get("paymentId");
         const code = searchParams.get("code");
-        const message = searchParams.get("message");
+        const errorMessage = searchParams.get("message");
 
-        console.log("결제 완료 페이지 진입:", { paymentId, code, message });
+        // PortOne V1 파라미터 (구 아임포트 - 호환성 체크)
+        const impUid = searchParams.get("imp_uid");
+        const impSuccess = searchParams.get("imp_success");
+        const merchantUid = searchParams.get("merchant_uid");
+        const errorMsg = searchParams.get("error_msg");
 
-        // 결제 실패한 경우
-        if (code) {
+        console.log("V2 파라미터:", { paymentId, code, errorMessage });
+        console.log("V1 파라미터:", { impUid, impSuccess, merchantUid, errorMsg });
+
+        // 결제 실패 처리
+        if (code || impSuccess === "false") {
           setStatus("error");
-          setMessage(message || "결제가 취소되었거나 실패했습니다.");
+          const failMessage = errorMessage || errorMsg || "결제가 취소되었거나 실패했습니다.";
+          setMessage(failMessage);
+          console.error("결제 실패:", failMessage);
           return;
         }
 
-        // paymentId가 없는 경우
-        if (!paymentId) {
+        // 결제 ID 확인 (V2 또는 V1)
+        const finalPaymentId = paymentId || impUid;
+        const finalMerchantId = merchantUid;
+
+        if (!finalPaymentId) {
+          console.error("결제 ID가 없습니다. 파라미터:", allParams);
           setStatus("error");
-          setMessage("결제 정보를 찾을 수 없습니다.");
+          setMessage("결제 정보를 찾을 수 없습니다. 고객센터에 문의해주세요.");
           return;
         }
 
         // 사용자 로그인 확인
         if (!user) {
+          console.error("사용자 로그인 정보 없음");
           setStatus("error");
-          setMessage("로그인 정보를 확인할 수 없습니다.");
+          setMessage("로그인 정보를 확인할 수 없습니다. 다시 로그인해주세요.");
           return;
         }
 
         // 백엔드 함수 호출하여 별 충전 처리
         setMessage("결제를 완료하고 별을 충전하고 있습니다...");
+        console.log("백엔드 호출 시작:", {
+          user_id: user.id,
+          imp_uid: finalPaymentId,
+          merchant_uid: finalMerchantId || finalPaymentId,
+        });
 
         const { data, error: purchaseError } = await supabase.functions.invoke(
           "purchase-stars",
           {
             body: {
               user_id: user.id,
-              imp_uid: paymentId,
-              merchant_uid: paymentId,
+              imp_uid: finalPaymentId,
+              merchant_uid: finalMerchantId || finalPaymentId,
             },
           }
         );
 
+        console.log("백엔드 응답:", { data, purchaseError });
+
         if (purchaseError) {
-          console.error("별 충전 오류:", purchaseError);
+          console.error("별 충전 API 오류:", purchaseError);
           setStatus("error");
-          setMessage("별 충전 처리 중 오류가 발생했습니다.");
+          setMessage(
+            `별 충전 처리 중 오류가 발생했습니다.\n\n오류: ${
+              purchaseError.message || JSON.stringify(purchaseError)
+            }\n\n고객센터에 문의해주세요.`
+          );
           return;
         }
 
         if (!data?.success) {
           console.error("별 충전 실패:", data);
           setStatus("error");
-          setMessage(data?.error || "별 충전에 실패했습니다.");
+          setMessage(
+            data?.error || 
+            "별 충전에 실패했습니다.\n\n결제는 완료되었으니 고객센터에 문의해주세요."
+          );
           return;
         }
 
         // 성공 처리
-        console.log("별 충전 성공:", data);
+        console.log("✅ 별 충전 성공:", data);
         setStatus("success");
         setMessage(
-          `🎉 별 충전이 완료되었습니다!\n\n새로운 잔액: ${
+          `🎉 별 충전이 완료되었습니다!\n\n충전된 별: ${data.data.paid_stars}개 (보너스: ${data.data.bonus_stars}개)\n새로운 잔액: ${
             data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars
           }개`
         );
@@ -88,9 +126,13 @@ function PaymentComplete() {
           navigate("/purchase", { replace: true });
         }, 3000);
       } catch (err) {
-        console.error("결제 처리 오류:", err);
+        console.error("❌ 결제 처리 예외:", err);
         setStatus("error");
-        setMessage("결제 처리 중 오류가 발생했습니다.");
+        setMessage(
+          `결제 처리 중 오류가 발생했습니다.\n\n오류: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
       }
     };
 
