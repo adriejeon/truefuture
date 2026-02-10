@@ -166,6 +166,20 @@ function Purchase() {
           </div>
         )}
 
+        {/* 유효기간 안내 */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">ℹ️</span>
+            <div className="flex-1">
+              <h3 className="text-white font-semibold mb-1">별 유효기간 안내</h3>
+              <p className="text-blue-200 text-sm leading-relaxed">
+                구매하신 별은 <strong>결제일로부터 1년간</strong> 사용하실 수 있습니다. 
+                유효기간은 각 결제 건마다 별도로 적용되며, 구매 내역에서 확인 가능합니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* 패키지 목록 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {PACKAGES.map((pkg) => (

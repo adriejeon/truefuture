@@ -153,8 +153,12 @@ serve(async (req) => {
       );
     }
 
-    // 4. 거래 내역 기록
+    // 4. 거래 내역 기록 (유효기간 설정: 결제일로부터 1년)
     const totalStars = packageInfo.paid + packageInfo.bonus;
+    const purchaseDate = new Date();
+    const expiresAt = new Date(purchaseDate);
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
     const { error: txError } = await supabaseAdmin
       .from("star_transactions")
       .insert({
@@ -163,6 +167,10 @@ serve(async (req) => {
         type: "CHARGE",
         description: `패키지 구매: ${packageInfo.name}`,
         related_item_id: merchant_uid ?? imp_uid ?? null,
+        paid_amount: packageInfo.paid,
+        bonus_amount: packageInfo.bonus,
+        expires_at: expiresAt.toISOString(),
+        is_expired: false,
       });
 
     if (txError) {

@@ -23,7 +23,7 @@ export const FORTUNE_TYPE_NAMES = {
 };
 
 /**
- * 사용자의 현재 별 잔액 조회
+ * 사용자의 현재 별 잔액 조회 (유효한 별만 계산)
  * @param {string} userId
  * @returns {Promise<{paid: number, bonus: number, total: number}>}
  */
@@ -32,21 +32,37 @@ export async function fetchUserStars(userId) {
     throw new Error("사용자 ID가 필요합니다.");
   }
 
-  const { data, error } = await supabase
-    .from("user_wallets")
-    .select("paid_stars, bonus_stars")
-    .eq("user_id", userId)
-    .maybeSingle();
+  try {
+    // get_valid_stars RPC 함수를 사용하여 만료되지 않은 별만 조회
+    const { data, error } = await supabase.rpc("get_valid_stars", {
+      p_user_id: userId,
+    });
 
-  if (error) {
-    console.error("❌ 별 잔액 조회 실패:", error);
-    throw error;
+    if (error) {
+      console.error("❌ 유효한 별 조회 실패:", error);
+      throw error;
+    }
+
+    const paid = data?.[0]?.paid_stars ?? 0;
+    const bonus = data?.[0]?.bonus_stars ?? 0;
+
+    return { paid, bonus, total: paid + bonus };
+  } catch (err) {
+    console.error("❌ 별 잔액 조회 중 오류:", err);
+    // RPC가 없으면 기존 방식으로 폴백
+    const { data, error } = await supabase
+      .from("user_wallets")
+      .select("paid_stars, bonus_stars")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const paid = data?.paid_stars ?? 0;
+    const bonus = data?.bonus_stars ?? 0;
+
+    return { paid, bonus, total: paid + bonus };
   }
-
-  const paid = data?.paid_stars ?? 0;
-  const bonus = data?.bonus_stars ?? 0;
-
-  return { paid, bonus, total: paid + bonus };
 }
 
 /**

@@ -7,6 +7,7 @@ import ProfileModal from "../components/ProfileModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
+import { supabase } from "../lib/supabaseClient";
 import {
   detectInAppBrowser,
   redirectToExternalBrowser,
@@ -30,6 +31,7 @@ function Home() {
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
     useState(false);
+  const [testLoginLoading, setTestLoginLoading] = useState(false);
 
   // 프로필이 없을 때 모달 표시 (사용자가 "나중에 하기"로 닫은 적 없을 때만)
   useEffect(() => {
@@ -132,6 +134,51 @@ function Home() {
     await createProfile(profileData);
   };
 
+  const handleTestLogin = async () => {
+    const email = import.meta.env.VITE_TEST_LOGIN_EMAIL;
+    const password = import.meta.env.VITE_TEST_LOGIN_PASSWORD;
+
+    if (!email || !password) {
+      alert(
+        "테스트 계정이 설정되지 않았습니다.\n.env에 VITE_TEST_LOGIN_EMAIL, VITE_TEST_LOGIN_PASSWORD를 설정해 주세요."
+      );
+      return;
+    }
+
+    if (!supabase) {
+      alert("연결에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+
+    setTestLoginLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        if (error.message?.includes("Invalid login credentials")) {
+          alert(
+            "테스트 계정 로그인에 실패했습니다.\nSupabase 대시보드 > Auth > Users에서 해당 이메일/비밀번호 사용자를 추가했는지 확인해 주세요."
+          );
+        } else {
+          alert(`로그인 실패: ${error.message}`);
+        }
+        return;
+      }
+
+      if (data?.user) {
+        // 로그인 성공 시 onAuthStateChange에서 user 갱신됨
+      }
+    } catch (err) {
+      console.error("테스트 로그인 오류:", err);
+      alert("테스트 로그인 중 오류가 발생했습니다.");
+    } finally {
+      setTestLoginLoading(false);
+    }
+  };
+
   // 인증 로딩 중
   if (loadingAuth) {
     return (
@@ -183,6 +230,19 @@ function Home() {
               >
                 진짜미래 보러가기
               </PrimaryButton>
+              {(import.meta.env.VITE_TEST_LOGIN_EMAIL &&
+                import.meta.env.VITE_TEST_LOGIN_PASSWORD) && (
+                <div className="mt-3 text-center">
+                  <button
+                    type="button"
+                    onClick={handleTestLogin}
+                    disabled={testLoginLoading}
+                    className="text-xs text-slate-500 hover:text-slate-400 transition-colors underline disabled:opacity-50"
+                  >
+                    {testLoginLoading ? "로그인 중..." : "테스트 로그인"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

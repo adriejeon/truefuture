@@ -26,7 +26,7 @@ function PurchaseHistory() {
 
       const { data, error: fetchError } = await supabase
         .from("star_transactions")
-        .select("*")
+        .select("*, paid_amount, bonus_amount, expires_at, is_expired")
         .eq("user_id", user.id)
         .eq("type", "CHARGE")
         .order("created_at", { ascending: false });
@@ -51,6 +51,24 @@ function PurchaseHistory() {
       hour: "2-digit",
       minute: "2-digit",
     }).format(date);
+  };
+
+  const getExpirationStatus = (tx) => {
+    if (!tx.expires_at) {
+      return { text: "무제한", className: "text-blue-400", badge: "기존 정책" };
+    }
+    
+    const expiresAt = new Date(tx.expires_at);
+    const now = new Date();
+    const daysLeft = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
+
+    if (tx.is_expired || daysLeft <= 0) {
+      return { text: "만료됨", className: "text-red-400", badge: "만료" };
+    } else if (daysLeft <= 30) {
+      return { text: `${daysLeft}일 남음`, className: "text-orange-400", badge: "곧 만료" };
+    } else {
+      return { text: formatDate(tx.expires_at), className: "text-green-400", badge: "유효" };
+    }
   };
 
   return (
@@ -103,42 +121,77 @@ function PurchaseHistory() {
         ) : (
           /* 내역 리스트 */
           <div className="space-y-4">
-            {transactions.map((tx) => (
-              <div
-                key={tx.id}
-                className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all duration-200"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">⭐</span>
-                      <h3 className="text-lg font-semibold text-white">
-                        {tx.description || "별 충전"}
-                      </h3>
+            {transactions.map((tx) => {
+              const expirationStatus = getExpirationStatus(tx);
+              return (
+                <div
+                  key={tx.id}
+                  className={`bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border transition-all duration-200 ${
+                    tx.is_expired ? "border-red-900/50 opacity-60" : "border-slate-700 hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">⭐</span>
+                        <h3 className="text-lg font-semibold text-white">
+                          {tx.description || "별 충전"}
+                        </h3>
+                      </div>
+                      <p className="text-slate-400 text-sm mb-1">
+                        구매: {formatDate(tx.created_at)}
+                      </p>
+                      {tx.expires_at && (
+                        <p className={`text-xs ${expirationStatus.className}`}>
+                          유효기간: {expirationStatus.text}
+                        </p>
+                      )}
                     </div>
-                    <p className="text-slate-400 text-sm">
-                      {formatDate(tx.created_at)}
-                    </p>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-yellow-400">
+                        +{tx.amount}
+                      </div>
+                      {(tx.paid_amount || tx.bonus_amount) && (
+                        <div className="text-xs text-slate-400 mt-1">
+                          {tx.paid_amount > 0 && `유료 ${tx.paid_amount}개`}
+                          {tx.paid_amount > 0 && tx.bonus_amount > 0 && " + "}
+                          {tx.bonus_amount > 0 && `보너스 ${tx.bonus_amount}개`}
+                        </div>
+                      )}
+                      <div className="text-xs text-slate-500 mt-1">
+                        {tx.related_item_id ? `주문번호: ${tx.related_item_id.slice(0, 12)}...` : ""}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-yellow-400">
-                      +{tx.amount}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {tx.related_item_id ? `주문번호: ${tx.related_item_id.slice(0, 12)}...` : ""}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-700">
+                    <span className="text-xs text-slate-500">
+                      거래 ID: {tx.id.slice(0, 8)}...
+                    </span>
+                    <div className="flex gap-2">
+                      {tx.expires_at && (
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          tx.is_expired 
+                            ? "bg-red-500/20 text-red-400" 
+                            : expirationStatus.badge === "곧 만료"
+                            ? "bg-orange-500/20 text-orange-400"
+                            : "bg-green-500/20 text-green-400"
+                        }`}>
+                          {expirationStatus.badge}
+                        </span>
+                      )}
+                      {!tx.expires_at && (
+                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                          {expirationStatus.badge}
+                        </span>
+                      )}
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
+                        완료
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-3 border-t border-slate-700">
-                  <span className="text-xs text-slate-500">
-                    거래 ID: {tx.id.slice(0, 8)}...
-                  </span>
-                  <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
-                    완료
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
