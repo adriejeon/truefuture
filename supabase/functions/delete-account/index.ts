@@ -104,18 +104,7 @@ serve(async (req) => {
       throw new Error("거래 내역 삭제 실패");
     }
 
-    // 3. star_purchases에서 데이터 삭제
-    const { error: purchaseError } = await supabaseAdmin
-      .from("star_purchases")
-      .delete()
-      .eq("user_id", user_id);
-
-    if (purchaseError) {
-      console.error("❌ star_purchases 삭제 실패:", purchaseError);
-      throw new Error("구매 내역 삭제 실패");
-    }
-
-    // 4. fortune_consultations에서 데이터 삭제
+    // 3. fortune_consultations에서 데이터 삭제
     const { error: consultationError } = await supabaseAdmin
       .from("fortune_consultations")
       .delete()
