@@ -5,6 +5,7 @@ import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
 import * as PortOne from "@portone/browser-sdk/v2";
+import { prepareBuyerEmail } from "../utils/paymentUtils";
 
 const PACKAGES = [
   {
@@ -84,7 +85,7 @@ function Purchase() {
           customerId: user.id,
           fullName: "우주탐험가",
           phoneNumber: "010-0000-0000",
-          email: user.email,
+          email: prepareBuyerEmail(user),
         },
         // 모바일 결제 시 리다이렉트 URL (필수)
         redirectUrl: `${window.location.origin}/payment/complete`,
