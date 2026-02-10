@@ -86,6 +86,8 @@ function Purchase() {
           phoneNumber: "010-0000-0000",
           email: user.email,
         },
+        // 모바일 결제 시 리다이렉트 URL (필수)
+        redirectUrl: `${window.location.origin}/payment/complete`,
       });
 
       console.log("포트원 결제 응답:", response);

@@ -14,6 +14,7 @@ import Terms from "./pages/Terms";
 import Login from "./pages/Login";
 import Purchase from "./pages/Purchase";
 import PurchaseHistory from "./pages/PurchaseHistory";
+import PaymentComplete from "./pages/PaymentComplete";
 import Footer from "./components/Footer";
 import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
@@ -59,6 +60,7 @@ function AppContent() {
           <Route path="/consultation/:resultId" element={<Consultation />} />
           <Route path="/purchase" element={<Purchase />} />
           <Route path="/purchase/history" element={<PurchaseHistory />} />
+          <Route path="/payment/complete" element={<PaymentComplete />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
         </Routes>
