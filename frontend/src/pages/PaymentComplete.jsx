@@ -48,12 +48,23 @@ function PaymentComplete() {
           return;
         }
 
-        // 결제 ID 확인 (V2 또는 V1)
-        const finalPaymentId = paymentId || impUid;
-        const finalMerchantId = merchantUid;
+        // imp_uid와 merchant_uid를 각각 정확하게 추출
+        // imp_uid는 아임포트 결제 고유 ID (imp_로 시작해야 함)
+        // merchant_uid는 주문 고유 ID (order_로 시작)
+        const finalImpUid = impUid || null;
+        const finalMerchantUid = merchantUid || null;
 
-        if (!finalPaymentId) {
-          console.error("결제 ID가 없습니다. 파라미터:", allParams);
+        // imp_uid 검증: imp_로 시작하는지 확인
+        if (finalImpUid && !finalImpUid.startsWith("imp_")) {
+          console.error("❌ 잘못된 imp_uid 형식:", finalImpUid);
+          setStatus("error");
+          setMessage("결제 정보 형식이 올바르지 않습니다. 고객센터에 문의해주세요.");
+          return;
+        }
+
+        // imp_uid 필수 확인 (아임포트 API는 imp_uid로만 조회 가능)
+        if (!finalImpUid) {
+          console.error("❌ imp_uid가 없습니다. 파라미터:", allParams);
           setStatus("error");
           setMessage("결제 정보를 찾을 수 없습니다. 고객센터에 문의해주세요.");
           return;
@@ -71,8 +82,8 @@ function PaymentComplete() {
         setMessage("결제를 완료하고 별을 충전하고 있습니다...");
         console.log("백엔드 호출 시작:", {
           user_id: user.id,
-          imp_uid: finalPaymentId,
-          merchant_uid: finalMerchantId || finalPaymentId,
+          imp_uid: finalImpUid,
+          merchant_uid: finalMerchantUid,
         });
 
         const { data, error: purchaseError } = await supabase.functions.invoke(
@@ -80,8 +91,8 @@ function PaymentComplete() {
           {
             body: {
               user_id: user.id,
-              imp_uid: finalPaymentId,
-              merchant_uid: finalMerchantId || finalPaymentId,
+              imp_uid: finalImpUid,
+              merchant_uid: finalMerchantUid,
             },
           }
         );

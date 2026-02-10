@@ -94,12 +94,28 @@ serve(async (req) => {
         );
       }
 
-      if (!imp_uid && !merchant_uid) {
-        console.error("❌ 결제 ID 없음");
+      // 아임포트 V1 API는 imp_uid로만 조회 가능
+      if (!imp_uid) {
+        console.error("❌ imp_uid 없음 (아임포트 API는 imp_uid 필수)");
         return new Response(
           JSON.stringify({
             success: false,
-            error: "결제 ID(imp_uid 또는 merchant_uid)가 필요합니다.",
+            error: "결제 정보 조회를 위해 imp_uid가 필요합니다.",
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // imp_uid 형식 검증 (imp_로 시작해야 함)
+      if (!imp_uid.startsWith("imp_")) {
+        console.error("❌ 잘못된 imp_uid 형식:", imp_uid);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "잘못된 결제 정보 형식입니다.",
           }),
           {
             status: 400,
@@ -109,7 +125,7 @@ serve(async (req) => {
       }
 
       try {
-        const paymentId = imp_uid || merchant_uid;
+        const paymentId = imp_uid;
         console.log(`🔍 아임포트(V1) API로 결제 정보 조회 시작: ${paymentId}`);
         
         // V1 API: 인증 토큰 발급
