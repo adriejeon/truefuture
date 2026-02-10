@@ -110,15 +110,16 @@ serve(async (req) => {
 
       try {
         const paymentId = imp_uid || merchant_uid;
-        console.log(`🔍 PortOne API로 결제 정보 조회 시작: ${paymentId}`);
+        console.log(`🔍 아임포트(V1) API로 결제 정보 조회 시작: ${paymentId}`);
         
-        // V2 API: 인증 토큰 발급
-        console.log("1️⃣ PortOne 인증 토큰 발급 중...");
-        const tokenResponse = await fetch("https://api.portone.io/login/api-key", {
+        // V1 API: 인증 토큰 발급
+        console.log("1️⃣ 아임포트 인증 토큰 발급 중...");
+        const tokenResponse = await fetch("https://api.iamport.kr/users/getToken", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            apiKey: portoneApiKey,
+            imp_key: portoneApiKey,
+            imp_secret: portoneApiSecret,
           }),
         });
 
@@ -127,20 +128,34 @@ serve(async (req) => {
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text();
           console.error("인증 실패 응답:", errorText);
-          throw new Error(`PortOne 인증 실패 (${tokenResponse.status})`);
+          throw new Error(`아임포트 인증 실패 (${tokenResponse.status})`);
         }
 
         const tokenData = await tokenResponse.json();
-        console.log("인증 성공, 토큰 발급됨");
+        console.log("인증 응답 데이터:", JSON.stringify(tokenData, null, 2));
 
-        // V2 API: 결제 정보 조회
+        // V1 API 응답: code가 0이어야 성공
+        if (tokenData.code !== 0) {
+          console.error("인증 실패:", tokenData.message || "알 수 없는 오류");
+          throw new Error(`아임포트 인증 실패: ${tokenData.message || "알 수 없는 오류"}`);
+        }
+
+        const accessToken = tokenData.response?.access_token;
+        if (!accessToken) {
+          console.error("토큰이 응답에 없음:", tokenData);
+          throw new Error("인증 토큰을 받을 수 없습니다.");
+        }
+
+        console.log("✅ 인증 성공, 토큰 발급됨");
+
+        // V1 API: 결제 정보 조회
         console.log(`2️⃣ 결제 정보 조회 중: ${paymentId}`);
         const paymentResponse = await fetch(
-          `https://api.portone.io/payments/${paymentId}`,
+          `https://api.iamport.kr/payments/${paymentId}`,
           {
             method: "GET",
             headers: {
-              Authorization: `Bearer ${tokenData.accessToken}`,
+              Authorization: accessToken,
             },
           }
         );
@@ -154,16 +169,28 @@ serve(async (req) => {
         }
 
         const paymentData = await paymentResponse.json();
-        console.log("📦 PortOne 결제 정보:", JSON.stringify(paymentData, null, 2));
+        console.log("📦 아임포트 결제 정보:", JSON.stringify(paymentData, null, 2));
+
+        // V1 API 응답: code가 0이어야 성공
+        if (paymentData.code !== 0) {
+          console.error("결제 조회 실패:", paymentData.message || "알 수 없는 오류");
+          throw new Error(`결제 정보 조회 실패: ${paymentData.message || "알 수 없는 오류"}`);
+        }
+
+        const payment = paymentData.response;
+        if (!payment) {
+          console.error("결제 정보가 응답에 없음:", paymentData);
+          throw new Error("결제 정보를 찾을 수 없습니다.");
+        }
 
         // 결제 상태 확인
-        console.log("3️⃣ 결제 상태 확인:", paymentData.status);
-        if (paymentData.status !== "PAID") {
-          console.error(`결제 미완료 상태: ${paymentData.status}`);
+        console.log("3️⃣ 결제 상태 확인:", payment.status);
+        if (payment.status !== "paid") {
+          console.error(`결제 미완료 상태: ${payment.status}`);
           return new Response(
             JSON.stringify({
               success: false,
-              error: `결제가 완료되지 않았습니다. (상태: ${paymentData.status})`,
+              error: `결제가 완료되지 않았습니다. (상태: ${payment.status})`,
             }),
             {
               status: 400,
@@ -172,12 +199,12 @@ serve(async (req) => {
           );
         }
 
-        // 결제 금액 추출
-        amount = paymentData.amount?.total;
+        // 결제 금액 추출 (V1: response.amount)
+        amount = payment.amount;
         console.log("4️⃣ 결제 금액 추출:", amount);
         
         if (!amount || amount <= 0) {
-          console.error("유효하지 않은 금액:", paymentData.amount);
+          console.error("유효하지 않은 금액:", payment.amount);
           throw new Error("유효한 결제 금액을 찾을 수 없습니다.");
         }
 
