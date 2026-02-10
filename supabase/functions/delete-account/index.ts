@@ -26,32 +26,36 @@ serve(async (req) => {
       );
     }
 
-    // Supabase 클라이언트 초기화 (Service Role Key 사용)
+    // Supabase 환경 변수 가져오기
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Authorization 헤더에서 토큰 추출 (Bearer 제거)
+    const token = authHeader.replace("Bearer ", "");
 
     // 사용자 인증 클라이언트 초기화 (JWT 토큰 검증용)
-    const supabaseClient = createClient(
-      supabaseUrl,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      {
-        global: {
-          headers: { Authorization: authHeader },
+    const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
         },
-      }
-    );
+      },
+    });
 
-    // JWT 토큰에서 사용자 정보 가져오기
+    // 실제 유저 정보 검증
     const {
       data: { user },
       error: authError,
-    } = await supabaseClient.auth.getUser();
+    } = await supabaseAuth.auth.getUser(token);
 
     if (authError || !user) {
-      console.error("❌ 인증 실패:", authError);
+      console.error("❌ 유저 토큰 검증 실패:", authError);
       return new Response(
-        JSON.stringify({ success: false, error: "인증에 실패했습니다." }),
+        JSON.stringify({
+          success: false,
+          error: "인증에 실패했습니다.",
+          details: authError?.message || "Invalid user token",
+        }),
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -60,7 +64,11 @@ serve(async (req) => {
     }
 
     const user_id = user.id;
+    console.log("✅ 유저 인증 성공:", user_id);
     console.log("🗑️ 회원 탈퇴 시작:", user_id);
+
+    // Supabase Admin 클라이언트 생성 (DB 삭제용)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. user_wallets에서 데이터 삭제
     const { error: walletError } = await supabaseAdmin
