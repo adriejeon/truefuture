@@ -89,7 +89,7 @@ function Purchase() {
           email: prepareBuyerEmail(user),
         },
         // 모바일 결제 시 리다이렉트 URL (필수)
-        redirectUrl: `${window.location.origin}/payment/complete`,
+        redirectUrl: `${window.location.origin}/payment/complete?merchant_uid=${merchantUid}`,
       });
 
       console.log("포트원 결제 응답:", response);
@@ -109,7 +109,7 @@ function Purchase() {
             merchant_uid: merchantUid,
             imp_uid: response?.paymentId || merchantUid,
           },
-        }
+        },
       );
 
       if (purchaseError) throw purchaseError;
@@ -120,7 +120,7 @@ function Purchase() {
 
       // 성공 알림 및 잔액 새로고침
       alert(
-        `🎉 별 충전 완료!\n\n충전된 별: ${pkg.paid + pkg.bonus}개\n새로운 잔액: ${data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars}개`
+        `🎉 별 충전 완료!\n\n충전된 별: ${pkg.paid + pkg.bonus}개\n새로운 잔액: ${data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars}개`,
       );
       await refetchStars();
     } catch (err) {
@@ -136,9 +136,7 @@ function Purchase() {
       <div className="max-w-5xl mx-auto">
         {/* 헤더 */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">
-            별 충전하기
-          </h1>
+          <h1 className="text-2xl font-bold text-white mb-2">별 충전하기</h1>
           <p className="text-slate-300 text-sm">
             별을 충전하고 진짜미래를 확인하세요
           </p>
@@ -188,27 +186,31 @@ function Purchase() {
                       {pkg.name}
                     </h3>
                     {pkg.badge && (
-                      <span 
+                      <span
                         className="inline-block text-black text-xs font-bold px-2 py-0.5 rounded-full"
                         style={{
-                          backgroundColor: colors.primary
+                          backgroundColor: colors.primary,
                         }}
                       >
                         {pkg.badge}
                       </span>
                     )}
                   </div>
-                  
+
                   {/* 두 번째 줄: 기본 별 + 보너스 별 */}
                   <div className="flex items-center gap-2 text-xs">
                     <span className="text-slate-300">
-                      기본 별 <span className="text-white font-semibold">{pkg.paid}개</span>
+                      기본 별{" "}
+                      <span className="text-white font-semibold">
+                        {pkg.paid}개
+                      </span>
                     </span>
                     {pkg.bonus > 0 && (
                       <>
                         <span className="text-slate-600">|</span>
                         <span className="text-yellow-400">
-                          보너스 별 <span className="font-semibold">+{pkg.bonus}개</span>
+                          보너스 별{" "}
+                          <span className="font-semibold">+{pkg.bonus}개</span>
                         </span>
                       </>
                     )}
@@ -218,7 +220,8 @@ function Purchase() {
                 {/* 오른쪽: 가격 */}
                 <div className="text-right ml-4">
                   <div className="text-xl font-bold text-white">
-                    {pkg.price.toLocaleString()}<span className="text-slate-400 text-sm ml-0.5">원</span>
+                    {pkg.price.toLocaleString()}
+                    <span className="text-slate-400 text-sm ml-0.5">원</span>
                   </div>
                 </div>
               </div>

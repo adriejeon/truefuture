@@ -172,7 +172,7 @@ function PaymentComplete() {
           return;
         }
 
-        // imp_uid와 merchant_uid를 각각 정확하게 추출
+        // 1. 파라미터 추출: imp_uid가 없으면 merchant_uid라도 가져오기
         // imp_uid는 아임포트 결제 고유 ID (imp_로 시작해야 함)
         // merchant_uid는 주문 고유 ID (order_로 시작)
         const finalImpUid = impUid || null;
@@ -180,7 +180,7 @@ function PaymentComplete() {
 
         alert("2. 파라미터: " + finalImpUid + ", " + finalMerchantUid);
 
-        // imp_uid 검증: imp_로 시작하는지 확인
+        // imp_uid 검증: imp_로 시작하는지 확인 (있을 때만)
         if (finalImpUid && !finalImpUid.startsWith("imp_")) {
           console.error("❌ 잘못된 imp_uid 형식:", finalImpUid);
           isProcessing.current = false; // 처리 완료 표시
@@ -189,15 +189,20 @@ function PaymentComplete() {
           return;
         }
 
-        // 4. 파라미터 체크 시점 조절: 성공 상태가 아니면 체크
+        // 2. 검증 로직 완화: imp_uid가 없어도 merchant_uid가 있으면 진행
         if (status !== "success") {
-          // imp_uid 필수 확인 (아임포트 API는 imp_uid로만 조회 가능)
-          if (!finalImpUid) {
-            console.error("❌ imp_uid가 없습니다. 파라미터:", allParams);
+          // imp_uid 또는 merchant_uid 중 하나라도 있어야 함
+          if (!finalImpUid && !finalMerchantUid) {
+            console.error("❌ imp_uid와 merchant_uid 모두 없습니다. 파라미터:", allParams);
             isProcessing.current = false; // 처리 완료 표시
             setStatus("error");
             setMessage("결제 정보를 찾을 수 없습니다. 고객센터에 문의해주세요.");
             return;
+          }
+
+          // imp_uid가 없고 merchant_uid만 있는 경우 로그
+          if (!finalImpUid && finalMerchantUid) {
+            console.log("⚠️ imp_uid가 없지만 merchant_uid가 있습니다. merchant_uid로 진행합니다:", finalMerchantUid);
           }
 
           // 사용자 로그인 확인 (이미 위에서 확인했지만 재확인)
@@ -217,22 +222,27 @@ function PaymentComplete() {
 
         // 백엔드 함수 호출하여 별 충전 처리
         setMessage("결제를 완료하고 별을 충전하고 있습니다...");
-        console.log("백엔드 호출 시작:", {
+        
+        // 3. 백엔드 호출: imp_uid가 없으면 merchant_uid만이라도 보내기
+        const requestBody = {
           user_id: currentUser.id,
-          imp_uid: finalImpUid,
-          merchant_uid: finalMerchantUid,
-        });
-
-        alert("5. 서버 호출 시도: " + finalImpUid);
+        };
+        
+        // imp_uid가 있으면 추가, 없으면 merchant_uid만 추가
+        if (finalImpUid) {
+          requestBody.imp_uid = finalImpUid;
+        }
+        if (finalMerchantUid) {
+          requestBody.merchant_uid = finalMerchantUid;
+        }
+        
+        console.log("백엔드 호출 시작:", requestBody);
+        alert("5. 서버 호출 시도: " + (finalImpUid || finalMerchantUid || "없음"));
 
         const { data, error: purchaseError } = await supabase.functions.invoke(
           "purchase-stars",
           {
-            body: {
-              user_id: currentUser.id,
-              imp_uid: finalImpUid,
-              merchant_uid: finalMerchantUid,
-            },
+            body: requestBody,
           }
         );
 
