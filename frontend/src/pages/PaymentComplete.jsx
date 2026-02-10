@@ -140,6 +140,9 @@ function PaymentComplete() {
         const code = searchParams.get("code");
         const errorMessage = searchParams.get("message");
 
+        // 모바일 리다이렉트 시 txId로 결제 식별자 전달됨 (imp_uid 대체)
+        const txId = searchParams.get("txId");
+
         // PortOne V1 / KG이니시스 모바일 리다이렉트 파라미터
         const impUid = searchParams.get("imp_uid");
         const impSuccess = searchParams.get("imp_success");
@@ -154,10 +157,10 @@ function PaymentComplete() {
           } catch (_) {}
         }
 
-        console.log("V2 파라미터:", { paymentId, code, errorMessage });
+        console.log("V2 파라미터:", { paymentId, code, errorMessage, txId });
         console.log("V1 파라미터:", { impUid, impSuccess, merchantUid, errorMsg });
 
-        // 결제 실패 처리
+        // 결제 실패 처리: code 또는 imp_success=false일 때만 실패. txId가 있으면 성공으로 간주하고 검증 진행
         if (code || impSuccess === "false") {
           isProcessing.current = false; // 처리 완료 표시
           setStatus("error");
@@ -167,26 +170,32 @@ function PaymentComplete() {
           return;
         }
 
-        // 1. 파라미터 추출: imp_uid 우선, 없으면 V2 paymentId가 imp_ 형식이면 사용 (null이 되지 않도록 URL에서만 사용)
-        // imp_uid는 아임포트 결제 고유 ID (imp_로 시작해야 함)
-        // merchant_uid는 주문 고유 ID (order_로 시작)
-        const finalImpUid =
-          impUid ||
-          (paymentId && String(paymentId).startsWith("imp_") ? paymentId : null);
         const finalMerchantUid = merchantUid || null;
 
-        // imp_uid 검증: imp_로 시작하는지 확인 (있을 때만)
-        if (finalImpUid && !finalImpUid.startsWith("imp_")) {
+        // 2. imp_uid 추출 우선순위: imp_uid(URL) → txId(URL, 모바일) → paymentId(merchant_uid와 다를 때만)
+        // txId는 모바일 리다이렉트 시 전달되는 결제 식별자(UUID). 서버 검증 API에 imp_uid로 전송
+        const finalImpUid =
+          impUid ||
+          txId ||
+          (paymentId && finalMerchantUid && paymentId !== finalMerchantUid ? paymentId : null) ||
+          (paymentId && String(paymentId).startsWith("imp_") ? paymentId : null);
+
+        // imp_uid 형식: imp_ 접두사(아임포트) 또는 UUID(txId) 허용
+        const isValidImpUidFormat =
+          !finalImpUid ||
+          finalImpUid.startsWith("imp_") ||
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalImpUid);
+        if (!isValidImpUidFormat) {
           console.error("❌ 잘못된 imp_uid 형식:", finalImpUid);
-          isProcessing.current = false; // 처리 완료 표시
+          isProcessing.current = false;
           setStatus("error");
           setMessage("결제 정보 형식이 올바르지 않습니다. 고객센터에 문의해주세요.");
           return;
         }
 
-        // 2. 검증 로직 완화: imp_uid가 없어도 merchant_uid가 있으면 진행
+        // 3. 검증 로직: imp_uid(txId 포함) 또는 merchant_uid 중 하나라도 있으면 진행
         if (status !== "success") {
-          // imp_uid 또는 merchant_uid 중 하나라도 있어야 함
+          // imp_uid(txId) 또는 merchant_uid 중 하나라도 있어야 함
           if (!finalImpUid && !finalMerchantUid) {
             console.error("❌ imp_uid와 merchant_uid 모두 없습니다. 파라미터:", allParams);
             isProcessing.current = false; // 처리 완료 표시

@@ -109,8 +109,14 @@ serve(async (req) => {
         );
       }
 
-      // imp_uid 형식 검증 (있을 때만, imp_로 시작해야 함)
-      if (imp_uid && !imp_uid.startsWith("imp_")) {
+      // imp_uid 형식: imp_ 접두사(아임포트) 또는 UUID(txId, 모바일 리다이렉트) 허용
+      const isUuid = (id: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (
+        imp_uid &&
+        !imp_uid.startsWith("imp_") &&
+        !isUuid(imp_uid)
+      ) {
         console.error("❌ 잘못된 imp_uid 형식:", imp_uid);
         return new Response(
           JSON.stringify({
@@ -125,14 +131,15 @@ serve(async (req) => {
       }
 
       try {
-        // 2. imp_uid가 있으면 기존대로, 없고 merchant_uid만 있으면 find 엔드포인트 사용
+        // 2. imp_uid가 있으면 해당 ID로 조회, 없으면 merchant_uid로 조회. txId(UUID)는 모바일 리다이렉트용
         const useMerchantUid = !imp_uid && merchant_uid;
+        const impUidIsTxId = imp_uid && isUuid(imp_uid);
         const paymentId = imp_uid || merchant_uid;
         
         console.log(`🔍 아임포트(V1) API로 결제 정보 조회 시작`);
-        console.log(`   - imp_uid: ${imp_uid || "없음"}`);
+        console.log(`   - imp_uid: ${imp_uid || "없음"}${impUidIsTxId ? " (txId)" : ""}`);
         console.log(`   - merchant_uid: ${merchant_uid || "없음"}`);
-        console.log(`   - 조회 방식: ${useMerchantUid ? "merchant_uid (find)" : "imp_uid (일반)"}`);
+        console.log(`   - 조회 방식: ${useMerchantUid ? "merchant_uid (find)" : "imp_uid/ID (일반)"}`);
         
         // V1 API: 인증 토큰 발급
         console.log("1️⃣ 아임포트 인증 토큰 발급 중...");
@@ -170,13 +177,13 @@ serve(async (req) => {
 
         console.log("✅ 인증 성공, 토큰 발급됨");
 
-        // 3. V1 API: 결제 정보 조회 (imp_uid 또는 merchant_uid에 따라 다른 엔드포인트 사용)
-        const paymentEndpoint = useMerchantUid
+        // 3. V1 API: 결제 정보 조회 (imp_uid 또는 merchant_uid). txId(UUID)로 404면 merchant_uid로 재시도
+        let paymentEndpoint = useMerchantUid
           ? `https://api.iamport.kr/payments/find/${merchant_uid}`
           : `https://api.iamport.kr/payments/${imp_uid}`;
         
         console.log(`2️⃣ 결제 정보 조회 중: ${paymentEndpoint}`);
-        const paymentResponse = await fetch(
+        let paymentResponse = await fetch(
           paymentEndpoint,
           {
             method: "GET",
@@ -188,14 +195,41 @@ serve(async (req) => {
 
         console.log("결제 조회 응답 상태:", paymentResponse.status);
 
-        if (!paymentResponse.ok) {
-          const errorText = await paymentResponse.text();
-          console.error("결제 조회 실패 응답:", errorText);
-          throw new Error(`결제 정보 조회 실패 (${paymentResponse.status})`);
+        const responseText = await paymentResponse.text();
+        let paymentData: { code?: number; message?: string; response?: unknown } = {};
+        try {
+          paymentData = JSON.parse(responseText);
+        } catch {
+          paymentData = {};
         }
 
-        const paymentData = await paymentResponse.json();
-        console.log("📦 아임포트 결제 정보:", JSON.stringify(paymentData, null, 2));
+        // txId(UUID)로 조회 시 404/존재하지 않는 결제 → merchant_uid로 재시도
+        if (
+          (!paymentResponse.ok || (paymentData.code !== 0 && responseText.includes("존재하지 않는"))) &&
+          impUidIsTxId &&
+          merchant_uid
+        ) {
+          const fallbackEndpoint = `https://api.iamport.kr/payments/find/${merchant_uid}`;
+          console.log(`⚠️ txId로 조회 실패, merchant_uid로 재시도: ${fallbackEndpoint}`);
+          paymentResponse = await fetch(
+            fallbackEndpoint,
+            {
+              method: "GET",
+              headers: { Authorization: accessToken },
+            }
+          );
+          const fallbackText = await paymentResponse.text();
+          try {
+            paymentData = JSON.parse(fallbackText);
+          } catch {
+            paymentData = {};
+          }
+        }
+
+        if (!paymentResponse.ok) {
+          console.error("결제 조회 실패 응답:", responseText);
+          throw new Error(`결제 정보 조회 실패 (${paymentResponse.status})`);
+        }
 
         // V1 API 응답: code가 0이어야 성공
         if (paymentData.code !== 0) {
