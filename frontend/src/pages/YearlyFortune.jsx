@@ -9,6 +9,7 @@ import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
 import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
+import OrderCheckModal from "../components/OrderCheckModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -22,6 +23,8 @@ import {
   consumeStars,
   checkStarBalance,
 } from "../utils/starConsumption";
+import * as PortOne from "@portone/browser-sdk/v2";
+import { prepareBuyerEmail } from "../utils/paymentUtils";
 
 // 운세 타입 탭
 const FORTUNE_TABS = [
@@ -75,6 +78,7 @@ function YearlyFortune() {
     required: FORTUNE_STAR_COSTS.daily,
     current: 0,
   });
+  const [showOrderModal, setShowOrderModal] = useState(false);
 
   // 데일리 운세용: 한국 시간 기준 오늘 날짜
   const getKoreaTime = () => {
@@ -208,11 +212,43 @@ function YearlyFortune() {
     }
   }, [profiles]);
 
+  // 결제 완료 후 복귀했을 때 처리
+  useEffect(() => {
+    const paymentCompleted = searchParams.get("payment_completed");
+    const fortuneTabParam = searchParams.get("fortune_tab");
+    
+    if (paymentCompleted === "true" && fortuneTabParam === "lifetime") {
+      console.log("🎉 결제 완료 후 복귀, 종합 운세 조회 시작");
+      
+      // URL 파라미터 제거
+      searchParams.delete("payment_completed");
+      searchParams.delete("fortune_tab");
+      searchParams.delete("profile_id");
+      searchParams.delete("merchant_uid");
+      setSearchParams(searchParams, { replace: true });
+      
+      // fortuneTab 설정
+      setFortuneTab("lifetime");
+      
+      // sessionStorage 정리
+      try {
+        sessionStorage.removeItem("lifetime_profile_id");
+        sessionStorage.removeItem("lifetime_payment_pending");
+        sessionStorage.removeItem("payment_merchant_uid");
+      } catch (_) {}
+      
+      // 운세 조회 실행
+      handleConfirmStarUsageLifetime();
+      return;
+    }
+  }, [searchParams, setSearchParams, handleConfirmStarUsageLifetime]);
 
   // 탭/프로필별 저장된 결과 복구
   useEffect(() => {
     if (!selectedProfile || isSharedFortune || !user) return;
     if (searchParams.get("id")) return;
+    // 결제 완료 복귀면 복구하지 않음
+    if (searchParams.get("payment_completed") === "true") return;
 
     if (fortuneTab === "daily") {
       setLoadingCache(true);
@@ -485,31 +521,86 @@ function YearlyFortune() {
       setError("프로필 정보가 올바르지 않습니다.");
       return;
     }
-    const requiredStars = FORTUNE_STAR_COSTS.lifetime;
+    
+    // 주문 확인 모달 표시
+    setShowOrderModal(true);
+    setError("");
+  };
+
+  // 주문 확인 모달에서 결제 진행 (종합 운세)
+  const handleConfirmOrder = async () => {
+    setShowOrderModal(false);
+    setError("");
+
     try {
-      const { total: totalStars } = await fetchUserStars(user.id);
-      const balanceStatus = checkStarBalance(totalStars, requiredStars);
-      if (balanceStatus === "insufficient") {
-        setStarModalDataLifetime({
-          type: "alert",
-          requiredAmount: requiredStars,
-          currentBalance: totalStars,
-        });
-        setShowStarModalLifetime(true);
+      const merchantUid = `order_${Date.now()}_${user.id.slice(0, 8)}`;
+      
+      // 결제 완료 후 복귀할 URL (종합 운세는 /yearly에서 처리)
+      const redirectBase = `${window.location.origin}/yearly`;
+      const redirectUrl = `${redirectBase}?payment_completed=true&fortune_tab=lifetime&profile_id=${selectedProfile.id}&merchant_uid=${encodeURIComponent(merchantUid)}`;
+      
+      try {
+        sessionStorage.setItem("payment_merchant_uid", merchantUid);
+        sessionStorage.setItem("lifetime_profile_id", selectedProfile.id);
+        sessionStorage.setItem("lifetime_payment_pending", "true");
+      } catch (_) {}
+
+      // PortOne 결제 요청
+      const response = await PortOne.requestPayment({
+        storeId: import.meta.env.VITE_PORTONE_STORE_ID,
+        channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
+        paymentId: merchantUid,
+        orderName: "진짜미래 종합 운세",
+        totalAmount: 2990,
+        currency: "CURRENCY_KRW",
+        payMethod: "CARD",
+        customer: {
+          customerId: user.id,
+          fullName: "우주탐험가",
+          phoneNumber: "010-0000-0000",
+          email: prepareBuyerEmail(user),
+        },
+        redirectUrl: redirectUrl,
+      });
+
+      console.log("포트원 결제 응답:", response);
+
+      // 결제 취소 또는 실패 처리
+      if (response?.code != null) {
+        setError(response.message || "결제가 취소되었습니다.");
         return;
       }
-      setStarModalDataLifetime({
-        type: "confirm",
-        requiredAmount: requiredStars,
-        currentBalance: totalStars,
-      });
-      setShowStarModalLifetime(true);
+
+      // 데스크톱: 결제 성공 → 백엔드 함수 호출하여 종합 운세 구매 기록
+      const { data, error: purchaseError } = await supabase.functions.invoke(
+        "purchase-stars",
+        {
+          body: {
+            user_id: user.id,
+            amount: 2990,
+            merchant_uid: merchantUid,
+            imp_uid: response?.paymentId || merchantUid,
+          },
+        },
+      );
+
+      if (purchaseError) {
+        throw purchaseError;
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || "운세권 구매에 실패했습니다.");
+      }
+
+      // 결제 성공 후 운세 조회 진행
+      await handleConfirmStarUsageLifetime();
     } catch (err) {
-      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+      console.error("결제 오류:", err);
+      setError(err.message || "결제 처리 중 오류가 발생했습니다.");
     }
   };
 
-  const handleConfirmStarUsageLifetime = async () => {
+  const handleConfirmStarUsageLifetime = useCallback(async () => {
     if (!user?.id || !selectedProfile) return;
 
     const formData = convertProfileToApiFormat(selectedProfile);
@@ -522,18 +613,6 @@ function YearlyFortune() {
     setError("");
     setInterpretation("");
     setShareId(null);
-
-    try {
-      await consumeStars(
-        user.id,
-        FORTUNE_STAR_COSTS.lifetime,
-        `${FORTUNE_TYPE_NAMES.lifetime} 조회`
-      );
-    } catch (err) {
-      setError(err?.message || "별 차감에 실패했습니다.");
-      setLoading(false);
-      return;
-    }
 
     try {
       const requestBody = {
@@ -558,7 +637,8 @@ function YearlyFortune() {
         await saveFortuneHistory(
           selectedProfile.id,
           "lifetime",
-          data.share_id ?? undefined
+          data.interpretation,
+          data.share_id
         );
         setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
       } else {
@@ -569,7 +649,7 @@ function YearlyFortune() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, selectedProfile, saveFortuneHistory]);
 
   // 데일리: 이미 오늘 조회함(DB 또는 로컬캐시) 또는 조회 불가면 버튼 비활성화
   const canViewDaily =
@@ -684,11 +764,6 @@ function YearlyFortune() {
               key={tab.id}
               type="button"
               onClick={() => {
-                if (tab.id === "lifetime") {
-                  // 종합 운세는 별도 페이지로 이동
-                  navigate("/lifetime");
-                  return;
-                }
                 setFortuneTab(tab.id);
                 setError("");
               }}
@@ -822,20 +897,13 @@ function YearlyFortune() {
         fortuneType={FORTUNE_TYPE_NAMES.daily}
       />
 
-      {/* 종합운세 별 차감 확인 / 잔액 부족 모달 */}
-      <StarModal
-        isOpen={showStarModalLifetime}
-        onClose={() => setShowStarModalLifetime(false)}
-        type={starModalDataLifetime.type}
-        requiredAmount={
-          starModalDataLifetime.requiredAmount ??
-          starModalDataLifetime.required
-        }
-        currentBalance={
-          starModalDataLifetime.currentBalance ?? starModalDataLifetime.current
-        }
-        onConfirm={handleConfirmStarUsageLifetime}
-        fortuneType={FORTUNE_TYPE_NAMES.lifetime}
+      {/* 종합운세 주문 확인 모달 */}
+      <OrderCheckModal
+        isOpen={showOrderModal}
+        onClose={() => setShowOrderModal(false)}
+        onConfirm={handleConfirmOrder}
+        loading={loading}
+        isLifetimeFortune={true}
       />
 
       {/* 프로필 등록 모달 */}
