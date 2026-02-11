@@ -1146,7 +1146,7 @@ function Consultation() {
               {/* 로딩 모달 (데일리/종합/궁합과 동일) */}
               {loadingConsultation && (
                 <div
-                  className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.95] min-h-screen p-4"
+                  className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
                   role="dialog"
                   aria-modal="true"
                   aria-label="운세 분석 중"

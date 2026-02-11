@@ -657,7 +657,7 @@ function Compatibility() {
         {/* 로딩 모달 */}
         {loading && (
           <div
-            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.95] min-h-screen p-4"
+            className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
             role="dialog"
             aria-modal="true"
             aria-label="궁합 분석 중"

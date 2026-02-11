@@ -58,12 +58,6 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
   if (!isOpen) return null;
   if (!isLifetimeFortune && !packageInfo) return null;
 
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget && !loading) {
-      onClose();
-    }
-  };
-
   const handleConfirm = () => {
     if (agreed && !loading) {
       onConfirm();
@@ -89,6 +83,13 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
     ? { name: "종합 운세", icon: "🌌", description: "진짜 인생 사용 설명서", price: 2990 }
     : packageInfo;
 
+  // 주문 상품 표시명: 망원경+보너스는 "망원경 N개 + 나침반 N개 보너스", 그 외는 상품명만
+  const orderProductName = isLifetimeFortune
+    ? "종합 운세"
+    : packageInfo.paid > 0 && packageInfo.bonus > 0
+      ? `${packageInfo.name} + 나침반 ${packageInfo.bonus}개 보너스`
+      : packageInfo.name;
+
   // 아이콘 렌더링 함수
   const renderIcon = () => {
     if (isLifetimeFortune) {
@@ -103,45 +104,36 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] p-4 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-    >
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[480px] border border-slate-700 flex flex-col overflow-hidden">
-        {/* 스크롤 가능한 컨텐츠 영역 */}
-        <div className="flex-1 overflow-y-auto modal-scrollbar">
+    <div className="fixed inset-0 z-[10000] bg-gradient-to-b from-slate-900 to-slate-800">
+      <div className="w-full h-full flex flex-col overflow-hidden">
+        {/* 스크롤 가능한 컨텐츠 영역 - 스크롤바 상시 노출 */}
+        <div className="flex-1 overflow-y-scroll scrollbar-always-visible">
         {/* 헤더 */}
-        <div className="px-4 py-6 pb-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">주문 확인 및 결제</h2>
-            <button
-              onClick={onClose}
-              disabled={loading}
-              className="text-slate-400 hover:text-white transition-colors disabled:opacity-50"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+        <div className="px-4 py-4 pb-0 max-w-lg mx-auto">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="mb-3 flex items-center text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            뒤로
+          </button>
+          <h2 className="text-xl font-bold text-white">주문 확인 및 결제</h2>
         </div>
 
         {/* 본문 */}
-        <div className="px-4 py-6 space-y-6">
+        <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
           {/* 주문 상품 */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">주문 상품</h3>
-            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
-              <div className="flex flex-col">
-                <h4 className="text-white font-semibold mb-1">{displayInfo.name}</h4>
-                <p className="text-slate-400 text-sm">{displayInfo.description}</p>
-              </div>
-            </div>
+            <h3 className="text-sm font-semibold text-slate-300 mb-1">주문 상품</h3>
+            <h4 className="text-white font-semibold">{orderProductName}</h4>
           </div>
 
           {/* 상세 설명 */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">상세 설명</h3>
+            <h3 className="text-sm font-semibold text-slate-300 mb-1">상세 설명</h3>
             <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
               <p className="text-slate-300 text-sm leading-relaxed flex items-start gap-2">
                 <svg className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,22 +145,17 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
           </div>
 
           {/* 결제 금액 */}
-          <div>
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">결제 금액</h3>
-            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">최종 결제 금액</span>
-                <span className="text-2xl font-bold text-white">
-                  {displayInfo.price.toLocaleString()}
-                  <span className="text-slate-400 text-base ml-1">원</span>
-                </span>
-              </div>
-            </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300">최종 결제 금액</h3>
+            <span className="text-xl font-bold text-white">
+              {displayInfo.price.toLocaleString()}
+              <span className="text-slate-400 text-sm ml-1">원</span>
+            </span>
           </div>
 
           {/* 약관 동의 */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">취소/환불 규정 및 동의</h3>
+            <h3 className="text-sm font-semibold text-slate-300 mb-1">취소/환불 규정 및 동의</h3>
             <label className="flex items-start gap-3 bg-slate-900/50 rounded-xl p-4 border border-slate-700 cursor-pointer hover:border-slate-600 transition-colors">
               <input
                 type="checkbox"
@@ -178,7 +165,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
                 className="mt-1 w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900 disabled:opacity-50"
               />
               <div className="flex-1">
-                <p className="text-slate-200 text-sm font-medium mb-2">
+                <p className="text-slate-200 text-sm font-medium mb-1">
                   (필수) 위 주문 내용을 확인하였으며, 구매 진행에 동의합니다.
                 </p>
                 <p className="text-slate-400 text-xs leading-relaxed">
@@ -192,7 +179,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
 
           {/* 유효기간 */}
           {!isLifetimeFortune && (
-            <div className="-mt-4">
+            <div className="-mt-2">
               <p className="text-slate-500 text-xs text-center">
                 구매일로부터 30일간 유효합니다. 기간 내 미사용 시 자동 소멸됩니다.
               </p>
@@ -202,8 +189,8 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
         </div>
 
         {/* 하단 버튼 */}
-        <div className="flex-shrink-0 bg-gradient-to-br from-slate-800 to-slate-900 border-t border-slate-700 px-4 py-6">
-          <div className="flex gap-3">
+        <div className="flex-shrink-0 border-t border-slate-700 px-4 py-4 bg-slate-900/80 backdrop-blur-sm">
+          <div className="max-w-lg mx-auto flex gap-3">
             <button
               onClick={onClose}
               disabled={loading}
