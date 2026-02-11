@@ -236,6 +236,22 @@ a {
   animation: typewriter-fade-in-up 0.4s ease-out forwards;
 }
 
+/* TypewriterLoader: 그라데이션 텍스트 (라이트/다크 공통) */
+.typewriter-gradient-text {
+  background: linear-gradient(to right, #9785fe 0%, #ff9fa1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 다크모드: 그라데이션을 더 밝게 해서 배경 대비 가독성 확보 */
+@media (prefers-color-scheme: dark) {
+  .typewriter-gradient-text {
+    background: linear-gradient(to right, #b8a8ff 0%, #ffb5b8 50%, #ffc9cb 100%);
+    -webkit-background-clip: text;
+  }
+}
+
 /* FortuneProcess: 모달 페이드아웃 */
 .fortune-modal-exit {
   animation: fortune-modal-fade-out 0.4s ease-out forwards;

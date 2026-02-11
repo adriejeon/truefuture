@@ -102,25 +102,15 @@ function TypewriterLoader({ typeSpeed = 80, pauseAfterType = 1700 }) {
   return (
     <div className="flex items-center justify-center w-full">
       <p
-        className={`text-xl sm:text-2xl text-center ${
+        className={`text-xl sm:text-2xl text-center typewriter-gradient-text ${
           isFadeOut ? "typewriter-fade-out-up" : ""
         } ${isFadeIn ? "typewriter-fade-in-up" : ""}`}
-        style={{
-          background: "linear-gradient(to right, #9785FE 0%, #FF9FA1 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          backgroundClip: "text",
-        }}
       >
         <span>{displayText}</span>
         {(phase === "typing" || phase === "hold" || phase === "fadeOut") && (
           <span
-            className="animate-pulse inline-block align-middle ml-1"
+            className="typewriter-gradient-text animate-pulse inline-block align-middle ml-1"
             style={{
-              background: "linear-gradient(to right, #9785FE 0%, #FF9FA1 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
               fontSize: "1.35em",
               lineHeight: "1em",
               height: "1.35em",
