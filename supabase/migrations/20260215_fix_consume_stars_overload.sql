@@ -1,12 +1,23 @@
--- 운세권 차감 함수 생성
--- 데일리 운세는 bonus_stars(데일리 운세권)에서 차감
--- 나머지 운세는 paid_stars(일반 운세권)에서 차감
+-- consume_stars 함수 오버로딩 충돌 해결
+-- 모든 기존 오버로드를 제거하고 단일 함수로 재생성
 
--- 기존 함수 제거 (모든 오버로드 제거)
-DROP FUNCTION IF EXISTS consume_stars(UUID, INTEGER, TEXT);
-DROP FUNCTION IF EXISTS consume_stars(UUID, INTEGER, TEXT, TEXT);
-DROP FUNCTION IF EXISTS consume_stars CASCADE;
+-- 모든 consume_stars 함수 제거 (동적 쿼리로 모든 시그니처 제거)
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  -- consume_stars라는 이름의 모든 함수 찾아서 제거
+  FOR r IN 
+    SELECT oidvectortypes(proargtypes) as argtypes, proname
+    FROM pg_proc
+    WHERE proname = 'consume_stars'
+      AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+  LOOP
+    EXECUTE format('DROP FUNCTION IF EXISTS %s(%s) CASCADE', r.proname, r.argtypes);
+  END LOOP;
+END $$;
 
+-- 새로운 consume_stars 함수 생성
 CREATE OR REPLACE FUNCTION consume_stars(
   p_user_id UUID,
   p_amount INTEGER,
@@ -24,14 +35,12 @@ BEGIN
   v_is_daily := p_description LIKE '%오늘 운세%' OR p_description LIKE '%데일리%';
 
   -- 현재 잔액 조회 (유효한 운세권만)
-  SELECT * INTO v_current_paid, v_current_bonus
-  FROM (
-    SELECT 
-      COALESCE(paid_stars, 0) as paid_stars,
-      COALESCE(bonus_stars, 0) as bonus_stars
-    FROM user_wallets
-    WHERE user_id = p_user_id
-  ) AS wallet;
+  SELECT 
+    COALESCE(paid_stars, 0),
+    COALESCE(bonus_stars, 0)
+  INTO v_current_paid, v_current_bonus
+  FROM user_wallets
+  WHERE user_id = p_user_id;
 
   -- 잔액이 없는 경우 초기화
   IF v_current_paid IS NULL THEN
