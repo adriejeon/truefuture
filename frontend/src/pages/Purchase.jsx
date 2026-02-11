@@ -14,7 +14,7 @@ const PACKAGES = [
     id: "ticket_1",
     name: "망원경 1개",
     nameEn: "Ticket_1",
-    price: 990,
+    price: 1000,
     paid: 1,
     bonus: 0,
     color: "from-blue-400 to-cyan-500",

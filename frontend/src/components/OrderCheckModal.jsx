@@ -163,7 +163,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
             <button
               onClick={onClose}
               disabled={loading}
-              className="flex-1 py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               취소
             </button>

@@ -24,7 +24,7 @@ const PACKAGES: Record<
   number,
   { name: string; paid: number; bonus: number }
 > = {
-  990: { name: "망원경 1개 (Ticket_1)", paid: 1, bonus: 0 },
+  1000: { name: "망원경 1개 (Ticket_1)", paid: 1, bonus: 0 },
   2900: { name: "망원경 3개 (Ticket_3)", paid: 3, bonus: 1 },
   4950: { name: "망원경 5개 (Ticket_5)", paid: 5, bonus: 3 },
   1900: { name: "나침반 7개 (Daily_7)", paid: 0, bonus: 7 },
