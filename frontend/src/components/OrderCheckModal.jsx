@@ -45,7 +45,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
 
   // 표시할 정보 (종합 운세인 경우 고정값 사용)
   const displayInfo = isLifetimeFortune 
-    ? { name: "종합 운세", icon: "🌌", description: "진짜 인생 사용 설명서", price: 1990 }
+    ? { name: "종합 운세", icon: "🌌", description: "진짜 인생 사용 설명서", price: 2990 }
     : packageInfo;
 
   return (

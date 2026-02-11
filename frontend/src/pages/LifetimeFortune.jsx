@@ -277,7 +277,7 @@ function LifetimeFortune() {
         channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
         paymentId: merchantUid,
         orderName: "진짜미래 종합 운세",
-        totalAmount: 1990,
+        totalAmount: 2990,
         currency: "CURRENCY_KRW",
         payMethod: "CARD",
         customer: {
@@ -298,13 +298,13 @@ function LifetimeFortune() {
         return;
       }
 
-      // 결제 성공 → 백엔드 함수 호출하여 운세권 구매
+      // 결제 성공 → 백엔드 함수 호출하여 종합 운세 구매 기록
       const { data, error: purchaseError } = await supabase.functions.invoke(
         "purchase-stars",
         {
           body: {
             user_id: user.id,
-            amount: 1990,
+            amount: 2990,
             merchant_uid: merchantUid,
             imp_uid: response?.paymentId || merchantUid,
           },

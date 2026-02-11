@@ -29,7 +29,7 @@ const PACKAGES: Record<
   4950: { name: "망원경 5개 (Ticket_5)", paid: 5, bonus: 3 },
   1900: { name: "나침반 7개 (Daily_7)", paid: 0, bonus: 7 },
   3500: { name: "나침반 14개 (Daily_14)", paid: 0, bonus: 14 },
-  1990: { name: "종합 운세 (Grand_Fortune)", paid: 1, bonus: 0 },
+  2990: { name: "종합 운세 (Grand_Fortune)", paid: 1, bonus: 0 },
 };
 
 serve(async (req) => {
