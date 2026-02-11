@@ -605,7 +605,6 @@ function YearlyFortune() {
   // 주문 확인 모달에서 결제 진행
   const handleConfirmOrder = async () => {
     // 종합 운세 단건 결제 진행
-    setLoading(true);
     setError("");
 
     try {
@@ -626,6 +625,7 @@ function YearlyFortune() {
       
       // PortOne 결제 요청 (리다이렉트 방식이므로 결제 완료 후 redirectUrl로 돌아옴)
       // 모바일에서는 결제 페이지로 리다이렉트되고, 결제 완료 후 redirectUrl로 돌아옴
+      // 결제 요청 직후에는 로딩 상태를 설정하지 않음 (결제 완료 후 복귀했을 때만 로딩 시작)
       await PortOne.requestPayment({
         storeId: import.meta.env.VITE_PORTONE_STORE_ID,
         channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
@@ -645,11 +645,9 @@ function YearlyFortune() {
 
       // 데스크톱에서는 여기까지 도달할 수 있지만, 모바일에서는 리다이렉트됨
       // 결제 완료 후 redirectUrl로 돌아왔을 때 결제 완료 처리가 실행됨
-      setLoading(false);
     } catch (err) {
       console.error("결제 오류:", err);
       setError(err.message || "결제 처리 중 오류가 발생했습니다.");
-      setLoading(false);
       // 에러 발생 시 모달 다시 열기
       setShowOrderModal(true);
     }
