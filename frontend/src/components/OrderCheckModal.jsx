@@ -169,9 +169,10 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
                   (필수) 위 주문 내용을 확인하였으며, 구매 진행에 동의합니다.
                 </p>
                 <p className="text-slate-400 text-xs leading-relaxed">
-                  • 디지털 콘텐츠 특성상 사용 후 환불이 불가합니다.<br />
-                  • 구매일로부터 7일 이내 미사용 시 전액 환불 가능합니다.<br />
-                  • 일부 사용한 경우 환불 수수료(잔액의 10% 또는 최소 1,000원)를 공제 후 환불됩니다.
+                  본 상품은 구매일로부터 90일(3개월)간 사용 가능한 모바일 교환권입니다.<br />
+                  사용 기준: &apos;질문하기(결과보기)&apos;를 클릭하여 결과가 조회된 시점을 사용으로 간주하며, 사용 후에는 환불이 불가합니다.<br />
+                  미사용 환불: 구매 후 7일 이내에는 전액 환불 가능합니다.<br />
+                  유효기간 경과: 유효기간(90일)이 지난 후에는 사용이 불가능하며, 관련 법령에 따라 결제금액의 90%에 대해 환불을 요청하실 수 있습니다.
                 </p>
               </div>
             </label>
@@ -181,7 +182,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
           {!isLifetimeFortune && (
             <div className="-mt-2">
               <p className="text-slate-500 text-xs text-center">
-                구매일로부터 30일간 유효합니다. 기간 내 미사용 시 자동 소멸됩니다.
+                구매일로부터 90일간 유효합니다. 기간 내 미사용 시 자동 소멸됩니다.
               </p>
             </div>
           )}

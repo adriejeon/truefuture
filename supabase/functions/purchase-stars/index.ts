@@ -331,12 +331,12 @@ serve(async (req) => {
     
     console.log("✅ 지갑 업데이트 완료");
 
-    // 5. 거래 내역 기록 (유효기간 설정: 결제일로부터 30일)
+    // 5. 거래 내역 기록 (유효기간 설정: 결제일로부터 90일/3개월)
     console.log("5️⃣ 거래 내역 기록 중...");
     const totalTickets = packageInfo.paid + packageInfo.bonus;
     const purchaseDate = new Date();
     const expiresAt = new Date(purchaseDate);
-    expiresAt.setDate(expiresAt.getDate() + 30);
+    expiresAt.setDate(expiresAt.getDate() + 90);
 
     const transactionData = {
       user_id,
