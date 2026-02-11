@@ -358,25 +358,28 @@ function YearlyFortune() {
 
     const requiredStars = FORTUNE_STAR_COSTS.daily;
     try {
-      const { total: totalStars } = await fetchUserStars(user.id);
-      const balanceStatus = checkStarBalance(totalStars, requiredStars);
+      // 데일리 운세는 데일리 운세권(bonus)을 확인해야 함
+      const { bonus: bonusStars } = await fetchUserStars(user.id);
+      const balanceStatus = checkStarBalance(bonusStars, requiredStars);
       if (balanceStatus === "insufficient") {
-        setStarModalDataDaily({
-          type: "alert",
-          requiredAmount: requiredStars,
-          currentBalance: totalStars,
-        });
-        setShowStarModalDaily(true);
-        return;
-      }
       setStarModalDataDaily({
-        type: "confirm",
+        type: "alert",
         requiredAmount: requiredStars,
-        currentBalance: totalStars,
+        currentBalance: bonusStars,
+        fortuneType: "오늘 운세",
       });
       setShowStarModalDaily(true);
+      return;
+    }
+    setStarModalDataDaily({
+      type: "confirm",
+      requiredAmount: requiredStars,
+      currentBalance: bonusStars,
+      fortuneType: "오늘 운세",
+    });
+    setShowStarModalDaily(true);
     } catch (err) {
-      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+      setError(err?.message || "운세권 잔액 조회 중 오류가 발생했습니다.");
     }
   };
 

@@ -79,7 +79,9 @@ function StarModal({
               </span>
             </div>
             <div className="flex items-center justify-between border-t border-slate-700 pt-3">
-              <span className="text-slate-400 text-sm">보유 중인 운세권</span>
+              <span className="text-slate-400 text-sm">
+                {fortuneType === "오늘 운세" ? "보유 중인 데일리 운세권" : "보유 중인 운세권"}
+              </span>
               <span className="text-yellow-400 font-semibold text-lg">
                 {currentBalance}장
               </span>
@@ -139,7 +141,9 @@ function StarModal({
             <span className="text-white font-semibold text-lg">{requiredAmount}장</span>
           </div>
           <div className="flex items-center justify-between border-t border-slate-700 pt-3">
-            <span className="text-slate-400 text-sm">현재 보유 운세권</span>
+            <span className="text-slate-400 text-sm">
+              {fortuneType === "오늘 운세" ? "현재 보유 데일리 운세권" : "현재 보유 운세권"}
+            </span>
             <span className="text-red-400 font-semibold text-lg">{currentBalance}장</span>
           </div>
           <div className="flex items-center justify-between border-t border-slate-700 pt-3">
