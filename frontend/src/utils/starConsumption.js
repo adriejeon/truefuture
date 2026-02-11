@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabaseClient";
 export const FORTUNE_STAR_COSTS = {
   daily: 3,
   yearly: 9,
-  lifetime: 39,
+  lifetime: 29,
   compatibility: 9,
   consultation: 9,
 };

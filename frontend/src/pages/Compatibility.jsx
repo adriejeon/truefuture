@@ -7,6 +7,7 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
+import StarModal from "../components/StarModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -16,6 +17,13 @@ import {
 } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
+import {
+  FORTUNE_STAR_COSTS,
+  FORTUNE_TYPE_NAMES,
+  fetchUserStars,
+  consumeStars,
+  checkStarBalance,
+} from "../utils/starConsumption";
 
 function Compatibility() {
   const { user, loadingAuth } = useAuth();
@@ -45,6 +53,12 @@ function Compatibility() {
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [relationshipType, setRelationshipType] = useState("연인"); // 관계 유형
+  const [showStarModal, setShowStarModal] = useState(false);
+  const [starModalData, setStarModalData] = useState({
+    type: "confirm",
+    required: FORTUNE_STAR_COSTS.compatibility,
+    current: 0,
+  });
 
   // 카카오 공유용 궁합 한 줄 요약 (점수 + 이름)
   const compatibilityShareSummary = useMemo(() => {
@@ -255,10 +269,56 @@ function Compatibility() {
       return;
     }
 
+    const requiredStars = FORTUNE_STAR_COSTS.compatibility;
+    try {
+      const { total: totalStars } = await fetchUserStars(user.id);
+      const balanceStatus = checkStarBalance(totalStars, requiredStars);
+      if (balanceStatus === "insufficient") {
+        setStarModalData({
+          type: "alert",
+          requiredAmount: requiredStars,
+          currentBalance: totalStars,
+        });
+        setShowStarModal(true);
+        return;
+      }
+      setStarModalData({
+        type: "confirm",
+        requiredAmount: requiredStars,
+        currentBalance: totalStars,
+      });
+      setShowStarModal(true);
+    } catch (err) {
+      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleConfirmStarUsage = async () => {
+    if (!user?.id || !profile1 || !profile2) return;
+
+    const user1 = convertProfileToApiFormat(profile1);
+    const user2 = convertProfileToApiFormat(profile2);
+    if (!user1 || !user2) {
+      setError("프로필 정보가 올바르지 않습니다.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setInterpretation("");
     setShareId(null);
+
+    try {
+      await consumeStars(
+        user.id,
+        FORTUNE_STAR_COSTS.compatibility,
+        `${FORTUNE_TYPE_NAMES.compatibility} 조회`
+      );
+    } catch (err) {
+      setError(err?.message || "별 차감에 실패했습니다.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const requestBody = {
@@ -266,10 +326,9 @@ function Compatibility() {
         reportType: "compatibility",
         user1,
         user2,
-        relationshipType, // 관계 유형 추가
+        relationshipType,
       };
 
-      // 디버깅: 전송하는 데이터 로그
       console.log("\n" + "=".repeat(60));
       console.log("📤 API 요청 전송 데이터 (궁합)");
       console.log("=".repeat(60));
@@ -286,9 +345,7 @@ function Compatibility() {
 
       const { data, error: functionError } = await supabase.functions.invoke(
         "get-fortune",
-        {
-          body: requestBody,
-        }
+        { body: requestBody }
       );
 
       if (functionError) {
@@ -302,12 +359,10 @@ function Compatibility() {
       logDebugInfoIfPresent(data);
       logFortuneInput(data, { fortuneType: "compatibility" });
 
-      // 디버깅: 받은 응답 로그
       console.log("\n" + "=".repeat(60));
       console.log("📥 API 응답 받은 데이터 (궁합)");
       console.log("=".repeat(60));
 
-      // Synastry 계산 결과 로그
       if (data.synastryResult) {
         console.log("\n🧮 [Synastry Calculation] 상세 계산 내역:");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -334,14 +389,8 @@ function Compatibility() {
       }
       setSynastryResult(data.synastryResult ?? null);
 
-      // share_id 저장
       console.log("🔍 [Compatibility] API 응답 전체:", data);
-      console.log(
-        "🔍 [Compatibility] API 응답 data.share_id:",
-        data.share_id,
-        "타입:",
-        typeof data.share_id
-      );
+      console.log("🔍 [Compatibility] API 응답 data.share_id:", data.share_id, "타입:", typeof data.share_id);
       if (
         data.share_id &&
         data.share_id !== "undefined" &&
@@ -351,180 +400,64 @@ function Compatibility() {
         console.log("🔗 Share ID 저장:", data.share_id);
         setShareId(data.share_id);
       } else {
-        console.warn(
-          "⚠️ [Compatibility] share_id가 응답에 없거나 유효하지 않습니다."
-        );
-        console.warn("  - data.share_id 값:", data.share_id);
-        console.warn("  - data.share_id 타입:", typeof data.share_id);
-        console.warn("  - 전체 응답:", JSON.stringify(data, null, 2));
-        setShareId(null); // 명시적으로 null 설정
+        console.warn("⚠️ [Compatibility] share_id가 응답에 없거나 유효하지 않습니다.");
+        setShareId(null);
       }
 
-      // 1. 사용자1 Natal Chart (출생 차트)
       if (data.chart) {
         console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("🌟 [사용자1 Natal Chart - 출생 차트]");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`출생 시간: ${data.chart.date}`);
-        console.log(
-          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
-        );
-
-        // 상승점
+        console.log("출생 위치: 위도", data.chart.location?.lat, "경도", data.chart.location?.lng);
         if (data.chart.houses?.angles?.ascendant !== undefined) {
           const asc = data.chart.houses.angles.ascendant;
           const ascSignIndex = Math.floor(asc / 30);
           const ascDegreeInSign = asc % 30;
-          const signs = [
-            "Aries",
-            "Taurus",
-            "Gemini",
-            "Cancer",
-            "Leo",
-            "Virgo",
-            "Libra",
-            "Scorpio",
-            "Sagittarius",
-            "Capricorn",
-            "Aquarius",
-            "Pisces",
-          ];
-          console.log(
-            `\n상승점(Ascendant): ${
-              signs[ascSignIndex]
-            } ${ascDegreeInSign.toFixed(1)}°`
-          );
+          const signs = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
+          console.log(`상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`);
         }
-
-        // 행성 위치
-        console.log("\n행성 위치:");
         if (data.chart.planets) {
-          const planetNames = {
-            sun: "Sun",
-            moon: "Moon",
-            mercury: "Mercury",
-            venus: "Venus",
-            mars: "Mars",
-            jupiter: "Jupiter",
-            saturn: "Saturn",
-          };
           Object.entries(data.chart.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name;
-            console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
-                12
-              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
-                planet.house
-              })`
-            );
+            console.log(`  - ${name}: ${planet.sign} ${planet.degreeInSign?.toFixed(1)}° (House ${planet.house})`);
           });
         }
-
-        // 포르투나
         if (data.chart.fortuna) {
-          console.log(
-            `\nPart of Fortune: ${
-              data.chart.fortuna.sign
-            } ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${
-              data.chart.fortuna.house
-            })`
-          );
+          console.log(`Part of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign?.toFixed(1)}° (House ${data.chart.fortuna.house})`);
         }
       }
 
-      // 2. 사용자2 Natal Chart (출생 차트)
       if (data.chart2) {
         console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("🌟 [사용자2 Natal Chart - 출생 차트]");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`출생 시간: ${data.chart2.date}`);
-        console.log(
-          `출생 위치: 위도 ${data.chart2.location?.lat}, 경도 ${data.chart2.location?.lng}`
-        );
-
-        // 상승점
+        console.log("출생 위치: 위도", data.chart2.location?.lat, "경도", data.chart2.location?.lng);
         if (data.chart2.houses?.angles?.ascendant !== undefined) {
           const asc = data.chart2.houses.angles.ascendant;
           const ascSignIndex = Math.floor(asc / 30);
           const ascDegreeInSign = asc % 30;
-          const signs = [
-            "Aries",
-            "Taurus",
-            "Gemini",
-            "Cancer",
-            "Leo",
-            "Virgo",
-            "Libra",
-            "Scorpio",
-            "Sagittarius",
-            "Capricorn",
-            "Aquarius",
-            "Pisces",
-          ];
-          console.log(
-            `\n상승점(Ascendant): ${
-              signs[ascSignIndex]
-            } ${ascDegreeInSign.toFixed(1)}°`
-          );
+          const signs = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
+          console.log(`상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`);
         }
-
-        // 행성 위치
-        console.log("\n행성 위치:");
         if (data.chart2.planets) {
-          const planetNames = {
-            sun: "Sun",
-            moon: "Moon",
-            mercury: "Mercury",
-            venus: "Venus",
-            mars: "Mars",
-            jupiter: "Jupiter",
-            saturn: "Saturn",
-          };
           Object.entries(data.chart2.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name;
-            console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
-                12
-              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
-                planet.house
-              })`
-            );
+            console.log(`  - ${name}: ${planet.sign} ${planet.degreeInSign?.toFixed(1)}° (House ${planet.house})`);
           });
         }
-
-        // 포르투나
         if (data.chart2.fortuna) {
-          console.log(
-            `\nPart of Fortune: ${
-              data.chart2.fortuna.sign
-            } ${data.chart2.fortuna.degreeInSign.toFixed(1)}° (House ${
-              data.chart2.fortuna.house
-            })`
-          );
+          console.log(`Part of Fortune: ${data.chart2.fortuna.sign} ${data.chart2.fortuna.degreeInSign?.toFixed(1)}° (House ${data.chart2.fortuna.house})`);
         }
       }
 
-      // 3. 제미나이에게 전달한 프롬프트 (디버깅용)
       if (data.userPrompt) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📝 [제미나이에게 전달한 User Prompt]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(data.userPrompt);
+        console.log("\n📝 [제미나이 User Prompt]", data.userPrompt.slice(0, 200) + "...");
       }
-
       if (data.systemInstruction) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📋 [제미나이에게 전달한 System Instruction]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(data.systemInstruction);
+        console.log("\n📋 [제미나이 System Instruction]", data.systemInstruction?.slice(0, 200) + "...");
       }
-
-      // 4. 제미나이 해석 결과
-      console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("✨ [제미나이 해석 결과]");
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log(data.interpretation);
-      console.log("\n" + "=".repeat(60) + "\n");
+      console.log("\n✨ [제미나이 해석 결과]", data.interpretation?.slice(0, 150) + "...");
+      console.log("=".repeat(60) + "\n");
 
       if (data.interpretation && typeof data.interpretation === "string") {
         setInterpretation(data.interpretation);
@@ -755,6 +688,17 @@ function Compatibility() {
         )}
       </div>
       {user && <BottomNavigation activeTab="compatibility" />}
+
+      {/* 별 차감 확인 / 잔액 부족 모달 */}
+      <StarModal
+        isOpen={showStarModal}
+        onClose={() => setShowStarModal(false)}
+        type={starModalData.type}
+        requiredAmount={starModalData.requiredAmount ?? starModalData.required}
+        currentBalance={starModalData.currentBalance ?? starModalData.current}
+        onConfirm={handleConfirmStarUsage}
+        fortuneType={FORTUNE_TYPE_NAMES.compatibility}
+      />
 
       {/* 프로필 등록 모달 */}
       <ProfileModal

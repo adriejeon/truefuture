@@ -8,12 +8,20 @@ import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
 import PrimaryButton from "../components/PrimaryButton";
+import StarModal from "../components/StarModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
+import {
+  FORTUNE_STAR_COSTS,
+  FORTUNE_TYPE_NAMES,
+  fetchUserStars,
+  consumeStars,
+  checkStarBalance,
+} from "../utils/starConsumption";
 
 // 운세 타입 탭
 const FORTUNE_TABS = [
@@ -54,6 +62,18 @@ function YearlyFortune() {
   const [fortuneAvailability, setFortuneAvailability] = useState({
     daily: null,
     lifetime: null,
+  });
+  const [showStarModalLifetime, setShowStarModalLifetime] = useState(false);
+  const [starModalDataLifetime, setStarModalDataLifetime] = useState({
+    type: "confirm",
+    required: FORTUNE_STAR_COSTS.lifetime,
+    current: 0,
+  });
+  const [showStarModalDaily, setShowStarModalDaily] = useState(false);
+  const [starModalDataDaily, setStarModalDataDaily] = useState({
+    type: "confirm",
+    required: FORTUNE_STAR_COSTS.daily,
+    current: 0,
   });
 
   // 데일리 운세용: 한국 시간 기준 오늘 날짜
@@ -335,9 +355,56 @@ function YearlyFortune() {
       setFortuneDate(existingFortune.date);
       return;
     }
+
+    const requiredStars = FORTUNE_STAR_COSTS.daily;
+    try {
+      const { total: totalStars } = await fetchUserStars(user.id);
+      const balanceStatus = checkStarBalance(totalStars, requiredStars);
+      if (balanceStatus === "insufficient") {
+        setStarModalDataDaily({
+          type: "alert",
+          requiredAmount: requiredStars,
+          currentBalance: totalStars,
+        });
+        setShowStarModalDaily(true);
+        return;
+      }
+      setStarModalDataDaily({
+        type: "confirm",
+        requiredAmount: requiredStars,
+        currentBalance: totalStars,
+      });
+      setShowStarModalDaily(true);
+    } catch (err) {
+      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleConfirmStarUsageDaily = async () => {
+    if (!user?.id || !selectedProfile) return;
+
+    const formData = convertProfileToApiFormat(selectedProfile);
+    if (!formData) {
+      setError("프로필 정보가 올바르지 않습니다.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setInterpretation("");
+
+    try {
+      await consumeStars(
+        user.id,
+        FORTUNE_STAR_COSTS.daily,
+        `${FORTUNE_TYPE_NAMES.daily} 조회`
+      );
+    } catch (err) {
+      setError(err?.message || "별 차감에 실패했습니다.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const requestBody = {
         ...formData,
@@ -410,10 +477,56 @@ function YearlyFortune() {
       setError("프로필 정보가 올바르지 않습니다.");
       return;
     }
+    const requiredStars = FORTUNE_STAR_COSTS.lifetime;
+    try {
+      const { total: totalStars } = await fetchUserStars(user.id);
+      const balanceStatus = checkStarBalance(totalStars, requiredStars);
+      if (balanceStatus === "insufficient") {
+        setStarModalDataLifetime({
+          type: "alert",
+          requiredAmount: requiredStars,
+          currentBalance: totalStars,
+        });
+        setShowStarModalLifetime(true);
+        return;
+      }
+      setStarModalDataLifetime({
+        type: "confirm",
+        requiredAmount: requiredStars,
+        currentBalance: totalStars,
+      });
+      setShowStarModalLifetime(true);
+    } catch (err) {
+      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleConfirmStarUsageLifetime = async () => {
+    if (!user?.id || !selectedProfile) return;
+
+    const formData = convertProfileToApiFormat(selectedProfile);
+    if (!formData) {
+      setError("프로필 정보가 올바르지 않습니다.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setInterpretation("");
     setShareId(null);
+
+    try {
+      await consumeStars(
+        user.id,
+        FORTUNE_STAR_COSTS.lifetime,
+        `${FORTUNE_TYPE_NAMES.lifetime} 조회`
+      );
+    } catch (err) {
+      setError(err?.message || "별 차감에 실패했습니다.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const requestBody = {
         ...formData,
@@ -682,6 +795,37 @@ function YearlyFortune() {
         )}
       </div>
       {user && <BottomNavigation activeTab="yearly" />}
+
+      {/* 데일리 운세 별 차감 확인 / 잔액 부족 모달 */}
+      <StarModal
+        isOpen={showStarModalDaily}
+        onClose={() => setShowStarModalDaily(false)}
+        type={starModalDataDaily.type}
+        requiredAmount={
+          starModalDataDaily.requiredAmount ?? starModalDataDaily.required
+        }
+        currentBalance={
+          starModalDataDaily.currentBalance ?? starModalDataDaily.current
+        }
+        onConfirm={handleConfirmStarUsageDaily}
+        fortuneType={FORTUNE_TYPE_NAMES.daily}
+      />
+
+      {/* 종합운세 별 차감 확인 / 잔액 부족 모달 */}
+      <StarModal
+        isOpen={showStarModalLifetime}
+        onClose={() => setShowStarModalLifetime(false)}
+        type={starModalDataLifetime.type}
+        requiredAmount={
+          starModalDataLifetime.requiredAmount ??
+          starModalDataLifetime.required
+        }
+        currentBalance={
+          starModalDataLifetime.currentBalance ?? starModalDataLifetime.current
+        }
+        onConfirm={handleConfirmStarUsageLifetime}
+        fortuneType={FORTUNE_TYPE_NAMES.lifetime}
+      />
 
       {/* 프로필 등록 모달 */}
       <ProfileModal

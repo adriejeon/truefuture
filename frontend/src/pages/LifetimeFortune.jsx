@@ -8,12 +8,20 @@ import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
 import PrimaryButton from "../components/PrimaryButton";
+import StarModal from "../components/StarModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
+import {
+  FORTUNE_STAR_COSTS,
+  FORTUNE_TYPE_NAMES,
+  fetchUserStars,
+  consumeStars,
+  checkStarBalance,
+} from "../utils/starConsumption";
 
 function LifetimeFortune() {
   const { user, loadingAuth } = useAuth();
@@ -40,6 +48,12 @@ function LifetimeFortune() {
   const [restoring, setRestoring] = useState(false);
   // 종합 운세 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
   const [canViewLifetime, setCanViewLifetime] = useState(null);
+  const [showStarModal, setShowStarModal] = useState(false);
+  const [starModalData, setStarModalData] = useState({
+    type: "confirm",
+    required: FORTUNE_STAR_COSTS.lifetime,
+    current: 0,
+  });
 
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
@@ -209,10 +223,57 @@ function LifetimeFortune() {
       return;
     }
 
+    // 별 잔액 확인 후 모달 표시 (차감은 모달 확인 시 수행)
+    const requiredStars = FORTUNE_STAR_COSTS.lifetime;
+    try {
+      const { total: totalStars } = await fetchUserStars(user.id);
+      const balanceStatus = checkStarBalance(totalStars, requiredStars);
+      if (balanceStatus === "insufficient") {
+        setStarModalData({
+          type: "alert",
+          requiredAmount: requiredStars,
+          currentBalance: totalStars,
+        });
+        setShowStarModal(true);
+        return;
+      }
+      setStarModalData({
+        type: "confirm",
+        requiredAmount: requiredStars,
+        currentBalance: totalStars,
+      });
+      setShowStarModal(true);
+    } catch (err) {
+      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 모달에서 '사용하기' 확인 시: 별 차감 후 API 호출
+  const handleConfirmStarUsage = async () => {
+    if (!user?.id || !selectedProfile) return;
+
+    const formData = convertProfileToApiFormat(selectedProfile);
+    if (!formData) {
+      setError("프로필 정보가 올바르지 않습니다.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setInterpretation("");
     setShareId(null);
+
+    try {
+      await consumeStars(
+        user.id,
+        FORTUNE_STAR_COSTS.lifetime,
+        `${FORTUNE_TYPE_NAMES.lifetime} 조회`
+      );
+    } catch (err) {
+      setError(err?.message || "별 차감에 실패했습니다.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const requestBody = {
@@ -222,7 +283,6 @@ function LifetimeFortune() {
         profileName: selectedProfile?.name || null,
       };
 
-      // 디버깅: 전송하는 데이터 로그
       console.log("\n" + "=".repeat(60));
       console.log("📤 API 요청 전송 데이터");
       console.log("=".repeat(60));
@@ -249,12 +309,10 @@ function LifetimeFortune() {
       logDebugInfoIfPresent(data);
       logFortuneInput(data, { fortuneType: "lifetime" });
 
-      // 디버깅: 받은 응답 로그
       console.log("\n" + "=".repeat(60));
       console.log("📥 API 응답 받은 데이터");
       console.log("=".repeat(60));
 
-      // share_id 저장
       console.log("🔍 [LifetimeFortune] API 응답 전체:", data);
       console.log(
         "🔍 [LifetimeFortune] API 응답 data.share_id:",
@@ -276,10 +334,9 @@ function LifetimeFortune() {
         );
         console.warn("  - data.share_id 값:", data.share_id);
         console.warn("  - data.share_id 타입:", typeof data.share_id);
-        setShareId(null); // 명시적으로 null 설정
+        setShareId(null);
       }
 
-      // 1. Natal Chart (출생 차트)
       if (data.chart) {
         console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("🌟 [Natal Chart - 출생 차트]");
@@ -289,7 +346,6 @@ function LifetimeFortune() {
           `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
         );
 
-        // 상승점
         if (data.chart.houses?.angles?.ascendant !== undefined) {
           const asc = data.chart.houses.angles.ascendant;
           const ascSignIndex = Math.floor(asc / 30);
@@ -315,7 +371,6 @@ function LifetimeFortune() {
           );
         }
 
-        // 행성 위치
         console.log("\n행성 위치:");
         if (data.chart.planets) {
           const planetNames = {
@@ -339,7 +394,6 @@ function LifetimeFortune() {
           });
         }
 
-        // 포르투나
         if (data.chart.fortuna) {
           console.log(
             `\nPart of Fortune: ${
@@ -351,7 +405,6 @@ function LifetimeFortune() {
         }
       }
 
-      // 2. 제미나이에게 전달한 프롬프트 (디버깅용)
       if (data.userPrompt) {
         console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("📝 [제미나이에게 전달한 User Prompt]");
@@ -366,7 +419,6 @@ function LifetimeFortune() {
         console.log(data.systemInstruction);
       }
 
-      // 3. 제미나이 해석 결과
       console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.log("✨ [제미나이 해석 결과]");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -377,7 +429,6 @@ function LifetimeFortune() {
         setInterpretation(data.interpretation);
         if (data.share_id) setShareId(data.share_id);
 
-        // 운세 이력 저장 (share_id를 result_id로 저장하여 복구 가능)
         await saveFortuneHistory(
           selectedProfile.id,
           "lifetime",
@@ -542,6 +593,17 @@ function LifetimeFortune() {
         )}
       </div>
       {user && <BottomNavigation activeTab="lifetime" />}
+
+      {/* 별 차감 확인 / 잔액 부족 모달 */}
+      <StarModal
+        isOpen={showStarModal}
+        onClose={() => setShowStarModal(false)}
+        type={starModalData.type}
+        requiredAmount={starModalData.requiredAmount ?? starModalData.required}
+        currentBalance={starModalData.currentBalance ?? starModalData.current}
+        onConfirm={handleConfirmStarUsage}
+        fortuneType={FORTUNE_TYPE_NAMES.lifetime}
+      />
 
       {/* 프로필 등록 모달 */}
       <ProfileModal
