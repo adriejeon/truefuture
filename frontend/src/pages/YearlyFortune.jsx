@@ -273,8 +273,7 @@ function YearlyFortune() {
             await saveFortuneHistory(
               selectedProfile.id,
               "lifetime",
-              data.interpretation,
-              data.share_id
+              data.share_id ?? undefined
             );
             setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
           } else {
@@ -684,8 +683,7 @@ function YearlyFortune() {
         await saveFortuneHistory(
           selectedProfile.id,
           "lifetime",
-          data.interpretation,
-          data.share_id
+          data.share_id ?? undefined
         );
         setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
       } else {
