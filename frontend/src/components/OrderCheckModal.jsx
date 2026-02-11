@@ -106,8 +106,8 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
   return (
     <div className="fixed inset-0 z-[10000] bg-gradient-to-b from-slate-900 to-slate-800">
       <div className="w-full h-full flex flex-col overflow-hidden">
-        {/* 스크롤 가능한 컨텐츠 영역 - 스크롤바 상시 노출 */}
-        <div className="flex-1 overflow-y-scroll scrollbar-always-visible">
+        {/* 스크롤 가능한 컨텐츠 영역 (min-h-0으로 flex 자식이 줄어들어 스크롤 동작) */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
         {/* 헤더 */}
         <div className="px-4 py-4 pb-0 max-w-lg mx-auto">
           <button
@@ -124,7 +124,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
         </div>
 
         {/* 본문 */}
-        <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
+        <div className="px-4 py-4 pb-8 space-y-4 max-w-lg mx-auto">
           {/* 주문 상품 */}
           <div>
             <h3 className="text-sm font-semibold text-slate-300 mb-1">주문 상품</h3>
@@ -169,10 +169,19 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
                   (필수) 위 주문 내용을 확인하였으며, 구매 진행에 동의합니다.
                 </p>
                 <p className="text-slate-400 text-xs leading-relaxed">
-                  본 상품은 구매일로부터 90일(3개월)간 사용 가능한 모바일 교환권입니다.<br />
-                  사용 기준: &apos;질문하기(결과보기)&apos;를 클릭하여 결과가 조회된 시점을 사용으로 간주하며, 사용 후에는 환불이 불가합니다.<br />
-                  미사용 환불: 구매 후 7일 이내에는 전액 환불 가능합니다.<br />
-                  유효기간 경과: 유효기간(90일)이 지난 후에는 사용이 불가능하며, 관련 법령에 따라 결제금액의 90%에 대해 환불을 요청하실 수 있습니다.
+                  {isLifetimeFortune ? (
+                    <>
+                      본 상품은 교환권이 아닌 단건 구매 상품이며, 결제 완료 즉시 &apos;종합 운세&apos;를 확인하실 수 있습니다.<br />
+                      결제 완료 시점에 이용이 시작되며, 이용 후에는 환불이 불가합니다. 결제 완료 전에는 주문을 취소할 수 있습니다.
+                    </>
+                  ) : (
+                    <>
+                      본 상품은 구매일로부터 90일(3개월)간 사용 가능한 모바일 교환권입니다.<br />
+                      사용 기준: &apos;질문하기(결과보기)&apos;를 클릭하여 결과가 조회된 시점을 사용으로 간주하며, 사용 후에는 환불이 불가합니다.<br />
+                      미사용 환불: 구매 후 7일 이내에는 전액 환불 가능합니다.<br />
+                      유효기간 경과: 유효기간(90일)이 지난 후에는 사용이 불가능하며, 관련 법령에 따라 결제금액의 90%에 대해 환불을 요청하실 수 있습니다.
+                    </>
+                  )}
                 </p>
               </div>
             </label>
