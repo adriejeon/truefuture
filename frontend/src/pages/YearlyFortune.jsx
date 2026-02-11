@@ -217,7 +217,7 @@ function YearlyFortune() {
     const paymentCompleted = searchParams.get("payment_completed");
     const fortuneTabParam = searchParams.get("fortune_tab");
     
-    if (paymentCompleted === "true" && fortuneTabParam === "lifetime") {
+    if (paymentCompleted === "true" && fortuneTabParam === "lifetime" && user?.id && selectedProfile) {
       console.log("🎉 결제 완료 후 복귀, 종합 운세 조회 시작");
       
       // URL 파라미터 제거
@@ -237,11 +237,58 @@ function YearlyFortune() {
         sessionStorage.removeItem("payment_merchant_uid");
       } catch (_) {}
       
-      // 운세 조회 실행
-      handleConfirmStarUsageLifetime();
+      // 운세 조회 실행 (함수 호출 대신 직접 실행)
+      (async () => {
+        const formData = convertProfileToApiFormat(selectedProfile);
+        if (!formData) {
+          setError("프로필 정보가 올바르지 않습니다.");
+          return;
+        }
+
+        setLoading(true);
+        setError("");
+        setInterpretation("");
+        setShareId(null);
+
+        try {
+          const requestBody = {
+            ...formData,
+            fortuneType: "lifetime",
+            reportType: "lifetime",
+            profileName: selectedProfile.name || null,
+          };
+          const { data, error: functionError } = await supabase.functions.invoke(
+            "get-fortune",
+            { body: requestBody }
+          );
+          if (functionError)
+            throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+          if (!data || data.error)
+            throw new Error(data?.error || "서버 오류가 발생했습니다.");
+          logDebugInfoIfPresent(data);
+          logFortuneInput(data, { fortuneType: "lifetime" });
+          if (data.interpretation && typeof data.interpretation === "string") {
+            setInterpretation(data.interpretation);
+            setShareId(data.share_id || null);
+            await saveFortuneHistory(
+              selectedProfile.id,
+              "lifetime",
+              data.interpretation,
+              data.share_id
+            );
+            setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
+          } else {
+            setInterpretation("결과를 불러올 수 없습니다.");
+          }
+        } catch (err) {
+          setError(err.message || "요청 중 오류가 발생했습니다.");
+        } finally {
+          setLoading(false);
+        }
+      })();
       return;
     }
-  }, [searchParams, setSearchParams, handleConfirmStarUsageLifetime]);
+  }, [searchParams, setSearchParams, user?.id, selectedProfile, saveFortuneHistory]);
 
   // 탭/프로필별 저장된 결과 복구
   useEffect(() => {
