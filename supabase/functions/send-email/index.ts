@@ -110,7 +110,7 @@ ${content.refundReason || "사유 미입력"}
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "noreply@truefuture.app", // 발신자 이메일 (Resend에서 도메인 설정 필요)
+        from: "onboarding@resend.dev", // Resend 테스트 도메인 (인증된 도메인으로 변경 필요)
         to: [to],
         subject: subject,
         text: emailBody,
