@@ -4,11 +4,11 @@ import { supabase } from "../lib/supabaseClient";
  * 운세 타입별 필요 운세권 개수
  */
 export const FORTUNE_STAR_COSTS = {
-  daily: 3,
-  yearly: 9,
-  lifetime: 29,
-  compatibility: 9,
-  consultation: 9,
+  daily: 1,        // 데일리 운세권 1장
+  yearly: 1,       // 일반 운세권 1장
+  lifetime: 1,     // 단건 결제 (1990원)
+  compatibility: 1, // 일반 운세권 1장
+  consultation: 1,  // 일반 운세권 1장
 };
 
 /**
