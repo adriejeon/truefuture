@@ -107,12 +107,13 @@ serve(async (req) => {
         );
       }
 
-      // imp_uid(txId) 형식: UUID 또는 imp_ 접두사 허용
+      // imp_uid(txId) 형식: imp_ 접두사, order_ 접두사(PortOne V2 paymentId), 또는 UUID 허용
       const isUuid = (id: string) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       if (
         imp_uid &&
         !imp_uid.startsWith("imp_") &&
+        !imp_uid.startsWith("order_") &&
         !isUuid(imp_uid)
       ) {
         console.error("❌ 잘못된 결제 ID 형식:", imp_uid);

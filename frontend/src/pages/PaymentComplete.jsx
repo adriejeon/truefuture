@@ -172,21 +172,22 @@ function PaymentComplete() {
 
         const finalMerchantUid = merchantUid || null;
 
-        // 2. imp_uid 추출 우선순위: imp_uid(URL) → txId(URL, 모바일) → paymentId(merchant_uid와 다를 때만)
-        // txId는 모바일 리다이렉트 시 전달되는 결제 식별자(UUID). 서버 검증 API에 imp_uid로 전송
+        // 2. imp_uid 추출 우선순위: imp_uid(URL) → paymentId(order_xxx, PortOne V2 등록 ID) → txId(UUID)
+        // PortOne V2는 requestPayment의 paymentId로 조회해야 하므로 paymentId 우선 사용
         const finalImpUid =
           impUid ||
-          txId ||
-          (paymentId && finalMerchantUid && paymentId !== finalMerchantUid ? paymentId : null) ||
-          (paymentId && String(paymentId).startsWith("imp_") ? paymentId : null);
+          paymentId ||  // paymentId(order_xxx)를 우선 사용 - PortOne V2 결제 조회용
+          txId ||       // 없으면 txId(UUID) 사용
+          null;
 
-        // imp_uid 형식: imp_ 접두사(아임포트) 또는 UUID(txId) 허용
+        // imp_uid 형식: imp_ 접두사(아임포트), order_ 접두사(PortOne V2 paymentId), 또는 UUID(txId) 허용
         const isValidImpUidFormat =
           !finalImpUid ||
           finalImpUid.startsWith("imp_") ||
+          finalImpUid.startsWith("order_") ||
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalImpUid);
         if (!isValidImpUidFormat) {
-          console.error("❌ 잘못된 imp_uid 형식:", finalImpUid);
+          console.error("❌ 잘못된 결제 ID 형식:", finalImpUid);
           isProcessing.current = false;
           setStatus("error");
           setMessage("결제 정보 형식이 올바르지 않습니다. 고객센터에 문의해주세요.");
