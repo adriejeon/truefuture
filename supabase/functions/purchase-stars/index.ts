@@ -68,24 +68,22 @@ serve(async (req) => {
       );
     }
 
-    // amount가 없는 경우 (모바일 리다이렉트 등) PortOne API로 결제 정보 조회
+    // amount가 없는 경우 (모바일 리다이렉트 등) PortOne V2 API로 결제 정보 조회
     if (!amount || typeof amount !== "number" || amount <= 0) {
-      console.log("⚠️ amount가 없어서 PortOne API로 결제 정보 조회 시작");
+      console.log("⚠️ amount가 없어서 PortOne V2 API로 결제 정보 조회 시작");
       
-      const portoneApiKey = Deno.env.get("PORTONE_API_KEY");
       const portoneApiSecret = Deno.env.get("PORTONE_API_SECRET");
 
-      console.log("PortOne API 키 확인:", {
-        hasApiKey: !!portoneApiKey,
+      console.log("PortOne V2 API Secret 확인:", {
         hasApiSecret: !!portoneApiSecret,
       });
 
-      if (!portoneApiKey || !portoneApiSecret) {
-        console.error("❌ PortOne API 키가 설정되지 않았습니다.");
+      if (!portoneApiSecret) {
+        console.error("❌ PortOne V2 API Secret이 설정되지 않았습니다.");
         return new Response(
           JSON.stringify({
             success: false,
-            error: "서버 설정 오류: PortOne API 키가 필요합니다. 관리자에게 문의하세요.",
+            error: "서버 설정 오류: PortOne V2 API Secret이 필요합니다. 관리자에게 문의하세요.",
           }),
           {
             status: 500,
@@ -94,13 +92,13 @@ serve(async (req) => {
         );
       }
 
-      // 1. imp_uid가 없어도 merchant_uid가 있으면 진행 허용
+      // 1. imp_uid(또는 txId)가 없어도 merchant_uid가 있으면 진행 허용
       if (!imp_uid && !merchant_uid) {
         console.error("❌ imp_uid와 merchant_uid 모두 없음");
         return new Response(
           JSON.stringify({
             success: false,
-            error: "결제 정보 조회를 위해 imp_uid 또는 merchant_uid가 필요합니다.",
+            error: "결제 정보 조회를 위해 결제 ID(txId 또는 imp_uid) 또는 merchant_uid가 필요합니다.",
           }),
           {
             status: 400,
@@ -109,7 +107,7 @@ serve(async (req) => {
         );
       }
 
-      // imp_uid 형식: imp_ 접두사(아임포트) 또는 UUID(txId, 모바일 리다이렉트) 허용
+      // imp_uid(txId) 형식: UUID 또는 imp_ 접두사 허용
       const isUuid = (id: string) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       if (
@@ -117,7 +115,7 @@ serve(async (req) => {
         !imp_uid.startsWith("imp_") &&
         !isUuid(imp_uid)
       ) {
-        console.error("❌ 잘못된 imp_uid 형식:", imp_uid);
+        console.error("❌ 잘못된 결제 ID 형식:", imp_uid);
         return new Response(
           JSON.stringify({
             success: false,
@@ -131,133 +129,39 @@ serve(async (req) => {
       }
 
       try {
-        // 2. imp_uid가 있으면 해당 ID로 조회, 없으면 merchant_uid로 조회. txId(UUID)는 모바일 리다이렉트용
-        const useMerchantUid = !imp_uid && merchant_uid;
-        const impUidIsTxId = imp_uid && isUuid(imp_uid);
+        // 2. PortOne V2 API로 결제 정보 조회 (txId 우선, 없으면 merchant_uid는 V2에서 직접 조회 불가이므로 에러)
         const paymentId = imp_uid || merchant_uid;
         
-        console.log(`🔍 아임포트(V1) API로 결제 정보 조회 시작`);
-        console.log(`   - imp_uid: ${imp_uid || "없음"}${impUidIsTxId ? " (txId)" : ""}`);
+        console.log(`🔍 PortOne V2 API로 결제 정보 조회 시작`);
+        console.log(`   - 결제 ID: ${paymentId}`);
+        console.log(`   - imp_uid: ${imp_uid || "없음"}`);
         console.log(`   - merchant_uid: ${merchant_uid || "없음"}`);
-        console.log(`   - 조회 방식: ${useMerchantUid ? "merchant_uid (find)" : "imp_uid/ID (일반)"}`);
         
-        // V1 API: 인증 토큰 발급
-        console.log("1️⃣ 아임포트 인증 토큰 발급 중...");
-        const tokenResponse = await fetch("https://api.iamport.kr/users/getToken", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            imp_key: portoneApiKey,
-            imp_secret: portoneApiSecret,
-          }),
+        // V2 API: 결제 정보 조회 (Authorization: PortOne {API_SECRET})
+        const paymentEndpoint = `https://api.portone.io/payments/${encodeURIComponent(paymentId)}`;
+        
+        console.log(`1️⃣ 결제 정보 조회 중: ${paymentEndpoint}`);
+        const paymentResponse = await fetch(paymentEndpoint, {
+          method: "GET",
+          headers: {
+            Authorization: `PortOne ${portoneApiSecret}`,
+          },
         });
-
-        console.log("인증 응답 상태:", tokenResponse.status);
-
-        if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text();
-          console.error("인증 실패 응답:", errorText);
-          throw new Error(`아임포트 인증 실패 (${tokenResponse.status})`);
-        }
-
-        const tokenData = await tokenResponse.json();
-        console.log("인증 응답 데이터:", JSON.stringify(tokenData, null, 2));
-
-        // V1 API 응답: code가 0이어야 성공
-        if (tokenData.code !== 0) {
-          console.error("인증 실패:", tokenData.message || "알 수 없는 오류");
-          throw new Error(`아임포트 인증 실패: ${tokenData.message || "알 수 없는 오류"}`);
-        }
-
-        const accessToken = tokenData.response?.access_token;
-        if (!accessToken) {
-          console.error("토큰이 응답에 없음:", tokenData);
-          throw new Error("인증 토큰을 받을 수 없습니다.");
-        }
-
-        console.log("✅ 인증 성공, 토큰 발급됨");
-
-        // 3. V1 API: 결제 정보 조회 (imp_uid 또는 merchant_uid). txId(UUID)로 404면 merchant_uid로 재시도
-        let paymentEndpoint = useMerchantUid
-          ? `https://api.iamport.kr/payments/find/${merchant_uid}`
-          : `https://api.iamport.kr/payments/${imp_uid}`;
-        
-        console.log(`2️⃣ 결제 정보 조회 중: ${paymentEndpoint}`);
-        let paymentResponse = await fetch(
-          paymentEndpoint,
-          {
-            method: "GET",
-            headers: {
-              Authorization: accessToken,
-            },
-          }
-        );
 
         console.log("결제 조회 응답 상태:", paymentResponse.status);
 
-        const responseText = await paymentResponse.text();
-        let paymentData: { code?: number; message?: string; response?: unknown } = {};
-        try {
-          paymentData = JSON.parse(responseText);
-        } catch {
-          paymentData = {};
-        }
-
-        // txId(UUID)로 조회 시 404/존재하지 않는 결제 → merchant_uid로 재시도
-        if (
-          (!paymentResponse.ok || (paymentData.code !== 0 && responseText.includes("존재하지 않는"))) &&
-          impUidIsTxId &&
-          merchant_uid
-        ) {
-          const fallbackEndpoint = `https://api.iamport.kr/payments/find/${merchant_uid}`;
-          console.log(`⚠️ txId로 조회 실패, merchant_uid로 재시도: ${fallbackEndpoint}`);
-          paymentResponse = await fetch(
-            fallbackEndpoint,
-            {
-              method: "GET",
-              headers: { Authorization: accessToken },
-            }
-          );
-          const fallbackText = await paymentResponse.text();
-          try {
-            paymentData = JSON.parse(fallbackText);
-          } catch {
-            paymentData = {};
-          }
-        }
-
         if (!paymentResponse.ok) {
-          console.error("결제 조회 실패 응답:", responseText);
-          throw new Error(`결제 정보 조회 실패 (${paymentResponse.status})`);
+          const errorText = await paymentResponse.text();
+          console.error("결제 조회 실패 응답:", errorText);
+          throw new Error(`결제 정보 조회 실패 (${paymentResponse.status}): ${errorText}`);
         }
 
-        // V1 API 응답: code가 0이어야 성공
-        if (paymentData.code !== 0) {
-          console.error("결제 조회 실패:", paymentData.message || "알 수 없는 오류");
-          throw new Error(`결제 정보 조회 실패: ${paymentData.message || "알 수 없는 오류"}`);
-        }
+        const payment = await paymentResponse.json();
+        console.log("📦 PortOne V2 결제 정보:", JSON.stringify(payment, null, 2));
 
-        // merchant_uid로 조회한 경우 response가 배열일 수 있음
-        let payment = paymentData.response;
-        
-        // 배열인 경우 첫 번째 항목 사용
-        if (Array.isArray(payment)) {
-          if (payment.length === 0) {
-            console.error("결제 정보가 응답에 없음 (빈 배열):", paymentData);
-            throw new Error("결제 정보를 찾을 수 없습니다.");
-          }
-          payment = payment[0];
-          console.log(`✅ merchant_uid로 조회: ${payment.length}개 중 첫 번째 항목 사용`);
-        }
-        
-        if (!payment) {
-          console.error("결제 정보가 응답에 없음:", paymentData);
-          throw new Error("결제 정보를 찾을 수 없습니다.");
-        }
-
-        // 결제 상태 확인
-        console.log("3️⃣ 결제 상태 확인:", payment.status);
-        if (payment.status !== "paid") {
+        // 결제 상태 확인 (V2: status가 "PAID"이어야 함)
+        console.log("2️⃣ 결제 상태 확인:", payment.status);
+        if (payment.status !== "PAID") {
           console.error(`결제 미완료 상태: ${payment.status}`);
           return new Response(
             JSON.stringify({
@@ -271,15 +175,15 @@ serve(async (req) => {
           );
         }
 
-        // merchant_uid로 조회한 경우 응답에서 imp_uid 추출
-        if (useMerchantUid && payment.imp_uid) {
-          imp_uid = payment.imp_uid;
-          console.log(`✅ merchant_uid로 조회하여 imp_uid 획득: ${imp_uid}`);
+        // V2에서 imp_uid가 없었다면 응답의 id를 사용
+        if (!imp_uid && payment.id) {
+          imp_uid = payment.id;
+          console.log(`✅ 응답에서 결제 ID 획득: ${imp_uid}`);
         }
 
-        // 결제 금액 추출 (V1: response.amount)
-        amount = payment.amount;
-        console.log("4️⃣ 결제 금액 추출:", amount);
+        // 결제 금액 추출 (V2: amount.total)
+        amount = payment.amount?.total;
+        console.log("3️⃣ 결제 금액 추출:", amount);
         
         if (!amount || amount <= 0) {
           console.error("유효하지 않은 금액:", payment.amount);
@@ -288,7 +192,7 @@ serve(async (req) => {
 
         console.log(`✅ 결제 금액 확인 완료: ${amount}원`);
       } catch (error) {
-        console.error("❌ PortOne API 조회 실패:", error);
+        console.error("❌ PortOne V2 API 조회 실패:", error);
         console.error("에러 상세:", error instanceof Error ? error.stack : error);
         return new Response(
           JSON.stringify({
