@@ -1,6 +1,47 @@
 import { useState } from "react";
 import PrimaryButton from "./PrimaryButton";
 
+// 아이콘 컴포넌트
+const TelescopeIcon = ({ className = "w-8 h-8" }) => (
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    {/* 별 아이콘 (망원경으로 별을 보는 의미) */}
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+    />
+  </svg>
+);
+
+const CompassIcon = ({ className = "w-8 h-8" }) => (
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <circle cx="12" cy="12" r="10" strokeWidth={2} />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M12 2v4M12 18v4M2 12h4M18 12h4"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M12 6l-3 6 3 6 3-6-3-6z"
+    />
+  </svg>
+);
+
 /**
  * 주문 확인 모달 (PG사 심사 기준 충족)
  * @param {object} props
@@ -48,14 +89,29 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
     ? { name: "종합 운세", icon: "🌌", description: "진짜 인생 사용 설명서", price: 2990 }
     : packageInfo;
 
+  // 아이콘 렌더링 함수
+  const renderIcon = () => {
+    if (isLifetimeFortune) {
+      return <span className="text-3xl">{displayInfo.icon}</span>;
+    }
+    if (packageInfo.iconType === "telescope") {
+      return <TelescopeIcon className="w-8 h-8 text-white" />;
+    } else if (packageInfo.iconType === "compass") {
+      return <CompassIcon className="w-8 h-8 text-white" />;
+    }
+    return <span className="text-3xl">{displayInfo.icon}</span>;
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] p-4 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-700">
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[480px] border border-slate-700 flex flex-col overflow-hidden">
+        {/* 스크롤 가능한 컨텐츠 영역 */}
+        <div className="flex-1 overflow-y-auto modal-scrollbar">
         {/* 헤더 */}
-        <div className="sticky top-0 bg-gradient-to-br from-slate-800 to-slate-900 border-b border-slate-700 p-6 z-10">
+        <div className="px-4 py-6 pb-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-white">주문 확인 및 결제</h2>
             <button
@@ -71,17 +127,14 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
         </div>
 
         {/* 본문 */}
-        <div className="p-6 space-y-6">
+        <div className="px-4 py-6 space-y-6">
           {/* 주문 상품 */}
           <div>
             <h3 className="text-sm font-semibold text-slate-300 mb-3">주문 상품</h3>
             <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
-              <div className="flex items-start gap-3">
-                <span className="text-3xl">{displayInfo.icon}</span>
-                <div className="flex-1">
-                  <h4 className="text-white font-semibold mb-1">{displayInfo.name}</h4>
-                  <p className="text-slate-400 text-sm">{displayInfo.description}</p>
-                </div>
+              <div className="flex flex-col">
+                <h4 className="text-white font-semibold mb-1">{displayInfo.name}</h4>
+                <p className="text-slate-400 text-sm">{displayInfo.description}</p>
               </div>
             </div>
           </div>
@@ -89,27 +142,15 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
           {/* 상세 설명 */}
           <div>
             <h3 className="text-sm font-semibold text-slate-300 mb-3">상세 설명</h3>
-            <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/30">
-              <p className="text-blue-200 text-sm leading-relaxed">
-                💡 {getUsageDescription()}
+            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
+              <p className="text-slate-300 text-sm leading-relaxed flex items-start gap-2">
+                <svg className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{getUsageDescription()}</span>
               </p>
             </div>
           </div>
-
-          {/* 유효기간 */}
-          {!isLifetimeFortune && (
-            <div>
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">유효기간</h3>
-              <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
-                <p className="text-slate-300 text-sm">
-                  📅 구매일로부터 <span className="text-yellow-400 font-semibold">30일간 유효</span>
-                </p>
-                <p className="text-slate-400 text-xs mt-2">
-                  * 기간 내 미사용 시 자동 소멸됩니다.
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* 결제 금액 */}
           <div>
@@ -123,13 +164,6 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
                 </span>
               </div>
             </div>
-          </div>
-
-          {/* 카드 안내 */}
-          <div className="bg-red-500/10 rounded-xl p-4 border border-red-500/30">
-            <p className="text-red-300 text-sm font-medium">
-              ⚠️ 현대카드, 삼성카드는 결제사 정책으로 지원되지 않습니다.
-            </p>
           </div>
 
           {/* 약관 동의 */}
@@ -155,10 +189,20 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
               </div>
             </label>
           </div>
+
+          {/* 유효기간 */}
+          {!isLifetimeFortune && (
+            <div className="-mt-4">
+              <p className="text-slate-500 text-xs text-center">
+                구매일로부터 30일간 유효합니다. 기간 내 미사용 시 자동 소멸됩니다.
+              </p>
+            </div>
+          )}
+        </div>
         </div>
 
         {/* 하단 버튼 */}
-        <div className="sticky bottom-0 bg-gradient-to-br from-slate-800 to-slate-900 border-t border-slate-700 p-6">
+        <div className="flex-shrink-0 bg-gradient-to-br from-slate-800 to-slate-900 border-t border-slate-700 px-4 py-6">
           <div className="flex gap-3">
             <button
               onClick={onClose}
@@ -174,7 +218,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
               disabled={!agreed || loading}
               className="flex-1"
             >
-              {loading ? "처리 중..." : "결제하기"}
+              {loading ? "처리 중..." : "결제"}
             </PrimaryButton>
           </div>
         </div>

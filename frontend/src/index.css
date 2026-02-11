@@ -364,3 +364,35 @@ a {
   border-radius: 5px;
   border: 1px solid #475569;
 }
+
+/* 모달 스크롤바: 기본적으로 숨김, 호버/스크롤 시에만 나타남 */
+.modal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.modal-scrollbar:hover {
+  scrollbar-color: rgba(71, 85, 105, 0.3) transparent;
+}
+
+.modal-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.modal-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.3);
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.6);
+}

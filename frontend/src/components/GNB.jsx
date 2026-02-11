@@ -152,7 +152,7 @@ function GNB() {
                 <img
                   src="/assets/logo.png"
                   alt="진짜미래"
-                  className="h-6 sm:h-8 w-auto object-contain"
+                  className="h-5 sm:h-6 w-auto object-contain"
                 />
               </Link>
             </div>

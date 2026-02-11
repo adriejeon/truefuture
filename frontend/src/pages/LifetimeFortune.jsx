@@ -626,14 +626,14 @@ function LifetimeFortune() {
             }
             fullWidth
           >
-            진짜미래 확인하기
+            진짜미래 확인
           </PrimaryButton>
         </form>
 
         {/* 로딩 모달 */}
         {loading && (
           <div
-            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.80] min-h-screen p-4"
+            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.95] min-h-screen p-4"
             role="dialog"
             aria-modal="true"
             aria-label="운세 분석 중"

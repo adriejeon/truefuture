@@ -271,13 +271,13 @@ function Compatibility() {
 
     const requiredStars = FORTUNE_STAR_COSTS.compatibility;
     try {
-      const { total: totalStars } = await fetchUserStars(user.id);
-      const balanceStatus = checkStarBalance(totalStars, requiredStars);
+      const { paid: paidStars } = await fetchUserStars(user.id); // 망원경 개수만 사용
+      const balanceStatus = checkStarBalance(paidStars, requiredStars);
       if (balanceStatus === "insufficient") {
         setStarModalData({
           type: "alert",
           requiredAmount: requiredStars,
-          currentBalance: totalStars,
+          currentBalance: paidStars,
         });
         setShowStarModal(true);
         return;
@@ -285,7 +285,7 @@ function Compatibility() {
       setStarModalData({
         type: "confirm",
         requiredAmount: requiredStars,
-        currentBalance: totalStars,
+        currentBalance: paidStars,
       });
       setShowStarModal(true);
     } catch (err) {
@@ -657,7 +657,7 @@ function Compatibility() {
         {/* 로딩 모달 */}
         {loading && (
           <div
-            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.80] min-h-screen p-4"
+            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.95] min-h-screen p-4"
             role="dialog"
             aria-modal="true"
             aria-label="궁합 분석 중"

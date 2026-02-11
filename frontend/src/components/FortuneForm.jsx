@@ -122,7 +122,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
         loading={loading}
         fullWidth
       >
-        진짜미래 확인하기
+        진짜미래 확인
       </PrimaryButton>
     </form>
   );

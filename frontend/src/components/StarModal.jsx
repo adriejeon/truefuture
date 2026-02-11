@@ -29,6 +29,9 @@ function StarModal({
   const requiredAmount = Number(requiredAmountProp ?? required ?? 0);
   const currentBalance = Number(currentBalanceProp ?? current ?? 0);
 
+  // fortuneType에 따라 장비 이름 결정
+  const equipmentName = fortuneType === "오늘 운세" ? "나침반" : "망원경";
+
   if (!isOpen) return null;
 
   const handleBackdropClick = (e) => {
@@ -56,40 +59,37 @@ function StarModal({
         className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] p-4 backdrop-blur-sm"
         onClick={handleBackdropClick}
       >
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-700 animate-[scale-in_0.2s_ease-out]">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full px-4 py-6 border border-slate-700 animate-[scale-in_0.2s_ease-out]">
           {/* 헤더 */}
-          <div className="text-center mb-6">
-            <div className="mx-auto mb-4 flex justify-center text-5xl">
-              🎫
-            </div>
+          <div className="text-left mb-6">
             <h2 className="text-2xl font-bold text-white mb-2">
-              운세권을 사용하시겠습니까?
+              {equipmentName}을 사용하시겠습니까?
             </h2>
             <p className="text-slate-300 text-sm">
-              {fortuneType}를 확인하려면 운세권이 필요합니다
+              {fortuneType}를 확인하려면 {equipmentName}이 필요합니다
             </p>
           </div>
 
           {/* 정보 */}
           <div className="bg-slate-900/50 rounded-xl p-4 mb-6 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 text-sm">필요한 운세권</span>
+              <span className="text-slate-400 text-sm">필요한 {equipmentName}</span>
               <span className="text-white font-semibold text-lg">
-                {requiredAmount}장
+                {requiredAmount}개
               </span>
             </div>
-            <div className="flex items-center justify-between border-t border-slate-700 pt-3">
+            <div className="flex items-center justify-between">
               <span className="text-slate-400 text-sm">
-                {fortuneType === "오늘 운세" ? "보유 중인 데일리 운세권" : "보유 중인 운세권"}
+                보유 중인 {equipmentName}
               </span>
-              <span className="text-yellow-400 font-semibold text-lg">
-                {currentBalance}장
+              <span className="text-white font-semibold text-lg">
+                {currentBalance}개
               </span>
             </div>
-            <div className="flex items-center justify-between border-t border-slate-700 pt-3">
-              <span className="text-slate-400 text-sm">사용 후 잔액</span>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 text-sm">사용 후 {equipmentName}</span>
               <span className="text-white font-semibold text-lg">
-                {currentBalance - requiredAmount}장
+                {currentBalance - requiredAmount}개
               </span>
             </div>
           </div>
@@ -108,7 +108,7 @@ function StarModal({
               onClick={handleConfirmClick}
               className="flex-1"
             >
-              확인
+              사용
             </PrimaryButton>
           </div>
         </div>
@@ -122,34 +122,31 @@ function StarModal({
       className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] p-4 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-red-500/30 animate-[scale-in_0.2s_ease-out]">
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full px-4 py-6 border border-red-500/30 animate-[scale-in_0.2s_ease-out]">
         {/* 헤더 */}
-        <div className="text-center mb-6">
-          <div className="mx-auto mb-4 flex justify-center text-5xl">
-            🎫
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">운세권이 부족합니다</h2>
+        <div className="text-left mb-6">
+          <h2 className="text-2xl font-bold text-white mb-2">{equipmentName}이 부족합니다</h2>
           <p className="text-slate-300 text-sm">
-            {fortuneType}를 보려면 운세권을 구매해주세요
+            {fortuneType}를 보려면 {equipmentName}을 구매해주세요
           </p>
         </div>
 
         {/* 정보 */}
         <div className="bg-slate-900/50 rounded-xl p-4 mb-6 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-slate-400 text-sm">필요한 운세권</span>
-            <span className="text-white font-semibold text-lg">{requiredAmount}장</span>
+            <span className="text-slate-400 text-sm">필요한 {equipmentName}</span>
+            <span className="text-white font-semibold text-lg">{requiredAmount}개</span>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-700 pt-3">
+          <div className="flex items-center justify-between">
             <span className="text-slate-400 text-sm">
-              {fortuneType === "오늘 운세" ? "현재 보유 데일리 운세권" : "현재 보유 운세권"}
+              현재 보유 {equipmentName}
             </span>
-            <span className="text-red-400 font-semibold text-lg">{currentBalance}장</span>
+            <span className="text-red-400 font-semibold text-lg">{currentBalance}개</span>
           </div>
-          <div className="flex items-center justify-between border-t border-slate-700 pt-3">
-            <span className="text-slate-400 text-sm">부족한 운세권</span>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400 text-sm">부족한 {equipmentName}</span>
             <span className="text-red-400 font-semibold text-lg">
-              {requiredAmount - currentBalance}장
+              {requiredAmount - currentBalance}개
             </span>
           </div>
         </div>
@@ -168,7 +165,7 @@ function StarModal({
             onClick={handleCharge}
             className="flex-1"
           >
-            구매하러 가기
+            구매
           </PrimaryButton>
         </div>
       </div>

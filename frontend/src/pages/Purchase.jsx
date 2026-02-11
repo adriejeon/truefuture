@@ -5,9 +5,51 @@ import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
 import OrderCheckModal from "../components/OrderCheckModal";
+import BottomNavigation from "../components/BottomNavigation";
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { colors } from "../constants/colors";
+
+// 아이콘 컴포넌트
+const TelescopeIcon = ({ className = "w-5 h-5" }) => (
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    {/* 별 아이콘 (망원경으로 별을 보는 의미) */}
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+    />
+  </svg>
+);
+
+const CompassIcon = ({ className = "w-5 h-5" }) => (
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <circle cx="12" cy="12" r="10" strokeWidth={2} />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M12 2v4M12 18v4M2 12h4M18 12h4"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M12 6l-3 6 3 6 3-6-3-6z"
+    />
+  </svg>
+);
 
 const PACKAGES = [
   {
@@ -18,8 +60,8 @@ const PACKAGES = [
     paid: 1,
     bonus: 0,
     color: "from-blue-400 to-cyan-500",
-    icon: "🔭",
-    description: "운세권 1개",
+    iconType: "telescope",
+    description: "망원경 1개",
   },
   {
     id: "ticket_3",
@@ -29,8 +71,8 @@ const PACKAGES = [
     paid: 3,
     bonus: 1,
     color: "from-purple-400 to-pink-500",
-    icon: "🔭",
-    description: "운세권 3개 + 데일리 1회",
+    iconType: "telescope",
+    description: "망원경 3개 + 나침반 1개",
   },
   {
     id: "ticket_5",
@@ -40,9 +82,9 @@ const PACKAGES = [
     paid: 5,
     bonus: 3,
     color: "from-yellow-400 to-orange-500",
-    icon: "🔭",
+    iconType: "telescope",
     badge: "BEST",
-    description: "운세권 5개 + 데일리 3회",
+    description: "망원경 5개 + 나침반 3개",
   },
   {
     id: "daily_7",
@@ -52,8 +94,8 @@ const PACKAGES = [
     paid: 0,
     bonus: 7,
     color: "from-green-400 to-emerald-500",
-    icon: "🧭",
-    description: "데일리 운세 7회",
+    iconType: "compass",
+    description: "나침반 7개",
   },
   {
     id: "daily_14",
@@ -63,9 +105,9 @@ const PACKAGES = [
     paid: 0,
     bonus: 14,
     color: "from-indigo-400 to-purple-600",
-    icon: "🧭",
-    badge: "인기",
-    description: "데일리 운세 14회",
+    iconType: "compass",
+    description: "나침반 14개",
+    badge: "8% 할인",
   },
 ];
 
@@ -169,29 +211,32 @@ function Purchase() {
   };
 
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="min-h-screen py-8 px-4 pb-24">
       <div className="max-w-5xl mx-auto">
         {/* 헤더 */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">운세권 구매하기</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">미래 관측 장비</h1>
           <p className="text-slate-300 text-sm">
-            운세권을 구매하고 진짜미래를 확인하세요
+            망원경으로 먼 미래를 내다보고, 나침반으로 오늘의 길을 찾으세요
           </p>
         </div>
 
-        {/* 현재 보유 운세권 - 마이페이지와 동일 스타일 */}
+        {/* 현재 보유 장비 */}
         <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-6">
           <div className="text-center">
-            <p className="text-slate-300 text-sm mb-3">보유 운세권</p>
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <span className="text-3xl">🎫</span>
-              <span className="text-3xl font-bold text-white">
-                {stars.total.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex gap-4 justify-center text-xs text-slate-400 mb-4">
-              <span>일반: {stars.paid}장</span>
-              <span>데일리: {stars.bonus}장</span>
+            <div className="flex items-center justify-center gap-6">
+              <div className="flex items-center justify-center gap-2">
+                <TelescopeIcon className="w-5 h-5 text-white" />
+                <span className="text-lg font-bold text-white">
+                  망원경 {stars.paid.toLocaleString()}개
+                </span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <CompassIcon className="w-5 h-5 text-white" />
+                <span className="text-lg font-bold text-white">
+                  나침반 {stars.bonus.toLocaleString()}개
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -218,7 +263,13 @@ function Purchase() {
                 <div className="flex-1">
                   {/* 첫 번째 줄: 아이콘 + 패키지명 + 칩 */}
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">{pkg.icon}</span>
+                    <div className="text-white">
+                      {pkg.iconType === "telescope" ? (
+                        <TelescopeIcon className="w-5 h-5" />
+                      ) : (
+                        <CompassIcon className="w-5 h-5" />
+                      )}
+                    </div>
                     <h3 className="text-base font-bold text-white">
                       {pkg.name}
                     </h3>
@@ -235,10 +286,32 @@ function Purchase() {
                   </div>
 
                   {/* 두 번째 줄: 상품 설명 */}
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-slate-300">
-                      {pkg.description}
-                    </span>
+                  <div className="text-xs">
+                    {pkg.paid > 0 && pkg.bonus > 0 ? (
+                      <span className="text-slate-300">
+                        {pkg.description.split(" + ")[0]}
+                        <span
+                          className="font-bold"
+                          style={{
+                            color: colors.primary,
+                          }}
+                        >
+                          {" + "}
+                        </span>
+                        <span
+                          className="font-bold"
+                          style={{
+                            color: colors.primary,
+                          }}
+                        >
+                          {pkg.description.split(" + ")[1]}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">
+                        {pkg.description}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -273,6 +346,7 @@ function Purchase() {
         onConfirm={handleConfirmPurchase}
         loading={loading}
       />
+      {user && <BottomNavigation />}
     </div>
   );
 }

@@ -25,7 +25,7 @@ function FortuneProcess({
   children,
   onRequest,
   renderResult,
-  readyButtonText = "진짜미래 확인하기",
+  readyButtonText = "진짜미래 확인",
 }) {
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
@@ -115,7 +115,7 @@ function FortuneProcess({
       <>
         <div
           className={`fixed inset-0 z-[10001] flex items-center justify-center p-4 overflow-hidden min-h-screen min-h-[100dvh] ${
-            isLoading ? "bg-black/[0.98]" : "bg-black/70"
+            isLoading ? "bg-black/[0.95]" : "bg-black/70"
           } ${isExiting ? "fortune-modal-exit" : ""}`}
           role="dialog"
           aria-modal="true"

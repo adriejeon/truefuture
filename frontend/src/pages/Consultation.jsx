@@ -443,18 +443,18 @@ function Consultation() {
       setConsultationAnswer(null);
 
       try {
-        // 1. 별 잔액 조회
+        // 1. 별 잔액 조회 (망원경 개수만 사용)
         const stars = await fetchUserStars(user.id);
-        const totalStars = stars.total;
+        const paidStars = stars.paid; // 망원경 개수만 사용
 
         // 2. 잔액 확인 후 모달 데이터와 함께 한 번에 설정 (이전 값이 남지 않도록)
-        const balanceStatus = checkStarBalance(totalStars, requiredStars);
+        const balanceStatus = checkStarBalance(paidStars, requiredStars);
 
         if (balanceStatus === "insufficient") {
           const nextData = {
             type: "alert",
             required: requiredStars,
-            current: totalStars,
+            current: paidStars,
           };
           console.log("[별 모달] 잔액 부족 알림", {
             필요한별: nextData.required,
@@ -466,7 +466,7 @@ function Consultation() {
           const nextData = {
             type: "confirm",
             required: requiredStars,
-            current: totalStars,
+            current: paidStars,
           };
           setStarModalData(nextData);
           setShowStarModal(true);
@@ -1139,14 +1139,14 @@ function Consultation() {
                   fullWidth
                   className="mt-4"
                 >
-                  진짜미래 확인하기
+                  진짜미래 확인
                 </PrimaryButton>
               </form>
 
               {/* 로딩 모달 (데일리/종합/궁합과 동일) */}
               {loadingConsultation && (
                 <div
-                  className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.80] min-h-screen p-4"
+                  className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/[0.95] min-h-screen p-4"
                   role="dialog"
                   aria-modal="true"
                   aria-label="운세 분석 중"

@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
+import BottomNavigation from "../components/BottomNavigation";
 
 function MyPage() {
   const { user, logout, loadingAuth } = useAuth();
@@ -152,7 +153,7 @@ function MyPage() {
   }
 
   return (
-    <div className="min-h-screen py-8 px-4">
+    <div className="min-h-screen py-8 px-4 pb-24">
       <div className="max-w-md mx-auto">
         {/* 헤더 */}
         <div className="mb-8">
@@ -280,6 +281,7 @@ function MyPage() {
           </div>
         </div>
       )}
+      {user && <BottomNavigation />}
     </div>
   );
 }
