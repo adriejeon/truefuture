@@ -284,7 +284,7 @@ function YearlyFortune() {
     return () => {
       cancelled = true;
     };
-  }, [selectedProfile?.id, isSharedFortune, user, searchParams, fortuneTab, handleConfirmStarUsageLifetime]);
+  }, [selectedProfile?.id, isSharedFortune, user, searchParams, fortuneTab]);
 
   // 프로필 선택 시 데일리/종합 운세 조회 가능 여부 체크 (버튼 비활성화용)
   useEffect(() => {
