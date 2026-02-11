@@ -679,6 +679,11 @@ function YearlyFortune() {
               key={tab.id}
               type="button"
               onClick={() => {
+                if (tab.id === "lifetime") {
+                  // 종합 운세는 별도 페이지로 이동
+                  navigate("/lifetime");
+                  return;
+                }
                 setFortuneTab(tab.id);
                 setError("");
               }}
