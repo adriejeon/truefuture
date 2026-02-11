@@ -19,7 +19,7 @@ export function useStars() {
       setLoading(true);
       setError(null);
 
-      // get_valid_stars RPC 함수를 사용하여 만료되지 않은 별만 조회
+      // get_valid_stars RPC 함수를 사용하여 만료되지 않은 운세권만 조회
       const { data, error: fetchError } = await supabase.rpc("get_valid_stars", {
         p_user_id: user.id,
       });
@@ -47,7 +47,7 @@ export function useStars() {
         setStars({ paid, bonus, total: paid + bonus });
       }
     } catch (err) {
-      console.error("❌ 별 잔액 조회 실패:", err);
+      console.error("❌ 운세권 잔액 조회 실패:", err);
       setError(err.message);
       setStars({ paid: 0, bonus: 0, total: 0 });
     } finally {

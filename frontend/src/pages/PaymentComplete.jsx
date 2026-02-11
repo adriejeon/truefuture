@@ -225,8 +225,8 @@ function PaymentComplete() {
           return;
         }
 
-        // 백엔드 함수 호출하여 별 충전 처리
-        setMessage("결제를 완료하고 별을 충전하고 있습니다...");
+        // 백엔드 함수 호출하여 운세권 구매 처리
+        setMessage("결제를 완료하고 운세권을 충전하고 있습니다...");
         
         // 3. 백엔드 호출: imp_uid가 없으면 merchant_uid만이라도 보내기
         const requestBody = {
@@ -268,7 +268,7 @@ function PaymentComplete() {
             isProcessing.current = false;
             setStatus("success");
             setMessage(
-              "🎉 별 충전이 완료되었습니다!\n\n이미 처리된 결제입니다. 별이 정상적으로 충전되었습니다."
+              "🎉 운세권 구매가 완료되었습니다!\n\n이미 처리된 결제입니다. 운세권이 정상적으로 충전되었습니다."
             );
             try {
               sessionStorage.removeItem("payment_merchant_uid");
@@ -281,11 +281,11 @@ function PaymentComplete() {
           }
 
           // 실제 에러인 경우
-          console.error("별 충전 API 오류:", purchaseError);
+          console.error("운세권 구매 API 오류:", purchaseError);
           isProcessing.current = false;
           setStatus("error");
           setMessage(
-            `별 충전 처리 중 오류가 발생했습니다.\n\n오류: ${errorMessage}\n\n고객센터에 문의해주세요.`
+            `운세권 구매 처리 중 오류가 발생했습니다.\n\n오류: ${errorMessage}\n\n고객센터에 문의해주세요.`
           );
           return;
         }
@@ -304,7 +304,7 @@ function PaymentComplete() {
             isProcessing.current = false;
             setStatus("success");
             setMessage(
-              "🎉 별 충전이 완료되었습니다!\n\n이미 처리된 결제입니다. 별이 정상적으로 충전되었습니다."
+              "🎉 운세권 구매가 완료되었습니다!\n\n이미 처리된 결제입니다. 운세권이 정상적으로 충전되었습니다."
             );
             try {
               sessionStorage.removeItem("payment_merchant_uid");
@@ -317,7 +317,7 @@ function PaymentComplete() {
           }
 
           // 실제 실패인 경우
-          console.error("별 충전 실패:", data);
+          console.error("운세권 구매 실패:", data);
           isProcessing.current = false;
           setStatus("error");
           setMessage(
@@ -327,13 +327,13 @@ function PaymentComplete() {
         }
 
         // 성공 처리
-        console.log("✅ 별 충전 성공:", data);
+        console.log("✅ 운세권 구매 성공:", data);
         isProcessing.current = false; // 처리 완료 표시
         setStatus("success");
         setMessage(
-          `🎉 별 충전이 완료되었습니다!\n\n충전된 별: ${data.data.paid_stars}개 (보너스: ${data.data.bonus_stars}개)\n새로운 잔액: ${
+          `🎉 운세권 구매가 완료되었습니다!\n\n구매한 운세권: ${data.data.paid_stars}장 (데일리: ${data.data.bonus_stars}장)\n새로운 잔액: ${
             data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars
-          }개`
+          }장`
         );
 
         try {

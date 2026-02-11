@@ -13,7 +13,7 @@ function Footer() {
           className="text-left mb-6 text-sm space-y-1"
           style={{ color: colors.subText }}
         >
-          <p className="font-semibold">진짜미래</p>
+          <p className="font-semibold">주피터</p>
           <p>대표 전명희</p>
           <p>서울시 관악구 인헌 16길 9-202 (08800)</p>
           <p>사업자등록번호 344-30-02017</p>

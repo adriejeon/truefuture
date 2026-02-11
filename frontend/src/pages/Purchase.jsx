@@ -4,52 +4,68 @@ import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
+import OrderCheckModal from "../components/OrderCheckModal";
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { colors } from "../constants/colors";
 
 const PACKAGES = [
   {
-    id: "meteor",
-    name: "유성",
-    nameEn: "Meteor",
-    price: 1100,
-    paid: 10,
+    id: "ticket_1",
+    name: "망원경 1개",
+    nameEn: "Ticket_1",
+    price: 990,
+    paid: 1,
     bonus: 0,
     color: "from-blue-400 to-cyan-500",
-    icon: "☄️",
+    icon: "🔭",
+    description: "운세권 1개",
   },
   {
-    id: "comet",
-    name: "혜성",
-    nameEn: "Comet",
-    price: 3300,
-    paid: 30,
+    id: "ticket_3",
+    name: "망원경 3개",
+    nameEn: "Ticket_3",
+    price: 2900,
+    paid: 3,
     bonus: 1,
     color: "from-purple-400 to-pink-500",
-    icon: "💫",
+    icon: "🔭",
+    description: "운세권 3개 + 데일리 1회",
   },
   {
-    id: "planet",
-    name: "행성",
-    nameEn: "Planet",
-    price: 5500,
-    paid: 50,
+    id: "ticket_5",
+    name: "망원경 5개",
+    nameEn: "Ticket_5",
+    price: 4950,
+    paid: 5,
     bonus: 3,
     color: "from-yellow-400 to-orange-500",
-    icon: "🪐",
+    icon: "🔭",
     badge: "BEST",
+    description: "운세권 5개 + 데일리 3회",
   },
   {
-    id: "galaxy",
-    name: "은하수",
-    nameEn: "Galaxy",
-    price: 11000,
-    paid: 100,
-    bonus: 15,
+    id: "daily_7",
+    name: "나침반 7개",
+    nameEn: "Daily_7",
+    price: 1900,
+    paid: 0,
+    bonus: 7,
+    color: "from-green-400 to-emerald-500",
+    icon: "🧭",
+    description: "데일리 운세 7회",
+  },
+  {
+    id: "daily_14",
+    name: "나침반 14개",
+    nameEn: "Daily_14",
+    price: 3500,
+    paid: 0,
+    bonus: 14,
     color: "from-indigo-400 to-purple-600",
-    icon: "🌌",
-    badge: "15% 혜택",
+    icon: "🧭",
+    badge: "인기",
+    description: "데일리 운세 14회",
   },
 ];
 
@@ -59,13 +75,25 @@ function Purchase() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState(null);
 
-  const handlePurchase = async (pkg) => {
+  // 상품 클릭 시 주문 확인 모달 표시
+  const handlePackageClick = (pkg) => {
     if (!user) {
       alert("로그인이 필요합니다.");
       navigate("/login");
       return;
     }
+
+    setSelectedPackage(pkg);
+    setShowOrderModal(true);
+    setError(null);
+  };
+
+  // 모달에서 결제 확인 시 실제 결제 진행
+  const handleConfirmPurchase = async () => {
+    if (!selectedPackage) return;
 
     setLoading(true);
     setError(null);
@@ -85,8 +113,8 @@ function Purchase() {
         storeId: import.meta.env.VITE_PORTONE_STORE_ID,
         channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
         paymentId: merchantUid,
-        orderName: `${pkg.name} (${pkg.nameEn}) 패키지`,
-        totalAmount: pkg.price,
+        orderName: `${selectedPackage.name} (${selectedPackage.nameEn}) 패키지`,
+        totalAmount: selectedPackage.price,
         currency: "CURRENCY_KRW",
         payMethod: "CARD",
         customer: {
@@ -112,7 +140,7 @@ function Purchase() {
         {
           body: {
             user_id: user.id,
-            amount: pkg.price,
+            amount: selectedPackage.price,
             merchant_uid: merchantUid,
             imp_uid: response?.paymentId || merchantUid,
           },
@@ -126,13 +154,15 @@ function Purchase() {
       }
 
       // 성공 알림 및 잔액 새로고침
+      setShowOrderModal(false);
       alert(
-        `🎉 별 충전 완료!\n\n충전된 별: ${pkg.paid + pkg.bonus}개\n새로운 잔액: ${data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars}개`,
+        `🎉 운세권 구매 완료!\n\n구매한 운세권: ${selectedPackage.paid + selectedPackage.bonus}장\n새로운 잔액: ${data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars}장`,
       );
       await refetchStars();
     } catch (err) {
       console.error("결제 오류:", err);
       setError(err.message || "결제 처리 중 오류가 발생했습니다.");
+      setShowOrderModal(false);
     } finally {
       setLoading(false);
     }
@@ -143,25 +173,25 @@ function Purchase() {
       <div className="max-w-5xl mx-auto">
         {/* 헤더 */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">별 충전하기</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">운세권 구매하기</h1>
           <p className="text-slate-300 text-sm">
-            별을 충전하고 진짜미래를 확인하세요
+            운세권을 구매하고 진짜미래를 확인하세요
           </p>
         </div>
 
-        {/* 현재 보유 별 - 마이페이지와 동일 스타일 */}
+        {/* 현재 보유 운세권 - 마이페이지와 동일 스타일 */}
         <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-6">
           <div className="text-center">
-            <p className="text-slate-300 text-sm mb-3">보유 별</p>
+            <p className="text-slate-300 text-sm mb-3">보유 운세권</p>
             <div className="flex items-center justify-center gap-2 mb-4">
-              <span className="text-3xl">⭐</span>
+              <span className="text-3xl">🎫</span>
               <span className="text-3xl font-bold text-white">
                 {stars.total.toLocaleString()}
               </span>
             </div>
             <div className="flex gap-4 justify-center text-xs text-slate-400 mb-4">
-              <span>유료: {stars.paid}개</span>
-              <span>보너스: {stars.bonus}개</span>
+              <span>일반: {stars.paid}장</span>
+              <span>데일리: {stars.bonus}장</span>
             </div>
           </div>
         </div>
@@ -179,7 +209,7 @@ function Purchase() {
             <button
               key={pkg.id}
               type="button"
-              onClick={() => handlePurchase(pkg)}
+              onClick={() => handlePackageClick(pkg)}
               disabled={loading}
               className="w-full bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700 hover:border-slate-600 transition-all duration-200 hover:shadow-xl hover:shadow-purple-500/10 disabled:opacity-50 disabled:cursor-not-allowed text-left"
             >
@@ -204,23 +234,11 @@ function Purchase() {
                     )}
                   </div>
 
-                  {/* 두 번째 줄: 기본 별 + 보너스 별 */}
+                  {/* 두 번째 줄: 상품 설명 */}
                   <div className="flex items-center gap-2 text-xs">
                     <span className="text-slate-300">
-                      기본 별{" "}
-                      <span className="text-white font-semibold">
-                        {pkg.paid}개
-                      </span>
+                      {pkg.description}
                     </span>
-                    {pkg.bonus > 0 && (
-                      <>
-                        <span className="text-slate-600">|</span>
-                        <span className="text-yellow-400">
-                          보너스 별{" "}
-                          <span className="font-semibold">+{pkg.bonus}개</span>
-                        </span>
-                      </>
-                    )}
                   </div>
                 </div>
 
@@ -246,6 +264,15 @@ function Purchase() {
           </button>
         </div>
       </div>
+
+      {/* 주문 확인 모달 */}
+      <OrderCheckModal
+        isOpen={showOrderModal}
+        onClose={() => setShowOrderModal(false)}
+        packageInfo={selectedPackage}
+        onConfirm={handleConfirmPurchase}
+        loading={loading}
+      />
     </div>
   );
 }

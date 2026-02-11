@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
 
 /**
- * 운세 타입별 필요 별 개수
+ * 운세 타입별 필요 운세권 개수
  */
 export const FORTUNE_STAR_COSTS = {
   daily: 3,
@@ -23,7 +23,7 @@ export const FORTUNE_TYPE_NAMES = {
 };
 
 /**
- * 사용자의 현재 별 잔액 조회 (유효한 별만 계산)
+ * 사용자의 현재 운세권 잔액 조회 (유효한 운세권만 계산)
  * @param {string} userId
  * @returns {Promise<{paid: number, bonus: number, total: number}>}
  */
@@ -33,13 +33,13 @@ export async function fetchUserStars(userId) {
   }
 
   try {
-    // get_valid_stars RPC 함수를 사용하여 만료되지 않은 별만 조회
+    // get_valid_stars RPC 함수를 사용하여 만료되지 않은 운세권만 조회
     const { data, error } = await supabase.rpc("get_valid_stars", {
       p_user_id: userId,
     });
 
     if (error) {
-      console.error("❌ 유효한 별 조회 실패:", error);
+      console.error("❌ 유효한 운세권 조회 실패:", error);
       throw error;
     }
 
@@ -48,7 +48,7 @@ export async function fetchUserStars(userId) {
 
     return { paid, bonus, total: paid + bonus };
   } catch (err) {
-    console.error("❌ 별 잔액 조회 중 오류:", err);
+    console.error("❌ 운세권 잔액 조회 중 오류:", err);
     // RPC가 없으면 기존 방식으로 폴백
     const { data, error } = await supabase
       .from("user_wallets")
@@ -66,9 +66,9 @@ export async function fetchUserStars(userId) {
 }
 
 /**
- * 별 차감 (Supabase RPC 함수 호출)
+ * 운세권 차감 (Supabase RPC 함수 호출)
  * @param {string} userId
- * @param {number} amount - 차감할 별 개수
+ * @param {number} amount - 차감할 운세권 개수
  * @param {string} description - 차감 사유 (예: "오늘 운세 조회")
  * @returns {Promise<{success: boolean, newBalance: {paid: number, bonus: number}}>}
  */
@@ -78,7 +78,7 @@ export async function consumeStars(userId, amount, description) {
   }
 
   if (amount <= 0) {
-    throw new Error("차감할 별 개수는 0보다 커야 합니다.");
+    throw new Error("차감할 운세권 개수는 0보다 커야 합니다.");
   }
 
   try {
@@ -89,25 +89,25 @@ export async function consumeStars(userId, amount, description) {
     });
 
     if (error) {
-      console.error("❌ 별 차감 실패:", error);
+      console.error("❌ 운세권 차감 실패:", error);
       throw error;
     }
 
     if (!data || !data.success) {
-      throw new Error(data?.message || "별 차감에 실패했습니다.");
+      throw new Error(data?.message || "운세권 차감에 실패했습니다.");
     }
 
     return data;
   } catch (err) {
-    console.error("❌ 별 차감 중 오류:", err);
+    console.error("❌ 운세권 차감 중 오류:", err);
     throw err;
   }
 }
 
 /**
- * 별 잔액 확인 및 모달 타입 결정
- * @param {number} currentStars - 현재 보유 별
- * @param {number} requiredStars - 필요한 별
+ * 운세권 잔액 확인 및 모달 타입 결정
+ * @param {number} currentStars - 현재 보유 운세권
+ * @param {number} requiredStars - 필요한 운세권
  * @returns {"sufficient" | "insufficient"} - sufficient: 잔액 충분(confirm 모달), insufficient: 잔액 부족(alert 모달)
  */
 export function checkStarBalance(currentStars, requiredStars) {

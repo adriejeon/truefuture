@@ -162,19 +162,19 @@ function MyPage() {
           </p>
         </div>
 
-        {/* 보유 별 카드 */}
+        {/* 보유 운세권 카드 */}
         <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-6">
           <div className="text-center">
-            <p className="text-slate-300 text-sm mb-3">보유 별</p>
+            <p className="text-slate-300 text-sm mb-3">보유 운세권</p>
             <div className="flex items-center justify-center gap-2 mb-4">
-              <span className="text-3xl">⭐</span>
+              <span className="text-3xl">🎫</span>
               <span className="text-3xl font-bold text-white">
                 {stars.total.toLocaleString()}
               </span>
             </div>
             <div className="flex gap-4 justify-center text-xs text-slate-400 mb-4">
-              <span>유료: {stars.paid}개</span>
-              <span>보너스: {stars.bonus}개</span>
+              <span>일반: {stars.paid}장</span>
+              <span>데일리: {stars.bonus}장</span>
             </div>
             <PrimaryButton
               type="button"
@@ -182,7 +182,7 @@ function MyPage() {
               fullWidth
               onClick={() => navigate("/purchase")}
             >
-              별 구매하기
+              운세권 구매하기
             </PrimaryButton>
           </div>
         </div>
@@ -236,13 +236,13 @@ function MyPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full">
             <h2 className="text-2xl font-bold text-white mb-4">회원 탈퇴</h2>
             <p className="text-slate-300 text-sm mb-4 leading-relaxed">
-              회원 탈퇴 시 모든 데이터가 삭제되며, 보유하신 별도 함께 소멸됩니다.
+              회원 탈퇴 시 모든 데이터가 삭제되며, 보유하신 운세권도 함께 소멸됩니다.
               이 작업은 되돌릴 수 없습니다.
             </p>
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
               <p className="text-red-300 text-sm">
                 <strong>삭제될 데이터:</strong>
-                <br />• 보유 별: {stars.total}개
+                <br />• 보유 운세권: {stars.total}장
                 <br />• 상담 내역
                 <br />• 구매 내역
                 <br />• 프로필 정보

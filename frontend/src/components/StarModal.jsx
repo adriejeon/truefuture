@@ -2,13 +2,13 @@ import { useNavigate } from "react-router-dom";
 import PrimaryButton from "./PrimaryButton";
 
 /**
- * 별 차감/부족 알림 모달
+ * 운세권 차감/부족 알림 모달
  * @param {object} props
  * @param {boolean} props.isOpen - 모달 표시 여부
  * @param {function} props.onClose - 모달 닫기 콜백
  * @param {"confirm"|"alert"} props.type - 모달 타입 (confirm: 차감 확인, alert: 잔액 부족)
- * @param {number} props.requiredAmount - 필요한 별 개수 (운세 1회당)
- * @param {number} props.currentBalance - 현재 보유 별 개수 (user_wallets 합계)
+ * @param {number} props.requiredAmount - 필요한 운세권 개수 (운세 1회당)
+ * @param {number} props.currentBalance - 현재 보유 운세권 개수 (user_wallets 합계)
  * @param {function} props.onConfirm - 확인 버튼 클릭 시 콜백 (type="confirm"일 때만)
  * @param {string} props.fortuneType - 운세 타입 (표시용)
  */
@@ -49,7 +49,7 @@ function StarModal({
     onClose();
   };
 
-  // Confirm 타입: 별 차감 확인
+  // Confirm 타입: 운세권 차감 확인
   if (type === "confirm") {
     return (
       <div
@@ -60,34 +60,34 @@ function StarModal({
           {/* 헤더 */}
           <div className="text-center mb-6">
             <div className="mx-auto mb-4 flex justify-center text-5xl">
-              ⭐
+              🎫
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">
-              별을 사용하시겠습니까?
+              운세권을 사용하시겠습니까?
             </h2>
             <p className="text-slate-300 text-sm">
-              {fortuneType}를 확인하려면 별이 필요합니다
+              {fortuneType}를 확인하려면 운세권이 필요합니다
             </p>
           </div>
 
           {/* 정보 */}
           <div className="bg-slate-900/50 rounded-xl p-4 mb-6 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 text-sm">필요한 별</span>
+              <span className="text-slate-400 text-sm">필요한 운세권</span>
               <span className="text-white font-semibold text-lg">
-                {requiredAmount}개
+                {requiredAmount}장
               </span>
             </div>
             <div className="flex items-center justify-between border-t border-slate-700 pt-3">
-              <span className="text-slate-400 text-sm">보유 중인 별</span>
+              <span className="text-slate-400 text-sm">보유 중인 운세권</span>
               <span className="text-yellow-400 font-semibold text-lg">
-                {currentBalance}개
+                {currentBalance}장
               </span>
             </div>
             <div className="flex items-center justify-between border-t border-slate-700 pt-3">
               <span className="text-slate-400 text-sm">사용 후 잔액</span>
               <span className="text-white font-semibold text-lg">
-                {currentBalance - requiredAmount}개
+                {currentBalance - requiredAmount}장
               </span>
             </div>
           </div>
@@ -124,28 +124,28 @@ function StarModal({
         {/* 헤더 */}
         <div className="text-center mb-6">
           <div className="mx-auto mb-4 flex justify-center text-5xl">
-            ⭐
+            🎫
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">별이 부족합니다</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">운세권이 부족합니다</h2>
           <p className="text-slate-300 text-sm">
-            {fortuneType}를 보려면 별을 충전해주세요
+            {fortuneType}를 보려면 운세권을 구매해주세요
           </p>
         </div>
 
         {/* 정보 */}
         <div className="bg-slate-900/50 rounded-xl p-4 mb-6 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-slate-400 text-sm">필요한 별</span>
-            <span className="text-white font-semibold text-lg">{requiredAmount}개</span>
+            <span className="text-slate-400 text-sm">필요한 운세권</span>
+            <span className="text-white font-semibold text-lg">{requiredAmount}장</span>
           </div>
           <div className="flex items-center justify-between border-t border-slate-700 pt-3">
-            <span className="text-slate-400 text-sm">현재 보유 별</span>
-            <span className="text-red-400 font-semibold text-lg">{currentBalance}개</span>
+            <span className="text-slate-400 text-sm">현재 보유 운세권</span>
+            <span className="text-red-400 font-semibold text-lg">{currentBalance}장</span>
           </div>
           <div className="flex items-center justify-between border-t border-slate-700 pt-3">
-            <span className="text-slate-400 text-sm">부족한 별</span>
+            <span className="text-slate-400 text-sm">부족한 운세권</span>
             <span className="text-red-400 font-semibold text-lg">
-              {requiredAmount - currentBalance}개
+              {requiredAmount - currentBalance}장
             </span>
           </div>
         </div>
@@ -164,7 +164,7 @@ function StarModal({
             onClick={handleCharge}
             className="flex-1"
           >
-            충전하러 가기
+            구매하러 가기
           </PrimaryButton>
         </div>
       </div>

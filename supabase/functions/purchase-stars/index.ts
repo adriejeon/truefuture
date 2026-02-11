@@ -18,15 +18,18 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// 패키지 정의 (가격 → 이름, 유료별, 보너스별)
+// 패키지 정의 (가격 → 이름, 일반 운세권, 데일리 운세권)
+// paid = 일반 운세권(Standard Ticket), bonus = 데일리 운세권(Daily Ticket)
 const PACKAGES: Record<
   number,
   { name: string; paid: number; bonus: number }
 > = {
-  1100: { name: "유성 (Meteor)", paid: 10, bonus: 0 },
-  3300: { name: "혜성 (Comet)", paid: 30, bonus: 1 },
-  5500: { name: "행성 (Planet)", paid: 50, bonus: 3 },
-  11000: { name: "은하수 (Galaxy)", paid: 100, bonus: 15 },
+  990: { name: "망원경 1개 (Ticket_1)", paid: 1, bonus: 0 },
+  2900: { name: "망원경 3개 (Ticket_3)", paid: 3, bonus: 1 },
+  4950: { name: "망원경 5개 (Ticket_5)", paid: 5, bonus: 3 },
+  1900: { name: "나침반 7개 (Daily_7)", paid: 0, bonus: 7 },
+  3500: { name: "나침반 14개 (Daily_14)", paid: 0, bonus: 14 },
+  1990: { name: "종합 운세 (Grand_Fortune)", paid: 1, bonus: 0 },
 };
 
 serve(async (req) => {
@@ -328,18 +331,18 @@ serve(async (req) => {
     
     console.log("✅ 지갑 업데이트 완료");
 
-    // 5. 거래 내역 기록 (유효기간 설정: 결제일로부터 1년)
+    // 5. 거래 내역 기록 (유효기간 설정: 결제일로부터 30일)
     console.log("5️⃣ 거래 내역 기록 중...");
-    const totalStars = packageInfo.paid + packageInfo.bonus;
+    const totalTickets = packageInfo.paid + packageInfo.bonus;
     const purchaseDate = new Date();
     const expiresAt = new Date(purchaseDate);
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     const transactionData = {
       user_id,
-      amount: totalStars,
+      amount: totalTickets,
       type: "CHARGE",
-      description: `패키지 구매: ${packageInfo.name}`,
+      description: `운세권 구매: ${packageInfo.name}`,
       related_item_id: merchant_uid ?? imp_uid ?? null,
       paid_amount: packageInfo.paid,
       bonus_amount: packageInfo.bonus,
@@ -372,11 +375,11 @@ serve(async (req) => {
 
     const successResponse = {
       success: true,
-      message: "충전 완료",
+      message: "운세권 구매 완료",
       data: {
         paid_stars: packageInfo.paid,
         bonus_stars: packageInfo.bonus,
-        total_stars: totalStars,
+        total_stars: totalTickets,
         new_balance: { paid_stars: newPaid, bonus_stars: newBonus },
       },
     };

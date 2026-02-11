@@ -105,20 +105,20 @@ function PurchaseHistory() {
   };
 
   const getPackageName = (description) => {
-    if (!description) return "별 충전";
+    if (!description) return "운세권 구매";
     
-    // "패키지 구매" 텍스트 제거
-    let packageName = description.replace(/패키지\s*구매/g, "").trim();
+    // "운세권 구매:" 텍스트 제거
+    let packageName = description.replace(/운세권\s*구매:/g, "").trim();
     
-    // 패키지 이름만 추출 (예: "유성 패키지 구매" -> "유성")
-    const packageNames = ["유성", "혜성", "행성", "은하수"];
+    // 패키지 이름만 추출
+    const packageNames = ["망원경", "나침반", "종합 운세"];
     for (const name of packageNames) {
       if (packageName.includes(name)) {
-        return name;
+        return packageName;
       }
     }
     
-    return packageName || "별 충전";
+    return packageName || "운세권 구매";
   };
 
   const getStarStatus = (tx) => {
@@ -181,7 +181,7 @@ function PurchaseHistory() {
             구매 내역
           </h1>
           <p className="text-slate-300 text-sm">
-            별 충전 내역을 확인하세요
+            운세권 구매 내역을 확인하세요
           </p>
         </div>
 
@@ -208,7 +208,7 @@ function PurchaseHistory() {
               onClick={() => navigate("/purchase")}
               className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-200"
             >
-              별 충전하러 가기 →
+              운세권 구매하러 가기 →
             </button>
           </div>
         ) : (
