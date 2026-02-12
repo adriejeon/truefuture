@@ -66,6 +66,7 @@ import {
   calculateProgressedEventsTimeline,
   calculateProfectionTimeline,
   calculateLordOfYearTransitAspects,
+  calculateTransitToTransitAspects,
   getLordOfYearTransitStatus,
   getPlanetLongitudeAndSpeed,
   getLordKeyFromName,
@@ -211,7 +212,8 @@ function buildUserPrompt(
     sectStatus: "day_sect" | "night_sect" | "neutral";
     isInSect: boolean;
   },
-  lordStarConjunctionsText?: string
+  lordStarConjunctionsText?: string,
+  transitToTransitAspects?: any[], // 트랜짓 to 트랜짓 각도 추가
 ): string {
   // DAILY 운세의 경우 새로운 상세 프롬프트 사용 (프로펙션/연주 + 연주 행성 트랜짓 상태·각도·항성 회합 포함)
   if (
@@ -229,7 +231,8 @@ function buildUserPrompt(
       profectionData ?? null,
       lordTransitStatus ?? null,
       lordTransitAspects,
-      lordStarConjunctionsText ?? null
+      lordStarConjunctionsText ?? null,
+      transitToTransitAspects, // 트랜짓 to 트랜짓 각도 추가
     );
   }
 
@@ -244,7 +247,7 @@ function buildUserPrompt(
       chartData as ChartData,
       solarReturnChartData as ChartData,
       profectionData,
-      solarReturnOverlay
+      solarReturnOverlay,
     );
   }
 
@@ -257,7 +260,7 @@ function buildUserPrompt(
   if (fortuneType === FortuneType.COMPATIBILITY && compatibilityChartData) {
     return generateCompatibilityUserPrompt(
       chartData as ChartData,
-      compatibilityChartData as ChartData
+      compatibilityChartData as ChartData,
     );
   }
 
@@ -279,7 +282,7 @@ function buildUserPrompt(
 async function callGeminiAPI(
   modelName: string,
   apiKey: string,
-  requestBody: any
+  requestBody: any,
 ): Promise<any> {
   const endpoint = `${GEMINI_API_BASE_URL}/models/${modelName}:generateContent?key=${apiKey}`;
 
@@ -312,7 +315,7 @@ async function callGeminiAPI(
           console.warn(
             `⚠️ ${statusMessage}. ${delay}ms 후 재시도합니다... (남은 시도: ${
               maxRetries - attempt
-            })`
+            })`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2; // 지수 백오프: 1000ms -> 2000ms -> 4000ms
@@ -336,7 +339,7 @@ async function callGeminiAPI(
           throw new Error(
             `Gemini API ${errorType} (${
               response.status
-            }): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`
+            }): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`,
           );
         }
       }
@@ -355,14 +358,14 @@ async function callGeminiAPI(
         // API 키 관련 에러인지 확인
         if (response.status === 401 || response.status === 403) {
           throw new Error(
-            "Gemini API 인증 실패: API 키가 유효하지 않거나 만료되었습니다."
+            "Gemini API 인증 실패: API 키가 유효하지 않거나 만료되었습니다.",
           );
         }
 
         throw new Error(
           `Gemini API 요청 실패 (${response.status}): ${
             response.statusText
-          }. ${errorText.substring(0, 200)}`
+          }. ${errorText.substring(0, 200)}`,
         );
       }
 
@@ -379,7 +382,7 @@ async function callGeminiAPI(
         throw new Error(
           `Gemini API error: ${
             apiResponse.error.message || JSON.stringify(apiResponse.error)
-          }`
+          }`,
         );
       }
 
@@ -426,7 +429,7 @@ function parseGeminiResponse(apiResponse: any): string {
     console.warn("Warning: Response was truncated due to MAX_TOKENS limit.");
   } else if (candidate.finishReason && candidate.finishReason !== "STOP") {
     throw new Error(
-      `API response finished with reason: ${candidate.finishReason}`
+      `API response finished with reason: ${candidate.finishReason}`,
     );
   }
 
@@ -484,7 +487,8 @@ async function getInterpretation(
     isInSect: boolean;
   },
   lordStarConjunctionsText?: string,
-  relationshipType?: string // 관계 유형 추가
+  relationshipType?: string, // 관계 유형 추가
+  transitToTransitAspects?: any[], // 트랜짓 to 트랜짓 각도 추가
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -502,7 +506,7 @@ async function getInterpretation(
         compatibilityChartData,
         transitChartData,
         aspects,
-        transitMoonHouse
+        transitMoonHouse,
       );
     }
 
@@ -523,7 +527,7 @@ async function getInterpretation(
             chartData as ChartData,
             compatibilityChartData as ChartData,
             synastryResult,
-            relationshipType // 관계 유형 추가
+            relationshipType, // 관계 유형 추가
           )
         : getSystemInstruction(fortuneType);
 
@@ -548,7 +552,8 @@ async function getInterpretation(
       timeLordRetrogradeAlert,
       lordTransitAspects,
       lordTransitStatus,
-      lordStarConjunctionsText
+      lordStarConjunctionsText,
+      transitToTransitAspects, // 트랜짓 to 트랜짓 각도 추가
     );
 
     if (neo4jContext) {
@@ -622,48 +627,51 @@ async function generateLifetimeFortune(
   compatibilityChartData?: any,
   transitChartData?: any,
   aspects?: any[],
-  transitMoonHouse?: number
+  transitMoonHouse?: number,
 ): Promise<any> {
   try {
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
     const neo4jContext = await getNeo4jContext(
       chartData?.planets ?? null,
-      isDayChart
+      isDayChart,
     );
 
     // 지표성 계산 (Love, Career, Wealth)
     let analysisData = "";
-    
+
     // 연애/결혼 지표성
     if (gender) {
-      const genderCode = gender === "F" || gender === "female" || gender === "여자" ? "F" : "M";
+      const genderCode =
+        gender === "F" || gender === "female" || gender === "여자" ? "F" : "M";
       const lotOfMarriage = calculateLotOfMarriage(chartData, genderCode);
       const loveQualities = analyzeLoveQualities(chartData);
       const spouseCandidate = identifySpouseCandidate(chartData, genderCode);
-      
+
       analysisData += "\n\n## 연애/결혼 지표성\n";
       analysisData += `- Lot of Marriage: ${lotOfMarriage.sign} ${Math.round(lotOfMarriage.longitude)}°\n`;
       analysisData += `- Love Quality Score: ${loveQualities.score} (${loveQualities.statusDescription})\n`;
       analysisData += `- Best Spouse Candidate: ${spouseCandidate.bestSpouseCandidate}\n`;
-      analysisData += `- Candidate Scores: ${Object.entries(spouseCandidate.scores)
+      analysisData += `- Candidate Scores: ${Object.entries(
+        spouseCandidate.scores,
+      )
         .filter(([_, score]) => score > 0)
         .map(([planet, score]) => `${planet}(${score})`)
         .join(", ")}\n`;
     }
-    
+
     // 직업 지표성
     const careerAnalysis = analyzeCareerPotential(chartData);
     const bestCareer =
       careerAnalysis.candidates.length > 0
         ? careerAnalysis.candidates.reduce((a, b) =>
-            b.score > a.score ? b : a
+            b.score > a.score ? b : a,
           )
         : null;
     analysisData += "\n## 직업 지표성\n";
     analysisData += `- POF Sign: ${careerAnalysis.pofSign}\n`;
     analysisData += `- Best Candidate: ${bestCareer?.planetName ?? "—"} (${bestCareer?.role ?? "—"}, score ${bestCareer?.score ?? 0})\n`;
     analysisData += `- Candidates: ${careerAnalysis.candidates.map((c) => `${c.planetName}(${c.role})`).join(", ") || "—"}\n`;
-    
+
     // 금전 지표성
     const wealthAnalysis = analyzeWealthPotential(chartData);
     analysisData += "\n## 금전 지표성\n";
@@ -692,16 +700,16 @@ async function generateLifetimeFortune(
       compatibilityChartData,
       transitChartData,
       aspects,
-      transitMoonHouse
+      transitMoonHouse,
     );
-    
+
     // 지표성 데이터 추가
     userPrompt += analysisData;
 
     // 네이탈 항성 회합 분석 (세차 보정, Identity/Career/Love/Roots/Health)
     const natalFixedStars = analyzeNatalFixedStars(
       chartData,
-      birthDate ?? chartData.date
+      birthDate ?? chartData.date,
     );
     const fixedStarNature = formatNatalFixedStarsForPrompt(natalFixedStars, {
       themes: ["Identity", "Roots"],
@@ -732,9 +740,7 @@ async function generateLifetimeFortune(
             {
               text:
                 userPromptBase +
-                (natalFixedStars.length > 0
-                  ? "\n\n" + fixedStarNature
-                  : ""),
+                (natalFixedStars.length > 0 ? "\n\n" + fixedStarNature : ""),
             },
           ],
         },
@@ -762,9 +768,7 @@ async function generateLifetimeFortune(
             {
               text:
                 userPromptBase +
-                (natalFixedStars.length > 0
-                  ? "\n\n" + fixedStarLove
-                  : ""),
+                (natalFixedStars.length > 0 ? "\n\n" + fixedStarLove : ""),
             },
           ],
         },
@@ -792,9 +796,7 @@ async function generateLifetimeFortune(
             {
               text:
                 userPromptBase +
-                (natalFixedStars.length > 0
-                  ? "\n\n" + fixedStarCareer
-                  : ""),
+                (natalFixedStars.length > 0 ? "\n\n" + fixedStarCareer : ""),
             },
           ],
         },
@@ -822,9 +824,7 @@ async function generateLifetimeFortune(
             {
               text:
                 userPromptBase +
-                (natalFixedStars.length > 0
-                  ? "\n\n" + fixedStarHealth
-                  : ""),
+                (natalFixedStars.length > 0 ? "\n\n" + fixedStarHealth : ""),
             },
           ],
         },
@@ -849,7 +849,7 @@ async function generateLifetimeFortune(
 
     // 병렬 호출로 속도 최적화 (4배 빠름!)
     console.log(
-      "🔄 Lifetime 운세: Nature, Love, MoneyCareer, HealthTotal을 병렬로 호출합니다..."
+      "🔄 Lifetime 운세: Nature, Love, MoneyCareer, HealthTotal을 병렬로 호출합니다...",
     );
     const [resultNature, resultLove, resultMoneyCareer, resultHealthTotal] =
       await Promise.all([
@@ -929,7 +929,7 @@ serve(async (req) => {
       console.error("SUPABASE_URL:", supabaseUrl ? "설정됨" : "누락");
       console.error(
         "SUPABASE_SERVICE_ROLE_KEY:",
-        supabaseServiceKey ? "설정됨" : "누락"
+        supabaseServiceKey ? "설정됨" : "누락",
       );
       return new Response(
         JSON.stringify({
@@ -938,7 +938,7 @@ serve(async (req) => {
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -984,7 +984,7 @@ serve(async (req) => {
           {
             status: 404,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1002,7 +1002,7 @@ serve(async (req) => {
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -1016,7 +1016,7 @@ serve(async (req) => {
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -1057,7 +1057,7 @@ serve(async (req) => {
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -1105,7 +1105,7 @@ serve(async (req) => {
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
       if (!birthDate || typeof lat !== "number" || typeof lng !== "number") {
@@ -1114,7 +1114,7 @@ serve(async (req) => {
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1122,7 +1122,7 @@ serve(async (req) => {
       let birthDateTime: Date;
       try {
         const dateMatch = birthDate.match(
-          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
         );
         if (!dateMatch) {
           throw new Error("Invalid date format");
@@ -1134,12 +1134,12 @@ serve(async (req) => {
           parseInt(day),
           parseInt(hour),
           parseInt(minute),
-          parseInt(second)
+          parseInt(second),
         );
         birthDateTime = new Date(tempUtcTimestamp - 9 * 60 * 60 * 1000);
         if (isNaN(birthDateTime.getTime())) throw new Error("Invalid date");
         console.log(
-          `🕐 [CONSULTATION] Timezone 보정 완료: ${birthDateTime.toISOString()}`
+          `🕐 [CONSULTATION] Timezone 보정 완료: ${birthDateTime.toISOString()}`,
         );
       } catch (error) {
         return new Response(
@@ -1149,7 +1149,7 @@ serve(async (req) => {
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1178,7 +1178,7 @@ serve(async (req) => {
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1190,14 +1190,14 @@ serve(async (req) => {
         ? Promise.resolve("")
         : fetchConsultationContext(
             requestData.consultationTopic || "GENERAL",
-            chartData
+            chartData,
           );
 
       // 2. Firdaria
       const firdariaResult = calculateFirdaria(
         birthDateTime,
         { lat, lng },
-        now
+        now,
       );
 
       // 3. Interaction (노드 기간이면 null)
@@ -1209,7 +1209,7 @@ serve(async (req) => {
           ? analyzeLordInteraction(
               chartData,
               firdariaResult.majorLord,
-              firdariaResult.subLord
+              firdariaResult.subLord,
             )
           : null;
 
@@ -1220,32 +1220,32 @@ serve(async (req) => {
       const directionResult = calculatePrimaryDirections(
         chartData,
         age,
-        birthDateTime
+        birthDateTime,
       );
 
       const graphKnowledge = await graphKnowledgePromise;
 
       // 5a. Profection (모든 카테고리 공통)
       const natalAscSign = getSignFromLongitude(
-        chartData.houses?.angles?.ascendant ?? 0
+        chartData.houses?.angles?.ascendant ?? 0,
       ).sign;
       const profectionData = calculateProfection(
         birthDateTime,
         now,
         natalAscSign,
-        false
+        false,
       );
 
       // 5a-2. 10년 타임라인: Progression & Profection
       const progressionTimeline = calculateProgressedEventsTimeline(
         chartData,
         age,
-        10
+        10,
       );
       const profectionTimeline = calculateProfectionTimeline(
         chartData,
         age,
-        10
+        10,
       );
 
       // 5a-3. Solar Return 차트 및 Overlay 계산 (자유 상담소 추운용)
@@ -1257,18 +1257,24 @@ serve(async (req) => {
         const solarReturnDateTime = calculateSolarReturnDateTime(
           birthDateTime,
           solarReturnYear,
-          natalSunLongitude
+          natalSunLongitude,
         );
         const timezoneOffsetHours = Math.round(lng / 15);
         solarReturnChartData = await calculateChart(
           solarReturnDateTime,
           { lat, lng },
-          timezoneOffsetHours
+          timezoneOffsetHours,
         );
-        solarReturnOverlay = getSolarReturnOverlays(chartData, solarReturnChartData);
+        solarReturnOverlay = getSolarReturnOverlays(
+          chartData,
+          solarReturnChartData,
+        );
         console.log(`✅ [CONSULTATION] Solar Return 차트 계산 완료`);
       } catch (srErr: any) {
-        console.warn("⚠️ [CONSULTATION] Solar Return 계산 실패 (무시하고 진행):", srErr);
+        console.warn(
+          "⚠️ [CONSULTATION] Solar Return 계산 실패 (무시하고 진행):",
+          srErr,
+        );
       }
 
       // 5b. CONSULTATION: 현재 트랜짓 차트 (연주 트랜짓 상태·각도·항성·3외행성용)
@@ -1278,7 +1284,7 @@ serve(async (req) => {
         consultationTransitChart = await calculateChart(
           now,
           { lat, lng },
-          timezoneOffsetHours
+          timezoneOffsetHours,
         );
       } catch (_) {
         // 무시
@@ -1323,7 +1329,7 @@ serve(async (req) => {
             firdariaResult,
             progressionResult,
             directionHits: directionResult,
-          }
+          },
         );
         loveAnalysis = {
           lotOfMarriage,
@@ -1353,7 +1359,7 @@ serve(async (req) => {
         profectionTimeline,
         solarReturnChartData,
         solarReturnOverlay,
-        consultationTransitChart
+        consultationTransitChart,
       );
 
       // 6a. CONSULTATION: 향후 6개월 단기 이벤트 스캔 (타임로드 역행·항성·역행/정지) → 프롬프트에 주입
@@ -1362,12 +1368,12 @@ serve(async (req) => {
         const shortTermSection = formatShortTermEventsForPrompt(scanResult);
         systemContext = systemContext + "\n\n" + shortTermSection;
         console.log(
-          `📅 [CONSULTATION] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`
+          `📅 [CONSULTATION] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`,
         );
       } catch (scanErr: any) {
         console.warn(
           "⚠️ [CONSULTATION] 단기 이벤트 스캔 실패 (무시하고 진행):",
-          scanErr
+          scanErr,
         );
       }
 
@@ -1393,7 +1399,10 @@ serve(async (req) => {
         }
 
         // 월간/연간 운세: 생일 기준 프로펙션·솔라리턴 전환 시점 계산
-        if ((topicUpper === "MONTHLY" || topicUpper === "YEARLY") && scanDays > 0) {
+        if (
+          (topicUpper === "MONTHLY" || topicUpper === "YEARLY") &&
+          scanDays > 0
+        ) {
           const endDate = new Date(now);
           endDate.setDate(endDate.getDate() + scanDays);
 
@@ -1402,10 +1411,10 @@ serve(async (req) => {
 
           // 현재~종료 사이에 생일이 있는지 확인
           const currentBirthday = new Date(
-            Date.UTC(now.getUTCFullYear(), birthMonth, birthDay)
+            Date.UTC(now.getUTCFullYear(), birthMonth, birthDay),
           );
           const nextBirthday = new Date(
-            Date.UTC(now.getUTCFullYear() + 1, birthMonth, birthDay)
+            Date.UTC(now.getUTCFullYear() + 1, birthMonth, birthDay),
           );
 
           let upcomingBirthday: Date | null = null;
@@ -1419,7 +1428,8 @@ serve(async (req) => {
             // 생일 전: 현재 프로펙션·솔라리턴
             // 생일 후: 다음 프로펙션·솔라리턴
             const beforeBirthdayDays = Math.floor(
-              (upcomingBirthday.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+              (upcomingBirthday.getTime() - now.getTime()) /
+                (1000 * 60 * 60 * 24),
             );
             const afterBirthdayDays = scanDays - beforeBirthdayDays;
 
@@ -1427,12 +1437,12 @@ serve(async (req) => {
             const currentProfection = profectionData;
             const currentSolarReturnYear = getActiveSolarReturnYear(
               birthDateTime,
-              now
+              now,
             );
             const currentSRDateTime = calculateSolarReturnDateTime(
               birthDateTime,
               currentSolarReturnYear,
-              chartData.planets.sun.degree
+              chartData.planets.sun.degree,
             );
             const timezoneOffsetHours = Math.round(lng / 15);
             let currentSRChart: ChartData | undefined;
@@ -1440,7 +1450,7 @@ serve(async (req) => {
               currentSRChart = await calculateChart(
                 currentSRDateTime,
                 { lat, lng },
-                timezoneOffsetHours
+                timezoneOffsetHours,
               );
             } catch (_) {}
 
@@ -1451,32 +1461,39 @@ serve(async (req) => {
               birthDateTime,
               afterBirthday,
               getSignFromLongitude(chartData.houses.angles.ascendant).sign,
-              false
+              false,
             );
             const nextSolarReturnYear = getActiveSolarReturnYear(
               birthDateTime,
-              afterBirthday
+              afterBirthday,
             );
             const nextSRDateTime = calculateSolarReturnDateTime(
               birthDateTime,
               nextSolarReturnYear,
-              chartData.planets.sun.degree
+              chartData.planets.sun.degree,
             );
             let nextSRChart: ChartData | undefined;
             try {
               nextSRChart = await calculateChart(
                 nextSRDateTime,
                 { lat, lng },
-                timezoneOffsetHours
+                timezoneOffsetHours,
               );
             } catch (_) {}
 
             // 생일 전/후 각 솔라리턴의 Overlay + 차트 내 각도 계산 (행성 위치·각도까지 프롬프트에 포함)
-            let currentSROverlay: Awaited<ReturnType<typeof getSolarReturnOverlays>> | null = null;
-            let nextSROverlay: Awaited<ReturnType<typeof getSolarReturnOverlays>> | null = null;
+            let currentSROverlay: Awaited<
+              ReturnType<typeof getSolarReturnOverlays>
+            > | null = null;
+            let nextSROverlay: Awaited<
+              ReturnType<typeof getSolarReturnOverlays>
+            > | null = null;
             if (currentSRChart) {
               try {
-                currentSROverlay = getSolarReturnOverlays(chartData, currentSRChart);
+                currentSROverlay = getSolarReturnOverlays(
+                  chartData,
+                  currentSRChart,
+                );
               } catch (_) {}
             }
             if (nextSRChart) {
@@ -1498,7 +1515,7 @@ serve(async (req) => {
                     currentSRChart,
                     currentSROverlay ?? undefined,
                     currentSRAspects.length > 0 ? currentSRAspects : undefined,
-                    "생일 전"
+                    "생일 전",
                   )
                 : "";
             const afterBlock =
@@ -1507,7 +1524,7 @@ serve(async (req) => {
                     nextSRChart,
                     nextSROverlay ?? undefined,
                     nextSRAspects.length > 0 ? nextSRAspects : undefined,
-                    "생일 후"
+                    "생일 후",
                   )
                 : "";
 
@@ -1569,20 +1586,20 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
               const sampleTransitChart = await calculateChart(
                 sampleDate,
                 { lat, lng },
-                timezoneOffsetHours
+                timezoneOffsetHours,
               );
               const sampleAspects = calculateLordOfYearTransitAspects(
                 sampleTransitChart,
-                lordName
+                lordName,
               );
               const sampleStatus = getLordOfYearTransitStatus(
                 sampleTransitChart,
-                lordName
+                lordName,
               );
 
               const dateStr = sampleDate.toISOString().split("T")[0];
               transitSummary.push(
-                `\n[${dateStr}] 역행: ${sampleStatus.isRetrograde ? "O" : "X"}, 각도: ${sampleAspects.length}개`
+                `\n[${dateStr}] 역행: ${sampleStatus.isRetrograde ? "O" : "X"}, 각도: ${sampleAspects.length}개`,
               );
               if (sampleAspects.length > 0 && sampleAspects.length <= 3) {
                 sampleAspects.forEach((a) => {
@@ -1600,15 +1617,15 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
           if (consultationTransitChart && lordName) {
             const lordTransitAspects = calculateLordOfYearTransitAspects(
               consultationTransitChart,
-              lordName
+              lordName,
             );
             const lordTransitStatus = getLordOfYearTransitStatus(
               consultationTransitChart,
-              lordName
+              lordName,
             );
             const lordTransitSection = formatLordOfYearTransitSectionForPrompt(
               lordTransitStatus,
-              lordTransitAspects
+              lordTransitAspects,
             );
             if (lordTransitSection) {
               systemContext = systemContext + "\n\n" + lordTransitSection;
@@ -1624,18 +1641,18 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
             lordLon,
             lordSpeed,
             lordName,
-            now.getFullYear()
+            now.getFullYear(),
           );
           const lordStarSection = formatLordStarConjunctionsForPrompt(
             lordName,
-            lordStarConjunctions
+            lordStarConjunctions,
           );
           systemContext = systemContext + "\n\n" + lordStarSection;
         }
       } catch (starErr: any) {
         console.warn(
           "⚠️ [CONSULTATION] 연주 트랜짓/항성 계산 실패 (무시):",
-          starErr?.message
+          starErr?.message,
         );
       }
 
@@ -1647,15 +1664,17 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
       let consultationSystemText = getConsultationSystemPrompt(
-        requestData.consultationTopic || "General"
+        requestData.consultationTopic || "General",
       );
       // 월간/연간 운세 카테고리 선택 시: 솔라리턴 해석 방법 가이드 추가
-      const topicUpper = (requestData.consultationTopic || "").trim().toUpperCase();
+      const topicUpper = (requestData.consultationTopic || "")
+        .trim()
+        .toUpperCase();
       if (topicUpper === "MONTHLY" || topicUpper === "YEARLY") {
         consultationSystemText =
           consultationSystemText + "\n\n" + getSolarReturnPrompt();
@@ -1670,10 +1689,10 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
         requestData.gender === "여자"
           ? "Female"
           : requestData.gender === "M" ||
-            requestData.gender === "male" ||
-            requestData.gender === "남자"
-          ? "Male"
-          : null;
+              requestData.gender === "male" ||
+              requestData.gender === "남자"
+            ? "Male"
+            : null;
       const userPrompt = `[User Question]: ${userQuestion.trim()}
 [Category]: ${consultationTopic || "General"}${
         genderForPrompt ? `\n[Gender]: ${genderForPrompt}` : ""
@@ -1708,7 +1727,7 @@ ${systemContext}`;
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1727,7 +1746,14 @@ ${systemContext}`;
           .from("fortune_results")
           .insert({
             user_id: currentUserId,
-            user_info: { birthDate, lat, lng, userQuestion, consultationTopic, profileName: requestData.profileName ?? null }, // NOT NULL 컬럼
+            user_info: {
+              birthDate,
+              lat,
+              lng,
+              userQuestion,
+              consultationTopic,
+              profileName: requestData.profileName ?? null,
+            }, // NOT NULL 컬럼
             fortune_text: interpretation.interpretation,
             fortune_type: fortuneType,
             chart_data: {
@@ -1773,7 +1799,7 @@ ${systemContext}`;
         if (historyError) {
           console.error(
             "❌ [CONSULTATION] fortune_history 저장 실패:",
-            historyError
+            historyError,
           );
           console.error("  - user_id:", currentUserId);
           console.error("  - profile_id:", currentProfileId);
@@ -1814,7 +1840,7 @@ ${systemContext}`;
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -1835,7 +1861,7 @@ ${systemContext}`;
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1852,7 +1878,7 @@ ${systemContext}`;
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1862,7 +1888,7 @@ ${systemContext}`;
       try {
         // 사용자1: KST를 UTC로 변환 (Date.UTC 사용)
         const dateMatch1 = user1.birthDate.match(
-          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
         );
         if (!dateMatch1) {
           throw new Error("Invalid date format for user1");
@@ -1876,14 +1902,14 @@ ${systemContext}`;
           parseInt(day1),
           parseInt(hour1),
           parseInt(minute1),
-          parseInt(second1)
+          parseInt(second1),
         );
         const kstToUtcTimestamp1 = tempUtcTimestamp1 - 9 * 60 * 60 * 1000;
         birthDateTime1 = new Date(kstToUtcTimestamp1);
 
         // 사용자2: KST를 UTC로 변환 (Date.UTC 사용)
         const dateMatch2 = user2.birthDate.match(
-          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
         );
         if (!dateMatch2) {
           throw new Error("Invalid date format for user2");
@@ -1897,7 +1923,7 @@ ${systemContext}`;
           parseInt(day2),
           parseInt(hour2),
           parseInt(minute2),
-          parseInt(second2)
+          parseInt(second2),
         );
         const kstToUtcTimestamp2 = tempUtcTimestamp2 - 9 * 60 * 60 * 1000;
         birthDateTime2 = new Date(kstToUtcTimestamp2);
@@ -1910,10 +1936,10 @@ ${systemContext}`;
         }
 
         console.log(
-          `🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`
+          `🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`,
         );
         console.log(
-          `🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`
+          `🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`,
         );
       } catch (error) {
         return new Response(
@@ -1924,7 +1950,7 @@ ${systemContext}`;
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1947,7 +1973,7 @@ ${systemContext}`;
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1967,7 +1993,7 @@ ${systemContext}`;
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1979,7 +2005,7 @@ ${systemContext}`;
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -1994,16 +2020,16 @@ ${systemContext}`;
         (user2 as { gender?: string }).gender === "여자"
           ? "F"
           : "M";
-      
+
       // 관계 유형 추출 (기본값: "연인")
       const relationshipType = requestData.relationshipType || "연인";
       console.log(`🤝 관계 유형: ${relationshipType}`);
-      
+
       const synastryResult = calculateSynastry(
         chartData1,
         chartData2,
         user1Gender,
-        user2Gender
+        user2Gender,
       );
 
       const interpretation = await getInterpretation(
@@ -2026,7 +2052,7 @@ ${systemContext}`;
         undefined, // lordTransitAspects
         undefined, // lordTransitStatus
         undefined, // lordStarConjunctionsText
-        relationshipType // 관계 유형 추가
+        relationshipType, // 관계 유형 추가
       );
 
       if (!interpretation.success || interpretation.error) {
@@ -2040,7 +2066,7 @@ ${systemContext}`;
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -2089,10 +2115,10 @@ ${systemContext}`;
 
       // 성공 응답 반환 (프론트 콘솔 로깅용 userPrompt/systemInstruction/debugInfo 포함)
       console.log(
-        `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`
+        `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`,
       );
       console.log(
-        `🧮 [COMPATIBILITY] Synastry Result 점수: ${synastryResult.overallScore}점`
+        `🧮 [COMPATIBILITY] Synastry Result 점수: ${synastryResult.overallScore}점`,
       );
       const compatResponse: any = {
         success: true,
@@ -2103,9 +2129,12 @@ ${systemContext}`;
         share_id: shareId || null,
         synastryResult: synastryResult,
       };
-      if (interpretation.userPrompt) compatResponse.userPrompt = interpretation.userPrompt;
-      if (interpretation.systemInstruction) compatResponse.systemInstruction = interpretation.systemInstruction;
-      if (interpretation.debugInfo) compatResponse.debugInfo = interpretation.debugInfo;
+      if (interpretation.userPrompt)
+        compatResponse.userPrompt = interpretation.userPrompt;
+      if (interpretation.systemInstruction)
+        compatResponse.systemInstruction = interpretation.systemInstruction;
+      if (interpretation.debugInfo)
+        compatResponse.debugInfo = interpretation.debugInfo;
       return new Response(JSON.stringify(compatResponse), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -2129,7 +2158,7 @@ ${systemContext}`;
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -2141,7 +2170,7 @@ ${systemContext}`;
 
       // ISO 형식 문자열 파싱: YYYY-MM-DDTHH:mm:ss
       const dateMatch = birthDate.match(
-        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/
+        /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
       );
       if (!dateMatch) {
         throw new Error("Invalid date format. Expected YYYY-MM-DDTHH:mm:ss");
@@ -2157,7 +2186,7 @@ ${systemContext}`;
         parseInt(day),
         parseInt(hour),
         parseInt(minute),
-        parseInt(second)
+        parseInt(second),
       );
 
       // 2. 거기서 9시간(KST Offset)을 뺌
@@ -2172,7 +2201,7 @@ ${systemContext}`;
       }
 
       console.log(
-        `🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`
+        `🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`,
       );
     } catch (error) {
       return new Response(
@@ -2183,7 +2212,7 @@ ${systemContext}`;
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -2202,13 +2231,14 @@ ${systemContext}`;
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
     // DAILY 운세의 경우: Transit 차트 및 Aspect 계산
     let transitChartData: ChartData | undefined;
     let aspects: any[] | undefined;
+    let transitToTransitAspects: any[] | undefined;
     let transitMoonHouse: number | undefined;
 
     if (fortuneType === FortuneType.DAILY) {
@@ -2217,18 +2247,22 @@ ${systemContext}`;
         const now = new Date();
         transitChartData = await calculateChart(now, { lat, lng });
 
-        // Aspect 계산
+        // Natal to Transit Aspect 계산
         aspects = calculateAspects(chartData, transitChartData);
+
+        // Transit to Transit Aspect 계산 (모든 트랜짓 행성 쌍 간의 각도)
+        transitToTransitAspects =
+          calculateTransitToTransitAspects(transitChartData);
 
         // Transit Moon이 Natal 차트의 몇 번째 하우스에 있는지 계산
         transitMoonHouse = getTransitMoonHouseInNatalChart(
           chartData,
-          transitChartData
+          transitChartData,
         );
       } catch (transitError: any) {
         console.error(
           "⚠️ Transit 차트 계산 실패 (기본 모드로 진행):",
-          transitError
+          transitError,
         );
         // Transit 계산 실패 시에도 기본 운세는 제공
       }
@@ -2256,10 +2290,10 @@ ${systemContext}`;
         const solarReturnDateTime = calculateSolarReturnDateTime(
           birthDateTime,
           solarReturnYear,
-          natalSunLongitude
+          natalSunLongitude,
         );
         console.log(
-          `🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`
+          `🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`,
         );
 
         // 4. Solar Return 차트 계산
@@ -2267,30 +2301,30 @@ ${systemContext}`;
         // 경도 15도 = 1시간, 동경은 +, 서경은 -
         const timezoneOffsetHours = Math.round(lng / 15);
         console.log(
-          `🌍 Timezone Offset (경도 ${lng}° 기준): ${timezoneOffsetHours}시간`
+          `🌍 Timezone Offset (경도 ${lng}° 기준): ${timezoneOffsetHours}시간`,
         );
 
         solarReturnChartData = await calculateChart(
           solarReturnDateTime,
           { lat, lng },
-          timezoneOffsetHours // 하우스 계산용 Timezone Offset
+          timezoneOffsetHours, // 하우스 계산용 Timezone Offset
         );
 
         // 5. Profection 계산 (Solar Return 모드: 단순 연도 차이 사용)
         const natalAscSign = getSignFromLongitude(
-          chartData.houses.angles.ascendant
+          chartData.houses.angles.ascendant,
         ).sign;
         profectionData = calculateProfection(
           birthDateTime,
           solarReturnDateTime,
           natalAscSign,
-          true // isSolarReturn = true: 단순 연도 차이로 나이 계산
+          true, // isSolarReturn = true: 단순 연도 차이로 나이 계산
         );
 
         // 6. Solar Return Overlay 계산
         solarReturnOverlay = getSolarReturnOverlays(
           chartData,
-          solarReturnChartData
+          solarReturnChartData,
         );
 
         console.log(`✅ YEARLY 운세 데이터 계산 완료`);
@@ -2306,33 +2340,37 @@ ${systemContext}`;
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          },
         );
       }
     }
 
     // DAILY: 프로펙션/연주 계산 + 타임로드 역행 여부 + 연주 행성의 트랜짓 상태·각도
-    let timeLordRetrogradeAlert: { planet: string; isRetrograde: boolean } | null =
-      null;
-    let dailyLordTransitAspects: any[] | undefined;
-    let dailyLordTransitStatus: {
+    let timeLordRetrogradeAlert: {
+      planet: string;
       isRetrograde: boolean;
-      isDayChart: boolean;
-      sectStatus: "day_sect" | "night_sect" | "neutral";
-      isInSect: boolean;
-    } | undefined;
+    } | null = null;
+    let dailyLordTransitAspects: any[] | undefined;
+    let dailyLordTransitStatus:
+      | {
+          isRetrograde: boolean;
+          isDayChart: boolean;
+          sectStatus: "day_sect" | "night_sect" | "neutral";
+          isInSect: boolean;
+        }
+      | undefined;
     let dailyLordStarConjunctionsText: string | undefined;
     if (fortuneType === FortuneType.DAILY && transitChartData) {
       try {
         const now = new Date();
         const natalAscSign = getSignFromLongitude(
-          chartData.houses.angles.ascendant
+          chartData.houses.angles.ascendant,
         ).sign;
         const dailyProfection = calculateProfection(
           birthDateTime,
           now,
           natalAscSign,
-          false
+          false,
         );
         profectionData = dailyProfection;
         const lordName = dailyProfection.lordOfTheYear;
@@ -2347,7 +2385,12 @@ ${systemContext}`;
         };
         const lordKey = lordKeyMap[lordName];
         const transitLord = lordKey
-          ? (transitChartData.planets as Record<string, { isRetrograde?: boolean }>)?.[lordKey]
+          ? (
+              transitChartData.planets as Record<
+                string,
+                { isRetrograde?: boolean }
+              >
+            )?.[lordKey]
           : undefined;
         const isRetrograde = transitLord?.isRetrograde === true;
         timeLordRetrogradeAlert = {
@@ -2356,11 +2399,11 @@ ${systemContext}`;
         };
         dailyLordTransitAspects = calculateLordOfYearTransitAspects(
           transitChartData,
-          lordName
+          lordName,
         );
         dailyLordTransitStatus = getLordOfYearTransitStatus(
           transitChartData,
-          lordName
+          lordName,
         );
         // 연주–항성 회합 (현재 시점, 세차 적용)
         try {
@@ -2370,27 +2413,27 @@ ${systemContext}`;
             lordLon,
             lordSpeed,
             lordName,
-            now.getFullYear()
+            now.getFullYear(),
           );
           dailyLordStarConjunctionsText = formatLordStarConjunctionsForPrompt(
             lordName,
-            lordStarConjunctions
+            lordStarConjunctions,
           );
         } catch (starErr: any) {
           console.warn(
             "⚠️ [DAILY] 연주–항성 회합 계산 실패 (무시):",
-            starErr?.message
+            starErr?.message,
           );
         }
         if (isRetrograde) {
           console.log(
-            `⚠️ [DAILY] 타임로드 ${lordName} 역행 — [CRITICAL WARNING] 프롬프트 주입`
+            `⚠️ [DAILY] 타임로드 ${lordName} 역행 — [CRITICAL WARNING] 프롬프트 주입`,
           );
         }
       } catch (err: any) {
         console.warn(
           "⚠️ [DAILY] 타임로드/연주 계산 실패 (무시):",
-          err?.message
+          err?.message,
         );
       }
     }
@@ -2402,10 +2445,13 @@ ${systemContext}`;
         const scanResult = scanShortTermEvents(chartData, new Date(), 6);
         shortTermPromptSection = formatShortTermEventsForPrompt(scanResult);
         console.log(
-          `📅 [YEARLY] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`
+          `📅 [YEARLY] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`,
         );
       } catch (scanErr: any) {
-        console.warn("⚠️ [YEARLY] 단기 이벤트 스캔 실패 (무시하고 진행):", scanErr);
+        console.warn(
+          "⚠️ [YEARLY] 단기 이벤트 스캔 실패 (무시하고 진행):",
+          scanErr,
+        );
       }
     }
 
@@ -2417,7 +2463,7 @@ ${systemContext}`;
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -2440,7 +2486,9 @@ ${systemContext}`;
       timeLordRetrogradeAlert,
       dailyLordTransitAspects,
       dailyLordTransitStatus,
-      dailyLordStarConjunctionsText
+      dailyLordStarConjunctionsText,
+      undefined, // relationshipType
+      transitToTransitAspects, // 트랜짓 to 트랜짓 각도
     );
 
     if (!interpretation.success || interpretation.error) {
@@ -2460,7 +2508,7 @@ ${systemContext}`;
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -2475,15 +2523,15 @@ ${systemContext}`;
             transitMoonHouse: transitMoonHouse ?? null,
           }
         : fortuneType === FortuneType.YEARLY
-        ? {
-            chart: chartData,
-            solarReturnChart: solarReturnChartData ?? null,
-            profectionData: profectionData ?? null,
-            solarReturnOverlay: solarReturnOverlay ?? null,
-          }
-        : fortuneType === FortuneType.LIFETIME
-        ? { chart: chartData }
-        : null;
+          ? {
+              chart: chartData,
+              solarReturnChart: solarReturnChartData ?? null,
+              profectionData: profectionData ?? null,
+              solarReturnOverlay: solarReturnOverlay ?? null,
+            }
+          : fortuneType === FortuneType.LIFETIME
+            ? { chart: chartData }
+            : null;
 
     const profileName = requestData.profileName ?? null;
     try {
@@ -2520,7 +2568,7 @@ ${systemContext}`;
 
     // 성공 응답 반환
     console.log(
-      `📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || "null"}`
+      `📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || "null"}`,
     );
     const responseData: any = {
       success: true,
@@ -2580,7 +2628,7 @@ ${systemContext}`;
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });

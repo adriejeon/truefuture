@@ -60,13 +60,14 @@ function getSignCharacter(signName: string): string {
 function analyzeOuterPlanetAspects(
   natalData: ChartData,
   transitData: ChartData,
-  lordOfTheYear?: string
+  lordOfTheYear?: string,
 ): string {
   const outerPlanets = ["uranus", "neptune", "pluto"];
   const sections: string[] = [];
 
   for (const outerKey of outerPlanets) {
-    const outerPlanetData = natalData.planets[outerKey as keyof typeof natalData.planets];
+    const outerPlanetData =
+      natalData.planets[outerKey as keyof typeof natalData.planets];
     if (!outerPlanetData) continue;
 
     const outerName = outerKey.charAt(0).toUpperCase() + outerKey.slice(1);
@@ -76,53 +77,90 @@ function analyzeOuterPlanetAspects(
     const transitAspects: string[] = [];
 
     // 네이탈 3외행성과 네이탈 7행성(태양~토성) 간 각도
-    const innerPlanets = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"];
+    const innerPlanets = [
+      "sun",
+      "moon",
+      "mercury",
+      "venus",
+      "mars",
+      "jupiter",
+      "saturn",
+    ];
     for (const innerKey of innerPlanets) {
-      const innerPlanet = natalData.planets[innerKey as keyof typeof natalData.planets];
+      const innerPlanet =
+        natalData.planets[innerKey as keyof typeof natalData.planets];
       if (!innerPlanet) continue;
 
-      const angleDiff = calculateAngleDifference(outerPlanetData.degree, innerPlanet.degree);
+      const angleDiff = calculateAngleDifference(
+        outerPlanetData.degree,
+        innerPlanet.degree,
+      );
 
       // Conjunction (0°, orb 6°)
       if (angleDiff <= 6) {
-        natalAspects.push(`Natal ${outerName} Conjunction Natal ${innerKey.toUpperCase()} (orb ${angleDiff.toFixed(1)}°)`);
+        natalAspects.push(
+          `Natal ${outerName} Conjunction Natal ${innerKey.toUpperCase()} (orb ${angleDiff.toFixed(1)}°)`,
+        );
       }
       // Opposition (180°, orb 6°)
       else if (Math.abs(angleDiff - 180) <= 6) {
-        natalAspects.push(`Natal ${outerName} Opposition Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`);
+        natalAspects.push(
+          `Natal ${outerName} Opposition Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`,
+        );
       }
       // Square (90°, orb 6°)
       else if (Math.abs(angleDiff - 90) <= 6) {
-        natalAspects.push(`Natal ${outerName} Square Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`);
+        natalAspects.push(
+          `Natal ${outerName} Square Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`,
+        );
       }
       // Trine (120°, orb 4°)
       else if (Math.abs(angleDiff - 120) <= 4) {
-        natalAspects.push(`Natal ${outerName} Trine Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`);
+        natalAspects.push(
+          `Natal ${outerName} Trine Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`,
+        );
       }
       // Sextile (60°, orb 4°)
       else if (Math.abs(angleDiff - 60) <= 4) {
-        natalAspects.push(`Natal ${outerName} Sextile Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 60).toFixed(1)}°)`);
+        natalAspects.push(
+          `Natal ${outerName} Sextile Natal ${innerKey.toUpperCase()} (orb ${Math.abs(angleDiff - 60).toFixed(1)}°)`,
+        );
       }
     }
 
     // 트랜짓 3외행성과 연주 행성 간 각도
-    const transitOuter = transitData.planets[outerKey as keyof typeof transitData.planets];
+    const transitOuter =
+      transitData.planets[outerKey as keyof typeof transitData.planets];
     if (transitOuter && lordOfTheYear) {
       const lordKey = lordOfTheYear.toLowerCase();
-      const lordPlanet = transitData.planets[lordKey as keyof typeof transitData.planets];
+      const lordPlanet =
+        transitData.planets[lordKey as keyof typeof transitData.planets];
       if (lordPlanet) {
-        const angleDiff = calculateAngleDifference(transitOuter.degree, lordPlanet.degree);
+        const angleDiff = calculateAngleDifference(
+          transitOuter.degree,
+          lordPlanet.degree,
+        );
 
         if (angleDiff <= 6) {
-          transitAspects.push(`Transit ${outerName} Conjunction Transit ${lordOfTheYear} (Lord of the Year) (orb ${angleDiff.toFixed(1)}°)`);
+          transitAspects.push(
+            `Transit ${outerName} Conjunction Transit ${lordOfTheYear} (Lord of the Year) (orb ${angleDiff.toFixed(1)}°)`,
+          );
         } else if (Math.abs(angleDiff - 180) <= 6) {
-          transitAspects.push(`Transit ${outerName} Opposition Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`);
+          transitAspects.push(
+            `Transit ${outerName} Opposition Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 180).toFixed(1)}°)`,
+          );
         } else if (Math.abs(angleDiff - 90) <= 6) {
-          transitAspects.push(`Transit ${outerName} Square Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`);
+          transitAspects.push(
+            `Transit ${outerName} Square Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 90).toFixed(1)}°)`,
+          );
         } else if (Math.abs(angleDiff - 120) <= 4) {
-          transitAspects.push(`Transit ${outerName} Trine Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`);
+          transitAspects.push(
+            `Transit ${outerName} Trine Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 120).toFixed(1)}°)`,
+          );
         } else if (Math.abs(angleDiff - 60) <= 4) {
-          transitAspects.push(`Transit ${outerName} Sextile Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 60).toFixed(1)}°)`);
+          transitAspects.push(
+            `Transit ${outerName} Sextile Transit ${lordOfTheYear} (Lord of the Year) (orb ${Math.abs(angleDiff - 60).toFixed(1)}°)`,
+          );
         }
       }
     }
@@ -132,11 +170,11 @@ function analyzeOuterPlanetAspects(
       section += `  위치: ${outerPlanetData.sign} ${outerPlanetData.degreeInSign.toFixed(1)}° (House ${outerPlanetData.house})\n`;
       if (natalAspects.length > 0) {
         section += `  네이탈 각도:\n`;
-        natalAspects.forEach(a => section += `    - ${a}\n`);
+        natalAspects.forEach((a) => (section += `    - ${a}\n`));
       }
       if (transitAspects.length > 0) {
         section += `  트랜짓 각도 (오늘):\n`;
-        transitAspects.forEach(a => section += `    - ${a}\n`);
+        transitAspects.forEach((a) => (section += `    - ${a}\n`));
       }
       sections.push(section);
     }
@@ -217,7 +255,7 @@ export type LordOfYearTransitStatus = {
  */
 export function formatLordOfYearTransitSectionForPrompt(
   lordTransitStatus?: LordOfYearTransitStatus | null,
-  lordTransitAspects?: Array<{ description: string }> | null
+  lordTransitAspects?: Array<{ description: string }> | null,
 ): string {
   const hasStatus = lordTransitStatus != null;
   const hasAspects =
@@ -233,13 +271,13 @@ export function formatLordOfYearTransitSectionForPrompt(
   ];
   if (lordTransitStatus) {
     lines.push(
-      `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}`
+      `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}`,
     );
   }
   if (hasAspects && lordTransitAspects) {
     lines.push("");
     lines.push(
-      "연주 행성이 현재 트랜짓 차트에서 다른 행성들과 맺는 각도 (해석 시 반영하세요):"
+      "연주 행성이 현재 트랜짓 차트에서 다른 행성들과 맺는 각도 (해석 시 반영하세요):",
     );
     lordTransitAspects.forEach((a, i) => {
       lines.push(`  ${i + 1}. ${a.description}`);
@@ -253,6 +291,7 @@ export function formatLordOfYearTransitSectionForPrompt(
  * Natal 차트, Transit 차트, 계산된 Aspect 정보를 포맷팅하여 반환합니다.
  * 타임로드가 역행 중이면 [CRITICAL WARNING] 섹션을 추가합니다.
  * 프로펙션/연주 정보와 연주 행성의 트랜짓 상태·각도를 포함할 수 있습니다.
+ * 트랜짓 to 트랜짓 행성 간 각도도 포함합니다.
  */
 export function generateDailyUserPrompt(
   natalData: ChartData,
@@ -263,7 +302,8 @@ export function generateDailyUserPrompt(
   profectionData?: ProfectionData | null,
   lordTransitStatus?: LordOfYearTransitStatus | null,
   lordTransitAspects?: Aspect[],
-  lordStarConjunctionsText?: string | null
+  lordStarConjunctionsText?: string | null,
+  transitToTransitAspects?: Aspect[], // 트랜짓 to 트랜짓 각도 추가
 ): string {
   // Natal 차트 포맷팅
   const natalPlanets = Object.entries(natalData.planets)
@@ -304,7 +344,7 @@ export function generateDailyUserPrompt(
   const outerPlanetSection = analyzeOuterPlanetAspects(
     natalData,
     transitData,
-    profectionData?.lordOfTheYear
+    profectionData?.lordOfTheYear,
   );
 
   // 최종 User Prompt 생성
@@ -363,23 +403,57 @@ ${
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 현재 트랜짓 차트에서 연주 행성(올해의 주인)의 상태:
 ${lordTransitStatus ? `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}` : ""}
-${lordTransitAspects && lordTransitAspects.length > 0 ? `
+${
+  lordTransitAspects && lordTransitAspects.length > 0
+    ? `
 연주 행성이 오늘 트랜짓 차트에서 다른 행성들과 맺는 각도 (해석 시 이 각도들의 영향을 반드시 반영하세요):
-${lordTransitAspects.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n")}` : ""}
+${lordTransitAspects.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n")}`
+    : ""
+}
 `
     : ""
 }
-${lordStarConjunctionsText ? `
+${
+  lordStarConjunctionsText
+    ? `
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${lordStarConjunctionsText}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ""}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : ""
+}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [Calculated Aspects - 주요 각도 관계]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${aspectsList || "  (오늘은 주요 Aspect가 형성되지 않았습니다)"}
 ${outerPlanetSection}
+${
+  transitToTransitAspects && transitToTransitAspects.length > 0
+    ? `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Transit to Transit Aspects - 현재 하늘의 행성들 간 각도]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+오늘 현재 하늘(트랜짓)에서 행성들 간에 형성된 각도 관계입니다. 이는 오늘 하루의 전반적인 분위기와 에너지를 나타냅니다.
+3외행성(Uranus, Neptune, Pluto)을 포함한 모든 트랜짓 행성들 간의 각도가 계산되었습니다.
+
+${transitToTransitAspects
+  .slice(0, 20)
+  .map((aspect, index) => `  ${index + 1}. ${aspect.description}`)
+  .join("\n")}
+${
+  transitToTransitAspects.length > 20
+    ? `\n  ... (총 ${transitToTransitAspects.length}개의 트랜짓 to 트랜짓 각도 중 상위 20개만 표시)`
+    : ""
+}
+
+💡 해석 힌트: 트랜짓 to 트랜짓 각도는 오늘 하늘에서 일어나는 행성들 간의 상호작용을 보여줍니다. 
+예를 들어, 트랜짓 태양과 트랜짓 달이 Trine을 이루면 하루의 전반적인 흐름이 조화롭고, 
+트랜짓 금성과 트랜짓 화성이 Square를 이루면 사랑이나 예술 분야에서 긴장감이 있을 수 있습니다.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : ""
+}
 ${
   timeLordRetrogradeAlert?.isRetrograde
     ? `
@@ -406,13 +480,15 @@ export function formatSolarReturnBlockForPrompt(
   srChartData: ChartData,
   overlay: SolarReturnOverlay | null | undefined,
   aspects: Array<{ description: string }> | null | undefined,
-  label?: string
+  label?: string,
 ): string {
   const lines: string[] = [];
   const title = label ? `[${label} 솔라 리턴 차트]` : "[Solar Return Chart]";
   lines.push(title);
   lines.push(`Solar Return 시간: ${srChartData.date}`);
-  lines.push(`위치: 위도 ${srChartData.location.lat}, 경도 ${srChartData.location.lng}`);
+  lines.push(
+    `위치: 위도 ${srChartData.location.lat}, 경도 ${srChartData.location.lng}`,
+  );
   const srAscDisplay = getSignDisplay(srChartData.houses.angles.ascendant);
   lines.push(`Solar Return Ascendant: ${srAscDisplay}`);
   lines.push("");
@@ -427,17 +503,35 @@ export function formatSolarReturnBlockForPrompt(
   if (overlay) {
     lines.push("");
     lines.push("[Solar Return Overlay - SR 행성의 Natal 하우스 위치]");
-    lines.push(`Solar Return Ascendant는 Natal 차트의 ${overlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.`);
+    lines.push(
+      `Solar Return Ascendant는 Natal 차트의 ${overlay.solarReturnAscendantInNatalHouse}번째 하우스에 위치합니다.`,
+    );
     lines.push("Solar Return 행성들의 Natal 차트 하우스 위치:");
-    lines.push(`  - SR Sun은 Natal ${overlay.planetsInNatalHouses.sun}번째 하우스`);
-    lines.push(`  - SR Moon은 Natal ${overlay.planetsInNatalHouses.moon}번째 하우스`);
-    lines.push(`  - SR Mercury는 Natal ${overlay.planetsInNatalHouses.mercury}번째 하우스`);
-    lines.push(`  - SR Venus는 Natal ${overlay.planetsInNatalHouses.venus}번째 하우스`);
-    lines.push(`  - SR Mars는 Natal ${overlay.planetsInNatalHouses.mars}번째 하우스`);
-    lines.push(`  - SR Jupiter는 Natal ${overlay.planetsInNatalHouses.jupiter}번째 하우스`);
-    lines.push(`  - SR Saturn은 Natal ${overlay.planetsInNatalHouses.saturn}번째 하우스`);
+    lines.push(
+      `  - SR Sun은 Natal ${overlay.planetsInNatalHouses.sun}번째 하우스`,
+    );
+    lines.push(
+      `  - SR Moon은 Natal ${overlay.planetsInNatalHouses.moon}번째 하우스`,
+    );
+    lines.push(
+      `  - SR Mercury는 Natal ${overlay.planetsInNatalHouses.mercury}번째 하우스`,
+    );
+    lines.push(
+      `  - SR Venus는 Natal ${overlay.planetsInNatalHouses.venus}번째 하우스`,
+    );
+    lines.push(
+      `  - SR Mars는 Natal ${overlay.planetsInNatalHouses.mars}번째 하우스`,
+    );
+    lines.push(
+      `  - SR Jupiter는 Natal ${overlay.planetsInNatalHouses.jupiter}번째 하우스`,
+    );
+    lines.push(
+      `  - SR Saturn은 Natal ${overlay.planetsInNatalHouses.saturn}번째 하우스`,
+    );
     lines.push("");
-    lines.push("💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 해당 기간 그 영역에서 해당 행성의 영향력이 강하게 나타납니다.");
+    lines.push(
+      "💡 해석 힌트: SR 행성이 Natal 차트의 어느 하우스에 들어오는지에 따라 해당 기간 그 영역에서 해당 행성의 영향력이 강하게 나타납니다.",
+    );
   }
 
   if (aspects && aspects.length > 0) {
@@ -457,7 +551,7 @@ export function generateYearlyUserPrompt(
   natalData: ChartData,
   solarReturnData: ChartData,
   profectionData: ProfectionData,
-  solarReturnOverlay: SolarReturnOverlay
+  solarReturnOverlay: SolarReturnOverlay,
 ): string {
   // Natal 차트 포맷팅
   const natalPlanets = Object.entries(natalData.planets)
@@ -652,7 +746,7 @@ Part of Fortune: ${
  */
 export function generateCompatibilityUserPrompt(
   natalData1: ChartData,
-  natalData2: ChartData
+  natalData2: ChartData,
 ): string {
   // 현재 날짜 정보
   const now = new Date();
@@ -822,7 +916,7 @@ export function generatePredictionPrompt(
   profectionTimeline?: ProfectionTimelineItem[],
   solarReturnChartData?: ChartData,
   solarReturnOverlay?: SolarReturnOverlay,
-  consultationTransitChart?: ChartData
+  consultationTransitChart?: ChartData,
 ): string {
   const sections: string[] = [];
 
@@ -867,7 +961,7 @@ ${natalStarBlock}
     const outerPlanetSection = analyzeOuterPlanetAspects(
       chartData,
       consultationTransitChart,
-      profectionData.lordOfTheYear
+      profectionData.lordOfTheYear,
     );
     if (outerPlanetSection) {
       sections.push(outerPlanetSection);
@@ -880,7 +974,7 @@ ${natalStarBlock}
   const majorLabel = firdariaResult.majorLord;
   const subLabel = firdariaResult.subLord ?? "—";
   analysisParts.push(
-    `1. Main Period (Firdaria): ${majorLabel} Major / ${subLabel} Sub`
+    `1. Main Period (Firdaria): ${majorLabel} Major / ${subLabel} Sub`,
   );
 
   if (interactionResult) {
@@ -923,22 +1017,22 @@ ${natalStarBlock}
   analysisParts.push(
     `   - Current Progressed Moon: ${
       progressionResult.progMoonSign
-    } (${ordinalHouse(progressionResult.progMoonHouse)} House)`
+    } (${ordinalHouse(progressionResult.progMoonHouse)} House)`,
   );
   analysisParts.push("   - Interaction with Natal (Internal/Fate):");
   if (progressionResult.natalAspects.length > 0) {
     progressionResult.natalAspects.forEach((a) =>
-      analysisParts.push(`     * ${a}`)
+      analysisParts.push(`     * ${a}`),
     );
   } else {
     analysisParts.push("     * None");
   }
   analysisParts.push(
-    "   - Interaction with Progressed Planets (Current Environment):"
+    "   - Interaction with Progressed Planets (Current Environment):",
   );
   if (progressionResult.progressedAspects.length > 0) {
     progressionResult.progressedAspects.forEach((a) =>
-      analysisParts.push(`     * ${a}`)
+      analysisParts.push(`     * ${a}`),
     );
   } else {
     analysisParts.push("     * None");
@@ -947,7 +1041,7 @@ ${natalStarBlock}
   analysisParts.push("");
   analysisParts.push("3. Major Events (Primary Directions - Placidus/Naibod):");
   analysisParts.push(
-    "   * Note: Shows Direct and Converse hits to Angles/Luminaries within next 10 years."
+    "   * Note: Shows Direct and Converse hits to Angles/Luminaries within next 10 years.",
   );
   if (directionResult.length > 0) {
     directionResult.forEach((hit) => {
@@ -955,9 +1049,11 @@ ${natalStarBlock}
       const promName = match ? match[1] : hit.name;
       const significator = match ? match[2] : "—";
       const typeLabel = hit.type === "Converse" ? " (Converse)" : "";
-      analysisParts.push(`   - ${hit.eventDate} (Age ${hit.age}): ${hit.name}${typeLabel}`);
       analysisParts.push(
-        `     * Interpretation: "${significator}의 영역(직업/가정/본신)에 ${promName}의 사건이 발생합니다."`
+        `   - ${hit.eventDate} (Age ${hit.age}): ${hit.name}${typeLabel}`,
+      );
+      analysisParts.push(
+        `     * Interpretation: "${significator}의 영역(직업/가정/본신)에 ${promName}의 사건이 발생합니다."`,
       );
     });
   } else {
@@ -968,16 +1064,16 @@ ${natalStarBlock}
     analysisParts.push("");
     analysisParts.push("4. Annual Profection:");
     analysisParts.push(
-      `   - Current Age: ${profectionData.age} (Profection House: ${ordinalHouse(profectionData.profectionHouse)})`
+      `   - Current Age: ${profectionData.age} (Profection House: ${ordinalHouse(profectionData.profectionHouse)})`,
     );
     analysisParts.push(
-      `   - Profection Sign: ${profectionData.profectionSign}`
+      `   - Profection Sign: ${profectionData.profectionSign}`,
     );
     analysisParts.push(
-      `   - Lord of the Year: ${profectionData.lordOfTheYear ?? "—"}`
+      `   - Lord of the Year: ${profectionData.lordOfTheYear ?? "—"}`,
     );
     analysisParts.push(
-      `   * Note: This year's focus is on the ${ordinalHouse(profectionData.profectionHouse)} house themes, ruled by ${profectionData.lordOfTheYear ?? "the sign ruler"}.`
+      `   * Note: This year's focus is on the ${ordinalHouse(profectionData.profectionHouse)} house themes, ruled by ${profectionData.lordOfTheYear ?? "the sign ruler"}.`,
     );
   }
 
@@ -986,15 +1082,29 @@ ${natalStarBlock}
     const asc = chartData.houses?.angles?.ascendant ?? 0;
     const nextNum = profectionData ? "5" : "4";
     analysisParts.push("");
-    analysisParts.push(`${nextNum}. Category-Specific House Rulers (for timing focus):`);
+    analysisParts.push(
+      `${nextNum}. Category-Specific House Rulers (for timing focus):`,
+    );
     if (catUpper === "EXAM") {
-      analysisParts.push(`   - Ruler of 3rd House (기초학습): ${getHouseRuler(asc, 3)}`);
-      analysisParts.push(`   - Ruler of 9th House (고등학문/대학): ${getHouseRuler(asc, 9)}`);
-      analysisParts.push(`   - Ruler of 10th House (직업/공무원·취업 시험): ${getHouseRuler(asc, 10)}`);
-      analysisParts.push("   - Mercury (학업/자격증), Sun (직업성 시험 시 가중).");
+      analysisParts.push(
+        `   - Ruler of 3rd House (기초학습): ${getHouseRuler(asc, 3)}`,
+      );
+      analysisParts.push(
+        `   - Ruler of 9th House (고등학문/대학): ${getHouseRuler(asc, 9)}`,
+      );
+      analysisParts.push(
+        `   - Ruler of 10th House (직업/공무원·취업 시험): ${getHouseRuler(asc, 10)}`,
+      );
+      analysisParts.push(
+        "   - Mercury (학업/자격증), Sun (직업성 시험 시 가중).",
+      );
     } else {
-      analysisParts.push(`   - Ruler of 4th House (거주지/부동산): ${getHouseRuler(asc, 4)}`);
-      analysisParts.push(`   - Ruler of 7th House (이동/계약): ${getHouseRuler(asc, 7)}`);
+      analysisParts.push(
+        `   - Ruler of 4th House (거주지/부동산): ${getHouseRuler(asc, 4)}`,
+      );
+      analysisParts.push(
+        `   - Ruler of 7th House (이동/계약): ${getHouseRuler(asc, 7)}`,
+      );
       analysisParts.push("   - Key angle: IC (Imum Coeli, relocation).");
     }
   }
@@ -1004,7 +1114,9 @@ ${analysisParts.join("\n")}`);
 
   // --- [Solar Return Chart & Overlay] 추운(timing)용 ---
   if (solarReturnChartData && solarReturnOverlay) {
-    const srAscDisplay = getSignDisplay(solarReturnChartData.houses.angles.ascendant);
+    const srAscDisplay = getSignDisplay(
+      solarReturnChartData.houses.angles.ascendant,
+    );
     const srPlanets = Object.entries(solarReturnChartData.planets)
       .map(([name, planet]) => {
         return `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (SR House ${planet.house})`;
@@ -1046,11 +1158,11 @@ ${srOverlayInfo}`);
     careerAnalysis,
   });
   sections.push(
-    `[CRITICAL INSTRUCTION FOR TIMING ANALYSIS]\n${significators.timingFilterInstruction}`
+    `[CRITICAL INSTRUCTION FOR TIMING ANALYSIS]\n${significators.timingFilterInstruction}`,
   );
   if (significators.houseLordsBlock) {
     sections.push(
-      `[Category-Specific Significators (House Lords)]\n${significators.houseLordsBlock}`
+      `[Category-Specific Significators (House Lords)]\n${significators.houseLordsBlock}`,
     );
   }
 
@@ -1060,19 +1172,19 @@ ${srOverlayInfo}`);
     directionResult,
     progressionTimeline ?? [],
     profectionTimeline ?? [],
-    consultationTopic
+    consultationTopic,
   );
   if (timelineSection) {
     sections.push(`[TIMELINE ANALYSIS (Next 10 Years)]\n${timelineSection}`);
     sections.push(
-      `[INSTRUCTION FOR 10-YEAR TIMING]\nYou are analyzing a **10-year timeline**. DO NOT limit your answer to the current year (e.g. 2026). Scan the timeline above. If the strongest indicator for this question appears in a later year (e.g. 2029), explicitly state that "The most important timing is **that year**." Explain WHY based on the combination of Primary Directions, Secondary Progressions, and Annual Profections. Mark **(STRONG)** entries as especially significant when multiple techniques align.`
+      `[INSTRUCTION FOR 10-YEAR TIMING]\nYou are analyzing a **10-year timeline**. DO NOT limit your answer to the current year (e.g. 2026). Scan the timeline above. If the strongest indicator for this question appears in a later year (e.g. 2029), explicitly state that "The most important timing is **that year**." Explain WHY based on the combination of Primary Directions, Secondary Progressions, and Annual Profections. Mark **(STRONG)** entries as especially significant when multiple techniques align.`,
     );
   }
 
   // --- [🏛️ Career] / [💰 Wealth] (consultationTopic WORK / MONEY 시에만) ---
   if (careerAnalysis && careerAnalysis.candidates.length > 0) {
     const best = careerAnalysis.candidates.reduce((a, b) =>
-      a.score >= b.score ? a : b
+      a.score >= b.score ? a : b,
     );
     const reasonParts = formatScoreBreakdown(best.breakdown);
     const meaningReason =
@@ -1111,7 +1223,7 @@ ${careerAnalysis.candidates
                   o.type === "Benefic"
                     ? "easy wealth / favorable"
                     : "challenges or delayed gain"
-                })`
+                })`,
             )
             .join(", ")
         : "(no planets in Acquisition House)";
@@ -1150,18 +1262,18 @@ ${careerAnalysis.candidates
     const combust =
       loveAnalysis.loveQualities.statusDescription.includes("Combust");
     const dignity = loveAnalysis.loveQualities.statusDescription.includes(
-      "Stable"
+      "Stable",
     )
       ? "Stable/Happy"
       : loveAnalysis.loveQualities.statusDescription.includes("Challenging")
-      ? "Challenging"
-      : "Moderate";
+        ? "Challenging"
+        : "Moderate";
     const interpText =
       loveAnalysis.loveQualities.score >= 5
         ? "연애 기회가 많고 안정적임"
         : loveAnalysis.loveQualities.score <= 0
-        ? "비밀 연애·지연 주의"
-        : "연애는 있으나 변동 가능";
+          ? "비밀 연애·지연 주의"
+          : "연애는 있으나 변동 가능";
     const best = loveAnalysis.spouseCandidate.bestSpouseCandidate;
     const totalScore = loveAnalysis.spouseCandidate.scores[best] ?? 0;
     const connectedParts: string[] = [];
@@ -1184,16 +1296,16 @@ ${careerAnalysis.candidates
     };
     const candidateKeywords = SPOUSE_CANDIDATE_KEYWORDS[best] ?? "—";
     const dirFactors = loveAnalysis.loveTiming.activatedFactors.filter((s) =>
-      s.startsWith("Direction:")
+      s.startsWith("Direction:"),
     );
     const progFactors = loveAnalysis.loveTiming.activatedFactors.filter((s) =>
-      s.startsWith("Progression:")
+      s.startsWith("Progression:"),
     );
     const venusSign = venus?.sign ?? "";
     const lotSign = loveAnalysis.lotOfMarriage.sign;
     const ascLong = chartData.houses?.angles?.ascendant ?? 0;
     const seventhSign = getSignFromLongitude(
-      normalizeDegrees(ascLong + 180)
+      normalizeDegrees(ascLong + 180),
     ).sign;
     const matchesLotVenus =
       loveAnalysis.profectionSign === venusSign ||
@@ -1222,8 +1334,8 @@ ${careerAnalysis.candidates
    - Sign Character: "${getSignCharacter(sign)}"
    - Status: ${combust ? "Combust" : "Not combust"}, ${dignity}
    - Interpretation: "금성이 ${ord}에 있고 점수가 ${
-      loveAnalysis.loveQualities.score
-    }점이므로, ${interpText}."
+     loveAnalysis.loveQualities.score
+   }점이므로, ${interpText}."
 
 2. Spouse Candidate (Who is it?):
    - 💍 Most Likely Planet: ${best} (Score: ${totalScore})
@@ -1235,8 +1347,8 @@ ${careerAnalysis.candidates
      loveAnalysis.profectionSign
    } (Matches Lot/Venus/7th? ${matchesLotVenus})
    - Firdaria: ${firdariaResult.majorLord} Major / ${
-      firdariaResult.subLord ?? "—"
-    } Sub Period.
+     firdariaResult.subLord ?? "—"
+   } Sub Period.
    - Direction Events: ${directionLines}
    - Progression Events: ${progressionLines}
    - Conclusion: "${conclusion}"
@@ -1363,7 +1475,7 @@ function formatBirthDateKst(birthDate: string): string {
   const [, y, m, d, h, min] = match;
   return `${y}년 ${parseInt(m!, 10)}월 ${parseInt(d!, 10)}일 ${parseInt(
     h!,
-    10
+    10,
   )}시 ${parseInt(min!, 10)}분`;
 }
 
@@ -1380,7 +1492,7 @@ function formatCurrentDateKst(): string {
 /** chartData.planets에서 Sun, Moon, Venus, Mars, Jupiter, Saturn을 "Sun: Scorpio (11th House)" 형식으로. getSignCharacter 주입 시 Sun/Moon에 (Character: ...) 추가 */
 function formatNatalPlanets(
   chartData: ChartData,
-  options?: { getSignCharacter?: (sign: string) => string }
+  options?: { getSignCharacter?: (sign: string) => string },
 ): string {
   const order = [
     "sun",
@@ -1434,14 +1546,16 @@ function getRulerOf11thFromPof(chartData: ChartData): string {
 
 /** POF(Part of Fortune) 별자리의 룰러 반환 */
 function getRulerOfPof(chartData: ChartData): string {
-  const pofSign = chartData.fortuna?.sign ?? getSignFromLongitude(chartData.fortuna?.degree ?? 0).sign;
+  const pofSign =
+    chartData.fortuna?.sign ??
+    getSignFromLongitude(chartData.fortuna?.degree ?? 0).sign;
   return getSignRuler(pofSign);
 }
 
 /** POF 기준 10번째·11번째 하우스에 위치한 행성 이름 목록 (1순위: 10th, 2순위: 11th) */
 function getPlanetsInPof10th11th(
   chartData: ChartData,
-  careerAnalysis?: CareerAnalysisResult | null
+  careerAnalysis?: CareerAnalysisResult | null,
 ): { pof10: string[]; pof11: string[] } {
   if (careerAnalysis?.candidates?.length) {
     const pof10 = careerAnalysis.candidates
@@ -1493,7 +1607,7 @@ export function getCategorySignificators(
     loveAnalysis?: LoveAnalysisData | null;
     wealthAnalysis?: WealthAnalysisResult | null;
     careerAnalysis?: CareerAnalysisResult | null;
-  }
+  },
 ): CategorySignificatorsResult {
   const asc = chartData.houses?.angles?.ascendant ?? 0;
   const cat = (category || "OTHER").trim().toUpperCase();
@@ -1638,7 +1752,7 @@ function buildTimelineAnalysisSection(
   directionResult: PrimaryDirectionHit[],
   progressionTimeline: ProgressedEventItem[],
   profectionTimeline: ProfectionTimelineItem[],
-  category: string
+  category: string,
 ): string {
   const sigSet = new Set(significators.map((s) => s.toLowerCase()));
   const yearsToLines: Record<number, string[]> = {};
@@ -1654,20 +1768,21 @@ function buildTimelineAnalysisSection(
     const promMatch = sigSet.has(prom.toLowerCase());
     const targetMatch = sigSet.has(target.toLowerCase());
     if (!promMatch && !targetMatch) continue;
-    const year = hit.year ?? parseInt(String(hit.eventDate ?? "").split(".")[0], 10);
+    const year =
+      hit.year ?? parseInt(String(hit.eventDate ?? "").split(".")[0], 10);
     if (!year || isNaN(year)) continue;
     addYear(year);
-    yearsToLines[year].push(
-      `Primary Direction(${hit.pair}) **(STRONG)**`
-    );
+    yearsToLines[year].push(`Primary Direction(${hit.pair}) **(STRONG)**`);
   }
 
   // Progression: 이벤트 문자열에 지표성 행성명이 포함되면 포함
   for (const item of progressionTimeline) {
     const matched = item.events.filter((ev) =>
-      significators.some((sig) =>
-        ev.includes(sig) || ev.toLowerCase().includes(`natal ${sig.toLowerCase()}`)
-      )
+      significators.some(
+        (sig) =>
+          ev.includes(sig) ||
+          ev.toLowerCase().includes(`natal ${sig.toLowerCase()}`),
+      ),
     );
     if (matched.length === 0) continue;
     addYear(item.year);
@@ -1686,15 +1801,13 @@ function buildTimelineAnalysisSection(
     .sort((a, b) => a - b);
   if (years.length === 0) return "";
 
-  return years
-    .map((y) => `${y}: ${yearsToLines[y].join(", ")}`)
-    .join("\n");
+  return years.map((y) => `${y}: ${yearsToLines[y].join(", ")}`).join("\n");
 }
 
 /** 카테고리별 [CRITICAL INSTRUCTION FOR TIMING ANALYSIS] 문구 생성 */
 function buildTimingFilterInstruction(
   category: string,
-  sig: { primary: string[]; secondary?: string[] }
+  sig: { primary: string[]; secondary?: string[] },
 ): string {
   const primaryList = sig.primary.join(", ");
   const secondaryList =
@@ -1743,46 +1856,61 @@ You must analyze timing by integrating data from all 4 predictive techniques pro
 4. Explain your reasoning: which techniques support this timing, which significators are activated, and what the condition of those significators is.`;
 
   if (category === "EXAM") {
-    return baseInstruction + `
+    return (
+      baseInstruction +
+      `
 
 **Additional Guidance for EXAM:**
 - If the question involves career-related exams (civil service, professional licensing), emphasize Ruler of 10th House and Sun.
-- If it's academic exams (university, certifications), emphasize Mercury, Ruler of 3rd, and Ruler of 9th.`;
+- If it's academic exams (university, certifications), emphasize Mercury, Ruler of 3rd, and Ruler of 9th.`
+    );
   }
 
   if (category === "MOVE") {
-    return baseInstruction + `
+    return (
+      baseInstruction +
+      `
 
 **Additional Guidance for MOVE:**
 - Prioritize Primary Direction hits **to IC (Imum Coeli)** as these are the strongest indicators for relocation.
-- Ruler of 4th (home/real estate) and Ruler of 7th (contracts/relocation) are key.`;
+- Ruler of 4th (home/real estate) and Ruler of 7th (contracts/relocation) are key.`
+    );
   }
 
   if (category === "HEALTH") {
-    return baseInstruction + `
+    return (
+      baseInstruction +
+      `
 
 **Additional Guidance for HEALTH:**
 - Moon is the primary indicator for overall vitality and recovery.
 - Saturn aspects indicate chronic conditions or slow recovery; Mars aspects indicate acute issues, inflammation, or surgery.
 - Ruler of 6th (illness/treatment) and Ruler of 12th (mental health/hospitalization) are key.
-- Challenging transits or progressions to Ascendant may indicate physical vulnerability periods.`;
+- Challenging transits or progressions to Ascendant may indicate physical vulnerability periods.`
+    );
   }
 
   if (category === "LOVE") {
-    return baseInstruction + `
+    return (
+      baseInstruction +
+      `
 
 **Additional Guidance for LOVE:**
 - Venus and Ruler of 7th House are primary indicators for relationships.
 - Ruler of Lot of Marriage indicates marriage potential specifically.
-- Moon aspects in Progression are especially important for emotional readiness and relationship timing.`;
+- Moon aspects in Progression are especially important for emotional readiness and relationship timing.`
+    );
   }
 
   if (category === "MONEY" || category === "WORK") {
-    return baseInstruction + `
+    return (
+      baseInstruction +
+      `
 
 **Additional Guidance for ${category}:**
 - Jupiter and benefic aspects generally indicate favorable periods for ${category === "MONEY" ? "wealth acquisition" : "career advancement"}.
-- Check if the Lord of the Year (Profection) or Firdaria Lord has good essential dignity and favorable house placement.`;
+- Check if the Lord of the Year (Profection) or Firdaria Lord has good essential dignity and favorable house placement.`
+    );
   }
 
   return baseInstruction;
@@ -1822,7 +1950,7 @@ function formatScoreBreakdown(breakdown: {
     parts.push(
       breakdown.maltreatment === -2
         ? "Maltreated by Malefic (mitigated by Sect)"
-        : "Maltreated by Malefic"
+        : "Maltreated by Malefic",
     );
   return parts;
 }
