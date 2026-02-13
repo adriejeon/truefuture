@@ -795,8 +795,13 @@ function Consultation() {
               </div>
             </div>
 
-            {/* 첫 질문에 대한 답변 표시: parsedData면 구조화된 UI, 아니면 마크다운(평문) */}
-            {historyView.parsedData ? (
+            {/* 첫 질문에 대한 답변 (위: 첫 질문 → 첫 운세 결과) */}
+            {!(historyView.interpretation?.trim()) ? (
+              <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
+                <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                <p className="text-slate-400 text-sm">답변을 불러올 수 없습니다.</p>
+              </div>
+            ) : historyView.parsedData ? (
               <div className="space-y-5 mb-8">
                 {/* 요약 카드 */}
                 <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
@@ -938,7 +943,7 @@ function Consultation() {
                 </div>
               </div>
             ) : (
-              <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+              <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
                 <h3 className="text-lg font-semibold text-white mb-3">
                   🔮 답변
                 </h3>
@@ -948,7 +953,7 @@ function Consultation() {
               </div>
             )}
 
-            {/* 후속 질문·답변 (대화 목록에서 클릭한 경우) */}
+            {/* 후속 질문·답변 (아래: 후속 질문 → 후속 운세 결과) */}
             {historyView.followUpAnswers?.length > 0 &&
               historyView.followUpAnswers.map((fu, fuIdx) => (
                 <div
@@ -961,7 +966,14 @@ function Consultation() {
                       <p className="text-white font-medium">{fu.question}</p>
                     </div>
                   </div>
-                  {fu.parsedData && (fu.parsedData.summary || fu.parsedData.analysis) ? (
+                  {!(fu.interpretation?.trim()) ? (
+                    <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                      <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                      <p className="text-slate-400 text-sm">
+                        답변을 불러올 수 없습니다. (이전에 저장된 후속 질문은 DB에서 연결해 주어야 표시됩니다.)
+                      </p>
+                    </div>
+                  ) : fu.parsedData && (fu.parsedData.summary || fu.parsedData.analysis) ? (
                     <div className="space-y-5">
                       <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                         <h2 className="text-xl font-bold text-white mb-4 leading-tight">
