@@ -21,10 +21,10 @@ function Footer() {
           <p>
             담당자 연락처{" "}
             <a
-              href="tel:010-8185-0524"
+              href="tel:0507-1348-1257"
               className="hover:text-white transition-colors duration-200"
             >
-              010.8185.0524
+              0507-1348-1257
             </a>
           </p>
           <p>
