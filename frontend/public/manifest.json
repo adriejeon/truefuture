@@ -1,7 +1,7 @@
 {
-  "name": "진짜미래 - AI 점성술 운세",
+  "name": "진짜미래 | 더 나은 미래를 위한 운명 컨설팅",
   "short_name": "진짜미래",
-  "description": "AI 기반 점성술로 당신의 운세를 확인하세요",
+  "description": "미래를 알면 더 나은 미래로 바꿀 수 있습니다.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

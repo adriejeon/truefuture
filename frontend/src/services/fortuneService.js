@@ -91,8 +91,9 @@ export async function saveFortuneHistory(
 
 /**
  * 상담 내역 조회 (consultation fortune_type만)
+ * result_id별로 그룹화하여 후속 질문 포함
  * @param {string} userId
- * @returns {Promise<Array<{id, user_question, created_at, result_id}>>}
+ * @returns {Promise<Array<{result_id, questions: Array<{id, user_question, created_at}>, latest_created_at}>>}
  */
 export async function fetchConsultationHistory(userId) {
   if (!userId) return [];
@@ -104,11 +105,52 @@ export async function fetchConsultationHistory(userId) {
       .eq("user_id", userId)
       .eq("fortune_type", "consultation")
       .not("user_question", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(50);
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    
+    if (!data || data.length === 0) return [];
+
+    // result_id별로 그룹화
+    const grouped = data.reduce((acc, item) => {
+      if (!item.result_id) return acc;
+      
+      if (!acc[item.result_id]) {
+        acc[item.result_id] = {
+          result_id: item.result_id,
+          questions: [],
+          latest_created_at: item.created_at,
+        };
+      }
+      
+      acc[item.result_id].questions.push({
+        id: item.id,
+        user_question: item.user_question,
+        created_at: item.created_at,
+      });
+      
+      // 최신 날짜 업데이트
+      if (new Date(item.created_at) > new Date(acc[item.result_id].latest_created_at)) {
+        acc[item.result_id].latest_created_at = item.created_at;
+      }
+      
+      return acc;
+    }, {});
+
+    // 배열로 변환하고 최신순 정렬
+    const result = Object.values(grouped)
+      .map(group => ({
+        ...group,
+        questions: group.questions.sort((a, b) => 
+          new Date(a.created_at) - new Date(b.created_at)
+        ),
+      }))
+      .sort((a, b) => 
+        new Date(b.latest_created_at) - new Date(a.latest_created_at)
+      )
+      .slice(0, 50);
+
+    return result;
   } catch (err) {
     console.error("❌ 상담 내역 조회 실패:", err);
     return [];

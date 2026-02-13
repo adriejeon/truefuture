@@ -132,6 +132,13 @@ function Consultation() {
   const [isScrolling, setIsScrolling] = useState(false);
   const chipScrollRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
+  
+  // 후속 질문 관련 상태
+  const [showFollowUpButton, setShowFollowUpButton] = useState(false);
+  const [showFollowUpInput, setShowFollowUpInput] = useState(false);
+  const [followUpQuestion, setFollowUpQuestion] = useState("");
+  const [loadingFollowUp, setLoadingFollowUp] = useState(false);
+  const [followUpAnswers, setFollowUpAnswers] = useState([]); // 이전 대화 맥락용 (후속 질문 답변들)
 
   // 별 차감 모달 상태 (모달 열 때 한 번에 설정해 항상 최신 잔액 표시)
   const [showStarModal, setShowStarModal] = useState(false);
@@ -211,22 +218,19 @@ function Consultation() {
     const loadHistoryItem = async () => {
       setLoadingShared(true);
       try {
-        // result_id로 fortune_history 조회 (동일 result_id가 여러 행일 수 있으므로 limit(1), 최신 1건만 사용)
+        // result_id로 fortune_history 조회 (모든 질문 가져오기)
         const { data: historyRows, error: historyError } = await supabase
           .from("fortune_history")
-          .select("user_question, result_id")
+          .select("user_question, result_id, created_at")
           .eq("result_id", resultId)
           .eq("fortune_type", "consultation")
-          .order("created_at", { ascending: false })
-          .limit(1);
+          .order("created_at", { ascending: true }); // 시간순 정렬
 
         if (historyError || !historyRows?.length) {
           console.error("히스토리 조회 실패:", historyError);
           setHistoryView(null);
           return;
         }
-
-        const historyData = historyRows[0];
 
         const { data: resultData, error: resultError } = await supabase
           .from("fortune_results")
@@ -241,8 +245,17 @@ function Consultation() {
         }
 
         const parsedData = parseFortuneResult(resultData.fortune_text);
+        
+        // 첫 번째 질문을 메인 질문으로, 나머지는 후속 질문으로
+        const mainQuestion = historyRows[0];
+        const followUpQuestions = historyRows.slice(1);
+        
         setHistoryView({
-          question: historyData.user_question || "(질문 없음)",
+          question: mainQuestion.user_question || "(질문 없음)",
+          followUpQuestions: followUpQuestions.map(q => ({
+            question: q.user_question,
+            created_at: q.created_at,
+          })),
           interpretation: resultData.fortune_text,
           parsedData,
           shareId: resultId,
@@ -441,6 +454,10 @@ function Consultation() {
 
       setError("");
       setConsultationAnswer(null);
+      setFollowUpAnswers([]);
+      setShowFollowUpButton(false);
+      setShowFollowUpInput(false);
+      setFollowUpQuestion("");
 
       try {
         // 1. 별 잔액 조회 (망원경 개수만 사용)
@@ -496,12 +513,159 @@ function Consultation() {
       // 2. 운세 조회
       const answer = await requestConsultation();
       setConsultationAnswer(answer);
+      setFollowUpAnswers([]);
+      setShowFollowUpInput(false);
+      setFollowUpQuestion("");
+
+      // 3. 후속 질문 버튼 표시 (애니메이션 딜레이)
+      setTimeout(() => {
+        setShowFollowUpButton(true);
+      }, 500);
     } catch (err) {
       setError(err?.message || "요청 중 오류가 발생했습니다.");
     } finally {
       setLoadingConsultation(false);
     }
   }, [user, requiredStars, userQuestion, requestConsultation]);
+
+  // 후속 질문 버튼 클릭
+  const handleFollowUpButtonClick = () => {
+    setShowFollowUpInput(true);
+    setShowFollowUpButton(false);
+  };
+
+  // 후속 질문 제출
+  const handleFollowUpSubmit = async (e) => {
+    e?.preventDefault?.();
+    if (!followUpQuestion.trim() || !consultationAnswer?.shareId) return;
+    if (!user?.id) {
+      setError("로그인이 필요합니다.");
+      return;
+    }
+
+    setError("");
+
+    try {
+      // 1. 별 잔액 조회
+      const stars = await fetchUserStars(user.id);
+      const paidStars = stars.paid;
+
+      // 2. 잔액 확인 후 모달 표시
+      const balanceStatus = checkStarBalance(paidStars, requiredStars);
+
+      if (balanceStatus === "insufficient") {
+        const nextData = {
+          type: "alert",
+          required: requiredStars,
+          current: paidStars,
+        };
+        setStarModalData(nextData);
+        setShowStarModal(true);
+      } else {
+        const nextData = {
+          type: "confirm",
+          required: requiredStars,
+          current: paidStars,
+        };
+        setStarModalData(nextData);
+        setShowStarModal(true);
+      }
+    } catch (err) {
+      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 후속 질문 별 차감 후 API 호출 (이전 대화 맥락 포함)
+  const handleConfirmFollowUpStarUsage = useCallback(async () => {
+    if (!user?.id || !consultationAnswer?.shareId) return;
+
+    setLoadingFollowUp(true);
+    setError("");
+
+    try {
+      // 1. 별 차감
+      await consumeStars(
+        user.id,
+        requiredStars,
+        `후속 질문: ${followUpQuestion.trim().slice(0, 50)}...`
+      );
+
+      // 2. 이전 대화 맥락 구성 (첫 질문·답변 + 이미 한 후속 질문·답변들)
+      const previousConversation = [
+        {
+          question: consultationAnswer.question,
+          interpretation: consultationAnswer.interpretation,
+        },
+        ...followUpAnswers.map((a) => ({
+          question: a.question,
+          interpretation: a.interpretation,
+        })),
+      ];
+
+      // 3. 후속 질문 API 호출
+      const formData = convertProfileToApiFormat(selectedProfile);
+      if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
+
+      const requestBody = {
+        ...formData,
+        fortuneType: "consultation",
+        userQuestion: followUpQuestion.trim(),
+        consultationTopic: selectedTopic,
+        profileId: selectedProfile.id,
+        profileName: selectedProfile.name || null,
+        previousConversation, // 이전 질문·답변 맥락 전달
+      };
+
+      const { data, error: functionError } = await supabase.functions.invoke(
+        "get-fortune",
+        { body: requestBody }
+      );
+
+      if (functionError)
+        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+      if (!data || data.error)
+        throw new Error(data?.error || "서버 오류가 발생했습니다.");
+
+      const parsedData = parseFortuneResult(data.interpretation);
+      const answer = {
+        question: followUpQuestion.trim(),
+        topic: selectedTopic,
+        interpretation: data.interpretation,
+        parsedData,
+        debugInfo: data.debugInfo || {},
+        shareId: consultationAnswer.shareId,
+        isFollowUp: true,
+      };
+
+      // 4. 히스토리 저장 (부모 result_id로 저장하여 연결)
+      await saveFortuneHistory(
+        user.id,
+        selectedProfile.id,
+        "consultation",
+        consultationAnswer.shareId,
+        null,
+        followUpQuestion.trim()
+      );
+
+      setFollowUpAnswers((prev) => [...prev, answer]);
+      setFollowUpQuestion("");
+      setShowFollowUpInput(false);
+      setShowFollowUpButton(false); // 후속 질문 1회만 허용
+
+    } catch (err) {
+      setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingFollowUp(false);
+    }
+  }, [
+    user,
+    requiredStars,
+    followUpQuestion,
+    consultationAnswer,
+    followUpAnswers,
+    selectedProfile,
+    selectedTopic,
+  ]);
 
   // 인증 로딩 중
   if (loadingAuth) {
@@ -586,6 +750,27 @@ function Consultation() {
                 </div>
               </div>
             </div>
+            
+            {/* 후속 질문들 표시 */}
+            {historyView.followUpQuestions && historyView.followUpQuestions.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {historyView.followUpQuestions.map((fq, idx) => (
+                  <div 
+                    key={idx}
+                    className="ml-6 p-3 bg-slate-800/30 border border-slate-600/30 rounded-lg"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="text-lg">↳</div>
+                      <div className="flex-1">
+                        <p className="text-slate-200 text-sm">
+                          {fq.question}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* 답변 표시: parsedData면 구조화된 UI, 아니면 마크다운(평문) */}
             {historyView.parsedData ? (
@@ -1390,6 +1575,276 @@ function Consultation() {
                       </div>
                     </div>
                   )}
+
+                  {/* 후속 질문 플로팅 버튼 (후속 질문은 1회만 가능) */}
+                  {showFollowUpButton && !showFollowUpInput && followUpAnswers.length === 0 && (
+                    <div className="relative mt-6">
+                      <button
+                        onClick={handleFollowUpButtonClick}
+                        className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 animate-slide-up"
+                        style={{
+                          animation: "slideUp 0.5s ease-out forwards",
+                        }}
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                          />
+                        </svg>
+                        이 답변에 대해 질문해 볼까요?
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 후속 질문 입력창 */}
+                  {showFollowUpInput && (
+                    <div className="mt-6 animate-fade-in">
+                      <form onSubmit={handleFollowUpSubmit}>
+                        <label className="block text-sm font-medium text-slate-300 mb-3">
+                          후속 질문
+                        </label>
+                        <textarea
+                          value={followUpQuestion}
+                          onChange={(e) => setFollowUpQuestion(e.target.value)}
+                          placeholder="답변에 대해 더 궁금한 점을 물어보세요."
+                          maxLength={1000}
+                          rows={4}
+                          className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                        />
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-slate-400">
+                            {followUpQuestion.length}/1000
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            망원경 1개 소비
+                          </span>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowFollowUpInput(false);
+                              setFollowUpQuestion("");
+                              setShowFollowUpButton(true);
+                            }}
+                            className="flex-1 py-2 px-4 bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white rounded-lg transition-colors"
+                          >
+                            취소
+                          </button>
+                          <PrimaryButton
+                            type="submit"
+                            disabled={!followUpQuestion.trim() || loadingFollowUp}
+                            className="flex-1"
+                          >
+                            질문하기
+                          </PrimaryButton>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* 후속 질문 로딩 */}
+                  {loadingFollowUp && (
+                    <div
+                      className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="후속 질문 분석 중"
+                    >
+                      <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+                        <TypewriterLoader />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 후속 질문 답변들 (여러 개일 수 있음) */}
+                  {followUpAnswers.length > 0 &&
+                    followUpAnswers.map((followUpAnswer, answerIdx) => (
+                      <div
+                        key={answerIdx}
+                        className="mt-6 border-t border-slate-600/50 pt-6"
+                      >
+                        <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+                          <div className="flex items-start gap-3">
+                            <div className="text-2xl">💬</div>
+                            <div className="flex-1">
+                              <p className="text-white font-medium">
+                                {followUpAnswer.question}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 후속 질문 답변 내용 */}
+                        {followUpAnswer.parsedData ? (
+                          <div className="space-y-5">
+                            <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
+                                {followUpAnswer.parsedData.summary?.title ||
+                                  "결론"}
+                              </h2>
+                              {followUpAnswer.parsedData.summary?.score !=
+                                null && (
+                                <div className="mb-4">
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-2xl font-bold text-white">
+                                      {followUpAnswer.parsedData.summary
+                                        .score}
+                                      %
+                                    </span>
+                                    <span className="flex gap-0.5" aria-hidden>
+                                      {[1, 2, 3, 4, 5].map((i) => (
+                                        <span
+                                          key={i}
+                                          className={
+                                            i <=
+                                            Math.round(
+                                              (followUpAnswer.parsedData
+                                                .summary?.score || 0) / 20
+                                            )
+                                              ? "text-amber-400"
+                                              : "text-slate-600"
+                                          }
+                                        >
+                                          ★
+                                        </span>
+                                      ))}
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-[#121230] rounded-full h-2.5">
+                                    <div
+                                      className="h-2.5 rounded-full transition-all duration-500"
+                                      style={{
+                                        backgroundColor: colors.primary,
+                                        width: `${followUpAnswer.parsedData.summary.score}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-1">
+                                {(
+                                  followUpAnswer.parsedData.summary
+                                    ?.keywords || []
+                                ).map((keyword, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
+                                  >
+                                    {keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            {followUpAnswer.parsedData.timeline &&
+                              followUpAnswer.parsedData.timeline.length > 0 && (
+                                <div>
+                                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                    📅 타임라인
+                                  </h3>
+                                  <div className="space-y-3">
+                                    {followUpAnswer.parsedData.timeline.map(
+                                      (item, idx) => {
+                                        const isGood = item.type === "good";
+                                        const isBad = item.type === "bad";
+                                        const bgColor = isGood
+                                          ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
+                                          : isBad
+                                          ? "bg-rose-900/30 border-rose-500/50"
+                                          : "bg-slate-700/30 border-slate-500/50";
+                                        const iconColor = isGood
+                                          ? "text-[#F2ACAC]"
+                                          : isBad
+                                          ? "text-rose-400"
+                                          : "text-slate-400";
+
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                                          >
+                                            <div
+                                              className={`text-xl flex-shrink-0 ${iconColor}`}
+                                            >
+                                              {isGood
+                                                ? "✨"
+                                                : isBad
+                                                ? "⚠️"
+                                                : "⏳"}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-semibold text-white mb-1">
+                                                {item.date}
+                                              </p>
+                                              <p className="text-sm text-slate-300 leading-relaxed">
+                                                {item.note}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                            <div className="space-y-5">
+                              <div>
+                                <h3 className="text-lg font-semibold text-white mb-3">
+                                  🔮 종합 분석
+                                </h3>
+                                <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                                  {followUpAnswer.parsedData.analysis?.general ||
+                                    ""}
+                                </p>
+                              </div>
+
+                              <div className="pt-5">
+                                <h3 className="text-lg font-semibold text-white mb-3">
+                                  ⏰ 시기 분석
+                                </h3>
+                                <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                                  {followUpAnswer.parsedData.analysis?.timing ||
+                                    ""}
+                                </p>
+                              </div>
+
+                              <div className="pt-5">
+                                <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                                  <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
+                                    💡 Action Tip
+                                  </h3>
+                                  <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                                    {followUpAnswer.parsedData.analysis
+                                      ?.advice || ""}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
+                            <h3 className="text-lg font-semibold text-white mb-4">
+                              🔮 답변
+                            </h3>
+                            <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
+                              <ReactMarkdown>
+                                {followUpAnswer.interpretation}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                 </div>
               )}
             </>
@@ -1414,7 +1869,11 @@ function Consultation() {
         type={starModalData.type}
         requiredAmount={starModalData.required}
         currentBalance={starModalData.current}
-        onConfirm={handleConfirmStarUsage}
+        onConfirm={
+          showFollowUpInput || followUpQuestion.trim()
+            ? handleConfirmFollowUpStarUsage
+            : handleConfirmStarUsage
+        }
         fortuneType={FORTUNE_TYPE_NAMES.consultation}
       />
     </div>

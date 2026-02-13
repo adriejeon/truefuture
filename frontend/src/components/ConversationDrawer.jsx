@@ -255,18 +255,41 @@ function ConversationDrawer({ isOpen, onClose }) {
                   <div className="p-2">
                     {conversations.map((conv) => (
                       <Link
-                        key={conv.id}
+                        key={conv.result_id}
                         to={`/consultation/${conv.result_id}`}
                         onClick={onClose}
                         className="block p-3 mb-2 rounded-lg hover:bg-slate-800/50 transition-colors group"
                       >
                         <div className="min-w-0">
+                          {/* 첫 번째 질문 (메인 질문) */}
                           <p className="text-sm text-white font-medium line-clamp-2">
-                            {truncateText(conv.user_question)}
+                            {truncateText(conv.questions[0]?.user_question)}
                           </p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {formatDate(conv.created_at)}
-                          </p>
+                          
+                          {/* 후속 질문들 */}
+                          {conv.questions.length > 1 && (
+                            <div className="mt-2 pl-3 border-l-2 border-slate-600/50 space-y-1">
+                              {conv.questions.slice(1).map((q, idx) => (
+                                <p 
+                                  key={q.id}
+                                  className="text-xs text-slate-400 line-clamp-1"
+                                >
+                                  ↳ {truncateText(q.user_question, 40)}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="text-xs text-slate-400">
+                              {formatDate(conv.latest_created_at)}
+                            </p>
+                            {conv.questions.length > 1 && (
+                              <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                {conv.questions.length}개 질문
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </Link>
                     ))}

@@ -1693,7 +1693,29 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
               requestData.gender === "남자"
             ? "Male"
             : null;
-      const userPrompt = `[User Question]: ${userQuestion.trim()}
+
+      // 후속 질문 시 이전 대화 맥락 (선택)
+      const previousConversation = requestData.previousConversation as
+        | Array<{ question: string; interpretation: string }>
+        | undefined;
+      const hasPreviousContext =
+        Array.isArray(previousConversation) &&
+        previousConversation.length > 0 &&
+        previousConversation.every(
+          (x) =>
+            typeof x?.question === "string" && typeof x?.interpretation === "string",
+        );
+
+      let contextBlock = "";
+      if (hasPreviousContext) {
+        const lines = previousConversation!.map(
+          (pair, i) =>
+            `[이전 질문 ${i + 1}]: ${pair.question.trim()}\n[점성술사 답변 ${i + 1}]:\n${pair.interpretation.trim()}`,
+        );
+        contextBlock = `[이전 대화 맥락 (동일 주제에 대한 선행 질문과 답변입니다. 이 맥락을 유지한 채 후속 질문에만 답하세요.)]\n${lines.join("\n\n")}\n\n`;
+      }
+
+      const userPrompt = `${contextBlock}[User Question]: ${userQuestion.trim()}
 [Category]: ${consultationTopic || "General"}${
         genderForPrompt ? `\n[Gender]: ${genderForPrompt}` : ""
       }
