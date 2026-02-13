@@ -18,15 +18,7 @@ function Footer() {
           <p>서울시 관악구 인헌 16길 9-202 (08800)</p>
           <p>사업자등록번호 344-30-02017</p>
           <p>통신판매번호 2026-서울관악-0149</p>
-          <p>
-            담당자 연락처{" "}
-            <a
-              href="tel:0507-1348-1257"
-              className="hover:text-white transition-colors duration-200"
-            >
-              0507-1348-1257
-            </a>
-          </p>
+          <p>0507-1348-1257</p>
           <p>
             <a
               href="mailto:jupiteradrie@gmail.com"
