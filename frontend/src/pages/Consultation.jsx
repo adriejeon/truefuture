@@ -132,9 +132,11 @@ function Consultation() {
   const [isScrolling, setIsScrolling] = useState(false);
   const chipScrollRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
+  const resultSectionRef = useRef(null); // 운세 결과 영역 (플로팅 버튼 노출 판단용)
   
   // 후속 질문 관련 상태
   const [showFollowUpButton, setShowFollowUpButton] = useState(false);
+  const [resultSectionInView, setResultSectionInView] = useState(false); // 결과 영역이 뷰포트에 들어왔는지
   const [showFollowUpInput, setShowFollowUpInput] = useState(false);
   const [followUpQuestion, setFollowUpQuestion] = useState("");
   const [loadingFollowUp, setLoadingFollowUp] = useState(false);
@@ -194,6 +196,22 @@ function Consultation() {
       }
     };
   }, [selectedTopic]);
+
+  // 운세 결과 영역이 뷰포트에 들어오면 플로팅 버튼 표시 (Intersection Observer)
+  useEffect(() => {
+    if (!consultationAnswer || !resultSectionRef.current) return;
+    const el = resultSectionRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setResultSectionInView(entry.isIntersecting);
+        });
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -20% 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [consultationAnswer]);
 
   // 프로필 데이터를 API 형식으로 변환 (성별: 백엔드/제미나이용 M/F)
   const convertProfileToApiFormat = (profile) => {
@@ -1302,7 +1320,7 @@ function Consultation() {
                   rows={5}
                   className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
                 />
-                <div className="flex items-center justify-between mt-2">
+                <div className="flex justify-end mt-2">
                   <span className="text-xs text-slate-400">
                     {userQuestion.length}/1000
                   </span>
@@ -1344,7 +1362,7 @@ function Consultation() {
 
               {/* 상담 결과 (로딩 완료 후 바로 표시) */}
               {consultationAnswer && (
-                <div className="mb-8">
+                <div ref={resultSectionRef} className="mb-8">
                   {consultationAnswer.shareId && (
                     <div className="flex items-center justify-end gap-2 mb-3">
                       <button
@@ -1576,35 +1594,7 @@ function Consultation() {
                     </div>
                   )}
 
-                  {/* 후속 질문 플로팅 버튼 (후속 질문은 1회만 가능) */}
-                  {showFollowUpButton && !showFollowUpInput && followUpAnswers.length === 0 && (
-                    <div className="relative mt-6">
-                      <button
-                        onClick={handleFollowUpButtonClick}
-                        className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 animate-slide-up"
-                        style={{
-                          animation: "slideUp 0.5s ease-out forwards",
-                        }}
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                          />
-                        </svg>
-                        이 답변에 대해 질문해 볼까요?
-                      </button>
-                    </div>
-                  )}
-
-                  {/* 후속 질문 입력창 */}
+                  {/* 후속 질문 입력창 (결과 영역 안에 유지) */}
                   {showFollowUpInput && (
                     <div className="mt-6 animate-fade-in">
                       <form onSubmit={handleFollowUpSubmit}>
@@ -1619,34 +1609,19 @@ function Consultation() {
                           rows={4}
                           className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
                         />
-                        <div className="flex items-center justify-between mt-2">
+                        <div className="flex justify-end mt-2">
                           <span className="text-xs text-slate-400">
                             {followUpQuestion.length}/1000
                           </span>
-                          <span className="text-xs text-slate-400">
-                            망원경 1개 소비
-                          </span>
                         </div>
-                        <div className="flex gap-2 mt-4">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowFollowUpInput(false);
-                              setFollowUpQuestion("");
-                              setShowFollowUpButton(true);
-                            }}
-                            className="flex-1 py-2 px-4 bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white rounded-lg transition-colors"
-                          >
-                            취소
-                          </button>
-                          <PrimaryButton
-                            type="submit"
-                            disabled={!followUpQuestion.trim() || loadingFollowUp}
-                            className="flex-1"
-                          >
-                            질문하기
-                          </PrimaryButton>
-                        </div>
+                        <PrimaryButton
+                          type="submit"
+                          disabled={!followUpQuestion.trim() || loadingFollowUp}
+                          fullWidth
+                          className="mt-4"
+                        >
+                          질문하기
+                        </PrimaryButton>
                       </form>
                     </div>
                   )}
@@ -1851,6 +1826,38 @@ function Consultation() {
           )}
         </div>
       </div>
+
+      {/* 후속 질문 플로팅 버튼 - 운세 결과 영역을 스크롤해서 보면 화면 하단에 고정 표시 */}
+      {consultationAnswer &&
+        resultSectionInView &&
+        showFollowUpButton &&
+        !showFollowUpInput &&
+        followUpAnswers.length === 0 && (
+          <div className="fixed bottom-20 left-0 right-0 z-40 px-4 flex justify-center">
+            <div className="w-full max-w-[600px] animate-slide-up-float">
+              <button
+                type="button"
+                onClick={handleFollowUpButtonClick}
+                className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <svg
+                  className="w-5 h-5 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                  />
+                </svg>
+                이 답변에 대해 질문해 볼까요?
+              </button>
+            </div>
+          </div>
+        )}
 
       {user && <BottomNavigation />}
 
