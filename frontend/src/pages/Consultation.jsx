@@ -276,16 +276,24 @@ function Consultation() {
         // 후속 질문에 대한 답변 (parent_result_id = resultId 인 결과들)
         const { data: childResults } = await supabase
           .from("fortune_results")
-          .select("id, fortune_text, created_at")
+          .select("id, fortune_text, created_at, user_info")
           .eq("parent_result_id", resultId)
           .order("created_at", { ascending: true });
 
-        const childInterpretations = (childResults || []).map((r) => r.fortune_text);
-        const followUpAnswers = followUpQuestions.map((q, i) => ({
-          question: q.user_question || "(질문 없음)",
-          interpretation: childInterpretations[i] || "",
-          parsedData: parseFortuneResult(childInterpretations[i]),
-        }));
+        const childList = childResults || [];
+        const childInterpretations = childList.map((r) => r.fortune_text);
+        // 질문 텍스트: 자식 행의 user_info.userQuestion 우선(해당 답변과 쌍을 이룸), 없으면 history 순서
+        const followUpAnswers = childList.map((r, i) => {
+          const childQuestion =
+            r.user_info?.userQuestion?.trim() ||
+            followUpQuestions[i]?.user_question?.trim() ||
+            "(질문 없음)";
+          return {
+            question: childQuestion,
+            interpretation: childInterpretations[i] || "",
+            parsedData: parseFortuneResult(childInterpretations[i]),
+          };
+        });
 
         setHistoryView({
           question: firstQuestionText,
