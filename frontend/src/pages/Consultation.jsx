@@ -252,7 +252,7 @@ function Consultation() {
 
         const { data: resultData, error: resultError } = await supabase
           .from("fortune_results")
-          .select("fortune_text")
+          .select("fortune_text, user_info, chart_data")
           .eq("id", resultId)
           .single();
 
@@ -263,20 +263,40 @@ function Consultation() {
         }
 
         const parsedData = parseFortuneResult(resultData.fortune_text);
-        
-        // 첫 번째 질문을 메인 질문으로, 나머지는 후속 질문으로
         const mainQuestion = historyRows[0];
         const followUpQuestions = historyRows.slice(1);
-        
+        const meta = resultData.chart_data?.metadata || {};
+        const userInfo = resultData.user_info || {};
+        const firstQuestionText =
+          mainQuestion?.user_question?.trim() ||
+          meta.userQuestion ||
+          userInfo.userQuestion ||
+          "(질문 없음)";
+
+        // 후속 질문에 대한 답변 (parent_result_id = resultId 인 결과들)
+        const { data: childResults } = await supabase
+          .from("fortune_results")
+          .select("id, fortune_text, created_at")
+          .eq("parent_result_id", resultId)
+          .order("created_at", { ascending: true });
+
+        const childInterpretations = (childResults || []).map((r) => r.fortune_text);
+        const followUpAnswers = followUpQuestions.map((q, i) => ({
+          question: q.user_question || "(질문 없음)",
+          interpretation: childInterpretations[i] || "",
+          parsedData: parseFortuneResult(childInterpretations[i]),
+        }));
+
         setHistoryView({
-          question: mainQuestion.user_question || "(질문 없음)",
-          followUpQuestions: followUpQuestions.map(q => ({
+          question: firstQuestionText,
+          followUpQuestions: followUpQuestions.map((q) => ({
             question: q.user_question,
             created_at: q.created_at,
           })),
           interpretation: resultData.fortune_text,
           parsedData,
           shareId: resultId,
+          followUpAnswers,
         });
       } catch (err) {
         console.error("히스토리 로드 실패:", err);
@@ -319,6 +339,11 @@ function Consultation() {
           parsedData, // 구조화된 JSON 데이터
           shareId: sharedId,
           profileName: userInfo.profileName || null,
+          followUps: (data.followUps || []).map((fu) => ({
+            question: fu.question,
+            interpretation: fu.interpretation,
+            parsedData: parseFortuneResult(fu.interpretation),
+          })),
         });
       })
       .catch(() => setSharedConsultation(null))
@@ -632,6 +657,7 @@ function Consultation() {
         profileId: selectedProfile.id,
         profileName: selectedProfile.name || null,
         previousConversation, // 이전 질문·답변 맥락 전달
+        parentResultId: consultationAnswer.shareId, // 공유 시 후속 질문 표시용
       };
 
       const { data, error: functionError } = await supabase.functions.invoke(
@@ -768,29 +794,8 @@ function Consultation() {
                 </div>
               </div>
             </div>
-            
-            {/* 후속 질문들 표시 */}
-            {historyView.followUpQuestions && historyView.followUpQuestions.length > 0 && (
-              <div className="mb-4 space-y-2">
-                {historyView.followUpQuestions.map((fq, idx) => (
-                  <div 
-                    key={idx}
-                    className="ml-6 p-3 bg-slate-800/30 border border-slate-600/30 rounded-lg"
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="text-lg">↳</div>
-                      <div className="flex-1">
-                        <p className="text-slate-200 text-sm">
-                          {fq.question}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
 
-            {/* 답변 표시: parsedData면 구조화된 UI, 아니면 마크다운(평문) */}
+            {/* 첫 질문에 대한 답변 표시: parsedData면 구조화된 UI, 아니면 마크다운(평문) */}
             {historyView.parsedData ? (
               <div className="space-y-5 mb-8">
                 {/* 요약 카드 */}
@@ -942,6 +947,90 @@ function Consultation() {
                 </div>
               </div>
             )}
+
+            {/* 후속 질문·답변 (대화 목록에서 클릭한 경우) */}
+            {historyView.followUpAnswers?.length > 0 &&
+              historyView.followUpAnswers.map((fu, fuIdx) => (
+                <div
+                  key={fuIdx}
+                  className="mt-8 pt-8 border-t border-slate-600/50"
+                >
+                  <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <div className="text-2xl">💬</div>
+                      <p className="text-white font-medium">{fu.question}</p>
+                    </div>
+                  </div>
+                  {fu.parsedData && (fu.parsedData.summary || fu.parsedData.analysis) ? (
+                    <div className="space-y-5">
+                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                        <h2 className="text-xl font-bold text-white mb-4 leading-tight">
+                          {fu.parsedData.summary?.title || "결론"}
+                        </h2>
+                        {fu.parsedData.summary?.score != null && (
+                          <div className="mb-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-2xl font-bold text-white">
+                                {fu.parsedData.summary.score}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-[#121230] rounded-full h-2.5">
+                              <div
+                                className="h-2.5 rounded-full transition-all duration-500"
+                                style={{
+                                  backgroundColor: colors.primary,
+                                  width: `${fu.parsedData.summary.score}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {(fu.parsedData.summary?.keywords || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {fu.parsedData.summary.keywords.map((kw, i) => (
+                              <span
+                                key={i}
+                                className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
+                              >
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {fu.parsedData.analysis?.general && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            🔮 종합 분석
+                          </h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {fu.parsedData.analysis.general}
+                          </p>
+                        </div>
+                      )}
+                      {fu.parsedData.analysis?.advice && (
+                        <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                          <h3 className="text-lg font-semibold text-[#F9A302] mb-3">
+                            💡 Action Tip
+                          </h3>
+                          <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {fu.parsedData.analysis.advice}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        🔮 답변
+                      </h3>
+                      <div className="prose prose-invert prose-sm sm:prose-base max-w-none text-slate-200">
+                        <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
 
             {/* 친구에게 공유 */}
             {historyView.shareId && (
@@ -1174,6 +1263,90 @@ function Consultation() {
                 </div>
               </div>
             )}
+
+            {/* 후속 질문·답변 (공유 시) */}
+            {sharedConsultation.followUps?.length > 0 &&
+              sharedConsultation.followUps.map((fu, fuIdx) => (
+                <div
+                  key={fuIdx}
+                  className="mt-8 pt-8 border-t border-slate-600/50"
+                >
+                  <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <div className="text-lg">↳</div>
+                      <p className="text-white font-medium">{fu.question}</p>
+                    </div>
+                  </div>
+                  {fu.parsedData ? (
+                    <div className="space-y-5">
+                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                        <h2 className="text-xl font-bold text-white mb-4 leading-tight">
+                          {fu.parsedData.summary?.title || "결론"}
+                        </h2>
+                        {fu.parsedData.summary?.score != null && (
+                          <div className="mb-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-2xl font-bold text-white">
+                                {fu.parsedData.summary.score}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-[#121230] rounded-full h-2.5">
+                              <div
+                                className="h-2.5 rounded-full transition-all duration-500"
+                                style={{
+                                  backgroundColor: colors.primary,
+                                  width: `${fu.parsedData.summary.score}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {(fu.parsedData.summary?.keywords || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {fu.parsedData.summary.keywords.map((kw, i) => (
+                              <span
+                                key={i}
+                                className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
+                              >
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {fu.parsedData.analysis?.general && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            🔮 종합 분석
+                          </h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {fu.parsedData.analysis.general}
+                          </p>
+                        </div>
+                      )}
+                      {fu.parsedData.analysis?.advice && (
+                        <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                          <h3 className="text-lg font-semibold text-[#F9A302] mb-3">
+                            💡 Action Tip
+                          </h3>
+                          <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {fu.parsedData.analysis.advice}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
+                      <h3 className="text-lg font-semibold text-white mb-4">
+                        🔮 답변
+                      </h3>
+                      <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed break-words">
+                        <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
 
             {!user && (
               <div className="bg-slate-800/50 rounded-lg p-4 text-center">

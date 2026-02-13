@@ -988,22 +988,49 @@ serve(async (req) => {
         );
       }
 
-      // 성공 응답 반환 (복구 시 chart_data 활용 가능)
-      return new Response(
-        JSON.stringify({
-          success: true,
-          interpretation: data.fortune_text,
-          userInfo: data.user_info,
-          fortuneType: data.fortune_type || "daily",
-          createdAt: data.created_at,
-          chart_data: data.chart_data ?? null,
-          isShared: true, // 공유된 운세임을 표시
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      const fortuneType = data.fortune_type || "daily";
+      const payload = {
+        success: true,
+        interpretation: data.fortune_text,
+        userInfo: data.user_info,
+        fortuneType,
+        createdAt: data.created_at,
+        chart_data: data.chart_data ?? null,
+        isShared: true,
+      };
+
+      // consultation 공유 시 후속 질문 목록 포함
+      if (fortuneType === "consultation") {
+        const { data: historyRows } = await supabaseAdmin
+          .from("fortune_history")
+          .select("user_question, created_at")
+          .eq("result_id", id)
+          .eq("fortune_type", "consultation")
+          .not("user_question", "is", null)
+          .order("created_at", { ascending: true });
+
+        const { data: childResults } = await supabaseAdmin
+          .from("fortune_results")
+          .select("id, fortune_text, created_at")
+          .eq("parent_result_id", id)
+          .order("created_at", { ascending: true });
+
+        const questions = (historyRows || []).map((r) => r.user_question);
+        const childInterpretations = (childResults || []).map((r) => r.fortune_text);
+        const followUps = [];
+        for (let i = 0; i < childInterpretations.length && i + 1 < questions.length; i++) {
+          followUps.push({
+            question: questions[i + 1],
+            interpretation: childInterpretations[i],
+          });
+        }
+        Object.assign(payload, { followUps });
+      }
+
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // 그 외 요청(운세 생성 POST)은 여기서부터 인증 검사 시작
@@ -1764,35 +1791,39 @@ ${systemContext}`;
         const currentProfileId = requestData.profileId || null;
 
         // Step 2: fortune_results에 먼저 insert (user_info NOT NULL 요구사항 충족)
-        const { data: resultData, error: resultError } = await supabase
-          .from("fortune_results")
-          .insert({
-            user_id: currentUserId,
-            user_info: {
+        const insertPayload = {
+          user_id: currentUserId,
+          user_info: {
+            birthDate,
+            lat,
+            lng,
+            userQuestion,
+            consultationTopic,
+            profileName: requestData.profileName ?? null,
+          }, // NOT NULL 컬럼
+          fortune_text: interpretation.interpretation,
+          fortune_type: fortuneType,
+          ...(requestData.parentResultId && {
+            parent_result_id: requestData.parentResultId,
+          }),
+          chart_data: {
+            chart: chartData,
+            firdaria: firdariaResult,
+            interaction: interactionResult,
+            progression: progressionResult,
+            direction: directionResult,
+            metadata: {
+              userQuestion,
+              consultationTopic,
               birthDate,
               lat,
               lng,
-              userQuestion,
-              consultationTopic,
-              profileName: requestData.profileName ?? null,
-            }, // NOT NULL 컬럼
-            fortune_text: interpretation.interpretation,
-            fortune_type: fortuneType,
-            chart_data: {
-              chart: chartData,
-              firdaria: firdariaResult,
-              interaction: interactionResult,
-              progression: progressionResult,
-              direction: directionResult,
-              metadata: {
-                userQuestion,
-                consultationTopic,
-                birthDate,
-                lat,
-                lng,
-              },
             },
-          })
+          },
+        };
+        const { data: resultData, error: resultError } = await supabase
+          .from("fortune_results")
+          .insert(insertPayload)
           .select("id")
           .single();
 
