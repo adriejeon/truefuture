@@ -1011,16 +1011,19 @@ serve(async (req) => {
 
         const { data: childResults } = await supabaseAdmin
           .from("fortune_results")
-          .select("id, fortune_text, created_at")
+          .select("id, fortune_text, created_at, user_info")
           .eq("parent_result_id", id)
           .order("created_at", { ascending: true });
 
         const questions = (historyRows || []).map((r) => r.user_question);
         const childInterpretations = (childResults || []).map((r) => r.fortune_text);
-        const followUps = [];
-        for (let i = 0; i < childInterpretations.length && i + 1 < questions.length; i++) {
+        const followUps: { question: string; interpretation: string }[] = [];
+        for (let i = 0; i < childInterpretations.length; i++) {
+          const childInfo = (childResults || [])[i]?.user_info as { userQuestion?: string } | undefined;
+          const questionText =
+            questions[i + 1] ?? childInfo?.userQuestion ?? "(질문 없음)";
           followUps.push({
-            question: questions[i + 1],
+            question: questionText,
             interpretation: childInterpretations[i],
           });
         }
