@@ -895,7 +895,216 @@ function Consultation() {
     );
   }
 
-  // 히스토리 뷰 (대화 목록에서 클릭한 경우)
+  // 공유 링크(?id=)로 들어온 경우: 읽기 전용 공유 뷰만 표시 (후속 질문 버튼 없음)
+  if (searchParams.get("id") && sharedConsultation) {
+    const profileName = sharedConsultation.profileName?.trim() || "";
+    const sharedTitle = profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요";
+    return (
+      <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
+        <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
+          <div className="py-8 sm:py-12">
+            <h2 className="text-xl sm:text-2xl font-bold text-primary mb-6">
+              {sharedTitle}
+            </h2>
+            <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+              <p className="text-white font-medium">
+                {sharedConsultation.question}
+              </p>
+            </div>
+            {sharedConsultation.parsedData ? (
+              <div className="space-y-5 mb-8">
+                <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
+                    {sharedConsultation.parsedData.summary?.title || "결론"}
+                  </h2>
+                  {sharedConsultation.parsedData.summary?.score != null && (
+                    <div className="mb-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-2xl font-bold text-white">
+                          {sharedConsultation.parsedData.summary.score}%
+                        </span>
+                        <span className="flex gap-0.5" aria-hidden>
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <span
+                              key={i}
+                              className={
+                                i <= Math.round((sharedConsultation.parsedData.summary?.score || 0) / 20)
+                                  ? "text-amber-400"
+                                  : "text-[#121230]"
+                              }
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </span>
+                      </div>
+                      <div className="w-full bg-[#121230] rounded-full h-2.5">
+                        <div
+                          className="h-2.5 rounded-full transition-all duration-500"
+                          style={{
+                            backgroundColor: colors.primary,
+                            width: `${sharedConsultation.parsedData.summary?.score || 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {(sharedConsultation.parsedData.summary?.keywords || []).map((keyword, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {sharedConsultation.parsedData.timeline && sharedConsultation.parsedData.timeline.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">📅 타임라인</h3>
+                    <div className="space-y-3">
+                      {sharedConsultation.parsedData.timeline.map((item, idx) => {
+                        const isGood = item.type === "good";
+                        const isBad = item.type === "bad";
+                        const bgColor = isGood ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]" : isBad ? "bg-rose-900/30 border-rose-500/50" : "bg-slate-700/30 border-slate-500/50";
+                        const iconColor = isGood ? "text-[#F2ACAC]" : isBad ? "text-rose-400" : "text-slate-400";
+                        return (
+                          <div key={idx} className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}>
+                            <div className={`text-xl flex-shrink-0 ${iconColor}`}>{isGood ? "✨" : isBad ? "⚠️" : "⏳"}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white mb-1">{item.date}</p>
+                              <p className="text-sm text-slate-300 leading-relaxed">{item.note}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-5">
+                  {sharedConsultation.parsedData.analysis?.general && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
+                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                        {sharedConsultation.parsedData.analysis.general}
+                      </p>
+                    </div>
+                  )}
+                  {sharedConsultation.parsedData.analysis?.timing && (
+                    <div className="pt-5">
+                      <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
+                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                        {sharedConsultation.parsedData.analysis.timing}
+                      </p>
+                    </div>
+                  )}
+                  {sharedConsultation.parsedData.analysis?.advice && (
+                    <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                      <h3 className="text-lg font-semibold text-[#F9A302] mb-3">💡 Action Tip</h3>
+                      <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
+                        {sharedConsultation.parsedData.analysis.advice}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
+                <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed break-words">
+                  <ReactMarkdown>{sharedConsultation.interpretation}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+            {sharedConsultation.followUps?.length > 0 &&
+              sharedConsultation.followUps.map((fu, fuIdx) => (
+                <div key={fuIdx} className="mt-8 pt-8 border-t border-slate-600/50">
+                  <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <div className="text-lg">↳</div>
+                      <p className="text-white font-medium">{fu.question}</p>
+                    </div>
+                  </div>
+                  {fu.parsedData ? (
+                    <div className="space-y-5">
+                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                        <h2 className="text-xl font-bold text-white mb-4 leading-tight">{fu.parsedData.summary?.title || "결론"}</h2>
+                        {fu.parsedData.summary?.score != null && (
+                          <div className="mb-4">
+                            <span className="text-2xl font-bold text-white">{fu.parsedData.summary.score}%</span>
+                            <div className="w-full bg-[#121230] rounded-full h-2.5">
+                              <div className="h-2.5 rounded-full transition-all duration-500" style={{ backgroundColor: colors.primary, width: `${fu.parsedData.summary.score}%` }} />
+                            </div>
+                          </div>
+                        )}
+                        {(fu.parsedData.summary?.keywords || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {fu.parsedData.summary.keywords.map((kw, i) => (
+                              <span key={i} className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100">{kw}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {fu.parsedData.timeline?.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-4">📅 타임라인</h3>
+                          <div className="space-y-3">
+                            {fu.parsedData.timeline.map((item, idx) => {
+                              const isGood = item.type === "good";
+                              const isBad = item.type === "bad";
+                              const bgColor = isGood ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]" : isBad ? "bg-rose-900/30 border-rose-500/50" : "bg-slate-700/30 border-slate-500/50";
+                              const iconColor = isGood ? "text-[#F2ACAC]" : isBad ? "text-rose-400" : "text-slate-400";
+                              return (
+                                <div key={idx} className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}>
+                                  <div className={`text-xl flex-shrink-0 ${iconColor}`}>{isGood ? "✨" : isBad ? "⚠️" : "⏳"}</div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-white mb-1">{item.date}</p>
+                                    <p className="text-sm text-slate-300 leading-relaxed">{item.note}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {fu.parsedData.analysis?.general && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.general}</p>
+                        </div>
+                      )}
+                      {fu.parsedData.analysis?.timing && (
+                        <div className="pt-5">
+                          <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.timing}</p>
+                        </div>
+                      )}
+                      {fu.parsedData.analysis?.advice && (
+                        <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                          <h3 className="text-lg font-semibold text-[#F9A302] mb-3">💡 Action Tip</h3>
+                          <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.advice}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                      <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                      <div className="prose prose-invert max-w-none text-slate-200">
+                        <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+        {user && <BottomNavigation />}
+      </div>
+    );
+  }
+
+  // 히스토리 뷰 (대화 목록에서 클릭한 경우, 또는 /consultation/:resultId 로만 들어온 경우)
   if (historyView) {
     return (
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
@@ -1236,15 +1445,28 @@ function Consultation() {
                 </div>
               ))}
 
-            {/* 이전 대화에서도 후속 질문 가능 */}
+            {/* 이전 대화에서도 후속 질문 가능 (운세 결과 페이지와 동일한 버튼 문구·스타일) */}
             <div className="mt-8 pt-8 border-t border-slate-600/50">
               {!historyShowFollowUpInput ? (
                 <button
                   type="button"
                   onClick={() => setHistoryShowFollowUpInput(true)}
-                  className="w-full py-3 px-4 rounded-lg border border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+                  className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
                 >
-                  이 대화에 후속 질문하기
+                  <svg
+                    className="w-5 h-5 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                    />
+                  </svg>
+                  이 답변에 대해 질문해 볼까요?
                 </button>
               ) : (
                 <div className="animate-fade-in">
@@ -1361,339 +1583,7 @@ function Consultation() {
     );
   }
 
-  if (sharedConsultation) {
-    const profileName = sharedConsultation.profileName?.trim() || "";
-    const sharedTitle = profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요";
-
-    return (
-      <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
-        <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
-          <div className="py-8 sm:py-12">
-            <h2 className="text-xl sm:text-2xl font-bold text-primary mb-6">
-              {sharedTitle}
-            </h2>
-            <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
-              <p className="text-white font-medium">
-                {sharedConsultation.question}
-              </p>
-            </div>
-
-            {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
-            {sharedConsultation.parsedData ? (
-              <div className="space-y-5 mb-8">
-                {/* Header Card */}
-                <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
-                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                    {sharedConsultation.parsedData.summary?.title || "결론"}
-                  </h2>
-                  {sharedConsultation.parsedData.summary?.score != null && (
-                    <div className="mb-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl font-bold text-white">
-                          {sharedConsultation.parsedData.summary.score}%
-                        </span>
-                        <span className="flex gap-0.5" aria-hidden>
-                          {[1, 2, 3, 4, 5].map((i) => (
-                            <span
-                              key={i}
-                              className={
-                                i <=
-                                Math.round(
-                                  (sharedConsultation.parsedData.summary
-                                    ?.score || 0) / 20
-                                )
-                                  ? "text-amber-400"
-                                  : "text-[#121230]"
-                              }
-                            >
-                              ★
-                            </span>
-                          ))}
-                        </span>
-                      </div>
-                      <div className="w-full bg-[#121230] rounded-full h-2.5">
-                        <div
-                          className="h-2.5 rounded-full transition-all duration-500"
-                          style={{
-                            backgroundColor: colors.primary,
-                            width: `${
-                              sharedConsultation.parsedData.summary?.score || 0
-                            }%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      sharedConsultation.parsedData.summary?.keywords || []
-                    ).map((keyword, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
-                      >
-                        {keyword}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Timeline Section */}
-                {sharedConsultation.parsedData.timeline &&
-                  sharedConsultation.parsedData.timeline.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        📅 타임라인
-                      </h3>
-                      <div className="space-y-3">
-                        {sharedConsultation.parsedData.timeline.map(
-                          (item, idx) => {
-                            const isGood = item.type === "good";
-                            const isBad = item.type === "bad";
-                            const bgColor = isGood
-                              ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
-                              : isBad
-                              ? "bg-rose-900/30 border-rose-500/50"
-                              : "bg-slate-700/30 border-slate-500/50";
-                            const iconColor = isGood
-                              ? "text-[#F2ACAC]"
-                              : isBad
-                              ? "text-rose-400"
-                              : "text-slate-400";
-
-                            return (
-                              <div
-                                key={idx}
-                                className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
-                              >
-                                <div
-                                  className={`text-xl flex-shrink-0 ${iconColor}`}
-                                >
-                                  {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-white mb-1">
-                                    {item.date}
-                                  </p>
-                                  <p className="text-sm text-slate-300 leading-relaxed">
-                                    {item.note}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          }
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Analysis Section */}
-                <div className="space-y-5">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-3">
-                      🔮 종합 분석
-                    </h3>
-                    <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                      {sharedConsultation.parsedData.analysis?.general || ""}
-                    </p>
-                  </div>
-
-                  <div className="pt-5">
-                    <h3 className="text-lg font-semibold text-white mb-3">
-                      ⏰ 시기 분석
-                    </h3>
-                    <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                      {sharedConsultation.parsedData.analysis?.timing || ""}
-                    </p>
-                  </div>
-
-                  <div className="pt-5">
-                    <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
-                      <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
-                        💡 Action Tip
-                      </h3>
-                      <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {sharedConsultation.parsedData.analysis?.advice || ""}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Fallback: Raw Text */
-              <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg mb-8">
-                <h3 className="text-lg font-semibold text-white mb-4">
-                  🔮 답변
-                </h3>
-                <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed break-words">
-                  <ReactMarkdown>
-                    {sharedConsultation.interpretation}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-
-            {/* 후속 질문·답변 (공유 시) */}
-            {sharedConsultation.followUps?.length > 0 &&
-              sharedConsultation.followUps.map((fu, fuIdx) => (
-                <div
-                  key={fuIdx}
-                  className="mt-8 pt-8 border-t border-slate-600/50"
-                >
-                  <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
-                    <div className="flex items-start gap-2">
-                      <div className="text-lg">↳</div>
-                      <p className="text-white font-medium">{fu.question}</p>
-                    </div>
-                  </div>
-                  {fu.parsedData ? (
-                    <div className="space-y-5">
-                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
-                        <h2 className="text-xl font-bold text-white mb-4 leading-tight">
-                          {fu.parsedData.summary?.title || "결론"}
-                        </h2>
-                        {fu.parsedData.summary?.score != null && (
-                          <div className="mb-4">
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="text-2xl font-bold text-white">
-                                {fu.parsedData.summary.score}%
-                              </span>
-                            </div>
-                            <div className="w-full bg-[#121230] rounded-full h-2.5">
-                              <div
-                                className="h-2.5 rounded-full transition-all duration-500"
-                                style={{
-                                  backgroundColor: colors.primary,
-                                  width: `${fu.parsedData.summary.score}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                        {(fu.parsedData.summary?.keywords || []).length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {fu.parsedData.summary.keywords.map((kw, i) => (
-                              <span
-                                key={i}
-                                className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100"
-                              >
-                                {kw}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {fu.parsedData.timeline && fu.parsedData.timeline.length > 0 && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                            📅 타임라인
-                          </h3>
-                          <div className="space-y-3">
-                            {fu.parsedData.timeline.map((item, idx) => {
-                              const isGood = item.type === "good";
-                              const isBad = item.type === "bad";
-                              const bgColor = isGood
-                                ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
-                                : isBad
-                                ? "bg-rose-900/30 border-rose-500/50"
-                                : "bg-slate-700/30 border-slate-500/50";
-                              const iconColor = isGood
-                                ? "text-[#F2ACAC]"
-                                : isBad
-                                ? "text-rose-400"
-                                : "text-slate-400";
-                              return (
-                                <div
-                                  key={idx}
-                                  className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
-                                >
-                                  <div className={`text-xl flex-shrink-0 ${iconColor}`}>
-                                    {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-white mb-1">
-                                      {item.date}
-                                    </p>
-                                    <p className="text-sm text-slate-300 leading-relaxed">
-                                      {item.note}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {fu.parsedData.analysis?.general && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-white mb-3">
-                            🔮 종합 분석
-                          </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {fu.parsedData.analysis.general}
-                          </p>
-                        </div>
-                      )}
-                      {fu.parsedData.analysis?.timing && (
-                        <div className="pt-5">
-                          <h3 className="text-lg font-semibold text-white mb-3">
-                            ⏰ 시기 분석
-                          </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {fu.parsedData.analysis.timing}
-                          </p>
-                        </div>
-                      )}
-                      {fu.parsedData.analysis?.advice && (
-                        <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
-                          <h3 className="text-lg font-semibold text-[#F9A302] mb-3">
-                            💡 Action Tip
-                          </h3>
-                          <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {fu.parsedData.analysis.advice}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
-                      <h3 className="text-lg font-semibold text-white mb-4">
-                        🔮 답변
-                      </h3>
-                      <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed break-words">
-                        <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-            {!user && (
-              <div className="bg-slate-800/50 rounded-lg p-4 text-center">
-                <p className="text-slate-300 mb-3">
-                  나도 궁금한 걸 물어보고 싶다면?
-                </p>
-                <a
-                  href="/login"
-                  className="inline-block px-6 py-3 bg-primary hover:bg-primary/90 text-black font-medium rounded-lg transition-colors"
-                >
-                  로그인하고 상담받기
-                </a>
-              </div>
-            )}
-            {user && (
-              <a
-                href="/consultation"
-                className="block text-center py-3 text-primary hover:text-primary/80 text-sm"
-              >
-                진짜미래로 이동 →
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // sharedConsultation은 위에서 searchParams.get("id") && sharedConsultation 일 때만 렌더 (공유 전용 뷰, 후속 질문 버튼 없음)
 
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
