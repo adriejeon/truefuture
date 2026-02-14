@@ -375,17 +375,25 @@ function Consultation() {
     }
   }, []);
 
+  // 공유 데이터 로드: ?id= 쿼리 또는 경로 /consultation/:resultId 둘 다 지원
   useEffect(() => {
-    const sharedId = searchParams.get("id");
+    const sharedId = searchParams.get("id") || resultId;
     if (!sharedId) return;
     loadSharedConsultation(sharedId);
-  }, [searchParams, loadSharedConsultation]);
+  }, [searchParams, resultId, loadSharedConsultation]);
 
+  // 예전 링크(?id=)로 들어온 경우 주소창을 path만 남기도록 한 번만 치환
+  const idFromQuery = searchParams.get("id");
+  useEffect(() => {
+    if (!idFromQuery || !sharedConsultation?.shareId) return;
+    if (idFromQuery !== sharedConsultation.shareId) return;
+    navigate(`/consultation/${idFromQuery}`, { replace: true });
+  }, [idFromQuery, sharedConsultation?.shareId, navigate]);
+
+  /** 공유 링크: /consultation/:id 형태만 사용 (?id 쿼리 없음) */
   const getShareUrl = (shareId) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("id", shareId);
-    url.hash = "";
-    return url.toString();
+    const origin = window.location.origin;
+    return `${origin}/consultation/${shareId}`;
   };
 
   const handleCopyLink = (shareId) => {
@@ -1007,8 +1015,11 @@ function Consultation() {
     );
   }
 
-  // 공유 링크(?id=)로 들어온 경우: 읽기 전용 공유 뷰만 표시 (후속 질문 버튼 없음)
-  if (searchParams.get("id") && sharedConsultation) {
+  // 공유 뷰: ?id= 쿼리 또는 /consultation/:resultId 경로로 들어온 경우 (본인 히스토리면 아래 historyView에서 처리)
+  const isSharedView =
+    sharedConsultation &&
+    (searchParams.get("id") || (resultId && !historyView));
+  if (isSharedView) {
     const profileName = sharedConsultation.profileName?.trim() || "";
     const sharedTitle = profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요";
     return (
