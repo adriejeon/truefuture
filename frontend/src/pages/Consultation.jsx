@@ -1018,6 +1018,47 @@ function Consultation() {
                           </div>
                         )}
                       </div>
+                      {fu.parsedData.timeline && fu.parsedData.timeline.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            📅 타임라인
+                          </h3>
+                          <div className="space-y-3">
+                            {fu.parsedData.timeline.map((item, idx) => {
+                              const isGood = item.type === "good";
+                              const isBad = item.type === "bad";
+                              const bgColor = isGood
+                                ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
+                                : isBad
+                                ? "bg-rose-900/30 border-rose-500/50"
+                                : "bg-slate-700/30 border-slate-500/50";
+                              const iconColor = isGood
+                                ? "text-[#F2ACAC]"
+                                : isBad
+                                ? "text-rose-400"
+                                : "text-slate-400";
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                                >
+                                  <div className={`text-xl flex-shrink-0 ${iconColor}`}>
+                                    {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-white mb-1">
+                                      {item.date}
+                                    </p>
+                                    <p className="text-sm text-slate-300 leading-relaxed">
+                                      {item.note}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       {fu.parsedData.analysis?.general && (
                         <div>
                           <h3 className="text-lg font-semibold text-white mb-3">
@@ -1025,6 +1066,16 @@ function Consultation() {
                           </h3>
                           <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                             {fu.parsedData.analysis.general}
+                          </p>
+                        </div>
+                      )}
+                      {fu.parsedData.analysis?.timing && (
+                        <div className="pt-5">
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            ⏰ 시기 분석
+                          </h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {fu.parsedData.analysis.timing}
                           </p>
                         </div>
                       )}
@@ -1334,6 +1385,47 @@ function Consultation() {
                           </div>
                         )}
                       </div>
+                      {fu.parsedData.timeline && fu.parsedData.timeline.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            📅 타임라인
+                          </h3>
+                          <div className="space-y-3">
+                            {fu.parsedData.timeline.map((item, idx) => {
+                              const isGood = item.type === "good";
+                              const isBad = item.type === "bad";
+                              const bgColor = isGood
+                                ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]"
+                                : isBad
+                                ? "bg-rose-900/30 border-rose-500/50"
+                                : "bg-slate-700/30 border-slate-500/50";
+                              const iconColor = isGood
+                                ? "text-[#F2ACAC]"
+                                : isBad
+                                ? "text-rose-400"
+                                : "text-slate-400";
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}
+                                >
+                                  <div className={`text-xl flex-shrink-0 ${iconColor}`}>
+                                    {isGood ? "✨" : isBad ? "⚠️" : "⏳"}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-white mb-1">
+                                      {item.date}
+                                    </p>
+                                    <p className="text-sm text-slate-300 leading-relaxed">
+                                      {item.note}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       {fu.parsedData.analysis?.general && (
                         <div>
                           <h3 className="text-lg font-semibold text-white mb-3">
@@ -1341,6 +1433,16 @@ function Consultation() {
                           </h3>
                           <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                             {fu.parsedData.analysis.general}
+                          </p>
+                        </div>
+                      )}
+                      {fu.parsedData.analysis?.timing && (
+                        <div className="pt-5">
+                          <h3 className="text-lg font-semibold text-white mb-3">
+                            ⏰ 시기 분석
+                          </h3>
+                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
+                            {fu.parsedData.analysis.timing}
                           </p>
                         </div>
                       )}
