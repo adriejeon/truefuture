@@ -1725,6 +1725,22 @@ function Consultation() {
           </div>
         )}
         {user && <BottomNavigation />}
+
+        {/* 히스토리 뷰에서도 별 차감 모달 노출 필요 (후속 질문 시 확인 모달) */}
+        <StarModal
+          key={`star-modal-${starModalData.current}-${starModalData.required}-${starModalData.type}`}
+          isOpen={showStarModal}
+          onClose={() => setShowStarModal(false)}
+          type={starModalData.type}
+          requiredAmount={starModalData.required}
+          currentBalance={starModalData.current}
+          onConfirm={
+            starModalMode === "historyFollowUp"
+              ? handleConfirmHistoryFollowUpStarUsage
+              : handleConfirmStarUsage
+          }
+          fortuneType={FORTUNE_TYPE_NAMES.consultation}
+        />
       </div>
     );
   }
