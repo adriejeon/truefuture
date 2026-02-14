@@ -257,6 +257,7 @@ function ConversationDrawer({ isOpen, onClose }) {
                       <Link
                         key={conv.result_id}
                         to={`/consultation/${conv.result_id}`}
+                        state={{ fromHistory: true }}
                         onClick={onClose}
                         className="block p-3 mb-2 rounded-lg hover:bg-slate-800/50 transition-colors group"
                       >

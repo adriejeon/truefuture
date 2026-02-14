@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams, useParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -170,6 +170,7 @@ function Consultation() {
   // 히스토리 뷰 (대화 목록에서 클릭한 경우)
   const { resultId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [historyView, setHistoryView] = useState(null); // { question, interpretation }
 
   // 칩 스크롤 감지
@@ -1015,10 +1016,11 @@ function Consultation() {
     );
   }
 
-  // 공유 뷰: ?id= 쿼리 또는 /consultation/:resultId 경로로 들어온 경우 (본인 히스토리면 아래 historyView에서 처리)
+  // 공유 뷰: 링크로 들어온 경우(친구 공유 페이지). 앱 내 대화 목록(fromHistory)에서 연 경우에만 히스토리 뷰 표시.
+  const fromHistoryDrawer = Boolean(location.state?.fromHistory);
   const isSharedView =
     sharedConsultation &&
-    (searchParams.get("id") || (resultId && !historyView));
+    (searchParams.get("id") || (resultId && !(historyView && fromHistoryDrawer)));
   if (isSharedView) {
     const profileName = sharedConsultation.profileName?.trim() || "";
     const sharedTitle = profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요";
@@ -2347,12 +2349,13 @@ function Consultation() {
         </div>
       </div>
 
-      {/* 후속 질문 플로팅 버튼 - 운세 결과 영역을 스크롤해서 보면 화면 하단에 고정 표시 */}
+      {/* 후속 질문 플로팅 버튼 - 운세 결과 영역을 스크롤해서 보면 화면 하단에 고정 표시 (공유 페이지에서는 미노출) */}
       {consultationAnswer &&
         resultSectionInView &&
         showFollowUpButton &&
         !showFollowUpInput &&
-        followUpAnswers.length === 0 && (
+        followUpAnswers.length === 0 &&
+        !(sharedConsultation && (searchParams.get("id") || (resultId && !(historyView && fromHistoryDrawer)))) && (
           <div className="fixed bottom-20 left-0 right-0 z-40 px-4 flex justify-center">
             <div className="w-full max-w-[600px] animate-slide-up-float">
               <button
