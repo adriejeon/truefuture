@@ -1025,7 +1025,7 @@ serve(async (req) => {
         isShared: true,
       };
 
-      // consultation 공유 시 후속 질문 목록 포함
+      // consultation 공유 시: 부모 id를 parent_result_id로 가진 자식 결과(후속 질문들) 조회 후 followUps로 반환
       if (fortuneType === "consultation") {
         const { data: historyRows } = await supabaseAdmin
           .from("fortune_history")
@@ -1035,24 +1035,27 @@ serve(async (req) => {
           .not("user_question", "is", null)
           .order("created_at", { ascending: true });
 
-        const { data: childResults } = await supabaseAdmin
+        const { data: childResults, error: childError } = await supabaseAdmin
           .from("fortune_results")
           .select("id, fortune_text, created_at, user_info")
           .eq("parent_result_id", id)
           .order("created_at", { ascending: true });
 
         const questions = (historyRows || []).map((r) => r.user_question);
-        const childInterpretations = (childResults || []).map((r) => r.fortune_text);
-        const followUps: { question: string; interpretation: string }[] = [];
-        for (let i = 0; i < childInterpretations.length; i++) {
-          const childInfo = (childResults || [])[i]?.user_info as { userQuestion?: string } | undefined;
-          const questionText =
-            questions[i + 1] ?? childInfo?.userQuestion ?? "(질문 없음)";
-          followUps.push({
-            question: questionText,
-            interpretation: childInterpretations[i],
+        const children = childResults || [];
+        const followUps: { question: string; interpretation: string }[] =
+          children.map((row, i) => {
+            const childInfo = row?.user_info as
+              | { userQuestion?: string }
+              | undefined;
+            const questionText =
+              childInfo?.userQuestion?.trim() ||
+              questions[i + 1] ||
+              "(질문 없음)";
+            const interpretation = row?.fortune_text ?? "";
+            return { question: questionText, interpretation };
           });
-        }
+
         Object.assign(payload, { followUps });
       }
 
@@ -1759,7 +1762,8 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
         previousConversation.length > 0 &&
         previousConversation.every(
           (x) =>
-            typeof x?.question === "string" && typeof x?.interpretation === "string",
+            typeof x?.question === "string" &&
+            typeof x?.interpretation === "string",
         );
 
       let contextBlock = "";
