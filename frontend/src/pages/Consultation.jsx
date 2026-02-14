@@ -294,6 +294,16 @@ function Consultation() {
     return () => observer.disconnect();
   }, [consultationAnswer]);
 
+  // 운세 결과가 나왔을 때 화면을 결과 영역으로 스크롤 (타이핑 애니메이션 후 결과 표시 시)
+  useEffect(() => {
+    if (!consultationAnswer || !resultSectionRef.current) return;
+    const el = resultSectionRef.current;
+    const id = requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [consultationAnswer]);
+
   // 프로필 데이터를 API 형식으로 변환 (성별: 백엔드/제미나이용 M/F)
   const convertProfileToApiFormat = (profile) => {
     if (!profile) return null;
@@ -842,10 +852,14 @@ function Consultation() {
         followUpQuestion.trim()
       );
 
-      setFollowUpAnswers((prev) => [...prev, answer]);
+      setFollowUpAnswers((prev) => {
+        const next = [...prev, answer];
+        // 후속 질문 2회까지 허용: 2회 채우면 버튼 숨김, 1회만 했으면 버튼 다시 표시
+        setShowFollowUpButton(next.length < 2);
+        return next;
+      });
       setFollowUpQuestion("");
       setShowFollowUpInput(false);
-      setShowFollowUpButton(false); // 후속 질문 1회만 허용
 
     } catch (err) {
       setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
@@ -1702,8 +1716,8 @@ function Consultation() {
                 </div>
               ))}
 
-            {/* 이전 대화에서 후속 질문 가능 (질문 1개당 1회만: 이미 있으면 버튼 숨김) */}
-            {historyView.followUpAnswers?.length === 0 && (
+            {/* 이전 대화에서 후속 질문 가능 (질문 1개당 2회까지: 2개 있으면 버튼 숨김) */}
+            {historyView.followUpAnswers?.length < 2 && (
               <div className="mt-8 pt-8 border-t border-slate-600/50">
                 {!historyShowFollowUpInput ? (
                   <button
@@ -2491,7 +2505,7 @@ function Consultation() {
         resultSectionInView &&
         showFollowUpButton &&
         !showFollowUpInput &&
-        followUpAnswers.length === 0 &&
+        followUpAnswers.length < 2 &&
         !(sharedConsultation && (searchParams.get("id") || (resultId && !(historyView && fromHistoryDrawer)))) && (
           <div className="fixed bottom-20 left-0 right-0 z-40 px-4 flex justify-center">
             <div className="w-full max-w-[600px] animate-slide-up-float">

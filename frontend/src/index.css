@@ -236,24 +236,13 @@ a {
   animation: typewriter-fade-in-up 0.4s ease-out forwards;
 }
 
-/* TypewriterLoader: 그라데이션 텍스트 (검정 배경에서도 잘 보이게 밝은 톤) */
+/* TypewriterLoader: 그라데이션 텍스트 (모달이 항상 검정 배경이므로 밝은 톤 고정) */
 .typewriter-gradient-text {
-  color: #c4b5ff; /* fallback: 그라데이션 미지원 시에도 보이도록 */
-  background: linear-gradient(to right, #b8a8ff 0%, #d4a8ff 40%, #ffb8c4 70%, #ffc9cb 100%);
+  color: #e0d4ff; /* fallback: 그라데이션 미지원 시 */
+  background: linear-gradient(to right, #d4c8ff 0%, #e8c8ff 35%, #ffd0dc 70%, #ffe8ea 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-/* 다크모드: 검정 배경 대비 가독성 극대화 (더 밝은 그라데이션) */
-@media (prefers-color-scheme: dark) {
-  .typewriter-gradient-text {
-    color: #e0d4ff;
-    background: linear-gradient(to right, #d4c8ff 0%, #e8c8ff 35%, #ffd0dc 70%, #ffe8ea 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
 }
 
 /* 타이핑 모달 배경: 다크/라이트 모드 공통 검정 95% (운세 로딩 시 공통) */
