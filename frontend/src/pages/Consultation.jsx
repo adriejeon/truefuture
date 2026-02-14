@@ -142,6 +142,12 @@ function Consultation() {
   const [loadingFollowUp, setLoadingFollowUp] = useState(false);
   const [followUpAnswers, setFollowUpAnswers] = useState([]); // 이전 대화 맥락용 (후속 질문 답변들)
 
+  // 히스토리 뷰에서의 후속 질문 (이전 대화 페이지에서 추가 질문 시)
+  const [historyShowFollowUpInput, setHistoryShowFollowUpInput] = useState(false);
+  const [historyFollowUpQuestion, setHistoryFollowUpQuestion] = useState("");
+  const [historyLoadingFollowUp, setHistoryLoadingFollowUp] = useState(false);
+  const [starModalMode, setStarModalMode] = useState("first"); // 'first' | 'followUp' | 'historyFollowUp'
+
   // 별 차감 모달 상태 (모달 열 때 한 번에 설정해 항상 최신 잔액 표시)
   const [showStarModal, setShowStarModal] = useState(false);
   const [starModalData, setStarModalData] = useState({
@@ -226,96 +232,105 @@ function Consultation() {
     };
   };
 
-  // 히스토리 뷰 로드 (대화 목록에서 클릭한 경우 /consultation/:resultId)
-  useEffect(() => {
+  // 히스토리 뷰 로드 (대화 목록에서 클릭한 경우 /consultation/:resultId) — 후속 질문 추가 후 재호출로 갱신
+  const loadHistoryItem = useCallback(async () => {
     if (!resultId) {
       setHistoryView(null);
       return;
     }
+    setLoadingShared(true);
+    try {
+      const { data: historyRows, error: historyError } = await supabase
+        .from("fortune_history")
+        .select("user_question, result_id, created_at")
+        .eq("result_id", resultId)
+        .eq("fortune_type", "consultation")
+        .order("created_at", { ascending: true });
 
-    const loadHistoryItem = async () => {
-      setLoadingShared(true);
-      try {
-        // result_id로 fortune_history 조회 (모든 질문 가져오기)
-        const { data: historyRows, error: historyError } = await supabase
-          .from("fortune_history")
-          .select("user_question, result_id, created_at")
-          .eq("result_id", resultId)
-          .eq("fortune_type", "consultation")
-          .order("created_at", { ascending: true }); // 시간순 정렬
-
-        if (historyError || !historyRows?.length) {
-          console.error("히스토리 조회 실패:", historyError);
-          setHistoryView(null);
-          return;
-        }
-
-        const { data: resultData, error: resultError } = await supabase
-          .from("fortune_results")
-          .select("fortune_text, user_info, chart_data")
-          .eq("id", resultId)
-          .single();
-
-        if (resultError || !resultData) {
-          console.error("결과 조회 실패:", resultError);
-          setHistoryView(null);
-          return;
-        }
-
-        const parsedData = parseFortuneResult(resultData.fortune_text);
-        const mainQuestion = historyRows[0];
-        const followUpQuestions = historyRows.slice(1);
-        const meta = resultData.chart_data?.metadata || {};
-        const userInfo = resultData.user_info || {};
-        const firstQuestionText =
-          mainQuestion?.user_question?.trim() ||
-          meta.userQuestion ||
-          userInfo.userQuestion ||
-          "(질문 없음)";
-
-        // 후속 질문에 대한 답변 (parent_result_id = resultId 인 결과들)
-        const { data: childResults } = await supabase
-          .from("fortune_results")
-          .select("id, fortune_text, created_at, user_info")
-          .eq("parent_result_id", resultId)
-          .order("created_at", { ascending: true });
-
-        const childList = childResults || [];
-        const childInterpretations = childList.map((r) => r.fortune_text);
-        // 질문 텍스트: 자식 행의 user_info.userQuestion 우선(해당 답변과 쌍을 이룸), 없으면 history 순서
-        const followUpAnswers = childList.map((r, i) => {
-          const childQuestion =
-            r.user_info?.userQuestion?.trim() ||
-            followUpQuestions[i]?.user_question?.trim() ||
-            "(질문 없음)";
-          return {
-            question: childQuestion,
-            interpretation: childInterpretations[i] || "",
-            parsedData: parseFortuneResult(childInterpretations[i]),
-          };
-        });
-
-        setHistoryView({
-          question: firstQuestionText,
-          followUpQuestions: followUpQuestions.map((q) => ({
-            question: q.user_question,
-            created_at: q.created_at,
-          })),
-          interpretation: resultData.fortune_text,
-          parsedData,
-          shareId: resultId,
-          followUpAnswers,
-        });
-      } catch (err) {
-        console.error("히스토리 로드 실패:", err);
+      if (historyError || !historyRows?.length) {
+        console.error("히스토리 조회 실패:", historyError);
         setHistoryView(null);
-      } finally {
-        setLoadingShared(false);
+        return;
       }
-    };
 
-    loadHistoryItem();
+      const { data: resultData, error: resultError } = await supabase
+        .from("fortune_results")
+        .select("fortune_text, user_info, chart_data")
+        .eq("id", resultId)
+        .single();
+
+      if (resultError || !resultData) {
+        console.error("결과 조회 실패:", resultError);
+        setHistoryView(null);
+        return;
+      }
+
+      const parsedData = parseFortuneResult(resultData.fortune_text);
+      const mainQuestion = historyRows[0];
+      const followUpQuestions = historyRows.slice(1);
+      const meta = resultData.chart_data?.metadata || {};
+      const userInfo = resultData.user_info || {};
+      const firstQuestionText =
+        mainQuestion?.user_question?.trim() ||
+        meta.userQuestion ||
+        userInfo.userQuestion ||
+        "(질문 없음)";
+      const consultationTopic =
+        userInfo.consultationTopic ||
+        meta.consultationTopic ||
+        "OTHER";
+
+      const { data: childResults } = await supabase
+        .from("fortune_results")
+        .select("id, fortune_text, created_at, user_info")
+        .eq("parent_result_id", resultId)
+        .order("created_at", { ascending: true });
+
+      const childList = childResults || [];
+      const childInterpretations = childList.map((r) => r.fortune_text);
+      const followUpAnswers = childList.map((r, i) => {
+        const childQuestion =
+          r.user_info?.userQuestion?.trim() ||
+          followUpQuestions[i]?.user_question?.trim() ||
+          "(질문 없음)";
+        return {
+          question: childQuestion,
+          interpretation: childInterpretations[i] || "",
+          parsedData: parseFortuneResult(childInterpretations[i]),
+        };
+      });
+
+      setHistoryView({
+        question: firstQuestionText,
+        followUpQuestions: followUpQuestions.map((q) => ({
+          question: q.user_question,
+          created_at: q.created_at,
+        })),
+        interpretation: resultData.fortune_text,
+        parsedData,
+        shareId: resultId,
+        followUpAnswers,
+        consultationTopic,
+      });
+    } catch (err) {
+      console.error("히스토리 로드 실패:", err);
+      setHistoryView(null);
+    } finally {
+      setLoadingShared(false);
+    }
   }, [resultId]);
+
+  useEffect(() => {
+    if (!resultId) {
+      setHistoryView(null);
+      setHistoryShowFollowUpInput(false);
+      setHistoryFollowUpQuestion("");
+      return;
+    }
+    setHistoryShowFollowUpInput(false);
+    setHistoryFollowUpQuestion("");
+    loadHistoryItem();
+  }, [resultId, loadHistoryItem]);
 
   // URL ?id= 로 공유된 상담 로드
   useEffect(() => {
@@ -529,6 +544,7 @@ function Consultation() {
             보유별: nextData.current,
           });
           setStarModalData(nextData);
+          setStarModalMode("first");
           setShowStarModal(true);
         } else {
           const nextData = {
@@ -537,6 +553,7 @@ function Consultation() {
             current: paidStars,
           };
           setStarModalData(nextData);
+          setStarModalMode("first");
           setShowStarModal(true);
         }
       } catch (err) {
@@ -611,6 +628,7 @@ function Consultation() {
           current: paidStars,
         };
         setStarModalData(nextData);
+        setStarModalMode("followUp");
         setShowStarModal(true);
       } else {
         const nextData = {
@@ -619,8 +637,46 @@ function Consultation() {
           current: paidStars,
         };
         setStarModalData(nextData);
+        setStarModalMode("followUp");
         setShowStarModal(true);
       }
+    } catch (err) {
+      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 히스토리 뷰에서 후속 질문 제출 (별 확인 후 API 호출)
+  const handleHistoryFollowUpSubmit = async (e) => {
+    e?.preventDefault?.();
+    if (!historyFollowUpQuestion.trim() || !historyView?.shareId || !resultId) return;
+    if (!user?.id) {
+      setError("로그인이 필요합니다.");
+      return;
+    }
+    if (!selectedProfile) {
+      setError("프로필을 선택해 주세요.");
+      return;
+    }
+    setError("");
+    try {
+      const stars = await fetchUserStars(user.id);
+      const paidStars = stars.paid;
+      const balanceStatus = checkStarBalance(paidStars, requiredStars);
+      if (balanceStatus === "insufficient") {
+        setStarModalData({
+          type: "alert",
+          required: requiredStars,
+          current: paidStars,
+        });
+      } else {
+        setStarModalData({
+          type: "confirm",
+          required: requiredStars,
+          current: paidStars,
+        });
+      }
+      setStarModalMode("historyFollowUp");
+      setShowStarModal(true);
     } catch (err) {
       setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
     }
@@ -717,6 +773,83 @@ function Consultation() {
     followUpAnswers,
     selectedProfile,
     selectedTopic,
+  ]);
+
+  // 히스토리 뷰에서 별 확정 후 후속 질문 API 호출
+  const handleConfirmHistoryFollowUpStarUsage = useCallback(async () => {
+    if (!user?.id || !historyView?.shareId || !resultId || !historyFollowUpQuestion.trim() || !selectedProfile) return;
+
+    setHistoryLoadingFollowUp(true);
+    setError("");
+
+    try {
+      await consumeStars(
+        user.id,
+        requiredStars,
+        `후속 질문: ${historyFollowUpQuestion.trim().slice(0, 50)}...`
+      );
+
+      const previousConversation = [
+        {
+          question: historyView.question,
+          interpretation: historyView.interpretation,
+        },
+        ...(historyView.followUpAnswers || []).map((a) => ({
+          question: a.question,
+          interpretation: a.interpretation,
+        })),
+      ];
+
+      const formData = convertProfileToApiFormat(selectedProfile);
+      if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
+
+      const requestBody = {
+        ...formData,
+        fortuneType: "consultation",
+        userQuestion: historyFollowUpQuestion.trim(),
+        consultationTopic: historyView.consultationTopic || "OTHER",
+        profileId: selectedProfile.id,
+        profileName: selectedProfile.name || null,
+        previousConversation,
+        parentResultId: historyView.shareId,
+      };
+
+      const { data, error: functionError } = await supabase.functions.invoke(
+        "get-fortune",
+        { body: requestBody }
+      );
+
+      if (functionError)
+        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+      if (!data || data.error)
+        throw new Error(data?.error || "서버 오류가 발생했습니다.");
+
+      await saveFortuneHistory(
+        user.id,
+        selectedProfile.id,
+        "consultation",
+        historyView.shareId,
+        null,
+        historyFollowUpQuestion.trim()
+      );
+
+      setShowStarModal(false);
+      setHistoryFollowUpQuestion("");
+      setHistoryShowFollowUpInput(false);
+      await loadHistoryItem();
+    } catch (err) {
+      setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+    } finally {
+      setHistoryLoadingFollowUp(false);
+    }
+  }, [
+    user,
+    requiredStars,
+    historyView,
+    resultId,
+    historyFollowUpQuestion,
+    selectedProfile,
+    loadHistoryItem,
   ]);
 
   // 인증 로딩 중
@@ -1103,6 +1236,59 @@ function Consultation() {
                 </div>
               ))}
 
+            {/* 이전 대화에서도 후속 질문 가능 */}
+            <div className="mt-8 pt-8 border-t border-slate-600/50">
+              {!historyShowFollowUpInput ? (
+                <button
+                  type="button"
+                  onClick={() => setHistoryShowFollowUpInput(true)}
+                  className="w-full py-3 px-4 rounded-lg border border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+                >
+                  이 대화에 후속 질문하기
+                </button>
+              ) : (
+                <div className="animate-fade-in">
+                  <form onSubmit={handleHistoryFollowUpSubmit}>
+                    <label className="block text-sm font-medium text-slate-300 mb-3">
+                      후속 질문
+                    </label>
+                    <textarea
+                      value={historyFollowUpQuestion}
+                      onChange={(e) => setHistoryFollowUpQuestion(e.target.value)}
+                      placeholder="답변에 대해 더 궁금한 점을 물어보세요."
+                      maxLength={1000}
+                      rows={4}
+                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                    />
+                    <div className="flex justify-end mt-2">
+                      <span className="text-xs text-slate-400">
+                        {historyFollowUpQuestion.length}/1000
+                      </span>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHistoryShowFollowUpInput(false);
+                          setHistoryFollowUpQuestion("");
+                        }}
+                        className="flex-1 py-2.5 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors"
+                      >
+                        취소
+                      </button>
+                      <PrimaryButton
+                        type="submit"
+                        disabled={!historyFollowUpQuestion.trim() || historyLoadingFollowUp}
+                        className="flex-1"
+                      >
+                        질문하기
+                      </PrimaryButton>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+
             {/* 친구에게 공유 */}
             {historyView.shareId && (
               <div className="mt-6 pt-6 border-t border-slate-600/50">
@@ -1158,6 +1344,18 @@ function Consultation() {
             )}
           </div>
         </div>
+        {historyLoadingFollowUp && (
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="후속 질문 분석 중"
+          >
+            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+              <TypewriterLoader />
+            </div>
+          </div>
+        )}
         {user && <BottomNavigation />}
       </div>
     );
@@ -2172,9 +2370,11 @@ function Consultation() {
         requiredAmount={starModalData.required}
         currentBalance={starModalData.current}
         onConfirm={
-          showFollowUpInput || followUpQuestion.trim()
-            ? handleConfirmFollowUpStarUsage
-            : handleConfirmStarUsage
+          starModalMode === "historyFollowUp"
+            ? handleConfirmHistoryFollowUpStarUsage
+            : showFollowUpInput || followUpQuestion.trim()
+              ? handleConfirmFollowUpStarUsage
+              : handleConfirmStarUsage
         }
         fortuneType={FORTUNE_TYPE_NAMES.consultation}
       />
