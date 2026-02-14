@@ -986,25 +986,6 @@ function Consultation() {
     );
   }
 
-  // 로그인 필요
-  if (!user) {
-    return (
-      <div className="w-full max-w-[600px] mx-auto px-4 py-12">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">
-            로그인이 필요합니다
-          </h2>
-          <p className="text-slate-300 mb-6">
-            진짜미래는 로그인 후 이용하실 수 있습니다.
-          </p>
-          <PrimaryButton as="a" href="/login" variant="gold">
-            로그인하기
-          </PrimaryButton>
-        </div>
-      </div>
-    );
-  }
-
   // 공유 링크로 들어온 경우에만 로딩 스피너 (URL에 id가 있을 때). 과거 이력 전용 로딩과 분리해 플래시 방지.
   const hasSharedIdInUrl = Boolean(searchParams.get("id") || resultId);
   if (hasSharedIdInUrl && loadingShared) {
@@ -1239,6 +1220,25 @@ function Consultation() {
           </div>
         )}
         {user && <BottomNavigation />}
+      </div>
+    );
+  }
+
+  // 로그인 필요 (공유 뷰가 아닐 때만: 공유 링크는 로그인 없이 열람 가능)
+  if (!user) {
+    return (
+      <div className="w-full max-w-[600px] mx-auto px-4 py-12">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">
+            로그인이 필요합니다
+          </h2>
+          <p className="text-slate-300 mb-6">
+            진짜미래는 로그인 후 이용하실 수 있습니다.
+          </p>
+          <PrimaryButton as="a" href="/login" variant="gold">
+            로그인하기
+          </PrimaryButton>
+        </div>
       </div>
     );
   }
