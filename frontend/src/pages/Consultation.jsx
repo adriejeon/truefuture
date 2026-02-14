@@ -239,12 +239,13 @@ function Consultation() {
   };
 
   // 히스토리 뷰 로드 (대화 목록에서 클릭한 경우 /consultation/:resultId) — 후속 질문 추가 후 재호출로 갱신
+  // 공유 링크(/consultation/:id) 진입 시에는 loadingShared를 건드리지 않음 → 공유 데이터 로드가 로딩을 제어해 '새 질문' 플래시 방지
   const loadHistoryItem = useCallback(async () => {
     if (!resultId) {
       setHistoryView(null);
       return;
     }
-    setLoadingShared(true);
+    if (!resultId) setLoadingShared(true);
     try {
       const { data: historyRows, error: historyError } = await supabase
         .from("fortune_history")
@@ -322,7 +323,7 @@ function Consultation() {
       console.error("히스토리 로드 실패:", err);
       setHistoryView(null);
     } finally {
-      setLoadingShared(false);
+      if (!resultId) setLoadingShared(false);
     }
   }, [resultId]);
 
@@ -1004,8 +1005,9 @@ function Consultation() {
     );
   }
 
-  // 공유 링크로 들어온 경우: 공유된 상담만 표시
-  if (loadingShared) {
+  // 공유 링크로 들어온 경우에만 로딩 스피너 (URL에 id가 있을 때). 과거 이력 전용 로딩과 분리해 플래시 방지.
+  const hasSharedIdInUrl = Boolean(searchParams.get("id") || resultId);
+  if (hasSharedIdInUrl && loadingShared) {
     return (
       <div className="w-full flex items-center justify-center py-20">
         <div className="text-center">
