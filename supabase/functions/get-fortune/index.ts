@@ -99,15 +99,41 @@ const corsHeaders = {
 };
 
 // ========== AI 해석 관련 함수 ==========
-const GEMINI_MODEL = "gemini-3-pro-preview"; // 전 타입 공통: consultation, 종합운세, 데일리, 1년 운세, 궁합
+const GEMINI_MODEL = "gemini-3-pro-preview"; // 전 타입 공통: 종합운세, 데일리, 1년 운세, 궁합 + 자유 상담소 첫 질문
+const GEMINI_CONSULTATION_FOLLOWUP_MODEL = "gemini-2.5-flash"; // 자유 상담소 후속 질문 전용
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 /**
  * 운세 타입에 따라 사용할 Gemini 모델을 반환
- * 전 타입 gemini-3-pro-preview 사용
+ * 자유 상담소(CONSULTATION)는 첫 질문/후속 질문 구분은 getConsultationModel()에서 처리
  */
 function getGeminiModel(_fortuneType: FortuneType): string {
   return GEMINI_MODEL;
+}
+
+/** 자유 상담소: 첫 질문이면 Pro, 후속 질문이면 2.5 Flash */
+function getConsultationModel(isFollowUp: boolean): string {
+  return isFollowUp ? GEMINI_CONSULTATION_FOLLOWUP_MODEL : GEMINI_MODEL;
+}
+
+/** 자유 상담소: 첫 질문용 generation config (Pro 모델 사용) */
+function getConsultationFirstQuestionConfig(): Record<string, number> {
+  return {
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.95,
+    maxOutputTokens: 8000,
+  };
+}
+
+/** 자유 상담소: 후속 질문용 generation config (2.5 Flash 사용) */
+function getConsultationFollowUpConfig(): Record<string, number> {
+  return {
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.95,
+    maxOutputTokens: 6000,
+  };
 }
 
 /**
@@ -1752,16 +1778,18 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
 
 ${systemContext}`;
 
+      const isFollowUp = !!hasPreviousContext;
+      const generationConfig = isFollowUp
+        ? getConsultationFollowUpConfig()
+        : getConsultationFirstQuestionConfig();
+
       const requestBody = {
         contents: [{ parts: [{ text: userPrompt }] }],
         systemInstruction,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 8000,
-        },
+        generationConfig,
       };
 
-      const modelName = getGeminiModel(FortuneType.CONSULTATION);
+      const modelName = getConsultationModel(isFollowUp);
       let interpretation;
       try {
         const apiResponse = await callGeminiAPI(modelName, apiKey, requestBody);
