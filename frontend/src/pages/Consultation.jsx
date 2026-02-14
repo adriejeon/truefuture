@@ -384,18 +384,18 @@ function Consultation() {
     loadSharedConsultation(sharedId);
   }, [searchParams, resultId, loadSharedConsultation]);
 
-  // 예전 링크(?id=)로 들어온 경우 주소창을 path만 남기도록 한 번만 치환
-  const idFromQuery = searchParams.get("id");
-  useEffect(() => {
-    if (!idFromQuery || !sharedConsultation?.shareId) return;
-    if (idFromQuery !== sharedConsultation.shareId) return;
-    navigate(`/consultation/${idFromQuery}`, { replace: true });
-  }, [idFromQuery, sharedConsultation?.shareId, navigate]);
+  // URL은 ?id= 쿼리 형태를 유지 (path로 리다이렉트하지 않음)
+  // const idFromQuery = searchParams.get("id");
+  // useEffect(() => {
+  //   if (!idFromQuery || !sharedConsultation?.shareId) return;
+  //   if (idFromQuery !== sharedConsultation.shareId) return;
+  //   navigate(`/consultation/${idFromQuery}`, { replace: true });
+  // }, [idFromQuery, sharedConsultation?.shareId, navigate]);
 
-  /** 공유 링크: /consultation/:id 형태만 사용 (?id 쿼리 없음) */
+  /** 공유 링크: /consultation?id=uuid 쿼리 파라미터 방식 */
   const getShareUrl = (shareId) => {
     const origin = window.location.origin;
-    return `${origin}/consultation/${shareId}`;
+    return `${origin}/consultation?id=${shareId}`;
   };
 
   const handleCopyLink = (shareId) => {
@@ -986,6 +986,9 @@ function Consultation() {
     );
   }
 
+  // 앱 내 대화 목록에서 연 경우 vs 공유 링크로 연 경우 구분 (로딩 문구·공유 뷰 판단에 사용)
+  const fromHistoryDrawer = Boolean(location.state?.fromHistory);
+
   // 공유 링크로 들어온 경우에만 로딩 스피너 (URL에 id가 있을 때). 과거 이력 전용 로딩과 분리해 플래시 방지.
   const hasSharedIdInUrl = Boolean(searchParams.get("id") || resultId);
   if (hasSharedIdInUrl && loadingShared) {
@@ -993,14 +996,15 @@ function Consultation() {
       <div className="w-full flex items-center justify-center py-20">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-slate-400">공유된 상담을 불러오는 중...</p>
+          <p className="text-slate-400">
+            {fromHistoryDrawer ? "이전 상담 내용을 불러오는 중..." : "공유된 상담을 불러오는 중..."}
+          </p>
         </div>
       </div>
     );
   }
 
   // 공유 뷰: 링크로 들어온 경우(친구 공유 페이지). 앱 내 대화 목록(fromHistory)에서 연 경우에만 히스토리 뷰 표시.
-  const fromHistoryDrawer = Boolean(location.state?.fromHistory);
   const isSharedView =
     sharedConsultation &&
     (searchParams.get("id") || (resultId && !(historyView && fromHistoryDrawer)));
