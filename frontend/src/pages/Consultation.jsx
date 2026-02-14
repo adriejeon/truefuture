@@ -1130,142 +1130,90 @@ function Consultation() {
               </div>
             )}
 
-            {/* 후속 질문 영역 (항상 노출: 기존 목록 또는 버튼) */}
-            <div className="mt-8 pt-8 border-t border-slate-600/50">
-              <h3 className="text-lg font-semibold text-white mb-4">💬 후속 질문</h3>
-              {sharedConsultation.followUps?.length > 0 ? (
-                sharedConsultation.followUps.map((fu, fuIdx) => (
-                <div key={fuIdx} className="mt-8 pt-8 border-t border-slate-600/50">
-                  <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
-                    <div className="flex items-start gap-2">
-                      <div className="text-lg">↳</div>
-                      <p className="text-white font-medium">{fu.question}</p>
+            {/* 후속 질문·답변 (있을 때만 표시, 공유 페이지에서는 버튼/입력 없음) */}
+            {sharedConsultation.followUps?.length > 0 && (
+              <div className="mt-8 pt-8 border-t border-slate-600/50">
+                {sharedConsultation.followUps.map((fu, fuIdx) => (
+                  <div key={fuIdx} className={fuIdx > 0 ? "mt-8 pt-8 border-t border-slate-600/50" : ""}>
+                    <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <div className="text-2xl">💬</div>
+                        <p className="text-white font-medium">{fu.question}</p>
+                      </div>
                     </div>
-                  </div>
-                  {fu.parsedData ? (
-                    <div className="space-y-5">
-                      <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
-                        <h2 className="text-xl font-bold text-white mb-4 leading-tight">{fu.parsedData.summary?.title || "결론"}</h2>
-                        {fu.parsedData.summary?.score != null && (
-                          <div className="mb-4">
-                            <span className="text-2xl font-bold text-white">{fu.parsedData.summary.score}%</span>
-                            <div className="w-full bg-[#121230] rounded-full h-2.5">
-                              <div className="h-2.5 rounded-full transition-all duration-500" style={{ backgroundColor: colors.primary, width: `${fu.parsedData.summary.score}%` }} />
+                    {fu.parsedData ? (
+                      <div className="space-y-5">
+                        <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+                          <h2 className="text-xl font-bold text-white mb-4 leading-tight">{fu.parsedData.summary?.title || "결론"}</h2>
+                          {fu.parsedData.summary?.score != null && (
+                            <div className="mb-4">
+                              <span className="text-2xl font-bold text-white">{fu.parsedData.summary.score}%</span>
+                              <div className="w-full bg-[#121230] rounded-full h-2.5">
+                                <div className="h-2.5 rounded-full transition-all duration-500" style={{ backgroundColor: colors.primary, width: `${fu.parsedData.summary.score}%` }} />
+                              </div>
+                            </div>
+                          )}
+                          {(fu.parsedData.summary?.keywords || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {fu.parsedData.summary.keywords.map((kw, i) => (
+                                <span key={i} className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100">{kw}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {fu.parsedData.timeline?.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-4">📅 타임라인</h3>
+                            <div className="space-y-3">
+                              {fu.parsedData.timeline.map((item, idx) => {
+                                const isGood = item.type === "good";
+                                const isBad = item.type === "bad";
+                                const bgColor = isGood ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]" : isBad ? "bg-rose-900/30 border-rose-500/50" : "bg-slate-700/30 border-slate-500/50";
+                                const iconColor = isGood ? "text-[#F2ACAC]" : isBad ? "text-rose-400" : "text-slate-400";
+                                return (
+                                  <div key={idx} className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}>
+                                    <div className={`text-xl flex-shrink-0 ${iconColor}`}>{isGood ? "✨" : isBad ? "⚠️" : "⏳"}</div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-white mb-1">{item.date}</p>
+                                      <p className="text-sm text-slate-300 leading-relaxed">{item.note}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
-                        {(fu.parsedData.summary?.keywords || []).length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {fu.parsedData.summary.keywords.map((kw, i) => (
-                              <span key={i} className="px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100">{kw}</span>
-                            ))}
+                        {fu.parsedData.analysis?.general && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
+                            <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.general}</p>
+                          </div>
+                        )}
+                        {fu.parsedData.analysis?.timing && (
+                          <div className="pt-5">
+                            <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
+                            <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.timing}</p>
+                          </div>
+                        )}
+                        {fu.parsedData.analysis?.advice && (
+                          <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+                            <h3 className="text-lg font-semibold text-[#F9A302] mb-3">💡 Action Tip</h3>
+                            <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.advice}</p>
                           </div>
                         )}
                       </div>
-                      {fu.parsedData.timeline?.length > 0 && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-white mb-4">📅 타임라인</h3>
-                          <div className="space-y-3">
-                            {fu.parsedData.timeline.map((item, idx) => {
-                              const isGood = item.type === "good";
-                              const isBad = item.type === "bad";
-                              const bgColor = isGood ? "bg-[rgba(242,172,172,0.1)] border-[#F2ACAC]" : isBad ? "bg-rose-900/30 border-rose-500/50" : "bg-slate-700/30 border-slate-500/50";
-                              const iconColor = isGood ? "text-[#F2ACAC]" : isBad ? "text-rose-400" : "text-slate-400";
-                              return (
-                                <div key={idx} className={`flex items-start gap-3 p-4 border rounded-lg ${bgColor}`}>
-                                  <div className={`text-xl flex-shrink-0 ${iconColor}`}>{isGood ? "✨" : isBad ? "⚠️" : "⏳"}</div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-white mb-1">{item.date}</p>
-                                    <p className="text-sm text-slate-300 leading-relaxed">{item.note}</p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                    ) : (
+                      <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                        <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                        <div className="prose prose-invert max-w-none text-slate-200">
+                          <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
                         </div>
-                      )}
-                      {fu.parsedData.analysis?.general && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.general}</p>
-                        </div>
-                      )}
-                      {fu.parsedData.analysis?.timing && (
-                        <div className="pt-5">
-                          <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.timing}</p>
-                        </div>
-                      )}
-                      {fu.parsedData.analysis?.advice && (
-                        <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
-                          <h3 className="text-lg font-semibold text-[#F9A302] mb-3">💡 Action Tip</h3>
-                          <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.advice}</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
-                      <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
-                      <div className="prose prose-invert max-w-none text-slate-200">
-                        <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))
-              ) : (
-                /* 후속 질문 1회만 가능: 아직 없을 때만 버튼 노출 */
-                user ? (
-                  !sharedShowFollowUpInput ? (
-                    <button
-                      type="button"
-                      onClick={() => setSharedShowFollowUpInput(true)}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      이 답변에 대해 질문해 볼까요?
-                    </button>
-                  ) : (
-                    <div className="animate-fade-in">
-                      <form onSubmit={handleSharedFollowUpSubmit}>
-                        <label className="block text-sm font-medium text-slate-300 mb-3">후속 질문</label>
-                        <textarea
-                          value={sharedFollowUpQuestion}
-                          onChange={(e) => setSharedFollowUpQuestion(e.target.value)}
-                          placeholder="답변에 대해 더 궁금한 점을 물어보세요."
-                          maxLength={1000}
-                          rows={4}
-                          className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                        />
-                        <div className="flex justify-end mt-2">
-                          <span className="text-xs text-slate-400">{sharedFollowUpQuestion.length}/1000</span>
-                        </div>
-                        <div className="flex gap-2 mt-4">
-                          <button
-                            type="button"
-                            onClick={() => { setSharedShowFollowUpInput(false); setSharedFollowUpQuestion(""); }}
-                            className="flex-1 py-2.5 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors"
-                          >
-                            취소
-                          </button>
-                          <PrimaryButton
-                            type="submit"
-                            disabled={!sharedFollowUpQuestion.trim() || sharedLoadingFollowUp}
-                            className="flex-1"
-                          >
-                            질문하기
-                          </PrimaryButton>
-                        </div>
-                      </form>
-                    </div>
-                  )
-                ) : (
-                  <p className="text-slate-400 text-sm">로그인하면 후속 질문을 남길 수 있어요.</p>
-                )
-              )}
-            </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         {sharedLoadingFollowUp && (
