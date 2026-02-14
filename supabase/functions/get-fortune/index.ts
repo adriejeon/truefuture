@@ -23,6 +23,7 @@ import {
 import {
   getSystemInstruction,
   getConsultationSystemPrompt,
+  getConsultationFollowUpSystemPrompt,
   getSolarReturnPrompt,
   getLifetimePrompt_Nature,
   getLifetimePrompt_Love,
@@ -1717,9 +1718,41 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
         );
       }
 
+      // 후속 질문 여부를 먼저 판단 (시스템 프롬프트 선택에 사용)
+      const previousConversation = requestData.previousConversation as
+        | Array<{ question: string; interpretation: string }>
+        | undefined;
+      const hasPreviousContext =
+        Array.isArray(previousConversation) &&
+        previousConversation.length > 0 &&
+        previousConversation.every(
+          (x) =>
+            typeof x?.question === "string" &&
+            typeof x?.interpretation === "string",
+        );
+
+      let contextBlock = "";
+      if (hasPreviousContext) {
+        const lines = previousConversation!.map(
+          (pair, i) =>
+            `[이전 질문 ${i + 1}]: ${pair.question.trim()}\n[점성술사 답변 ${i + 1}]:\n${pair.interpretation.trim()}`,
+        );
+        contextBlock = `[이전 대화 맥락 (동일 주제에 대한 선행 질문과 답변입니다. 이 맥락을 유지한 채 후속 질문에만 답하세요.)]\n${lines.join("\n\n")}\n\n`;
+      }
+
+      // 첫 질문과 동일한 카테고리별 해석·추운 규칙을 항상 포함
       let consultationSystemText = getConsultationSystemPrompt(
         requestData.consultationTopic || "General",
       );
+      // 후속 질문일 때: 위 규칙 위에 후속 전용 스키마·액션 지침 추가
+      if (hasPreviousContext) {
+        consultationSystemText =
+          consultationSystemText +
+          "\n\n" +
+          getConsultationFollowUpSystemPrompt(
+            requestData.consultationTopic || "General",
+          );
+      }
       // 월간/연간 운세 카테고리 선택 시: 솔라리턴 해석 방법 가이드 추가
       const topicUpper = (requestData.consultationTopic || "")
         .trim()
@@ -1743,34 +1776,12 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
             ? "Male"
             : null;
 
-      // 후속 질문 시 이전 대화 맥락 (선택)
-      const previousConversation = requestData.previousConversation as
-        | Array<{ question: string; interpretation: string }>
-        | undefined;
-      const hasPreviousContext =
-        Array.isArray(previousConversation) &&
-        previousConversation.length > 0 &&
-        previousConversation.every(
-          (x) =>
-            typeof x?.question === "string" &&
-            typeof x?.interpretation === "string",
-        );
+      const userPrompt = `${systemContext}
 
-      let contextBlock = "";
-      if (hasPreviousContext) {
-        const lines = previousConversation!.map(
-          (pair, i) =>
-            `[이전 질문 ${i + 1}]: ${pair.question.trim()}\n[점성술사 답변 ${i + 1}]:\n${pair.interpretation.trim()}`,
-        );
-        contextBlock = `[이전 대화 맥락 (동일 주제에 대한 선행 질문과 답변입니다. 이 맥락을 유지한 채 후속 질문에만 답하세요.)]\n${lines.join("\n\n")}\n\n`;
-      }
-
-      const userPrompt = `${contextBlock}[User Question]: ${userQuestion.trim()}
+${contextBlock}[User Question]: ${userQuestion.trim()}
 [Category]: ${consultationTopic || "General"}${
         genderForPrompt ? `\n[Gender]: ${genderForPrompt}` : ""
-      }
-
-${systemContext}`;
+      }`;
 
       const isFollowUp = !!hasPreviousContext;
       const generationConfig = isFollowUp
