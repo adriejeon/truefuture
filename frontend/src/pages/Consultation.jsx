@@ -1631,25 +1631,14 @@ function Consultation() {
                           {historyFollowUpQuestion.length}/1000
                         </span>
                       </div>
-                      <div className="flex gap-2 mt-4">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setHistoryShowFollowUpInput(false);
-                            setHistoryFollowUpQuestion("");
-                          }}
-                          className="flex-1 py-2.5 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors"
-                        >
-                          취소
-                        </button>
-                        <PrimaryButton
-                          type="submit"
-                          disabled={!historyFollowUpQuestion.trim() || historyLoadingFollowUp}
-                          className="flex-1"
-                        >
-                          질문하기
-                        </PrimaryButton>
-                      </div>
+                      <PrimaryButton
+                        type="submit"
+                        disabled={!historyFollowUpQuestion.trim() || historyLoadingFollowUp}
+                        fullWidth
+                        className="mt-4"
+                      >
+                        질문하기
+                      </PrimaryButton>
                     </form>
                   </div>
                 )}
