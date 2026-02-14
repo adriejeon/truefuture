@@ -1025,38 +1025,28 @@ serve(async (req) => {
         isShared: true,
       };
 
-      // consultation 공유 시: 부모 id를 parent_result_id로 가진 자식 결과(후속 질문들) 조회 후 followUps로 반환
+      // consultation 공유 시: 부모 1건 조회 후, parent_result_id = id 인 자식(후속 질문) 전부 조회 → followUps로 반환
       if (fortuneType === "consultation") {
-        const { data: historyRows } = await supabaseAdmin
-          .from("fortune_history")
-          .select("user_question, created_at")
-          .eq("result_id", id)
-          .eq("fortune_type", "consultation")
-          .not("user_question", "is", null)
-          .order("created_at", { ascending: true });
-
-        const { data: childResults, error: childError } = await supabaseAdmin
+        const { data: childRows, error: childError } = await supabaseAdmin
           .from("fortune_results")
-          .select("id, fortune_text, created_at, user_info")
+          .select("fortune_text, user_info")
           .eq("parent_result_id", id)
           .order("created_at", { ascending: true });
 
-        const questions = (historyRows || []).map((r) => r.user_question);
-        const children = childResults || [];
-        const followUps: { question: string; interpretation: string }[] =
-          children.map((row, i) => {
-            const childInfo = row?.user_info as
-              | { userQuestion?: string }
-              | undefined;
-            const questionText =
-              childInfo?.userQuestion?.trim() ||
-              questions[i + 1] ||
-              "(질문 없음)";
-            const interpretation = row?.fortune_text ?? "";
-            return { question: questionText, interpretation };
-          });
+        if (childError) {
+          console.error("❌ 후속 질문(자식) 조회 실패:", childError);
+        }
 
-        Object.assign(payload, { followUps });
+        const children = childRows ?? [];
+        const followUps: { question: string; interpretation: string }[] = children.map((row) => {
+          const userInfo = (row?.user_info ?? {}) as { userQuestion?: string };
+          const question =
+            (userInfo.userQuestion && String(userInfo.userQuestion).trim()) || "(질문 없음)";
+          const interpretation = row?.fortune_text != null ? String(row.fortune_text) : "";
+          return { question, interpretation };
+        });
+
+        payload.followUps = followUps;
       }
 
       return new Response(JSON.stringify(payload), {
