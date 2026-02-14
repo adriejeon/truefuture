@@ -1214,6 +1214,18 @@ function Consultation() {
                 ))}
               </div>
             )}
+
+            {/* 방문자 유입 CTA: 홈과 동일 스타일 */}
+            <div className="mt-10 flex justify-center">
+              <PrimaryButton
+                type="button"
+                variant="gold"
+                fullWidth
+                onClick={() => navigate("/")}
+              >
+                내 미래도 확인하기
+              </PrimaryButton>
+            </div>
           </div>
         </div>
         {sharedLoadingFollowUp && (
