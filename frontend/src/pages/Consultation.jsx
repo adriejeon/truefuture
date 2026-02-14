@@ -146,7 +146,12 @@ function Consultation() {
   const [historyShowFollowUpInput, setHistoryShowFollowUpInput] = useState(false);
   const [historyFollowUpQuestion, setHistoryFollowUpQuestion] = useState("");
   const [historyLoadingFollowUp, setHistoryLoadingFollowUp] = useState(false);
-  const [starModalMode, setStarModalMode] = useState("first"); // 'first' | 'followUp' | 'historyFollowUp'
+  const [starModalMode, setStarModalMode] = useState("first"); // 'first' | 'followUp' | 'historyFollowUp' | 'sharedFollowUp'
+
+  // 공유 페이지에서의 후속 질문 (친구가 공유 링크로 들어왔을 때)
+  const [sharedShowFollowUpInput, setSharedShowFollowUpInput] = useState(false);
+  const [sharedFollowUpQuestion, setSharedFollowUpQuestion] = useState("");
+  const [sharedLoadingFollowUp, setSharedLoadingFollowUp] = useState(false);
 
   // 별 차감 모달 상태 (모달 열 때 한 번에 설정해 항상 최신 잔액 표시)
   const [showStarModal, setShowStarModal] = useState(false);
@@ -332,46 +337,49 @@ function Consultation() {
     loadHistoryItem();
   }, [resultId, loadHistoryItem]);
 
-  // URL ?id= 로 공유된 상담 로드
+  // 공유된 상담 데이터 로드 (공유 페이지 진입 시 + 공유 페이지에서 후속 질문 추가 후 갱신)
+  const loadSharedConsultation = useCallback(async (sharedId) => {
+    if (!sharedId) return;
+    setLoadingShared(true);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/get-fortune?id=${sharedId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.error || data.fortuneType !== "consultation") {
+        setSharedConsultation(null);
+        return;
+      }
+      const userInfo = data.userInfo || {};
+      const meta = data.chart_data?.metadata || {};
+      const parsedData = parseFortuneResult(data.interpretation);
+      setSharedConsultation({
+        question: meta.userQuestion || userInfo.userQuestion || "(질문 없음)",
+        topic: meta.consultationTopic || userInfo.consultationTopic || "OTHER",
+        interpretation: data.interpretation,
+        parsedData,
+        shareId: sharedId,
+        profileName: userInfo.profileName || null,
+        followUps: (data.followUps || []).map((fu) => ({
+          question: fu.question,
+          interpretation: fu.interpretation,
+          parsedData: parseFortuneResult(fu.interpretation),
+        })),
+      });
+    } catch {
+      setSharedConsultation(null);
+    } finally {
+      setLoadingShared(false);
+    }
+  }, []);
+
   useEffect(() => {
     const sharedId = searchParams.get("id");
     if (!sharedId) return;
-
-    setLoadingShared(true);
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    fetch(`${supabaseUrl}/functions/v1/get-fortune?id=${sharedId}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error || data.fortuneType !== "consultation") {
-          setSharedConsultation(null);
-          return;
-        }
-        const userInfo = data.userInfo || {};
-        const meta = data.chart_data?.metadata || {};
-
-        const parsedData = parseFortuneResult(data.interpretation);
-
-        setSharedConsultation({
-          question: meta.userQuestion || userInfo.userQuestion || "(질문 없음)",
-          topic:
-            meta.consultationTopic || userInfo.consultationTopic || "OTHER",
-          interpretation: data.interpretation,
-          parsedData, // 구조화된 JSON 데이터
-          shareId: sharedId,
-          profileName: userInfo.profileName || null,
-          followUps: (data.followUps || []).map((fu) => ({
-            question: fu.question,
-            interpretation: fu.interpretation,
-            parsedData: parseFortuneResult(fu.interpretation),
-          })),
-        });
-      })
-      .catch(() => setSharedConsultation(null))
-      .finally(() => setLoadingShared(false));
-  }, [searchParams]);
+    loadSharedConsultation(sharedId);
+  }, [searchParams, loadSharedConsultation]);
 
   const getShareUrl = (shareId) => {
     const url = new URL(window.location.href);
@@ -852,6 +860,110 @@ function Consultation() {
     loadHistoryItem,
   ]);
 
+  // 공유 페이지에서 후속 질문 제출 (별 확인 후 API 호출)
+  const handleSharedFollowUpSubmit = async (e) => {
+    e?.preventDefault?.();
+    if (!sharedFollowUpQuestion.trim() || !sharedConsultation?.shareId) return;
+    if (!user?.id) {
+      setError("로그인이 필요합니다.");
+      return;
+    }
+    if (!selectedProfile) {
+      setError("프로필을 선택해 주세요.");
+      return;
+    }
+    setError("");
+    try {
+      const stars = await fetchUserStars(user.id);
+      const paidStars = stars.paid;
+      const balanceStatus = checkStarBalance(paidStars, requiredStars);
+      setStarModalData(
+        balanceStatus === "insufficient"
+          ? { type: "alert", required: requiredStars, current: paidStars }
+          : { type: "confirm", required: requiredStars, current: paidStars }
+      );
+      setStarModalMode("sharedFollowUp");
+      setShowStarModal(true);
+    } catch (err) {
+      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleConfirmSharedFollowUpStarUsage = useCallback(async () => {
+    if (!user?.id || !sharedConsultation?.shareId || !sharedFollowUpQuestion.trim() || !selectedProfile) return;
+
+    setSharedLoadingFollowUp(true);
+    setError("");
+
+    try {
+      await consumeStars(
+        user.id,
+        requiredStars,
+        `후속 질문: ${sharedFollowUpQuestion.trim().slice(0, 50)}...`
+      );
+
+      const previousConversation = [
+        {
+          question: sharedConsultation.question,
+          interpretation: sharedConsultation.interpretation,
+        },
+        ...(sharedConsultation.followUps || []).map((a) => ({
+          question: a.question,
+          interpretation: a.interpretation,
+        })),
+      ];
+
+      const formData = convertProfileToApiFormat(selectedProfile);
+      if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
+
+      const requestBody = {
+        ...formData,
+        fortuneType: "consultation",
+        userQuestion: sharedFollowUpQuestion.trim(),
+        consultationTopic: sharedConsultation.topic || "OTHER",
+        profileId: selectedProfile.id,
+        profileName: selectedProfile.name || null,
+        previousConversation,
+        parentResultId: sharedConsultation.shareId,
+      };
+
+      const { data, error: functionError } = await supabase.functions.invoke(
+        "get-fortune",
+        { body: requestBody }
+      );
+
+      if (functionError)
+        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
+      if (!data || data.error)
+        throw new Error(data?.error || "서버 오류가 발생했습니다.");
+
+      await saveFortuneHistory(
+        user.id,
+        selectedProfile.id,
+        "consultation",
+        sharedConsultation.shareId,
+        null,
+        sharedFollowUpQuestion.trim()
+      );
+
+      setShowStarModal(false);
+      setSharedFollowUpQuestion("");
+      setSharedShowFollowUpInput(false);
+      await loadSharedConsultation(sharedConsultation.shareId);
+    } catch (err) {
+      setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+    } finally {
+      setSharedLoadingFollowUp(false);
+    }
+  }, [
+    user,
+    requiredStars,
+    sharedConsultation,
+    sharedFollowUpQuestion,
+    selectedProfile,
+    loadSharedConsultation,
+  ]);
+
   // 인증 로딩 중
   if (loadingAuth) {
     return (
@@ -1017,8 +1129,12 @@ function Consultation() {
                 </div>
               </div>
             )}
-            {sharedConsultation.followUps?.length > 0 &&
-              sharedConsultation.followUps.map((fu, fuIdx) => (
+
+            {/* 후속 질문 영역 (항상 노출: 기존 목록 또는 버튼) */}
+            <div className="mt-8 pt-8 border-t border-slate-600/50">
+              <h3 className="text-lg font-semibold text-white mb-4">💬 후속 질문</h3>
+              {sharedConsultation.followUps?.length > 0 ? (
+                sharedConsultation.followUps.map((fu, fuIdx) => (
                 <div key={fuIdx} className="mt-8 pt-8 border-t border-slate-600/50">
                   <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
                     <div className="flex items-start gap-2">
@@ -1096,9 +1212,69 @@ function Consultation() {
                     </div>
                   )}
                 </div>
-              ))}
+              ))
+              ) : (
+                /* 후속 질문 1회만 가능: 아직 없을 때만 버튼 노출 */
+                user ? (
+                  !sharedShowFollowUpInput ? (
+                    <button
+                      type="button"
+                      onClick={() => setSharedShowFollowUpInput(true)}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                      이 답변에 대해 질문해 볼까요?
+                    </button>
+                  ) : (
+                    <div className="animate-fade-in">
+                      <form onSubmit={handleSharedFollowUpSubmit}>
+                        <label className="block text-sm font-medium text-slate-300 mb-3">후속 질문</label>
+                        <textarea
+                          value={sharedFollowUpQuestion}
+                          onChange={(e) => setSharedFollowUpQuestion(e.target.value)}
+                          placeholder="답변에 대해 더 궁금한 점을 물어보세요."
+                          maxLength={1000}
+                          rows={4}
+                          className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                        />
+                        <div className="flex justify-end mt-2">
+                          <span className="text-xs text-slate-400">{sharedFollowUpQuestion.length}/1000</span>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            type="button"
+                            onClick={() => { setSharedShowFollowUpInput(false); setSharedFollowUpQuestion(""); }}
+                            className="flex-1 py-2.5 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors"
+                          >
+                            취소
+                          </button>
+                          <PrimaryButton
+                            type="submit"
+                            disabled={!sharedFollowUpQuestion.trim() || sharedLoadingFollowUp}
+                            className="flex-1"
+                          >
+                            질문하기
+                          </PrimaryButton>
+                        </div>
+                      </form>
+                    </div>
+                  )
+                ) : (
+                  <p className="text-slate-400 text-sm">로그인하면 후속 질문을 남길 수 있어요.</p>
+                )
+              )}
+            </div>
           </div>
         </div>
+        {sharedLoadingFollowUp && (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4" role="dialog" aria-modal="true" aria-label="후속 질문 분석 중">
+            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+              <TypewriterLoader />
+            </div>
+          </div>
+        )}
         {user && <BottomNavigation />}
       </div>
     );
@@ -1445,71 +1621,73 @@ function Consultation() {
                 </div>
               ))}
 
-            {/* 이전 대화에서도 후속 질문 가능 (운세 결과 페이지와 동일한 버튼 문구·스타일) */}
-            <div className="mt-8 pt-8 border-t border-slate-600/50">
-              {!historyShowFollowUpInput ? (
-                <button
-                  type="button"
-                  onClick={() => setHistoryShowFollowUpInput(true)}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
-                >
-                  <svg
-                    className="w-5 h-5 flex-shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+            {/* 이전 대화에서 후속 질문 가능 (질문 1개당 1회만: 이미 있으면 버튼 숨김) */}
+            {historyView.followUpAnswers?.length === 0 && (
+              <div className="mt-8 pt-8 border-t border-slate-600/50">
+                {!historyShowFollowUpInput ? (
+                  <button
+                    type="button"
+                    onClick={() => setHistoryShowFollowUpInput(true)}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-primary/90 to-primary text-black font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                    />
-                  </svg>
-                  이 답변에 대해 질문해 볼까요?
-                </button>
-              ) : (
-                <div className="animate-fade-in">
-                  <form onSubmit={handleHistoryFollowUpSubmit}>
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                      후속 질문
-                    </label>
-                    <textarea
-                      value={historyFollowUpQuestion}
-                      onChange={(e) => setHistoryFollowUpQuestion(e.target.value)}
-                      placeholder="답변에 대해 더 궁금한 점을 물어보세요."
-                      maxLength={1000}
-                      rows={4}
-                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                    />
-                    <div className="flex justify-end mt-2">
-                      <span className="text-xs text-slate-400">
-                        {historyFollowUpQuestion.length}/1000
-                      </span>
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setHistoryShowFollowUpInput(false);
-                          setHistoryFollowUpQuestion("");
-                        }}
-                        className="flex-1 py-2.5 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors"
-                      >
-                        취소
-                      </button>
-                      <PrimaryButton
-                        type="submit"
-                        disabled={!historyFollowUpQuestion.trim() || historyLoadingFollowUp}
-                        className="flex-1"
-                      >
-                        질문하기
-                      </PrimaryButton>
-                    </div>
-                  </form>
-                </div>
-              )}
-            </div>
+                    <svg
+                      className="w-5 h-5 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                      />
+                    </svg>
+                    이 답변에 대해 질문해 볼까요?
+                  </button>
+                ) : (
+                  <div className="animate-fade-in">
+                    <form onSubmit={handleHistoryFollowUpSubmit}>
+                      <label className="block text-sm font-medium text-slate-300 mb-3">
+                        후속 질문
+                      </label>
+                      <textarea
+                        value={historyFollowUpQuestion}
+                        onChange={(e) => setHistoryFollowUpQuestion(e.target.value)}
+                        placeholder="답변에 대해 더 궁금한 점을 물어보세요."
+                        maxLength={1000}
+                        rows={4}
+                        className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                      />
+                      <div className="flex justify-end mt-2">
+                        <span className="text-xs text-slate-400">
+                          {historyFollowUpQuestion.length}/1000
+                        </span>
+                      </div>
+                      <div className="flex gap-2 mt-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHistoryShowFollowUpInput(false);
+                            setHistoryFollowUpQuestion("");
+                          }}
+                          className="flex-1 py-2.5 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors"
+                        >
+                          취소
+                        </button>
+                        <PrimaryButton
+                          type="submit"
+                          disabled={!historyFollowUpQuestion.trim() || historyLoadingFollowUp}
+                          className="flex-1"
+                        >
+                          질문하기
+                        </PrimaryButton>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 친구에게 공유 */}
             {historyView.shareId && (
@@ -2260,11 +2438,13 @@ function Consultation() {
         requiredAmount={starModalData.required}
         currentBalance={starModalData.current}
         onConfirm={
-          starModalMode === "historyFollowUp"
-            ? handleConfirmHistoryFollowUpStarUsage
-            : showFollowUpInput || followUpQuestion.trim()
-              ? handleConfirmFollowUpStarUsage
-              : handleConfirmStarUsage
+          starModalMode === "sharedFollowUp"
+            ? handleConfirmSharedFollowUpStarUsage
+            : starModalMode === "historyFollowUp"
+              ? handleConfirmHistoryFollowUpStarUsage
+              : showFollowUpInput || followUpQuestion.trim()
+                ? handleConfirmFollowUpStarUsage
+                : handleConfirmStarUsage
         }
         fortuneType={FORTUNE_TYPE_NAMES.consultation}
       />
