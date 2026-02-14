@@ -109,6 +109,75 @@ const parseFortuneResult = (text) => {
   }
 };
 
+/** 후속 질문 응답 여부: answer 객체가 있으면 후속 질문용 스키마(header/answer/action_tip/critical_date) */
+const isFollowUpData = (data) => data && typeof data.answer === "object";
+
+/** 후속 질문용 심플 컨설팅 카드 (header, answer, action_tip, critical_date) */
+function FollowUpConsultationCard({ parsedData }) {
+  if (!parsedData?.answer) return null;
+  const { header, answer, action_tip, critical_date } = parsedData;
+  return (
+    <div className="space-y-5">
+      {header?.title != null && (
+        <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 leading-tight">
+            {header.title}
+          </h2>
+          {header.keyword && (
+            <span className="inline-block px-3 py-1.5 bg-[#2B2953] border border-[#253D87]/50 rounded-full text-xs font-medium text-blue-100 mt-2">
+              {header.keyword}
+            </span>
+          )}
+        </div>
+      )}
+      {answer?.conclusion != null && (
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-2">결론</h3>
+          <p className="text-slate-200 leading-relaxed text-[15px] whitespace-pre-wrap">
+            {answer.conclusion}
+          </p>
+        </div>
+      )}
+      {answer?.detail != null && (
+        <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+          <ReactMarkdown>{answer.detail}</ReactMarkdown>
+        </div>
+      )}
+      {action_tip && (action_tip.what || action_tip.why) && (
+        <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
+          <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
+            💡 Action Tip
+          </h3>
+          {action_tip.what && (
+            <p className="text-slate-100 font-medium mb-2">{action_tip.what}</p>
+          )}
+          {action_tip.why && (
+            <p className="text-slate-300 text-sm leading-relaxed">
+              {action_tip.why}
+            </p>
+          )}
+        </div>
+      )}
+      {critical_date &&
+        (critical_date.date || critical_date.meaning) && (
+          <div className="p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+            <h3 className="text-sm font-semibold text-slate-400 mb-1">
+              📅 결정적 시기
+            </h3>
+            {critical_date.date && (
+              <p className="text-white font-medium">{critical_date.date}</p>
+            )}
+            {critical_date.meaning && (
+              <p className="text-slate-300 text-sm mt-1">
+                {critical_date.meaning}
+              </p>
+            )}
+          </div>
+        )}
+    </div>
+  );
+}
+
 function Consultation() {
   const { user, loadingAuth } = useAuth();
   const {
@@ -1024,6 +1093,13 @@ function Consultation() {
               </p>
             </div>
             {sharedConsultation.parsedData ? (
+              isFollowUpData(sharedConsultation.parsedData) ? (
+                <div className="mb-8">
+                  <FollowUpConsultationCard
+                    parsedData={sharedConsultation.parsedData}
+                  />
+                </div>
+              ) : (
               <div className="space-y-5 mb-8">
                 <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                   <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
@@ -1121,6 +1197,7 @@ function Consultation() {
                   )}
                 </div>
               </div>
+              )
             ) : (
               <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
                 <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
@@ -1142,6 +1219,9 @@ function Consultation() {
                       </div>
                     </div>
                     {fu.parsedData ? (
+                      isFollowUpData(fu.parsedData) ? (
+                        <FollowUpConsultationCard parsedData={fu.parsedData} />
+                      ) : (
                       <div className="space-y-5">
                         <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                           <h2 className="text-xl font-bold text-white mb-4 leading-tight">{fu.parsedData.summary?.title || "결론"}</h2>
@@ -1202,6 +1282,7 @@ function Consultation() {
                           </div>
                         )}
                       </div>
+                      )
                     ) : (
                       <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
                         <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
@@ -1307,6 +1388,13 @@ function Consultation() {
                 <p className="text-slate-400 text-sm">답변을 불러올 수 없습니다.</p>
               </div>
             ) : historyView.parsedData ? (
+              isFollowUpData(historyView.parsedData) ? (
+                <div className="mb-8">
+                  <FollowUpConsultationCard
+                    parsedData={historyView.parsedData}
+                  />
+                </div>
+              ) : (
               <div className="space-y-5 mb-8">
                 {/* 요약 카드 */}
                 <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
@@ -1447,6 +1535,7 @@ function Consultation() {
                   )}
                 </div>
               </div>
+              )
             ) : (
               <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
                 <h3 className="text-lg font-semibold text-white mb-3">
@@ -1478,7 +1567,10 @@ function Consultation() {
                         답변을 불러올 수 없습니다. (이전에 저장된 후속 질문은 DB에서 연결해 주어야 표시됩니다.)
                       </p>
                     </div>
-                  ) : fu.parsedData && (fu.parsedData.summary || fu.parsedData.analysis) ? (
+                  ) : fu.parsedData ? (
+                    isFollowUpData(fu.parsedData) ? (
+                      <FollowUpConsultationCard parsedData={fu.parsedData} />
+                    ) : (fu.parsedData.summary || fu.parsedData.analysis) ? (
                     <div className="space-y-5">
                       <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                         <h2 className="text-xl font-bold text-white mb-4 leading-tight">
@@ -1587,6 +1679,16 @@ function Consultation() {
                         </div>
                       )}
                     </div>
+                    ) : (
+                    <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        🔮 답변
+                      </h3>
+                      <div className="prose prose-invert prose-sm sm:prose-base max-w-none text-slate-200">
+                        <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
+                      </div>
+                    </div>
+                    )
                   ) : (
                     <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
                       <h3 className="text-lg font-semibold text-white mb-3">
@@ -1974,6 +2076,11 @@ function Consultation() {
 
                   {/* 구조화된 결과 (parseFortuneResult 성공 시) */}
                   {consultationAnswer.parsedData ? (
+                    isFollowUpData(consultationAnswer.parsedData) ? (
+                      <FollowUpConsultationCard
+                        parsedData={consultationAnswer.parsedData}
+                      />
+                    ) : (
                     <div className="space-y-5">
                       {/* Header Card */}
                       <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
@@ -2125,6 +2232,7 @@ function Consultation() {
                         </div>
                       </div>
                     </div>
+                    )
                   ) : (
                     /* Fallback: Raw Text (JSON 파싱 실패 시) */
                     <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
@@ -2205,6 +2313,11 @@ function Consultation() {
 
                         {/* 후속 질문 답변 내용 */}
                         {followUpAnswer.parsedData ? (
+                          isFollowUpData(followUpAnswer.parsedData) ? (
+                            <FollowUpConsultationCard
+                              parsedData={followUpAnswer.parsedData}
+                            />
+                          ) : (
                           <div className="space-y-5">
                             <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                               <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
@@ -2351,6 +2464,7 @@ function Consultation() {
                               </div>
                             </div>
                           </div>
+                          )
                         ) : (
                           <div className="p-6 bg-slate-800/30 border border-slate-600/50 rounded-lg">
                             <h3 className="text-lg font-semibold text-white mb-4">
