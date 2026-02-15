@@ -189,11 +189,23 @@ function Consultation() {
     selectProfile,
   } = useProfiles();
 
-  // UI 상태
+  // 임시 저장(드래프트) 읽기 헬퍼 — temp_consultation_state JSON 파싱
+  const getTempConsultationState = () => {
+    try {
+      const raw = localStorage.getItem("temp_consultation_state");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // UI 상태 (질문·토픽은 마운트 시 드래프트에서 복원)
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState(null); // null: 미선택 상태
+  const [selectedTopic, setSelectedTopic] = useState(() =>
+    getTempConsultationState()?.topic ?? null
+  );
   const [userQuestion, setUserQuestion] = useState(() =>
-    localStorage.getItem("temp_consultation_question") ?? ""
+    getTempConsultationState()?.question ?? ""
   );
   const [error, setError] = useState("");
   const [loadingConsultation, setLoadingConsultation] = useState(false);
@@ -205,15 +217,16 @@ function Consultation() {
   const scrollTimeoutRef = useRef(null);
   const resultSectionRef = useRef(null); // 운세 결과 영역 (플로팅 버튼 노출 판단용)
   
-  // 후속 질문 관련 상태
+  // 후속 질문 관련 상태 (currentFollowUpInput은 드래프트에서 복원)
   const [showFollowUpButton, setShowFollowUpButton] = useState(false);
   const [resultSectionInView, setResultSectionInView] = useState(false); // 결과 영역이 뷰포트에 들어왔는지
   const [showFollowUpInput, setShowFollowUpInput] = useState(false);
   const [followUpQuestion, setFollowUpQuestion] = useState(() =>
-    localStorage.getItem("temp_consultation_followup") ?? ""
+    getTempConsultationState()?.currentFollowUpInput ?? ""
   );
   const [loadingFollowUp, setLoadingFollowUp] = useState(false);
   const [followUpAnswers, setFollowUpAnswers] = useState([]); // 이전 대화 맥락용 (후속 질문 답변들)
+  const consultationStateRestoredRef = useRef(false);
 
   // 히스토리 뷰에서의 후속 질문 (이전 대화 페이지에서 추가 질문 시)
   const [historyShowFollowUpInput, setHistoryShowFollowUpInput] = useState(false);
@@ -249,16 +262,58 @@ function Consultation() {
   const navigate = useNavigate();
   const location = useLocation();
   const [historyView, setHistoryView] = useState(null); // { question, interpretation }
+  const profileRestoredRef = useRef(false);
 
-  // 질문 임시 저장(Draft): userQuestion 변경 시마다 localStorage에 자동 저장
+  // 질문·토픽·프로필·답변·후속 맥락 임시 저장(Draft): 하나의 키에 JSON으로 저장
   useEffect(() => {
-    localStorage.setItem("temp_consultation_question", userQuestion);
-  }, [userQuestion]);
+    const state = {
+      question: userQuestion,
+      topic: selectedTopic,
+      profileId: selectedProfile?.id ?? null,
+      answer: consultationAnswer ?? null,
+      followUpHistory: followUpAnswers ?? [],
+      currentFollowUpInput: followUpQuestion ?? "",
+    };
+    localStorage.setItem("temp_consultation_state", JSON.stringify(state));
+  }, [userQuestion, selectedTopic, selectedProfile, consultationAnswer, followUpAnswers, followUpQuestion]);
 
-  // 후속 질문 임시 저장(Draft): 각 후속 질문 변경 시마다 localStorage에 자동 저장
+  // 마운트 시 저장된 상담 맥락 복원 (메인 상담소 뷰일 때만: 히스토리/공유 뷰가 아님)
   useEffect(() => {
-    localStorage.setItem("temp_consultation_followup", followUpQuestion);
-  }, [followUpQuestion]);
+    if (consultationStateRestoredRef.current) return;
+    const isHistoryOrSharedView = resultId || searchParams.get("id");
+    if (isHistoryOrSharedView) return;
+    const saved = getTempConsultationState();
+    if (!saved) return;
+    consultationStateRestoredRef.current = true;
+    if (saved.answer != null) {
+      setConsultationAnswer(saved.answer);
+    }
+    if (Array.isArray(saved.followUpHistory) && saved.followUpHistory.length > 0) {
+      setFollowUpAnswers(saved.followUpHistory);
+    }
+    if (saved.currentFollowUpInput != null && saved.currentFollowUpInput !== "") {
+      setFollowUpQuestion(saved.currentFollowUpInput);
+    }
+    const hasAnswer = saved.answer != null;
+    const followUpCount = Array.isArray(saved.followUpHistory) ? saved.followUpHistory.length : 0;
+    const hasCurrentInput = !!String(saved.currentFollowUpInput ?? "").trim();
+    setShowFollowUpButton(hasAnswer && followUpCount < 2 && !hasCurrentInput);
+    setShowFollowUpInput(hasCurrentInput);
+  }, [resultId, searchParams]);
+
+  // 마운트 후 프로필 목록 로드 시 저장된 profileId로 프로필 복원 (1회만)
+  useEffect(() => {
+    if (profileRestoredRef.current || !profiles?.length) return;
+    const saved = getTempConsultationState();
+    if (!saved?.profileId) return;
+    const profile = profiles.find((p) => p.id === saved.profileId);
+    if (profile) {
+      selectProfile(profile);
+      profileRestoredRef.current = true;
+    }
+  }, [profiles, selectProfile]);
+
+  // 후속 질문 임시 저장(Draft): 히스토리/공유 뷰용 별도 키 (메인 플로우는 temp_consultation_state에 포함)
   useEffect(() => {
     localStorage.setItem("temp_consultation_history_followup", historyFollowUpQuestion);
   }, [historyFollowUpQuestion]);
@@ -702,7 +757,6 @@ function Consultation() {
       // 2. 운세 조회
       const answer = await requestConsultation();
       setConsultationAnswer(answer);
-      localStorage.removeItem("temp_consultation_question");
       setFollowUpAnswers([]);
       setShowFollowUpInput(false);
       setFollowUpQuestion("");
@@ -717,6 +771,16 @@ function Consultation() {
       setLoadingConsultation(false);
     }
   }, [user, requiredStars, userQuestion, requestConsultation]);
+
+  // 새 상담 하기: 임시 저장 삭제 + 결과/후속 상태 초기화
+  const clearConsultationDraft = useCallback(() => {
+    localStorage.removeItem("temp_consultation_state");
+    setConsultationAnswer(null);
+    setFollowUpAnswers([]);
+    setFollowUpQuestion("");
+    setShowFollowUpButton(false);
+    setShowFollowUpInput(false);
+  }, []);
 
   // 후속 질문 버튼 클릭
   const handleFollowUpButtonClick = () => {
@@ -883,7 +947,6 @@ function Consultation() {
         setShowFollowUpButton(next.length < 2);
         return next;
       });
-      localStorage.removeItem("temp_consultation_followup");
       setFollowUpQuestion("");
       setShowFollowUpInput(false);
 
@@ -2052,8 +2115,19 @@ function Consultation() {
               {/* 상담 결과 (로딩 완료 후 바로 표시) */}
               {consultationAnswer && (
                 <div ref={resultSectionRef} className="mb-8">
-                  {consultationAnswer.shareId && (
-                    <div className="flex items-center justify-end gap-2 mb-3">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={clearConsultationDraft}
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      새 상담 하기
+                    </button>
+                    {consultationAnswer.shareId && (
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -2104,7 +2178,8 @@ function Consultation() {
                         </svg>
                       </button>
                     </div>
-                  )}
+                    )}
+                  </div>
                   <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
                     <div className="flex items-start gap-3">
                       <div className="text-2xl">💬</div>
