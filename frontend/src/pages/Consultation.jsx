@@ -192,7 +192,9 @@ function Consultation() {
   // UI 상태
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(null); // null: 미선택 상태
-  const [userQuestion, setUserQuestion] = useState("");
+  const [userQuestion, setUserQuestion] = useState(() =>
+    localStorage.getItem("temp_consultation_question") ?? ""
+  );
   const [error, setError] = useState("");
   const [loadingConsultation, setLoadingConsultation] = useState(false);
   const [consultationAnswer, setConsultationAnswer] = useState(null);
@@ -207,19 +209,25 @@ function Consultation() {
   const [showFollowUpButton, setShowFollowUpButton] = useState(false);
   const [resultSectionInView, setResultSectionInView] = useState(false); // 결과 영역이 뷰포트에 들어왔는지
   const [showFollowUpInput, setShowFollowUpInput] = useState(false);
-  const [followUpQuestion, setFollowUpQuestion] = useState("");
+  const [followUpQuestion, setFollowUpQuestion] = useState(() =>
+    localStorage.getItem("temp_consultation_followup") ?? ""
+  );
   const [loadingFollowUp, setLoadingFollowUp] = useState(false);
   const [followUpAnswers, setFollowUpAnswers] = useState([]); // 이전 대화 맥락용 (후속 질문 답변들)
 
   // 히스토리 뷰에서의 후속 질문 (이전 대화 페이지에서 추가 질문 시)
   const [historyShowFollowUpInput, setHistoryShowFollowUpInput] = useState(false);
-  const [historyFollowUpQuestion, setHistoryFollowUpQuestion] = useState("");
+  const [historyFollowUpQuestion, setHistoryFollowUpQuestion] = useState(() =>
+    localStorage.getItem("temp_consultation_history_followup") ?? ""
+  );
   const [historyLoadingFollowUp, setHistoryLoadingFollowUp] = useState(false);
   const [starModalMode, setStarModalMode] = useState("first"); // 'first' | 'followUp' | 'historyFollowUp' | 'sharedFollowUp'
 
   // 공유 페이지에서의 후속 질문 (친구가 공유 링크로 들어왔을 때)
   const [sharedShowFollowUpInput, setSharedShowFollowUpInput] = useState(false);
-  const [sharedFollowUpQuestion, setSharedFollowUpQuestion] = useState("");
+  const [sharedFollowUpQuestion, setSharedFollowUpQuestion] = useState(() =>
+    localStorage.getItem("temp_consultation_shared_followup") ?? ""
+  );
   const [sharedLoadingFollowUp, setSharedLoadingFollowUp] = useState(false);
 
   // 별 차감 모달 상태 (모달 열 때 한 번에 설정해 항상 최신 잔액 표시)
@@ -241,6 +249,22 @@ function Consultation() {
   const navigate = useNavigate();
   const location = useLocation();
   const [historyView, setHistoryView] = useState(null); // { question, interpretation }
+
+  // 질문 임시 저장(Draft): userQuestion 변경 시마다 localStorage에 자동 저장
+  useEffect(() => {
+    localStorage.setItem("temp_consultation_question", userQuestion);
+  }, [userQuestion]);
+
+  // 후속 질문 임시 저장(Draft): 각 후속 질문 변경 시마다 localStorage에 자동 저장
+  useEffect(() => {
+    localStorage.setItem("temp_consultation_followup", followUpQuestion);
+  }, [followUpQuestion]);
+  useEffect(() => {
+    localStorage.setItem("temp_consultation_history_followup", historyFollowUpQuestion);
+  }, [historyFollowUpQuestion]);
+  useEffect(() => {
+    localStorage.setItem("temp_consultation_shared_followup", sharedFollowUpQuestion);
+  }, [sharedFollowUpQuestion]);
 
   // 칩 스크롤 감지
   useEffect(() => {
@@ -678,6 +702,7 @@ function Consultation() {
       // 2. 운세 조회
       const answer = await requestConsultation();
       setConsultationAnswer(answer);
+      localStorage.removeItem("temp_consultation_question");
       setFollowUpAnswers([]);
       setShowFollowUpInput(false);
       setFollowUpQuestion("");
@@ -858,6 +883,7 @@ function Consultation() {
         setShowFollowUpButton(next.length < 2);
         return next;
       });
+      localStorage.removeItem("temp_consultation_followup");
       setFollowUpQuestion("");
       setShowFollowUpInput(false);
 
@@ -935,6 +961,7 @@ function Consultation() {
       );
 
       setShowStarModal(false);
+      localStorage.removeItem("temp_consultation_history_followup");
       setHistoryFollowUpQuestion("");
       setHistoryShowFollowUpInput(false);
       await loadHistoryItem();
@@ -1040,6 +1067,7 @@ function Consultation() {
       );
 
       setShowStarModal(false);
+      localStorage.removeItem("temp_consultation_shared_followup");
       setSharedFollowUpQuestion("");
       setSharedShowFollowUpInput(false);
       await loadSharedConsultation(sharedConsultation.shareId);
