@@ -89,7 +89,7 @@ function ConversationDrawer({ isOpen, onClose }) {
       if (profile && profile.name) {
         return profile.name + " & ?";
       }
-      return "궁합";
+      return "진짜궁합";
     }
 
     // 첫 번째 프로필: fortune_history에 저장된 profile_id 사용
@@ -98,7 +98,7 @@ function ConversationDrawer({ isOpen, onClose }) {
       : historyItem.profiles;
     
     if (!profile1 || !profile1.name) {
-      return "궁합";
+      return "진짜궁합";
     }
 
     const profile1Name = profile1.name;

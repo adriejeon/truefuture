@@ -18,7 +18,7 @@ export const FORTUNE_TYPE_NAMES = {
   daily: "오늘 운세",
   yearly: "1년 운세",
   lifetime: "종합 운세",
-  compatibility: "궁합",
+  compatibility: "진짜궁합",
   consultation: "자유 질문",
 };
 

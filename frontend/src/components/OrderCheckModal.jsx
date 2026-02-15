@@ -71,7 +71,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
     }
     if (packageInfo.paid > 0) {
       // 망원경 패키지
-      return `망원경 1개로 '자유 질문', '진짜 궁합' 1회를 관측할 수 있습니다.`;
+      return `망원경 1개로 '자유 질문', '진짜궁합' 1회를 관측할 수 있습니다.`;
     } else {
       // 나침반 패키지
       return `나침반 1개로 '데일리 운세' 1회를 확인할 수 있습니다.`;

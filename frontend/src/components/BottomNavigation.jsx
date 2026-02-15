@@ -4,7 +4,7 @@ import { colors } from "../constants/colors";
 function BottomNavigation({ activeTab }) {
   const location = useLocation();
 
-  // 현재 경로에 따라 activeTab 결정 (하단 3개: 진짜미래, 궁합, 진짜운세)
+  // 현재 경로에 따라 activeTab 결정 (하단 3개: 진짜미래, 진짜궁합, 진짜운세)
   // 메인 페이지(/)는 하단 네비게이션에 속하지 않으므로 선택 상태 없음
   const currentTab =
     location.pathname === "/"
@@ -40,7 +40,7 @@ function BottomNavigation({ activeTab }) {
     {
       id: "compatibility",
       path: "/compatibility",
-      label: "궁합",
+      label: "진짜궁합",
       icon: (
         <svg
           className="w-6 h-6"
