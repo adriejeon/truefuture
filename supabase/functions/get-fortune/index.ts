@@ -100,9 +100,43 @@ const corsHeaders = {
 };
 
 // ========== AI 해석 관련 함수 ==========
-const GEMINI_MODEL = "gemini-3-pro-preview"; // 전 타입 공통: 종합운세, 데일리, 1년 운세, 궁합 + 자유 상담소 첫 질문
+const GEMINI_MODEL = "gemini-2.5-pro"; // 전 타입 공통 Primary: 종합운세, 데일리, 1년 운세, 궁합 + 자유 상담소 첫 질문
+const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"; // 503/과부하 시 폴백
 const GEMINI_CONSULTATION_FOLLOWUP_MODEL = "gemini-2.5-flash"; // 자유 상담소 후속 질문 전용
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+
+/** 503 또는 Overloaded 관련 에러인지 판별 (폴백 트리거용) */
+function is503OrOverloaded(error: any): boolean {
+  const msg = (error?.message ?? String(error)).toLowerCase();
+  return (
+    msg.includes("503") ||
+    msg.includes("service unavailable") ||
+    msg.includes("overloaded")
+  );
+}
+
+/**
+ * Primary 모델 호출 후 503/과부하 시 Fallback 모델로 재시도.
+ * 프롬프트·설정은 동일하게 유지.
+ */
+async function callGeminiAPIWithFallback(
+  primaryModel: string,
+  fallbackModel: string,
+  apiKey: string,
+  requestBody: any,
+): Promise<any> {
+  try {
+    return await callGeminiAPI(primaryModel, apiKey, requestBody);
+  } catch (e: any) {
+    if (is503OrOverloaded(e)) {
+      console.warn(
+        "⚠️ Gemini 2.5 Pro 과부하로 인해 Flash 모델로 전환합니다.",
+      );
+      return await callGeminiAPI(fallbackModel, apiKey, requestBody);
+    }
+    throw e;
+  }
+}
 
 /**
  * 운세 타입에 따라 사용할 Gemini 모델을 반환
@@ -332,41 +366,36 @@ async function callGeminiAPI(
         body: JSON.stringify(requestBody),
       });
 
-      // 429 Rate Limit 또는 503 Service Unavailable 에러인 경우 재시도
-      if (response.status === 429 || response.status === 503) {
+      // 503 Service Unavailable (Model Overloaded): 재시도 없이 즉시 throw → 상위에서 폴백 모델로 전환
+      if (response.status === 503) {
+        const errorText = await response.text();
+        console.warn(
+          "⚠️ Gemini API 503 Service Unavailable (Model Overloaded). 폴백 모델로 전환할 수 있습니다.",
+        );
+        throw new Error(
+          `Gemini API 503 Service Unavailable (Model Overloaded). ${errorText.substring(0, 200)}`,
+        );
+      }
+
+      // 429 Rate Limit: 재시도
+      if (response.status === 429) {
         if (attempt < maxRetries) {
-          const statusMessage =
-            response.status === 429
-              ? "429 Too Many Requests"
-              : "503 Service Unavailable (Model Overloaded)";
           console.warn(
-            `⚠️ ${statusMessage}. ${delay}ms 후 재시도합니다... (남은 시도: ${
-              maxRetries - attempt
-            })`,
+            `⚠️ 429 Too Many Requests. ${delay}ms 후 재시도합니다... (남은 시도: ${maxRetries - attempt})`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
-          delay *= 2; // 지수 백오프: 1000ms -> 2000ms -> 4000ms
-          continue; // 다음 시도로 진행
+          delay *= 2; // 지수 백오프
+          continue;
         } else {
-          // 최대 재시도 횟수 초과
           const errorText = await response.text();
-          const statusMessage =
-            response.status === 429
-              ? "Rate Limit 초과 (429)"
-              : "Service Unavailable (503)";
           console.error("\n" + "=".repeat(60));
-          console.error(`❌ Gemini API ${statusMessage}`);
+          console.error("❌ Gemini API Rate Limit 초과 (429)");
           console.error("=".repeat(60));
           console.error("최대 재시도 횟수(3회)를 초과했습니다.");
           console.error("에러 응답:", errorText);
           console.error("=".repeat(60) + "\n");
-
-          const errorType =
-            response.status === 429 ? "Quota Exceeded" : "Service Unavailable";
           throw new Error(
-            `Gemini API ${errorType} (${
-              response.status
-            }): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`,
+            `Gemini API Quota Exceeded (429): 최대 재시도 횟수를 초과했습니다. ${errorText.substring(0, 200)}`,
           );
         }
       }
@@ -606,7 +635,12 @@ async function getInterpretation(
     };
 
     const modelName = getGeminiModel(fortuneType);
-    const apiResponse = await callGeminiAPI(modelName, apiKey, requestBody);
+    const apiResponse = await callGeminiAPIWithFallback(
+      modelName,
+      GEMINI_FALLBACK_MODEL,
+      apiKey,
+      requestBody,
+    );
     const interpretationText = parseGeminiResponse(apiResponse);
 
     const fullPromptSentToGemini =
@@ -880,10 +914,30 @@ async function generateLifetimeFortune(
     );
     const [resultNature, resultLove, resultMoneyCareer, resultHealthTotal] =
       await Promise.all([
-        callGeminiAPI(modelName, apiKey, requestBodyNature),
-        callGeminiAPI(modelName, apiKey, requestBodyLove),
-        callGeminiAPI(modelName, apiKey, requestBodyMoneyCareer),
-        callGeminiAPI(modelName, apiKey, requestBodyHealthTotal),
+        callGeminiAPIWithFallback(
+          modelName,
+          GEMINI_FALLBACK_MODEL,
+          apiKey,
+          requestBodyNature,
+        ),
+        callGeminiAPIWithFallback(
+          modelName,
+          GEMINI_FALLBACK_MODEL,
+          apiKey,
+          requestBodyLove,
+        ),
+        callGeminiAPIWithFallback(
+          modelName,
+          GEMINI_FALLBACK_MODEL,
+          apiKey,
+          requestBodyMoneyCareer,
+        ),
+        callGeminiAPIWithFallback(
+          modelName,
+          GEMINI_FALLBACK_MODEL,
+          apiKey,
+          requestBodyHealthTotal,
+        ),
       ]);
 
     console.log("✅ 4개 API 호출 완료");
@@ -1797,7 +1851,12 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       const modelName = getConsultationModel(isFollowUp);
       let interpretation;
       try {
-        const apiResponse = await callGeminiAPI(modelName, apiKey, requestBody);
+        const apiResponse = await callGeminiAPIWithFallback(
+          modelName,
+          GEMINI_FALLBACK_MODEL,
+          apiKey,
+          requestBody,
+        );
         const interpretationText = parseGeminiResponse(apiResponse);
         interpretation = {
           success: true,

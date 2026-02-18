@@ -236,7 +236,7 @@ a {
   animation: typewriter-fade-in-up 0.4s ease-out forwards;
 }
 
-/* TypewriterLoader: 그라데이션 텍스트 (모달이 항상 검정 배경이므로 밝은 톤 고정) */
+/* TypewriterLoader: 그라데이션 텍스트 (다크/라이트 동일 색상) */
 .typewriter-gradient-text {
   color: #e0d4ff; /* fallback: 그라데이션 미지원 시 */
   background: linear-gradient(to right, #d4c8ff 0%, #e8c8ff 35%, #ffd0dc 70%, #ffe8ea 100%);
@@ -245,9 +245,22 @@ a {
   background-clip: text;
 }
 
+/* Android 등에서 다크 모드 시 브라우저가 그라데이션을 바꾸는 것 방지: 동일 그라데이션 명시 */
+@media (prefers-color-scheme: dark) {
+  .typewriter-gradient-text {
+    color: #e0d4ff;
+    background: linear-gradient(to right, #d4c8ff 0%, #e8c8ff 35%, #ffd0dc 70%, #ffe8ea 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
 /* 타이핑 모달 배경: 다크/라이트 모드 공통 검정 95% (운세 로딩 시 공통) */
+/* color-scheme: light 로 모달 내부는 항상 동일 렌더링 → Android 다크 모드에서도 그라데이션 동일하게 표시 */
 .typing-modal-backdrop {
   background-color: rgba(0, 0, 0, 0.95);
+  color-scheme: light;
 }
 
 /* FortuneProcess: 모달 페이드아웃 */
