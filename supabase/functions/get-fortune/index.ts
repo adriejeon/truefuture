@@ -154,8 +154,8 @@ function getConsultationModel(isFollowUp: boolean): string {
 /** 자유 상담소: 첫 질문용 generation config (Pro 모델 사용) */
 function getConsultationFirstQuestionConfig(): Record<string, number> {
   return {
-    temperature: 0.7,
-    topK: 40,
+    temperature: 0.9,
+    topK: 50,
     topP: 0.95,
     maxOutputTokens: 8000,
   };
@@ -164,8 +164,8 @@ function getConsultationFirstQuestionConfig(): Record<string, number> {
 /** 자유 상담소: 후속 질문용 generation config (2.5 Flash 사용) */
 function getConsultationFollowUpConfig(): Record<string, number> {
   return {
-    temperature: 0.7,
-    topK: 40,
+    temperature: 0.9,
+    topK: 50,
     topP: 0.95,
     maxOutputTokens: 8000,
   };
@@ -178,8 +178,8 @@ function getGenerationConfig(fortuneType: FortuneType): any {
   switch (fortuneType) {
     case FortuneType.DAILY:
       return {
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.9,
+        topK: 50,
         topP: 0.95,
         maxOutputTokens: 8000,
       };
@@ -187,15 +187,15 @@ function getGenerationConfig(fortuneType: FortuneType): any {
     case FortuneType.YEARLY:
     case FortuneType.CONSULTATION:
       return {
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.9,
+        topK: 50,
         topP: 0.95,
         maxOutputTokens: 15000,
       };
     default:
       return {
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.9,
+        topK: 50,
         topP: 0.95,
         maxOutputTokens: 3000,
       };
@@ -814,8 +814,8 @@ async function generateLifetimeFortune(
         ],
       },
       generationConfig: {
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.9,
+        topK: 50,
         topP: 0.95,
         maxOutputTokens: 10000,
       },
@@ -842,8 +842,8 @@ async function generateLifetimeFortune(
         ],
       },
       generationConfig: {
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.9,
+        topK: 50,
         topP: 0.95,
         maxOutputTokens: 10000,
       },
@@ -870,8 +870,8 @@ async function generateLifetimeFortune(
         ],
       },
       generationConfig: {
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.9,
+        topK: 50,
         topP: 0.95,
         maxOutputTokens: 10000,
       },
@@ -898,8 +898,8 @@ async function generateLifetimeFortune(
         ],
       },
       generationConfig: {
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.9,
+        topK: 50,
         topP: 0.95,
         maxOutputTokens: 10000,
       },
