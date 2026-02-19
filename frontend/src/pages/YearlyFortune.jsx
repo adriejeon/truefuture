@@ -257,6 +257,12 @@ function YearlyFortune() {
             reportType: "lifetime",
             profileName: selectedProfile.name || null,
           };
+          // 프론트 콘솔: 제미나이 인풋 기반 요청 본문 로깅 (연간 페이지 내 종합)
+          console.groupCollapsed("🔍 [종합 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
+          console.log("요청 본문 (requestBody):", requestBody);
+          console.log("프로필(생년월시, 좌표):", formData);
+          console.groupEnd();
+
           const { data, error: functionError } = await supabase.functions.invoke(
             "get-fortune",
             { body: requestBody }
@@ -498,6 +504,12 @@ function YearlyFortune() {
         reportType: "daily",
         profileName: selectedProfile.name || null,
       };
+      // 프론트 콘솔: 제미나이 인풋 기반 요청 본문 로깅
+      console.groupCollapsed("🔍 [데일리 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
+      console.log("요청 본문 (requestBody):", requestBody);
+      console.log("프로필(생년월시, 좌표):", formData);
+      console.groupEnd();
+
       const { data, error: functionError } = await supabase.functions.invoke(
         "get-fortune",
         { body: requestBody }
@@ -667,6 +679,12 @@ function YearlyFortune() {
         reportType: "lifetime",
         profileName: selectedProfile.name || null,
       };
+      // 프론트 콘솔: 제미나이 인풋 기반 요청 본문 로깅 (연간 페이지 내 종합)
+      console.groupCollapsed("🔍 [종합 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
+      console.log("요청 본문 (requestBody):", requestBody);
+      console.log("프로필(생년월시, 좌표):", formData);
+      console.groupEnd();
+
       const { data, error: functionError } = await supabase.functions.invoke(
         "get-fortune",
         { body: requestBody }
