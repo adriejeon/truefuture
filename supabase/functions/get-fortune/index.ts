@@ -100,7 +100,7 @@ const corsHeaders = {
 };
 
 // ========== AI 해석 관련 함수 ==========
-const GEMINI_MODEL = "gemini-2.5-pro"; // 전 타입 공통 Primary: 종합운세, 데일리, 1년 운세, 궁합 + 자유 상담소 첫 질문
+const GEMINI_MODEL = "gemini-3-pro-preview"; // 전 타입 공통 Primary: 종합운세, 데일리, 1년 운세, 궁합 + 자유 상담소 첫 질문 (Gemini 3 Pro)
 const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"; // 503/과부하 시 폴백
 const GEMINI_CONSULTATION_FOLLOWUP_MODEL = "gemini-2.5-flash"; // 자유 상담소 후속 질문 전용
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
