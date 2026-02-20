@@ -477,6 +477,197 @@ async function callGeminiAPI(
   throw new Error("Unexpected error in callGeminiAPI");
 }
 
+/** SSE 응답 헤더 (Server-Sent Events 규격) */
+const sseHeaders = {
+  ...corsHeaders,
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache",
+  Connection: "keep-alive",
+};
+
+/**
+ * Gemini streamGenerateContent 호출.
+ * 청크별 텍스트를 yield하는 비동기 제너레이터 반환.
+ * 503/과부하 시 fallback 모델로 재시도.
+ */
+async function* callGeminiAPIStream(
+  primaryModel: string,
+  fallbackModel: string,
+  apiKey: string,
+  requestBody: any,
+): AsyncGenerator<string, void, unknown> {
+  const endpoint = `${GEMINI_API_BASE_URL}/models/${primaryModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+  } catch (e: any) {
+    console.error("❌ Gemini stream fetch 실패:", e?.message);
+    throw e;
+  }
+
+  if (response.status === 503 && is503OrOverloaded(new Error("503"))) {
+    console.warn("⚠️ Gemini 스트림 503 → 폴백 모델로 재시도");
+    const fallbackEndpoint = `${GEMINI_API_BASE_URL}/models/${fallbackModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+    response = await fetch(fallbackEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    if (response.status === 429) {
+      throw new Error(
+        `Gemini API Quota Exceeded (429): ${errorText.substring(0, 200)}`,
+      );
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("Gemini API 인증 실패: API 키가 유효하지 않습니다.");
+    }
+    throw new Error(
+      `Gemini stream 요청 실패 (${response.status}): ${errorText.substring(0, 300)}`,
+    );
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Gemini stream: response body 없음");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data:")) continue;
+        const jsonStr = trimmed.slice(5).trim();
+        if (jsonStr === "[DONE]" || jsonStr === "") continue;
+        try {
+          const data = JSON.parse(jsonStr);
+          const text =
+            data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+          if (typeof text === "string" && text) {
+            yield text;
+          }
+        } catch (_) {
+          // JSON 파싱 실패 시 해당 라인 스킵
+        }
+      }
+    }
+    if (buffer.trim()) {
+      const trimmed = buffer.trim();
+      if (trimmed.startsWith("data:")) {
+        const jsonStr = trimmed.slice(5).trim();
+        if (jsonStr && jsonStr !== "[DONE]") {
+          try {
+            const data = JSON.parse(jsonStr);
+            const text =
+              data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+            if (typeof text === "string" && text) yield text;
+          } catch (_) {}
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/**
+ * SSE ReadableStream 생성: Gemini 청크를 프론트로 전달하면서 fullText 누적,
+ * 스트림 종료 시 Supabase에 insert 후 [DONE] 전송하고 스트림 닫기.
+ */
+function createFortuneSSEStream(
+  geminiStream: AsyncGenerator<string, void, unknown>,
+  insertPayloadBuilder: (fullText: string) => Record<string, unknown>,
+  supabase: ReturnType<typeof createClient>,
+  options?: {
+    onInsert?: (shareId: string) => void;
+    userId?: string;
+    profileId?: string | null;
+    fortuneType?: string;
+  },
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  let fullText = "";
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const chunk of geminiStream) {
+          fullText += chunk;
+          const sseData = `data: ${JSON.stringify({ text: chunk })}\n\n`;
+          controller.enqueue(encoder.encode(sseData));
+        }
+
+        const normalizedFullText = fullText
+          .trim()
+          .replace(/^```(?:markdown)?\s*\n?/i, "")
+          .replace(/\n?```\s*$/i, "")
+          .trim();
+        const insertPayload = insertPayloadBuilder(normalizedFullText);
+        const { data: resultData, error: resultError } = await supabase
+          .from("fortune_results")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+
+        if (resultError) {
+          console.error("❌ [스트림] fortune_results insert 실패:", resultError);
+          const errEvent = `data: ${JSON.stringify({ error: resultError.message })}\n\n`;
+          controller.enqueue(encoder.encode(errEvent));
+        } else if (resultData?.id && options?.userId && options?.fortuneType) {
+          const shareId = resultData.id;
+          const { error: historyError } = await supabase
+            .from("fortune_history")
+            .insert({
+              user_id: options.userId,
+              profile_id: options.profileId ?? null,
+              result_id: shareId,
+              fortune_type: options.fortuneType,
+              fortune_date: new Date().toISOString().split("T")[0],
+            });
+          if (historyError) {
+            console.error("❌ [스트림] fortune_history insert 실패:", historyError);
+          }
+          options.onInsert?.(shareId);
+        }
+
+        const shareId = resultData?.id ?? null;
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ done: true, share_id: shareId })}\n\n`,
+          ),
+        );
+      } catch (e: any) {
+        console.error("❌ [스트림] 에러:", e?.message);
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ error: e?.message ?? "Stream error" })}\n\n`,
+          ),
+        );
+      } finally {
+        controller.close();
+      }
+    },
+  });
+}
+
 function parseGeminiResponse(apiResponse: any): string {
   if (
     !apiResponse ||
@@ -561,13 +752,22 @@ async function getInterpretation(
   dailyFlowPM?: import("./types.ts").DailyFlowSummary,
   dailyAngleStrikes?: import("./types.ts").DailyAngleStrike[],
   lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
+  streamOptions?: {
+    supabase: ReturnType<typeof createClient>;
+    insertPayloadBuilder: (fullText: string) => Record<string, unknown>;
+    opts?: {
+      userId?: string;
+      profileId?: string | null;
+      fortuneType?: string;
+    };
+  },
 ): Promise<any> {
   try {
     if (!apiKey) {
       throw new Error("Missing GEMINI_API_KEY environment variable.");
     }
 
-    // LIFETIME 운세는 별도 함수에서 처리
+    // LIFETIME 운세는 별도 함수에서 처리 (스트리밍 미지원)
     if (fortuneType === FortuneType.LIFETIME) {
       return await generateLifetimeFortune(
         chartData,
@@ -665,6 +865,23 @@ async function getInterpretation(
     };
 
     const modelName = getGeminiModel(fortuneType);
+
+    if (streamOptions) {
+      const geminiStream = callGeminiAPIStream(
+        modelName,
+        GEMINI_FALLBACK_MODEL,
+        apiKey,
+        requestBody,
+      );
+      const stream = createFortuneSSEStream(
+        geminiStream,
+        streamOptions.insertPayloadBuilder,
+        streamOptions.supabase,
+        streamOptions.opts,
+      );
+      return { stream };
+    }
+
     const apiResponse = await callGeminiAPIWithFallback(
       modelName,
       GEMINI_FALLBACK_MODEL,
@@ -1879,147 +2096,60 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       };
 
       const modelName = getConsultationModel(isFollowUp);
-      let interpretation;
-      try {
-        const apiResponse = await callGeminiAPIWithFallback(
-          modelName,
-          GEMINI_FALLBACK_MODEL,
-          apiKey,
-          requestBody,
-        );
-        const interpretationText = parseGeminiResponse(apiResponse);
-        interpretation = {
-          success: true,
-          interpretation: interpretationText,
-        };
-      } catch (geminiError: any) {
-        console.error("❌ [CONSULTATION] Gemini 호출 실패:", geminiError);
-        return new Response(
-          JSON.stringify({
-            error: `AI interpretation failed: ${geminiError.message}`,
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
+      const currentUserId = user.id;
+      const currentProfileId = requestData.profileId || null;
 
-      // 8. DB 저장 (정규화: fortune_results → fortune_history)
-      let shareId: string | undefined;
-
-      try {
-        console.log("💾 [CONSULTATION] 운세 저장 시작...");
-
-        // Step 1: 현재 사용자 ID는 이미 상단에서 검증됨 (line 863~866)
-        const currentUserId = user.id;
-        const currentProfileId = requestData.profileId || null;
-
-        // Step 2: fortune_results에 먼저 insert (user_info NOT NULL 요구사항 충족)
-        const insertPayload = {
-          user_id: currentUserId,
-          user_info: {
+      // 스트리밍: generateContentStream → SSE → 스트림 종료 시 DB insert 후 [DONE]
+      const geminiStream = callGeminiAPIStream(
+        modelName,
+        GEMINI_FALLBACK_MODEL,
+        apiKey,
+        requestBody,
+      );
+      const insertPayloadBuilder = (fullText: string) => ({
+        user_id: currentUserId,
+        user_info: {
+          birthDate,
+          lat,
+          lng,
+          userQuestion,
+          consultationTopic,
+          profileName: requestData.profileName ?? null,
+        },
+        fortune_text: fullText,
+        fortune_type: fortuneType,
+        ...(requestData.parentResultId && {
+          parent_result_id: requestData.parentResultId,
+        }),
+        chart_data: {
+          chart: chartData,
+          firdaria: firdariaResult,
+          interaction: interactionResult,
+          progression: progressionResult,
+          direction: directionResult,
+          metadata: {
+            userQuestion,
+            consultationTopic,
             birthDate,
             lat,
             lng,
-            userQuestion,
-            consultationTopic,
-            profileName: requestData.profileName ?? null,
-          }, // NOT NULL 컬럼
-          fortune_text: interpretation.interpretation,
-          fortune_type: fortuneType,
-          ...(requestData.parentResultId && {
-            parent_result_id: requestData.parentResultId,
-          }),
-          chart_data: {
-            chart: chartData,
-            firdaria: firdariaResult,
-            interaction: interactionResult,
-            progression: progressionResult,
-            direction: directionResult,
-            metadata: {
-              userQuestion,
-              consultationTopic,
-              birthDate,
-              lat,
-              lng,
-            },
           },
-        };
-        const { data: resultData, error: resultError } = await supabase
-          .from("fortune_results")
-          .insert(insertPayload)
-          .select("id")
-          .single();
-
-        if (resultError) {
-          throw resultError;
-        }
-
-        if (!resultData?.id) {
-          throw new Error("fortune_results insert 성공했으나 id 반환 없음");
-        }
-
-        shareId = resultData.id;
-        console.log("✅ [CONSULTATION] fortune_results 저장 성공:", shareId);
-
-        // Step 3: fortune_history에 user와 result 연결
-        const { error: historyError } = await supabase
-          .from("fortune_history")
-          .insert({
-            user_id: currentUserId,
-            profile_id: currentProfileId,
-            result_id: shareId,
-            fortune_type: fortuneType,
-            fortune_date: new Date().toISOString().split("T")[0], // YYYY-MM-DD
-          });
-
-        if (historyError) {
-          console.error(
-            "❌ [CONSULTATION] fortune_history 저장 실패:",
-            historyError,
-          );
-          console.error("  - user_id:", currentUserId);
-          console.error("  - profile_id:", currentProfileId);
-          console.error("  - result_id:", shareId);
-          console.error("  - 에러 상세:", historyError);
-          // fortune_results는 이미 저장되었으므로 롤백 불가
-          // 에러 로깅만 하고 계속 진행
-        } else {
-          console.log("✅ [CONSULTATION] fortune_history 저장 성공");
-        }
-      } catch (saveError: any) {
-        console.error("❌ [CONSULTATION] 운세 저장 중 예외 발생:", saveError);
-        console.error("  - 에러 메시지:", saveError.message);
-        console.error("  - 에러 스택:", saveError.stack);
-        // 에러 발생 시에도 클라이언트에는 해석 결과를 반환
-      }
-
-      // 9. 성공 응답 반환 (프론트 콘솔 로깅용 geminiInput 포함)
-      const systemInstructionText = systemInstruction.parts?.[0]?.text ?? "";
-      return new Response(
-        JSON.stringify({
-          success: true,
-          chart: chartData,
-          interpretation: interpretation.interpretation,
-          fortuneType,
-          share_id: shareId || null,
-          debugInfo: {
-            firdaria: firdariaResult,
-            interaction: interactionResult,
-            progression: progressionResult,
-            direction: directionResult,
-          },
-          geminiInput: {
-            systemInstruction: systemInstructionText,
-            userPrompt,
-          },
-        }),
+        },
+      });
+      const sseStream = createFortuneSSEStream(
+        geminiStream,
+        insertPayloadBuilder,
+        supabase,
         {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          userId: currentUserId,
+          profileId: currentProfileId,
+          fortuneType,
         },
       );
+      return new Response(sseStream, {
+        status: 200,
+        headers: sseHeaders,
+      });
     }
 
     // 궁합인 경우 2명의 데이터 처리
@@ -2218,28 +2348,62 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         user1.birthDate,
         { lat: user1.lat, lng: user1.lng },
         chartData2,
-        undefined, // transitChartData
-        undefined, // aspects
-        undefined, // transitMoonHouse
-        undefined, // solarReturnChartData
-        undefined, // profectionData
-        undefined, // solarReturnOverlay
-        synastryResult, // synastryResult 추가
-        undefined, // shortTermPromptSection
-        undefined, // timeLordRetrogradeAlert
-        undefined, // lordTransitAspects
-        undefined, // lordTransitStatus
-        undefined, // lordStarConjunctionsText
-        relationshipType, // 관계 유형 추가
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        synastryResult,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        relationshipType,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+          supabase,
+          insertPayloadBuilder: (fullText: string) => ({
+            user_info: {
+              user1: {
+                birthDate: user1.birthDate,
+                lat: user1.lat,
+                lng: user1.lng,
+              },
+              user2: {
+                birthDate: user2.birthDate,
+                lat: user2.lat,
+                lng: user2.lng,
+              },
+            },
+            fortune_text: fullText,
+            fortune_type: fortuneType,
+            chart_data: {
+              chart: chartData1,
+              chart2: chartData2,
+            },
+          }),
+        },
       );
 
+      if (interpretation.stream) {
+        return new Response(interpretation.stream, {
+          status: 200,
+          headers: sseHeaders,
+        });
+      }
       if (!interpretation.success || interpretation.error) {
         return new Response(
           JSON.stringify({
             error: `AI interpretation failed: ${
               interpretation.message || "Unknown error"
             }`,
-            synastryResult: synastryResult, // 에러 발생 시에도 synastryResult 포함
+            synastryResult: synastryResult,
           }),
           {
             status: 500,
@@ -2248,7 +2412,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         );
       }
 
-      // Supabase에 운세 저장 (복구용 chart_data 포함)
+      // 스트리밍이 아닌 경우(폴백): DB 저장 후 JSON 반환
       let shareId: string | undefined;
       try {
         console.log("💾 [COMPATIBILITY] 운세 저장 시작...");
@@ -2279,25 +2443,14 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
         if (insertError) {
           console.error("❌ [COMPATIBILITY] 운세 저장 실패:", insertError);
-          console.error("에러 상세:", JSON.stringify(insertError, null, 2));
         } else if (insertData) {
           shareId = insertData.id;
           console.log("✅ [COMPATIBILITY] 운세 저장 성공:", shareId);
-        } else {
-          console.warn("⚠️ [COMPATIBILITY] insertData가 null입니다.");
         }
       } catch (saveError: any) {
         console.error("❌ [COMPATIBILITY] 운세 저장 중 예외 발생:", saveError);
-        console.error("에러 스택:", saveError.stack);
       }
 
-      // 성공 응답 반환 (프론트 콘솔 로깅용 userPrompt/systemInstruction/debugInfo 포함)
-      console.log(
-        `📤 [COMPATIBILITY] 응답 전송 - share_id: ${shareId || "null"}`,
-      );
-      console.log(
-        `🧮 [COMPATIBILITY] Synastry Result 점수: ${synastryResult.overallScore}점`,
-      );
       const compatResponse: any = {
         success: true,
         chart: chartData1,
@@ -2701,6 +2854,44 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       );
     }
 
+    const chartDataForDb =
+      fortuneType === FortuneType.DAILY && transitChartData
+        ? {
+            chart: chartData,
+            transitChart: transitChartData,
+            aspects: aspects ?? null,
+            transitMoonHouse: transitMoonHouse ?? null,
+          }
+        : fortuneType === FortuneType.YEARLY
+          ? {
+              chart: chartData,
+              solarReturnChart: solarReturnChartData ?? null,
+              profectionData: profectionData ?? null,
+              solarReturnOverlay: solarReturnOverlay ?? null,
+            }
+          : fortuneType === FortuneType.LIFETIME
+            ? { chart: chartData }
+            : null;
+
+    const profileName = requestData.profileName ?? null;
+    const streamOptions =
+      fortuneType !== FortuneType.LIFETIME
+        ? {
+            supabase,
+            insertPayloadBuilder: (fullText: string) => ({
+              user_info: {
+                birthDate,
+                lat,
+                lng,
+                ...(profileName && { profileName }),
+              },
+              fortune_text: fullText,
+              fortune_type: fortuneType,
+              ...(chartDataForDb && { chart_data: chartDataForDb }),
+            }),
+          }
+        : undefined;
+
     const interpretation = await getInterpretation(
       chartData,
       fortuneType,
@@ -2727,7 +2918,15 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       dailyFlowPM,
       dailyAngleStrikes,
       lordProfectionAngleEntry ?? undefined,
+      streamOptions,
     );
+
+    if (interpretation.stream) {
+      return new Response(interpretation.stream, {
+        status: 200,
+        headers: sseHeaders,
+      });
+    }
 
     if (!interpretation.success || interpretation.error) {
       console.error("\n" + "=".repeat(60));
@@ -2750,28 +2949,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       );
     }
 
-    // Supabase에 운세 저장 (복구용 chart_data 포함)
+    // LIFETIME 등 스트리밍이 아닌 경우: Supabase에 운세 저장 후 JSON 반환
     let shareId: string | undefined;
-    const chartDataForDb =
-      fortuneType === FortuneType.DAILY && transitChartData
-        ? {
-            chart: chartData,
-            transitChart: transitChartData,
-            aspects: aspects ?? null,
-            transitMoonHouse: transitMoonHouse ?? null,
-          }
-        : fortuneType === FortuneType.YEARLY
-          ? {
-              chart: chartData,
-              solarReturnChart: solarReturnChartData ?? null,
-              profectionData: profectionData ?? null,
-              solarReturnOverlay: solarReturnOverlay ?? null,
-            }
-          : fortuneType === FortuneType.LIFETIME
-            ? { chart: chartData }
-            : null;
-
-    const profileName = requestData.profileName ?? null;
     try {
       console.log(`💾 [${fortuneType}] 운세 저장 시작...`);
       const { data: insertData, error: insertError } = await supabase
@@ -2804,7 +2983,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       console.error("에러 스택:", saveError.stack);
     }
 
-    // 성공 응답 반환
     console.log(
       `📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || "null"}`,
     );
@@ -2812,12 +2990,11 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       success: true,
       chart: chartData,
       interpretation: interpretation.interpretation,
-      fortune: interpretation.interpretation, // 프론트 검증용 (interpretation과 동일)
+      fortune: interpretation.interpretation,
       fortuneType: fortuneType,
       share_id: shareId || null,
     };
 
-    // 디버깅 정보: 최종 프롬프트, Neo4j 컨텍스트, Gemini 원본 응답
     if (interpretation.debugInfo) {
       responseData.debugInfo = interpretation.debugInfo;
     }

@@ -16,6 +16,7 @@ import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { logFortuneInput } from "../utils/debugFortune";
+import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
@@ -349,167 +350,50 @@ function LifetimeFortune() {
       const requestBody = {
         ...formData,
         fortuneType: "lifetime",
-        reportType: "lifetime", // 하위 호환성 유지
+        reportType: "lifetime",
         profileName: selectedProfile?.name || null,
       };
-
       console.log("\n" + "=".repeat(60));
       console.log("📤 API 요청 전송 데이터");
       console.log("=".repeat(60));
-      console.log("생년월일시:", formData.birthDate);
-      console.log("위치:", `위도 ${formData.lat}, 경도 ${formData.lng}`);
       console.log("전체 요청 본문:", JSON.stringify(requestBody, null, 2));
       console.log("=".repeat(60) + "\n");
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        {
-          body: requestBody,
-        }
-      );
-
-      if (functionError) {
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      }
-
-      if (!data || data.error) {
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      }
-
-      logFortuneInput(data, { fortuneType: "lifetime" });
-
-      console.log("\n" + "=".repeat(60));
-      console.log("📥 API 응답 받은 데이터");
-      console.log("=".repeat(60));
-
-      console.log("🔍 [LifetimeFortune] API 응답 전체:", data);
-      console.log(
-        "🔍 [LifetimeFortune] API 응답 data.share_id:",
-        data.share_id,
-        "타입:",
-        typeof data.share_id
-      );
-      if (
-        data.share_id &&
-        data.share_id !== "undefined" &&
-        data.share_id !== null &&
-        data.share_id !== "null"
-      ) {
-        console.log("🔗 Share ID 저장:", data.share_id);
-        setShareId(data.share_id);
-      } else {
-        console.warn(
-          "⚠️ [LifetimeFortune] share_id가 응답에 없거나 유효하지 않습니다."
-        );
-        console.warn("  - data.share_id 값:", data.share_id);
-        console.warn("  - data.share_id 타입:", typeof data.share_id);
-        setShareId(null);
-      }
-
-      if (data.chart) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🌟 [Natal Chart - 출생 차트]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(`출생 시간: ${data.chart.date}`);
-        console.log(
-          `출생 위치: 위도 ${data.chart.location?.lat}, 경도 ${data.chart.location?.lng}`
-        );
-
-        if (data.chart.houses?.angles?.ascendant !== undefined) {
-          const asc = data.chart.houses.angles.ascendant;
-          const ascSignIndex = Math.floor(asc / 30);
-          const ascDegreeInSign = asc % 30;
-          const signs = [
-            "Aries",
-            "Taurus",
-            "Gemini",
-            "Cancer",
-            "Leo",
-            "Virgo",
-            "Libra",
-            "Scorpio",
-            "Sagittarius",
-            "Capricorn",
-            "Aquarius",
-            "Pisces",
-          ];
-          console.log(
-            `\n상승점(Ascendant): ${
-              signs[ascSignIndex]
-            } ${ascDegreeInSign.toFixed(1)}°`
-          );
-        }
-
-        console.log("\n행성 위치:");
-        if (data.chart.planets) {
-          const planetNames = {
-            sun: "Sun",
-            moon: "Moon",
-            mercury: "Mercury",
-            venus: "Venus",
-            mars: "Mars",
-            jupiter: "Jupiter",
-            saturn: "Saturn",
-          };
-          Object.entries(data.chart.planets).forEach(([name, planet]) => {
-            const displayName = planetNames[name] || name;
-            console.log(
-              `  - ${displayName.toUpperCase().padEnd(8)}: ${planet.sign.padEnd(
-                12
-              )} ${planet.degreeInSign.toFixed(1).padStart(5)}° (House ${
-                planet.house
-              })`
-            );
-          });
-        }
-
-        if (data.chart.fortuna) {
-          console.log(
-            `\nPart of Fortune: ${
-              data.chart.fortuna.sign
-            } ${data.chart.fortuna.degreeInSign.toFixed(1)}° (House ${
-              data.chart.fortuna.house
-            })`
-          );
-        }
-      }
-
-      if (data.userPrompt) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📝 [제미나이에게 전달한 User Prompt]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(data.userPrompt);
-      }
-
-      if (data.systemInstruction) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📋 [제미나이에게 전달한 System Instruction]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(data.systemInstruction);
-      }
-
-      console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("✨ [제미나이 해석 결과]");
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log(data.interpretation);
-      console.log("\n" + "=".repeat(60) + "\n");
-
-      if (data.interpretation && typeof data.interpretation === "string") {
-        setInterpretation(data.interpretation);
-        if (data.share_id) setShareId(data.share_id);
-
-        await saveFortuneHistory(
-          selectedProfile.id,
-          "lifetime",
-          data.share_id ?? undefined
-        );
-        setCanViewLifetime(false);
-      } else {
-        setInterpretation("결과를 불러올 수 없습니다.");
-      }
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: () => {},
+        onDone: ({ fullData: data }) => {
+          setLoading(false);
+          if (!data) return;
+          logFortuneInput(data, { fortuneType: "lifetime" });
+          if (
+            data.share_id &&
+            data.share_id !== "undefined" &&
+            data.share_id !== null &&
+            data.share_id !== "null"
+          ) {
+            setShareId(data.share_id);
+          } else {
+            setShareId(null);
+          }
+          if (data.interpretation && typeof data.interpretation === "string") {
+            setInterpretation(data.interpretation);
+            saveFortuneHistory(
+              selectedProfile.id,
+              "lifetime",
+              data.share_id ?? undefined
+            ).then(() => {});
+            setCanViewLifetime(false);
+          } else {
+            setInterpretation("결과를 불러올 수 없습니다.");
+          }
+        },
+        onError: (err) => {
+          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setLoading(false);
+        },
+      });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
-    } finally {
       setLoading(false);
     }
   };

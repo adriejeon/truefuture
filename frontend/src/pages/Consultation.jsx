@@ -13,6 +13,7 @@ import StarModal from "../components/StarModal";
 import ReactMarkdown from "react-markdown";
 import { colors } from "../constants/colors";
 import { logFortuneInput } from "../utils/debugFortune";
+import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
@@ -210,6 +211,8 @@ function Consultation() {
   const [error, setError] = useState("");
   const [loadingConsultation, setLoadingConsultation] = useState(false);
   const [consultationAnswer, setConsultationAnswer] = useState(null);
+  const [streamingInterpretation, setStreamingInterpretation] = useState("");
+  const [streamingFollowUpInterpretation, setStreamingFollowUpInterpretation] = useState("");
   const [selectedChipIndex, setSelectedChipIndex] = useState(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
@@ -613,21 +616,11 @@ function Consultation() {
     }
   };
 
-  // FortuneProcess용: API 호출 후 결과 객체 반환 (상태 2 → 3 전환용)
-  const requestConsultation = useCallback(async () => {
-    if (!user) throw new Error("로그인이 필요합니다.");
-    if (!selectedProfile) {
-      setShowProfileModal(true);
-      throw new Error("프로필을 선택해주세요.");
-    }
-    if (!userQuestion.trim()) throw new Error("질문을 입력해주세요.");
-    if (userQuestion.trim().length > 1000)
-      throw new Error("질문은 1000자 이내로 입력해주세요.");
-
+  // FortuneProcess용: 스트리밍 API 호출 (onChunk/onDone은 handleConfirmStarUsage에서 처리)
+  const buildFirstQuestionRequestBody = useCallback(() => {
     const formData = convertProfileToApiFormat(selectedProfile);
     if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
-
-    const requestBody = {
+    return {
       ...formData,
       fortuneType: "consultation",
       userQuestion: userQuestion.trim(),
@@ -635,54 +628,7 @@ function Consultation() {
       profileId: selectedProfile.id,
       profileName: selectedProfile.name || null,
     };
-
-    // 프론트 콘솔: 제미나이에 전달되는 입력(요청 본문) 로깅
-    console.groupCollapsed(
-      "🔍 [자유 상담소] get-fortune 요청 — 제미나이 인풋 기반 정보"
-    );
-    console.log("요청 본문 (requestBody):", requestBody);
-    console.log("프로필(생년월시, 성별, 좌표):", formData);
-    console.log("질문:", userQuestion.trim());
-    console.log("카테고리 (consultationTopic):", selectedTopic);
-    console.groupEnd();
-
-    const { data, error: functionError } = await supabase.functions.invoke(
-      "get-fortune",
-      { body: requestBody }
-    );
-
-    if (functionError)
-      throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-    if (!data || data.error)
-      throw new Error(data?.error || "서버 오류가 발생했습니다.");
-
-    // 프론트 콘솔에서 차트·프롬프트·항성 등 Gemini 인풋 확인
-    logFortuneInput(data, { fortuneType: "consultation" });
-
-    const parsedData = parseFortuneResult(data.interpretation);
-    const answer = {
-      question: userQuestion.trim(),
-      topic: selectedTopic,
-      interpretation: data.interpretation,
-      parsedData,
-      debugInfo: data.debugInfo || {},
-      shareId: data.share_id || null,
-    };
-
-    if (data.share_id) {
-      await saveFortuneHistory(
-        user.id,
-        selectedProfile.id,
-        "consultation",
-        data.share_id,
-        null,
-        userQuestion.trim()
-      );
-    }
-    setUserQuestion("");
-    setSelectedChipIndex(null);
-    return answer;
-  }, [user, selectedProfile, selectedTopic, userQuestion]);
+  }, [selectedProfile, selectedTopic, userQuestion]);
 
   // 폼 제출: 별 잔액 확인 → 모달 표시 → 차감 → API 호출
   const handleSubmit = useCallback(
@@ -739,38 +685,78 @@ function Consultation() {
     [selectedProfile, userQuestion, user, requiredStars]
   );
 
-  // 별 차감 후 운세 조회
+  // 별 차감 후 운세 조회 (SSE 스트리밍)
   const handleConfirmStarUsage = useCallback(async () => {
     if (!user?.id) return;
 
     setLoadingConsultation(true);
     setError("");
+    setConsultationAnswer(null);
+    setStreamingInterpretation("");
+    setFollowUpAnswers([]);
+    setShowFollowUpInput(false);
+    setFollowUpQuestion("");
 
     try {
-      // 1. 별 차감
       await consumeStars(
         user.id,
         requiredStars,
         `자유 질문: ${userQuestion.trim().slice(0, 50)}...`
       );
 
-      // 2. 운세 조회
-      const answer = await requestConsultation();
-      setConsultationAnswer(answer);
-      setFollowUpAnswers([]);
-      setShowFollowUpInput(false);
-      setFollowUpQuestion("");
+      const requestBody = buildFirstQuestionRequestBody();
+      console.groupCollapsed(
+        "🔍 [자유 상담소] get-fortune 요청 — 제미나이 인풋 기반 정보"
+      );
+      console.log("요청 본문 (requestBody):", requestBody);
+      console.groupEnd();
 
-      // 3. 후속 질문 버튼 표시 (애니메이션 딜레이)
-      setTimeout(() => {
-        setShowFollowUpButton(true);
-      }, 500);
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: (text) => setStreamingInterpretation((prev) => prev + text),
+        onDone: ({ shareId, fullText, fullData }) => {
+          setLoadingConsultation(false);
+          const interpretation = fullText ?? fullData?.interpretation ?? "";
+          setConsultationAnswer({
+            question: userQuestion.trim(),
+            topic: selectedTopic,
+            interpretation,
+            parsedData: parseFortuneResult(interpretation),
+            debugInfo: fullData?.debugInfo || {},
+            shareId: shareId ?? null,
+          });
+          setStreamingInterpretation("");
+          if (shareId) {
+            saveFortuneHistory(
+              user.id,
+              selectedProfile.id,
+              "consultation",
+              shareId,
+              null,
+              userQuestion.trim()
+            );
+          }
+          setUserQuestion("");
+          setSelectedChipIndex(null);
+          setTimeout(() => setShowFollowUpButton(true), 500);
+        },
+        onError: (err) => {
+          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setLoadingConsultation(false);
+        },
+      });
     } catch (err) {
       setError(err?.message || "요청 중 오류가 발생했습니다.");
-    } finally {
       setLoadingConsultation(false);
     }
-  }, [user, requiredStars, userQuestion, requestConsultation]);
+  }, [
+    user,
+    requiredStars,
+    userQuestion,
+    selectedTopic,
+    selectedProfile,
+    buildFirstQuestionRequestBody,
+    saveFortuneHistory,
+  ]);
 
   // 새 상담 하기: 임시 저장 삭제 + 결과/후속 상태 초기화
   const clearConsultationDraft = useCallback(() => {
@@ -868,37 +854,27 @@ function Consultation() {
     }
   };
 
-  // 후속 질문 별 차감 후 API 호출 (이전 대화 맥락 포함)
+  // 후속 질문 별 차감 후 API 호출 (SSE 스트리밍)
   const handleConfirmFollowUpStarUsage = useCallback(async () => {
     if (!user?.id || !consultationAnswer?.shareId) return;
 
     setLoadingFollowUp(true);
     setError("");
+    setStreamingFollowUpInterpretation("");
 
     try {
-      // 1. 별 차감
       await consumeStars(
         user.id,
         requiredStars,
         `후속 질문: ${followUpQuestion.trim().slice(0, 50)}...`
       );
 
-      // 2. 이전 대화 맥락 구성 (첫 질문·답변 + 이미 한 후속 질문·답변들)
       const previousConversation = [
-        {
-          question: consultationAnswer.question,
-          interpretation: consultationAnswer.interpretation,
-        },
-        ...followUpAnswers.map((a) => ({
-          question: a.question,
-          interpretation: a.interpretation,
-        })),
+        { question: consultationAnswer.question, interpretation: consultationAnswer.interpretation },
+        ...followUpAnswers.map((a) => ({ question: a.question, interpretation: a.interpretation })),
       ];
-
-      // 3. 후속 질문 API 호출
       const formData = convertProfileToApiFormat(selectedProfile);
       if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
-
       const requestBody = {
         ...formData,
         fortuneType: "consultation",
@@ -906,53 +882,49 @@ function Consultation() {
         consultationTopic: selectedTopic,
         profileId: selectedProfile.id,
         profileName: selectedProfile.name || null,
-        previousConversation, // 이전 질문·답변 맥락 전달
-        parentResultId: consultationAnswer.shareId, // 공유 시 후속 질문 표시용
+        previousConversation,
+        parentResultId: consultationAnswer.shareId,
       };
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        { body: requestBody }
-      );
-
-      if (functionError)
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      if (!data || data.error)
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-
-      const parsedData = parseFortuneResult(data.interpretation);
-      const answer = {
-        question: followUpQuestion.trim(),
-        topic: selectedTopic,
-        interpretation: data.interpretation,
-        parsedData,
-        debugInfo: data.debugInfo || {},
-        shareId: consultationAnswer.shareId,
-        isFollowUp: true,
-      };
-
-      // 4. 히스토리 저장 (부모 result_id로 저장하여 연결)
-      await saveFortuneHistory(
-        user.id,
-        selectedProfile.id,
-        "consultation",
-        consultationAnswer.shareId,
-        null,
-        followUpQuestion.trim()
-      );
-
-      setFollowUpAnswers((prev) => {
-        const next = [...prev, answer];
-        // 후속 질문 2회까지 허용: 2회 채우면 버튼 숨김, 1회만 했으면 버튼 다시 표시
-        setShowFollowUpButton(next.length < 2);
-        return next;
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: (text) => setStreamingFollowUpInterpretation((prev) => prev + text),
+        onDone: ({ fullText }) => {
+          setLoadingFollowUp(false);
+          const interpretation = fullText ?? "";
+          const parsedData = parseFortuneResult(interpretation);
+          const answer = {
+            question: followUpQuestion.trim(),
+            topic: selectedTopic,
+            interpretation,
+            parsedData,
+            debugInfo: {},
+            shareId: consultationAnswer.shareId,
+            isFollowUp: true,
+          };
+          saveFortuneHistory(
+            user.id,
+            selectedProfile.id,
+            "consultation",
+            consultationAnswer.shareId,
+            null,
+            followUpQuestion.trim()
+          );
+          setFollowUpAnswers((prev) => {
+            const next = [...prev, answer];
+            setShowFollowUpButton(next.length < 2);
+            return next;
+          });
+          setFollowUpQuestion("");
+          setShowFollowUpInput(false);
+          setStreamingFollowUpInterpretation("");
+        },
+        onError: (err) => {
+          setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+          setLoadingFollowUp(false);
+        },
       });
-      setFollowUpQuestion("");
-      setShowFollowUpInput(false);
-
     } catch (err) {
       setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
-    } finally {
       setLoadingFollowUp(false);
     }
   }, [
@@ -963,6 +935,7 @@ function Consultation() {
     followUpAnswers,
     selectedProfile,
     selectedTopic,
+    saveFortuneHistory,
   ]);
 
   // 히스토리 뷰에서 별 확정 후 후속 질문 API 호출
@@ -1004,30 +977,25 @@ function Consultation() {
         parentResultId: historyView.shareId,
       };
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        { body: requestBody }
-      );
-
-      if (functionError)
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      if (!data || data.error)
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-
-      await saveFortuneHistory(
-        user.id,
-        selectedProfile.id,
-        "consultation",
-        historyView.shareId,
-        null,
-        historyFollowUpQuestion.trim()
-      );
-
-      setShowStarModal(false);
-      localStorage.removeItem("temp_consultation_history_followup");
-      setHistoryFollowUpQuestion("");
-      setHistoryShowFollowUpInput(false);
-      await loadHistoryItem();
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: () => {},
+        onDone: async () => {
+          await saveFortuneHistory(
+            user.id,
+            selectedProfile.id,
+            "consultation",
+            historyView.shareId,
+            null,
+            historyFollowUpQuestion.trim()
+          );
+          setShowStarModal(false);
+          localStorage.removeItem("temp_consultation_history_followup");
+          setHistoryFollowUpQuestion("");
+          setHistoryShowFollowUpInput(false);
+          await loadHistoryItem();
+        },
+        onError: (err) => setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다."),
+      });
     } catch (err) {
       setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
     } finally {
@@ -1110,30 +1078,25 @@ function Consultation() {
         parentResultId: sharedConsultation.shareId,
       };
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        { body: requestBody }
-      );
-
-      if (functionError)
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      if (!data || data.error)
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-
-      await saveFortuneHistory(
-        user.id,
-        selectedProfile.id,
-        "consultation",
-        sharedConsultation.shareId,
-        null,
-        sharedFollowUpQuestion.trim()
-      );
-
-      setShowStarModal(false);
-      localStorage.removeItem("temp_consultation_shared_followup");
-      setSharedFollowUpQuestion("");
-      setSharedShowFollowUpInput(false);
-      await loadSharedConsultation(sharedConsultation.shareId);
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: () => {},
+        onDone: async () => {
+          await saveFortuneHistory(
+            user.id,
+            selectedProfile.id,
+            "consultation",
+            sharedConsultation.shareId,
+            null,
+            sharedFollowUpQuestion.trim()
+          );
+          setShowStarModal(false);
+          localStorage.removeItem("temp_consultation_shared_followup");
+          setSharedFollowUpQuestion("");
+          setSharedShowFollowUpInput(false);
+          await loadSharedConsultation(sharedConsultation.shareId);
+        },
+        onError: (err) => setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다."),
+      });
     } catch (err) {
       setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
     } finally {
@@ -2358,7 +2321,9 @@ function Consultation() {
                       </h3>
                       <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
                         <ReactMarkdown>
-                          {consultationAnswer.interpretation}
+                          {loadingConsultation
+                            ? streamingInterpretation
+                            : consultationAnswer.interpretation}
                         </ReactMarkdown>
                       </div>
                     </div>
@@ -2396,16 +2361,19 @@ function Consultation() {
                     </div>
                   )}
 
-                  {/* 후속 질문 로딩 */}
+                  {/* 후속 질문 스트리밍 중 표시 */}
                   {loadingFollowUp && (
-                    <div
-                      className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
-                      role="dialog"
-                      aria-modal="true"
-                      aria-label="후속 질문 분석 중"
-                    >
-                      <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
-                        <TypewriterLoader />
+                    <div className="mt-6 border-t border-slate-600/50 pt-6">
+                      <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <div className="text-2xl">💬</div>
+                          <div className="flex-1">
+                            <p className="text-white font-medium">{followUpQuestion}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-6 bg-[rgba(37,61,135,0.15)] border border-slate-600/50 rounded-xl min-h-[120px]">
+                        <ReactMarkdown>{streamingFollowUpInterpretation || "..."}</ReactMarkdown>
                       </div>
                     </div>
                   )}

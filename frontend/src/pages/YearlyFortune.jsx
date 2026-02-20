@@ -16,6 +16,7 @@ import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { logFortuneInput } from "../utils/debugFortune";
+import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
@@ -48,6 +49,7 @@ function YearlyFortune() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [interpretation, setInterpretation] = useState("");
+  const [streamingInterpretation, setStreamingInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [shareId, setShareId] = useState(null);
@@ -257,36 +259,36 @@ function YearlyFortune() {
             reportType: "lifetime",
             profileName: selectedProfile.name || null,
           };
-          // 프론트 콘솔: 제미나이 인풋 기반 요청 본문 로깅 (연간 페이지 내 종합)
           console.groupCollapsed("🔍 [종합 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
           console.log("요청 본문 (requestBody):", requestBody);
-          console.log("프로필(생년월시, 좌표):", formData);
           console.groupEnd();
 
-          const { data, error: functionError } = await supabase.functions.invoke(
-            "get-fortune",
-            { body: requestBody }
-          );
-          if (functionError)
-            throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-          if (!data || data.error)
-            throw new Error(data?.error || "서버 오류가 발생했습니다.");
-          logFortuneInput(data, { fortuneType: "lifetime" });
-          if (data.interpretation && typeof data.interpretation === "string") {
-            setInterpretation(data.interpretation);
-            setShareId(data.share_id || null);
-            await saveFortuneHistory(
-              selectedProfile.id,
-              "lifetime",
-              data.share_id ?? undefined
-            );
-            setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
-          } else {
-            setInterpretation("결과를 불러올 수 없습니다.");
-          }
+          await invokeGetFortuneStream(supabase, requestBody, {
+            onChunk: () => {},
+            onDone: async ({ fullData }) => {
+              const data = fullData;
+              setLoading(false);
+              if (data?.interpretation && typeof data.interpretation === "string") {
+                setInterpretation(data.interpretation);
+                setShareId(data.share_id || null);
+                await saveFortuneHistory(
+                  selectedProfile.id,
+                  "lifetime",
+                  data.share_id ?? undefined
+                );
+                setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
+              } else {
+                setInterpretation("결과를 불러올 수 없습니다.");
+              }
+              if (data) logFortuneInput(data, { fortuneType: "lifetime" });
+            },
+            onError: (err) => {
+              setError(err?.message || "요청 중 오류가 발생했습니다.");
+              setLoading(false);
+            },
+          });
         } catch (err) {
           setError(err.message || "요청 중 오류가 발생했습니다.");
-        } finally {
           setLoading(false);
         }
       })();
@@ -483,6 +485,7 @@ function YearlyFortune() {
     setLoading(true);
     setError("");
     setInterpretation("");
+    setStreamingInterpretation("");
 
     try {
       await consumeStars(
@@ -503,48 +506,46 @@ function YearlyFortune() {
         reportType: "daily",
         profileName: selectedProfile.name || null,
       };
-      // 프론트 콘솔: 제미나이 인풋 기반 요청 본문 로깅
       console.groupCollapsed("🔍 [데일리 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
       console.log("요청 본문 (requestBody):", requestBody);
       console.log("프로필(생년월시, 좌표):", formData);
       console.groupEnd();
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        { body: requestBody }
-      );
-      if (functionError)
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      if (!data || data.error)
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      logFortuneInput(data, { fortuneType: "daily" });
-      if (data.interpretation && typeof data.interpretation === "string") {
-        const todayDate = getTodayDate();
-        const currentShareId = data.share_id || null;
-        setShareId(currentShareId);
-        saveTodayFortuneToStorage(selectedProfile.id, {
-          interpretation: data.interpretation,
-          chart: data.chart,
-          transitChart: data.transitChart,
-          aspects: data.aspects,
-          transitMoonHouse: data.transitMoonHouse,
-          shareId: currentShareId,
-        });
-        await saveFortuneHistory(
-          selectedProfile.id,
-          "daily",
-          currentShareId ?? undefined
-        );
-        setFortuneAvailability((prev) => ({ ...prev, daily: false }));
-        setInterpretation(data.interpretation);
-        setFromCache(false);
-        setFortuneDate(todayDate);
-      } else {
-        setInterpretation("결과를 불러올 수 없습니다.");
-      }
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: (text) => setStreamingInterpretation((prev) => prev + text),
+        onDone: async ({ shareId: currentShareId, fullText, fullData }) => {
+          setLoading(false);
+          const text = fullText ?? fullData?.interpretation ?? "";
+          setStreamingInterpretation("");
+          if (text) {
+            const todayDate = getTodayDate();
+            const sid = currentShareId ?? fullData?.share_id ?? null;
+            setShareId(sid);
+            saveTodayFortuneToStorage(selectedProfile.id, {
+              interpretation: text,
+              chart: fullData?.chart,
+              transitChart: fullData?.transitChart,
+              aspects: fullData?.aspects,
+              transitMoonHouse: fullData?.transitMoonHouse,
+              shareId: sid,
+            });
+            await saveFortuneHistory(selectedProfile.id, "daily", sid ?? undefined);
+            setFortuneAvailability((prev) => ({ ...prev, daily: false }));
+            setInterpretation(text);
+            setFromCache(false);
+            setFortuneDate(todayDate);
+            if (fullData) logFortuneInput(fullData, { fortuneType: "daily" });
+          } else {
+            setInterpretation("결과를 불러올 수 없습니다.");
+          }
+        },
+        onError: (err) => {
+          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setLoading(false);
+        },
+      });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
-    } finally {
       setLoading(false);
     }
   };
@@ -677,36 +678,36 @@ function YearlyFortune() {
         reportType: "lifetime",
         profileName: selectedProfile.name || null,
       };
-      // 프론트 콘솔: 제미나이 인풋 기반 요청 본문 로깅 (연간 페이지 내 종합)
       console.groupCollapsed("🔍 [종합 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
       console.log("요청 본문 (requestBody):", requestBody);
-      console.log("프로필(생년월시, 좌표):", formData);
       console.groupEnd();
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        { body: requestBody }
-      );
-      if (functionError)
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      if (!data || data.error)
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      logFortuneInput(data, { fortuneType: "lifetime" });
-          if (data.interpretation && typeof data.interpretation === "string") {
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: () => {},
+        onDone: async ({ fullData }) => {
+          const data = fullData;
+          setLoading(false);
+          if (data?.interpretation && typeof data.interpretation === "string") {
             setInterpretation(data.interpretation);
-        setShareId(data.share_id || null);
-        await saveFortuneHistory(
-          selectedProfile.id,
-          "lifetime",
-          data.share_id ?? undefined
-        );
-        setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
-      } else {
-        setInterpretation("결과를 불러올 수 없습니다.");
-      }
+            setShareId(data.share_id || null);
+            await saveFortuneHistory(
+              selectedProfile.id,
+              "lifetime",
+              data.share_id ?? undefined
+            );
+            setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
+          } else {
+            setInterpretation("결과를 불러올 수 없습니다.");
+          }
+          if (data) logFortuneInput(data, { fortuneType: "lifetime" });
+        },
+        onError: (err) => {
+          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setLoading(false);
+        },
+      });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
-    } finally {
       setLoading(false);
     }
   }, [user?.id, selectedProfile, saveFortuneHistory]);
@@ -931,10 +932,10 @@ function YearlyFortune() {
               </p>
             </div>
           )}
-        {!showLoadingCache && !showRestoring && interpretation && (
+        {!showLoadingCache && !showRestoring && (interpretation || (loading && streamingInterpretation)) && (
           <FortuneResult
             title={getResultTitle()}
-            interpretation={interpretation}
+            interpretation={loading ? streamingInterpretation : interpretation}
             shareId={shareId}
             profileName={selectedProfile?.name}
           />

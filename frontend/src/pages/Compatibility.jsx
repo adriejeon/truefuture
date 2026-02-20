@@ -17,6 +17,7 @@ import {
 } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { logFortuneInput } from "../utils/debugFortune";
+import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
@@ -39,6 +40,7 @@ function Compatibility() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [interpretation, setInterpretation] = useState("");
+  const [streamingInterpretation, setStreamingInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -306,6 +308,7 @@ function Compatibility() {
     setLoading(true);
     setError("");
     setInterpretation("");
+    setStreamingInterpretation("");
     setShareId(null);
 
     try {
@@ -328,148 +331,43 @@ function Compatibility() {
         user2,
         relationshipType,
       };
-
       console.log("\n" + "=".repeat(60));
       console.log("📤 API 요청 전송 데이터 (궁합)");
       console.log("=".repeat(60));
-      console.log(
-        "사용자1 (나):",
-        `생년월일시 ${user1.birthDate}, 위치 위도 ${user1.lat}, 경도 ${user1.lng}`
-      );
-      console.log(
-        "사용자2 (상대방):",
-        `생년월일시 ${user2.birthDate}, 위치 위도 ${user2.lat}, 경도 ${user2.lng}`
-      );
       console.log("전체 요청 본문:", JSON.stringify(requestBody, null, 2));
       console.log("=".repeat(60) + "\n");
 
-      const { data, error: functionError } = await supabase.functions.invoke(
-        "get-fortune",
-        { body: requestBody }
-      );
-
-      if (functionError) {
-        throw new Error(functionError.message || "서버 오류가 발생했습니다.");
-      }
-
-      if (!data || data.error) {
-        throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      }
-
-      logFortuneInput(data, { fortuneType: "compatibility" });
-
-      console.log("\n" + "=".repeat(60));
-      console.log("📥 API 응답 받은 데이터 (궁합)");
-      console.log("=".repeat(60));
-
-      if (data.synastryResult) {
-        console.log("\n🧮 [Synastry Calculation] 상세 계산 내역:");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📊 종합 점수:", data.synastryResult.overallScore, "점 / 100점");
-        console.log("\n🌙 Moon Ruler Connection:");
-        console.log("  - 내담자 → 상대방:", data.synastryResult.moonRulerConnection.aToB);
-        console.log("  - 상대방 → 내담자:", data.synastryResult.moonRulerConnection.bToA);
-        console.log("  - 상호 연결:", data.synastryResult.moonRulerConnection.isMutual ? "🔥 YES" : "NO");
-        console.log("\n💍 Marriage Lot Connection:");
-        console.log("  - 내담자 → 상대방:", data.synastryResult.marriageLotConnection.aToB);
-        console.log("  - 상대방 → 내담자:", data.synastryResult.marriageLotConnection.bToA);
-        console.log("  - 상호 연결:", data.synastryResult.marriageLotConnection.isMutual ? "🔥 YES" : "NO");
-        console.log("\n⚡ 갈등 요소:");
-        if (data.synastryResult.beneficMaleficAdjustment.conflicts.length > 0) {
-          data.synastryResult.beneficMaleficAdjustment.conflicts.forEach((conflict, idx) => {
-            console.log(`  ${idx + 1}. ${conflict.reason} (${conflict.type}, 점수: ${conflict.score})`);
-          });
-        } else {
-          console.log("  - 특이 사항 없음");
-        }
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-      } else {
-        console.warn("⚠️ [Compatibility] synastryResult가 응답에 없습니다.");
-      }
-      setSynastryResult(data.synastryResult ?? null);
-
-      console.log("🔍 [Compatibility] API 응답 전체:", data);
-      console.log("🔍 [Compatibility] API 응답 data.share_id:", data.share_id, "타입:", typeof data.share_id);
-      if (
-        data.share_id &&
-        data.share_id !== "undefined" &&
-        data.share_id !== null &&
-        data.share_id !== "null"
-      ) {
-        console.log("🔗 Share ID 저장:", data.share_id);
-        setShareId(data.share_id);
-      } else {
-        console.warn("⚠️ [Compatibility] share_id가 응답에 없거나 유효하지 않습니다.");
-        setShareId(null);
-      }
-
-      if (data.chart) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🌟 [사용자1 Natal Chart - 출생 차트]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(`출생 시간: ${data.chart.date}`);
-        console.log("출생 위치: 위도", data.chart.location?.lat, "경도", data.chart.location?.lng);
-        if (data.chart.houses?.angles?.ascendant !== undefined) {
-          const asc = data.chart.houses.angles.ascendant;
-          const ascSignIndex = Math.floor(asc / 30);
-          const ascDegreeInSign = asc % 30;
-          const signs = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
-          console.log(`상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`);
-        }
-        if (data.chart.planets) {
-          Object.entries(data.chart.planets).forEach(([name, planet]) => {
-            console.log(`  - ${name}: ${planet.sign} ${planet.degreeInSign?.toFixed(1)}° (House ${planet.house})`);
-          });
-        }
-        if (data.chart.fortuna) {
-          console.log(`Part of Fortune: ${data.chart.fortuna.sign} ${data.chart.fortuna.degreeInSign?.toFixed(1)}° (House ${data.chart.fortuna.house})`);
-        }
-      }
-
-      if (data.chart2) {
-        console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("🌟 [사용자2 Natal Chart - 출생 차트]");
-        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log(`출생 시간: ${data.chart2.date}`);
-        console.log("출생 위치: 위도", data.chart2.location?.lat, "경도", data.chart2.location?.lng);
-        if (data.chart2.houses?.angles?.ascendant !== undefined) {
-          const asc = data.chart2.houses.angles.ascendant;
-          const ascSignIndex = Math.floor(asc / 30);
-          const ascDegreeInSign = asc % 30;
-          const signs = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
-          console.log(`상승점(Ascendant): ${signs[ascSignIndex]} ${ascDegreeInSign.toFixed(1)}°`);
-        }
-        if (data.chart2.planets) {
-          Object.entries(data.chart2.planets).forEach(([name, planet]) => {
-            console.log(`  - ${name}: ${planet.sign} ${planet.degreeInSign?.toFixed(1)}° (House ${planet.house})`);
-          });
-        }
-        if (data.chart2.fortuna) {
-          console.log(`Part of Fortune: ${data.chart2.fortuna.sign} ${data.chart2.fortuna.degreeInSign?.toFixed(1)}° (House ${data.chart2.fortuna.house})`);
-        }
-      }
-
-      if (data.userPrompt) {
-        console.log("\n📝 [제미나이 User Prompt]", data.userPrompt.slice(0, 200) + "...");
-      }
-      if (data.systemInstruction) {
-        console.log("\n📋 [제미나이 System Instruction]", data.systemInstruction?.slice(0, 200) + "...");
-      }
-      console.log("\n✨ [제미나이 해석 결과]", data.interpretation?.slice(0, 150) + "...");
-      console.log("=".repeat(60) + "\n");
-
-      if (data.interpretation && typeof data.interpretation === "string") {
-        setInterpretation(data.interpretation);
-        if (data.share_id) {
-          setShareId(data.share_id);
-          await saveFortuneHistory(profile1.id, "compatibility", data.share_id);
-        }
-      } else {
-        setInterpretation("결과를 불러올 수 없습니다.");
-      }
+      await invokeGetFortuneStream(supabase, requestBody, {
+        onChunk: (text) => setStreamingInterpretation((prev) => prev + text),
+        onDone: async ({ shareId: sid, fullText, fullData }) => {
+          setLoading(false);
+          const data = fullData;
+          const text = fullText ?? data?.interpretation ?? "";
+          setStreamingInterpretation("");
+          if (data) {
+            logFortuneInput(data, { fortuneType: "compatibility" });
+            if (data.synastryResult) setSynastryResult(data.synastryResult);
+          }
+          if (sid) {
+            setShareId(sid);
+            await saveFortuneHistory(profile1.id, "compatibility", sid);
+          } else if (data?.share_id) {
+            setShareId(data.share_id);
+            await saveFortuneHistory(profile1.id, "compatibility", data.share_id);
+          }
+          if (text) {
+            setInterpretation(text);
+          } else {
+            setInterpretation("결과를 불러올 수 없습니다.");
+          }
+        },
+        onError: (err) => {
+          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setLoading(false);
+        },
+      });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
-    } finally {
       setLoading(false);
     }
   };
@@ -677,10 +575,10 @@ function Compatibility() {
             이전 결과 불러오는 중...
           </div>
         )}
-        {!restoring && interpretation && (
+        {!restoring && (interpretation || (loading && streamingInterpretation)) && (
           <FortuneResult
             title="진짜 궁합"
-            interpretation={interpretation}
+            interpretation={loading ? streamingInterpretation : interpretation}
             shareId={shareId}
             shareSummary={compatibilityShareSummary}
           />
