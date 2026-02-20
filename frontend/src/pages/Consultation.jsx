@@ -2591,6 +2591,7 @@ function Consultation() {
                     ))}
                     </div>
                   )}
+                  </div>
                 </div>
               )}
             </>
@@ -2599,12 +2600,12 @@ function Consultation() {
       </div>
 
       {/* 후속 질문 플로팅 버튼 - 운세 결과 영역을 스크롤해서 보면 화면 하단에 고정 표시 (공유 페이지에서는 미노출) */}
-      {consultationAnswer &&
+      {(consultationAnswer &&
         resultSectionInView &&
         showFollowUpButton &&
         !showFollowUpInput &&
         followUpAnswers.length < 2 &&
-        !(sharedConsultation && (searchParams.get("id") || (resultId && !(historyView && fromHistoryDrawer)))) && (
+        !(sharedConsultation && (searchParams.get("id") || (resultId && !(historyView && fromHistoryDrawer))))) && (
           <div className="fixed bottom-20 left-0 right-0 z-40 px-4 flex justify-center">
             <div className="w-full max-w-[600px] animate-slide-up-float">
               <button
