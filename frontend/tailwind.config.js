@@ -40,11 +40,16 @@ export default {
             transform: "scale(1)",
           },
         },
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "article-cross-fade-1": "article-cross-fade-1 6s ease-in-out infinite",
         "article-cross-fade-2": "article-cross-fade-2 6s ease-in-out infinite",
         "scale-in": "scale-in 0.2s ease-out",
+        shimmer: "shimmer 1.5s ease-in-out infinite",
       },
     },
   },

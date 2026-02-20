@@ -7,6 +7,7 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
+import ShimmerSkeleton from "../components/ShimmerSkeleton";
 import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
 import OrderCheckModal from "../components/OrderCheckModal";
@@ -963,16 +964,23 @@ function YearlyFortune() {
             ref={resultContainerRef}
             className={`transition-colors duration-300 rounded-xl ${
               processStatus === "streaming"
-                ? "animate-pulse bg-slate-700/20 border border-slate-600/50"
+                ? "relative border border-slate-600/50 min-h-[280px]"
                 : ""
             }`}
           >
-            <FortuneResult
-              title={getResultTitle()}
-              interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
-              shareId={shareId}
-              profileName={selectedProfile?.name}
-            />
+            {processStatus === "streaming" && (
+              <div className="absolute inset-0 p-6 flex flex-col justify-center rounded-xl pointer-events-none">
+                <ShimmerSkeleton />
+              </div>
+            )}
+            <div className={processStatus === "streaming" ? "relative z-10" : ""}>
+              <FortuneResult
+                title={getResultTitle()}
+                interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
+                shareId={shareId}
+                profileName={selectedProfile?.name}
+              />
+            </div>
           </div>
         )}
       </div>

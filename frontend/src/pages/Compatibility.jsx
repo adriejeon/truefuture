@@ -7,6 +7,7 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
+import ShimmerSkeleton from "../components/ShimmerSkeleton";
 import StarModal from "../components/StarModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
@@ -598,16 +599,23 @@ function Compatibility() {
             ref={resultContainerRef}
             className={`transition-colors duration-300 rounded-xl ${
               processStatus === "streaming"
-                ? "animate-pulse bg-slate-700/20 border border-slate-600/50"
+                ? "relative border border-slate-600/50 min-h-[280px]"
                 : ""
             }`}
           >
-            <FortuneResult
-              title="진짜 궁합"
-              interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
-              shareId={shareId}
-              shareSummary={compatibilityShareSummary}
-            />
+            {processStatus === "streaming" && (
+              <div className="absolute inset-0 p-6 flex flex-col justify-center rounded-xl pointer-events-none">
+                <ShimmerSkeleton />
+              </div>
+            )}
+            <div className={processStatus === "streaming" ? "relative z-10" : ""}>
+              <FortuneResult
+                title="진짜 궁합"
+                interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
+                shareId={shareId}
+                shareSummary={compatibilityShareSummary}
+              />
+            </div>
           </div>
         )}
       </div>

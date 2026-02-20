@@ -8,6 +8,7 @@ import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
 import TypewriterLoader from "../components/TypewriterLoader";
+import ShimmerSkeleton from "../components/ShimmerSkeleton";
 import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
 import ReactMarkdown from "react-markdown";
@@ -2103,7 +2104,7 @@ function Consultation() {
                   ref={resultSectionRef}
                   className={`mb-8 transition-colors duration-300 rounded-xl ${
                     processStatus === "streaming"
-                      ? "animate-pulse bg-slate-700/20 border border-slate-600/50"
+                      ? "border border-slate-600/50"
                       : ""
                   }`}
                 >
@@ -2129,8 +2130,13 @@ function Consultation() {
                           </div>
                         </div>
                       </div>
-                      <div className="p-6 min-h-[200px] prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed">
-                        <ReactMarkdown>{streamingInterpretation || "\u00A0"}</ReactMarkdown>
+                      <div className="relative p-6 min-h-[200px] rounded-b-xl">
+                        <div className="absolute inset-0 p-6 pt-6 flex flex-col justify-center rounded-b-xl pointer-events-none">
+                          <ShimmerSkeleton className="mt-2" />
+                        </div>
+                        <div className="relative z-10 prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed">
+                          <ReactMarkdown>{streamingInterpretation || "\u00A0"}</ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ) : consultationAnswer ? (
