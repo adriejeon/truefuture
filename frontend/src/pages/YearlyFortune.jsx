@@ -708,9 +708,6 @@ function YearlyFortune() {
           const data = fullData ?? debug;
           setLoading(false);
           setProcessStatus("done");
-          requestAnimationFrame(() => {
-            resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
           if (data) logFortuneInput(data, { fortuneType: "lifetime" });
           if (data?.interpretation && typeof data.interpretation === "string") {
             setInterpretation(data.interpretation);
@@ -721,6 +718,10 @@ function YearlyFortune() {
               data.share_id ?? undefined
             );
             setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
+            // interpretation 설정 후 스크롤
+            requestAnimationFrame(() => {
+              resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
           } else {
             setInterpretation("결과를 불러올 수 없습니다.");
           }
@@ -958,14 +959,14 @@ function YearlyFortune() {
               </p>
             </div>
           )}
-        {!showLoadingCache && !showRestoring && (processStatus === "done" || interpretation) && (
+        {!showLoadingCache && !showRestoring && (processStatus === "done" || processStatus === "streaming" || interpretation) && (
           <div
             ref={resultContainerRef}
             className="transition-colors duration-300 rounded-xl"
           >
             <FortuneResult
               title={getResultTitle()}
-              interpretation={interpretation}
+              interpretation={interpretation || streamingInterpretation}
               shareId={shareId}
               profileName={selectedProfile?.name}
             />

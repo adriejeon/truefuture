@@ -599,14 +599,14 @@ function Compatibility() {
             이전 결과 불러오는 중...
           </div>
         )}
-        {!restoring && (processStatus === "done" || interpretation) && (
+        {!restoring && (processStatus === "done" || processStatus === "streaming" || interpretation) && (
           <div
             ref={resultContainerRef}
             className="transition-colors duration-300 rounded-xl"
           >
             <FortuneResult
               title="진짜 궁합"
-              interpretation={interpretation}
+              interpretation={interpretation || streamingInterpretation}
               shareId={shareId}
               shareSummary={compatibilityShareSummary}
             />

@@ -367,9 +367,6 @@ function LifetimeFortune() {
         onDone: ({ fullData: data }) => {
           setLoading(false);
           setProcessStatus("done");
-          requestAnimationFrame(() => {
-            resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
           if (!data) return;
           logFortuneInput(data, { fortuneType: "lifetime" });
           if (
@@ -390,6 +387,10 @@ function LifetimeFortune() {
               data.share_id ?? undefined
             ).then(() => {});
             setCanViewLifetime(false);
+            // interpretation 설정 후 스크롤
+            requestAnimationFrame(() => {
+              resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
           } else {
             setInterpretation("결과를 불러올 수 없습니다.");
           }
