@@ -525,12 +525,12 @@ function Compatibility() {
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             {[
-              { value: "연인", emoji: "💕", label: "연인" },
-              { value: "친구", emoji: "👥", label: "친구" },
-              { value: "가족", emoji: "👨‍👩‍👧", label: "가족" },
-              { value: "직장 동료", emoji: "💼", label: "직장 동료" },
-              { value: "동업자", emoji: "🤝", label: "동업자" },
-              { value: "기타", emoji: "🙂", label: "기타" },
+              { value: "연인", label: "연인" },
+              { value: "친구", label: "친구" },
+              { value: "가족", label: "가족" },
+              { value: "직장 동료", label: "직장 동료" },
+              { value: "동업자", label: "동업자" },
+              { value: "기타", label: "기타" },
             ].map((type) => (
               <button
                 key={type.value}
@@ -542,7 +542,6 @@ function Compatibility() {
                     : "bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 border border-slate-700"
                 }`}
               >
-                <span className="text-xl mr-1">{type.emoji}</span>
                 <span className="text-sm sm:text-base">{type.label}</span>
               </button>
             ))}
