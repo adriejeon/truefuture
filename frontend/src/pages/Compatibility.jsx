@@ -207,7 +207,7 @@ function Compatibility() {
       try {
         const restored = await restoreFortuneIfExists(
           profile1.id,
-          "compatibility"
+          "compatibility",
         );
         if (cancelled) return;
         if (restored) {
@@ -237,7 +237,7 @@ function Compatibility() {
       await createProfile(profileData);
       // 프로필 생성 후 모달은 ProfileModal의 onClose에서 처리됨
     },
-    [createProfile]
+    [createProfile],
   );
 
   const handleSubmit = async (e) => {
@@ -320,7 +320,7 @@ function Compatibility() {
       await consumeStars(
         user.id,
         FORTUNE_STAR_COSTS.compatibility,
-        `${FORTUNE_TYPE_NAMES.compatibility} 조회`
+        `${FORTUNE_TYPE_NAMES.compatibility} 조회`,
       );
     } catch (err) {
       setError(err?.message || "별 차감에 실패했습니다.");
@@ -349,7 +349,10 @@ function Compatibility() {
             firstChunkReceivedRef.current = true;
             setProcessStatus("streaming");
             requestAnimationFrame(() => {
-              resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              resultContainerRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
             });
           }
           setStreamingInterpretation((prev) => prev + text);
@@ -369,7 +372,11 @@ function Compatibility() {
             await saveFortuneHistory(profile1.id, "compatibility", sid);
           } else if (data?.share_id) {
             setShareId(data.share_id);
-            await saveFortuneHistory(profile1.id, "compatibility", data.share_id);
+            await saveFortuneHistory(
+              profile1.id,
+              "compatibility",
+              data.share_id,
+            );
           }
           if (text) {
             setInterpretation(text);
@@ -564,7 +571,7 @@ function Compatibility() {
                 "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
             }}
           >
-            <span>💕 진짜 궁합 확인하기</span>
+            <span>진짜 궁합 확인하기</span>
           </button>
         </form>
 
