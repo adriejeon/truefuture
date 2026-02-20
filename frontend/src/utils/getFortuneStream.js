@@ -5,7 +5,7 @@
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase - Supabase 클라이언트
  * @param {object} requestBody - POST body (fortuneType, birthDate, lat, lng 등)
- * @param {{ onChunk: (text: string) => void, onDone: (payload: { shareId?: string | null, fullText?: string, interpretation?: string, fullData?: any }) => void, onError?: (err: Error) => void }} callbacks
+ * @param {{ onChunk: (text: string) => void, onDone: (payload: { shareId?: string | null, fullText?: string, interpretation?: string, fullData?: any, debug?: object }) => void, onError?: (err: Error) => void }} callbacks
  * @returns {Promise<void>}
  */
 export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
@@ -87,7 +87,11 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
     try {
       const data = JSON.parse(payload);
       if (data?.done === true) {
-        onDone({ shareId: data.share_id ?? null, fullText });
+        onDone({
+          shareId: data.share_id ?? null,
+          fullText,
+          debug: data.debug ?? undefined,
+        });
         return true;
       }
       if (data?.error) {

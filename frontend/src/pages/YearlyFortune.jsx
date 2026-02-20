@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
@@ -51,7 +51,10 @@ function YearlyFortune() {
   const [interpretation, setInterpretation] = useState("");
   const [streamingInterpretation, setStreamingInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [processStatus, setProcessStatus] = useState("idle"); // 'idle' | 'waiting' | 'streaming' | 'done'
   const [error, setError] = useState("");
+  const resultContainerRef = useRef(null);
+  const firstChunkReceivedRef = useRef(false);
   const [shareId, setShareId] = useState(null);
   const [isSharedFortune, setIsSharedFortune] = useState(false);
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
@@ -484,8 +487,10 @@ function YearlyFortune() {
 
     setLoading(true);
     setError("");
+    setProcessStatus("waiting");
     setInterpretation("");
     setStreamingInterpretation("");
+    firstChunkReceivedRef.current = false;
 
     try {
       await consumeStars(
@@ -496,6 +501,7 @@ function YearlyFortune() {
     } catch (err) {
       setError(err?.message || "별 차감에 실패했습니다.");
       setLoading(false);
+      setProcessStatus("idle");
       return;
     }
 
@@ -512,21 +518,33 @@ function YearlyFortune() {
       console.groupEnd();
 
       await invokeGetFortuneStream(supabase, requestBody, {
-        onChunk: (text) => setStreamingInterpretation((prev) => prev + text),
-        onDone: async ({ shareId: currentShareId, fullText, fullData }) => {
+        onChunk: (text) => {
+          if (!firstChunkReceivedRef.current) {
+            firstChunkReceivedRef.current = true;
+            setProcessStatus("streaming");
+            requestAnimationFrame(() => {
+              resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+          }
+          setStreamingInterpretation((prev) => prev + text);
+        },
+        onDone: async ({ shareId: currentShareId, fullText, fullData, debug }) => {
           setLoading(false);
+          setProcessStatus("done");
           const text = fullText ?? fullData?.interpretation ?? "";
           setStreamingInterpretation("");
+          const dataForLog = fullData ?? debug;
+          if (dataForLog) logFortuneInput(dataForLog, { fortuneType: "daily" });
           if (text) {
             const todayDate = getTodayDate();
             const sid = currentShareId ?? fullData?.share_id ?? null;
             setShareId(sid);
             saveTodayFortuneToStorage(selectedProfile.id, {
               interpretation: text,
-              chart: fullData?.chart,
-              transitChart: fullData?.transitChart,
-              aspects: fullData?.aspects,
-              transitMoonHouse: fullData?.transitMoonHouse,
+              chart: fullData?.chart ?? debug?.chart,
+              transitChart: fullData?.transitChart ?? debug?.transitChart,
+              aspects: fullData?.aspects ?? debug?.aspects,
+              transitMoonHouse: fullData?.transitMoonHouse ?? debug?.transitMoonHouse,
               shareId: sid,
             });
             await saveFortuneHistory(selectedProfile.id, "daily", sid ?? undefined);
@@ -534,7 +552,6 @@ function YearlyFortune() {
             setInterpretation(text);
             setFromCache(false);
             setFortuneDate(todayDate);
-            if (fullData) logFortuneInput(fullData, { fortuneType: "daily" });
           } else {
             setInterpretation("결과를 불러올 수 없습니다.");
           }
@@ -542,11 +559,13 @@ function YearlyFortune() {
         onError: (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoading(false);
+          setProcessStatus("idle");
         },
       });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
       setLoading(false);
+      setProcessStatus("idle");
     }
   };
 
@@ -668,6 +687,7 @@ function YearlyFortune() {
 
     setLoading(true);
     setError("");
+    setProcessStatus("waiting");
     setInterpretation("");
     setShareId(null);
 
@@ -684,9 +704,14 @@ function YearlyFortune() {
 
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
-        onDone: async ({ fullData }) => {
-          const data = fullData;
+        onDone: async ({ fullData, debug }) => {
+          const data = fullData ?? debug;
           setLoading(false);
+          setProcessStatus("done");
+          requestAnimationFrame(() => {
+            resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+          if (data) logFortuneInput(data, { fortuneType: "lifetime" });
           if (data?.interpretation && typeof data.interpretation === "string") {
             setInterpretation(data.interpretation);
             setShareId(data.share_id || null);
@@ -699,16 +724,17 @@ function YearlyFortune() {
           } else {
             setInterpretation("결과를 불러올 수 없습니다.");
           }
-          if (data) logFortuneInput(data, { fortuneType: "lifetime" });
         },
         onError: (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoading(false);
+          setProcessStatus("idle");
         },
       });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
       setLoading(false);
+      setProcessStatus("idle");
     }
   }, [user?.id, selectedProfile, saveFortuneHistory]);
 
@@ -893,8 +919,8 @@ function YearlyFortune() {
           </PrimaryButton>
         </form>
 
-        {/* 로딩 모달 */}
-        {loading && (
+        {/* 로딩 모달: waiting 상태에서만 */}
+        {processStatus === "waiting" && (
           <div
             className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
             role="dialog"
@@ -932,13 +958,22 @@ function YearlyFortune() {
               </p>
             </div>
           )}
-        {!showLoadingCache && !showRestoring && (interpretation || (loading && streamingInterpretation)) && (
-          <FortuneResult
-            title={getResultTitle()}
-            interpretation={loading ? streamingInterpretation : interpretation}
-            shareId={shareId}
-            profileName={selectedProfile?.name}
-          />
+        {!showLoadingCache && !showRestoring && (processStatus === "streaming" || processStatus === "done" || interpretation) && (
+          <div
+            ref={resultContainerRef}
+            className={`transition-colors duration-300 rounded-xl ${
+              processStatus === "streaming"
+                ? "animate-pulse bg-slate-700/20 border border-slate-600/50"
+                : ""
+            }`}
+          >
+            <FortuneResult
+              title={getResultTitle()}
+              interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
+              shareId={shareId}
+              profileName={selectedProfile?.name}
+            />
+          </div>
         )}
       </div>
       {user && <BottomNavigation activeTab="yearly" />}

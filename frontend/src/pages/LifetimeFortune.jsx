@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
@@ -43,8 +43,10 @@ function LifetimeFortune() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [interpretation, setInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [processStatus, setProcessStatus] = useState("idle"); // 'idle' | 'waiting' | 'done' (비스트리밍)
   const [error, setError] = useState("");
   const [shareId, setShareId] = useState(null);
+  const resultContainerRef = useRef(null);
   const [isSharedFortune, setIsSharedFortune] = useState(false);
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -343,6 +345,7 @@ function LifetimeFortune() {
 
     setLoading(true);
     setError("");
+    setProcessStatus("waiting");
     setInterpretation("");
     setShareId(null);
 
@@ -363,6 +366,10 @@ function LifetimeFortune() {
         onChunk: () => {},
         onDone: ({ fullData: data }) => {
           setLoading(false);
+          setProcessStatus("done");
+          requestAnimationFrame(() => {
+            resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
           if (!data) return;
           logFortuneInput(data, { fortuneType: "lifetime" });
           if (
@@ -390,11 +397,13 @@ function LifetimeFortune() {
         onError: (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoading(false);
+          setProcessStatus("idle");
         },
       });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
       setLoading(false);
+      setProcessStatus("idle");
     }
   };
 
@@ -513,8 +522,8 @@ function LifetimeFortune() {
           </PrimaryButton>
         </form>
 
-        {/* 로딩 모달 */}
-        {loading && (
+        {/* 로딩 모달: waiting 상태에서만 */}
+        {processStatus === "waiting" && (
           <div
             className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
             role="dialog"
@@ -538,11 +547,13 @@ function LifetimeFortune() {
           </div>
         )}
         {!restoring && interpretation && (
-          <FortuneResult
-            title="내 인생 사용 설명서"
-            interpretation={interpretation}
-            shareId={shareId}
-          />
+          <div ref={resultContainerRef}>
+            <FortuneResult
+              title="내 인생 사용 설명서"
+              interpretation={interpretation}
+              shareId={shareId}
+            />
+          </div>
         )}
       </div>
       {user && <BottomNavigation activeTab="lifetime" />}

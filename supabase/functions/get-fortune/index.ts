@@ -600,6 +600,8 @@ function createFortuneSSEStream(
     userId?: string;
     profileId?: string | null;
     fortuneType?: string;
+    /** 프론트 콘솔 디버깅용: 차트·프롬프트·debugInfo (logFortuneInput에 전달) */
+    debugPayload?: Record<string, unknown>;
   },
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -651,7 +653,11 @@ function createFortuneSSEStream(
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.enqueue(
           encoder.encode(
-            `data: ${JSON.stringify({ done: true, share_id: shareId })}\n\n`,
+            `data: ${JSON.stringify({
+              done: true,
+              share_id: shareId,
+              debug: options?.debugPayload ?? undefined,
+            })}\n\n`,
           ),
         );
       } catch (e: any) {
@@ -867,6 +873,26 @@ async function getInterpretation(
     const modelName = getGeminiModel(fortuneType);
 
     if (streamOptions) {
+      const fullPromptSentToGemini =
+        "=== System ===\n" +
+        systemInstructionText +
+        "\n\n=== User ===\n" +
+        userPrompt;
+      const debugPayload: Record<string, unknown> = {
+        chart: chartData,
+        userPrompt,
+        systemInstruction: systemInstructionText,
+        debugInfo: {
+          fullPromptSentToGemini,
+          neo4jContext: neo4jContext || "(없음)",
+        },
+      };
+      if (compatibilityChartData) debugPayload.chart2 = compatibilityChartData;
+      if (synastryResult) debugPayload.synastryResult = synastryResult;
+      if (transitChartData) debugPayload.transitChart = transitChartData;
+      if (aspects?.length) debugPayload.aspects = aspects;
+      if (transitMoonHouse != null) debugPayload.transitMoonHouse = transitMoonHouse;
+
       const geminiStream = callGeminiAPIStream(
         modelName,
         GEMINI_FALLBACK_MODEL,
@@ -877,7 +903,7 @@ async function getInterpretation(
         geminiStream,
         streamOptions.insertPayloadBuilder,
         streamOptions.supabase,
-        streamOptions.opts,
+        { ...streamOptions.opts, debugPayload },
       );
       return { stream };
     }
@@ -2144,6 +2170,18 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           userId: currentUserId,
           profileId: currentProfileId,
           fortuneType,
+          debugPayload: {
+            chart: chartData,
+            userPrompt,
+            systemInstruction: systemInstruction.parts?.[0]?.text ?? "",
+            debugInfo: {
+              fullPromptSentToGemini:
+                "=== System ===\n" +
+                (systemInstruction.parts?.[0]?.text ?? "") +
+                "\n\n=== User ===\n" +
+                userPrompt,
+            },
+          },
         },
       );
       return new Response(sseStream, {

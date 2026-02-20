@@ -210,6 +210,8 @@ function Consultation() {
   );
   const [error, setError] = useState("");
   const [loadingConsultation, setLoadingConsultation] = useState(false);
+  /** idle | waiting(API 호출~첫 청크 전) | streaming(첫 청크~스트림 중) | done(완료) */
+  const [processStatus, setProcessStatus] = useState("idle");
   const [consultationAnswer, setConsultationAnswer] = useState(null);
   const [streamingInterpretation, setStreamingInterpretation] = useState("");
   const [streamingFollowUpInterpretation, setStreamingFollowUpInterpretation] = useState("");
@@ -218,7 +220,8 @@ function Consultation() {
   const [isScrolling, setIsScrolling] = useState(false);
   const chipScrollRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
-  const resultSectionRef = useRef(null); // 운세 결과 영역 (플로팅 버튼 노출 판단용)
+  const resultSectionRef = useRef(null);
+  const firstChunkReceivedRef = useRef(false);
   
   // 후속 질문 관련 상태 (currentFollowUpInput은 드래프트에서 복원)
   const [showFollowUpButton, setShowFollowUpButton] = useState(false);
@@ -691,11 +694,13 @@ function Consultation() {
 
     setLoadingConsultation(true);
     setError("");
+    setProcessStatus("waiting");
     setConsultationAnswer(null);
     setStreamingInterpretation("");
     setFollowUpAnswers([]);
     setShowFollowUpInput(false);
     setFollowUpQuestion("");
+    firstChunkReceivedRef.current = false;
 
     try {
       await consumeStars(
@@ -712,16 +717,28 @@ function Consultation() {
       console.groupEnd();
 
       await invokeGetFortuneStream(supabase, requestBody, {
-        onChunk: (text) => setStreamingInterpretation((prev) => prev + text),
-        onDone: ({ shareId, fullText, fullData }) => {
+        onChunk: (text) => {
+          if (!firstChunkReceivedRef.current) {
+            firstChunkReceivedRef.current = true;
+            setProcessStatus("streaming");
+            requestAnimationFrame(() => {
+              resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+          }
+          setStreamingInterpretation((prev) => prev + text);
+        },
+        onDone: ({ shareId, fullText, fullData, debug }) => {
           setLoadingConsultation(false);
+          setProcessStatus("done");
+          const dataForLog = fullData ?? debug;
+          if (dataForLog) logFortuneInput(dataForLog, { fortuneType: "consultation" });
           const interpretation = fullText ?? fullData?.interpretation ?? "";
           setConsultationAnswer({
             question: userQuestion.trim(),
             topic: selectedTopic,
             interpretation,
             parsedData: parseFortuneResult(interpretation),
-            debugInfo: fullData?.debugInfo || {},
+            debugInfo: fullData?.debugInfo ?? debug?.debugInfo ?? {},
             shareId: shareId ?? null,
           });
           setStreamingInterpretation("");
@@ -742,11 +759,13 @@ function Consultation() {
         onError: (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoadingConsultation(false);
+          setProcessStatus("idle");
         },
       });
     } catch (err) {
       setError(err?.message || "요청 중 오류가 발생했습니다.");
       setLoadingConsultation(false);
+      setProcessStatus("idle");
     }
   }, [
     user,
@@ -761,11 +780,14 @@ function Consultation() {
   // 새 상담 하기: 임시 저장 삭제 + 결과/후속 상태 초기화
   const clearConsultationDraft = useCallback(() => {
     localStorage.removeItem("temp_consultation_state");
+    setProcessStatus("idle");
     setConsultationAnswer(null);
+    setStreamingInterpretation("");
     setFollowUpAnswers([]);
     setFollowUpQuestion("");
     setShowFollowUpButton(false);
     setShowFollowUpInput(false);
+    firstChunkReceivedRef.current = false;
   }, []);
 
   // 후속 질문 버튼 클릭
@@ -2061,8 +2083,8 @@ function Consultation() {
                 </PrimaryButton>
               </form>
 
-              {/* 로딩 모달 (데일리/종합/궁합과 동일) */}
-              {loadingConsultation && (
+              {/* 로딩 모달: waiting 상태에서만 중앙 애니메이션 */}
+              {processStatus === "waiting" && (
                 <div
                   className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
                   role="dialog"
@@ -2075,9 +2097,44 @@ function Consultation() {
                 </div>
               )}
 
-              {/* 상담 결과 (로딩 완료 후 바로 표시) */}
-              {consultationAnswer && (
-                <div ref={resultSectionRef} className="mb-8">
+              {/* 상담 결과: streaming부터 표시, 스켈레톤은 streaming 시에만 */}
+              {(processStatus === "streaming" || consultationAnswer) && (
+                <div
+                  ref={resultSectionRef}
+                  className={`mb-8 transition-colors duration-300 rounded-xl ${
+                    processStatus === "streaming"
+                      ? "animate-pulse bg-slate-700/20 border border-slate-600/50"
+                      : ""
+                  }`}
+                >
+                  {processStatus === "streaming" ? (
+                    <div className="contents">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <button
+                          type="button"
+                          onClick={clearConsultationDraft}
+                          className="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          새 상담 하기
+                        </button>
+                      </div>
+                      <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <div className="text-2xl">💬</div>
+                          <div className="flex-1">
+                            <p className="text-white font-medium">{userQuestion}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-6 min-h-[200px] prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed">
+                        <ReactMarkdown>{streamingInterpretation || "\u00A0"}</ReactMarkdown>
+                      </div>
+                    </div>
+                  ) : consultationAnswer ? (
+                    <div className="contents">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <button
                       type="button"
@@ -2321,9 +2378,7 @@ function Consultation() {
                       </h3>
                       <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
                         <ReactMarkdown>
-                          {loadingConsultation
-                            ? streamingInterpretation
-                            : consultationAnswer.interpretation}
+                          {consultationAnswer.interpretation}
                         </ReactMarkdown>
                       </div>
                     </div>
@@ -2379,8 +2434,9 @@ function Consultation() {
                   )}
 
                   {/* 후속 질문 답변들 (여러 개일 수 있음) */}
-                  {followUpAnswers.length > 0 &&
-                    followUpAnswers.map((followUpAnswer, answerIdx) => (
+                  {followUpAnswers.length > 0 && (
+                    <div className="contents">
+                    {followUpAnswers.map((followUpAnswer, answerIdx) => (
                       <div
                         key={answerIdx}
                         className="mt-6 border-t border-slate-600/50 pt-6"
@@ -2564,6 +2620,10 @@ function Consultation() {
                         )}
                       </div>
                     ))}
+                    </div>
+                  ) }
+                    </div>
+                  ) : null}
                 </div>
               )}
             </>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
@@ -42,7 +42,10 @@ function Compatibility() {
   const [interpretation, setInterpretation] = useState("");
   const [streamingInterpretation, setStreamingInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [processStatus, setProcessStatus] = useState("idle"); // 'idle' | 'waiting' | 'streaming' | 'done'
   const [error, setError] = useState("");
+  const resultContainerRef = useRef(null);
+  const firstChunkReceivedRef = useRef(false);
 
   // 두 사람의 프로필 선택
   const [profile1, setProfile1] = useState(null);
@@ -307,9 +310,11 @@ function Compatibility() {
 
     setLoading(true);
     setError("");
+    setProcessStatus("waiting");
     setInterpretation("");
     setStreamingInterpretation("");
     setShareId(null);
+    firstChunkReceivedRef.current = false;
 
     try {
       await consumeStars(
@@ -320,6 +325,7 @@ function Compatibility() {
     } catch (err) {
       setError(err?.message || "별 차감에 실패했습니다.");
       setLoading(false);
+      setProcessStatus("idle");
       return;
     }
 
@@ -338,10 +344,20 @@ function Compatibility() {
       console.log("=".repeat(60) + "\n");
 
       await invokeGetFortuneStream(supabase, requestBody, {
-        onChunk: (text) => setStreamingInterpretation((prev) => prev + text),
-        onDone: async ({ shareId: sid, fullText, fullData }) => {
+        onChunk: (text) => {
+          if (!firstChunkReceivedRef.current) {
+            firstChunkReceivedRef.current = true;
+            setProcessStatus("streaming");
+            requestAnimationFrame(() => {
+              resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+          }
+          setStreamingInterpretation((prev) => prev + text);
+        },
+        onDone: async ({ shareId: sid, fullText, fullData, debug }) => {
           setLoading(false);
-          const data = fullData;
+          setProcessStatus("done");
+          const data = fullData ?? debug;
           const text = fullText ?? data?.interpretation ?? "";
           setStreamingInterpretation("");
           if (data) {
@@ -364,11 +380,13 @@ function Compatibility() {
         onError: (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoading(false);
+          setProcessStatus("idle");
         },
       });
     } catch (err) {
       setError(err.message || "요청 중 오류가 발생했습니다.");
       setLoading(false);
+      setProcessStatus("idle");
     }
   };
 
@@ -551,8 +569,8 @@ function Compatibility() {
           </button>
         </form>
 
-        {/* 로딩 모달 */}
-        {loading && (
+        {/* 로딩 모달: waiting 상태에서만 */}
+        {processStatus === "waiting" && (
           <div
             className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
             role="dialog"
@@ -575,13 +593,22 @@ function Compatibility() {
             이전 결과 불러오는 중...
           </div>
         )}
-        {!restoring && (interpretation || (loading && streamingInterpretation)) && (
-          <FortuneResult
-            title="진짜 궁합"
-            interpretation={loading ? streamingInterpretation : interpretation}
-            shareId={shareId}
-            shareSummary={compatibilityShareSummary}
-          />
+        {!restoring && (processStatus === "streaming" || processStatus === "done" || interpretation) && (
+          <div
+            ref={resultContainerRef}
+            className={`transition-colors duration-300 rounded-xl ${
+              processStatus === "streaming"
+                ? "animate-pulse bg-slate-700/20 border border-slate-600/50"
+                : ""
+            }`}
+          >
+            <FortuneResult
+              title="진짜 궁합"
+              interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
+              shareId={shareId}
+              shareSummary={compatibilityShareSummary}
+            />
+          </div>
         )}
       </div>
       {user && <BottomNavigation activeTab="compatibility" />}
