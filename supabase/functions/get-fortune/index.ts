@@ -758,6 +758,7 @@ async function getInterpretation(
   dailyFlowPM?: import("./types.ts").DailyFlowSummary,
   dailyAngleStrikes?: import("./types.ts").DailyAngleStrike[],
   lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
+  category?: string, // CONSULTATION 카테고리 추가
   streamOptions?: {
     supabase: ReturnType<typeof createClient>;
     insertPayloadBuilder: (fullText: string) => Record<string, unknown>;
@@ -796,6 +797,7 @@ async function getInterpretation(
     );
 
     // COMPATIBILITY 케이스의 경우 synastryResult와 relationshipType을 전달
+    // CONSULTATION 케이스의 경우 category를 전달
     const systemInstructionText =
       fortuneType === FortuneType.COMPATIBILITY &&
       compatibilityChartData &&
@@ -807,7 +809,7 @@ async function getInterpretation(
             synastryResult,
             relationshipType, // 관계 유형 추가
           )
-        : getSystemInstruction(fortuneType);
+        : getSystemInstruction(fortuneType, undefined, undefined, undefined, undefined, category);
 
     const systemInstruction = {
       parts: [
@@ -2404,6 +2406,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         undefined,
         undefined,
         undefined,
+        undefined, // category (COMPATIBILITY 케이스에서는 사용하지 않음)
         {
           supabase,
           insertPayloadBuilder: (fullText: string) => ({
@@ -2956,6 +2959,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       dailyFlowPM,
       dailyAngleStrikes,
       lordProfectionAngleEntry ?? undefined,
+      undefined, // category (일반 운세 케이스에서는 사용하지 않음)
       streamOptions,
     );
 

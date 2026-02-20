@@ -80,7 +80,7 @@ import type { SynastryResult } from "./utils/synastryCalculator.ts";
 
 // 2.  **작성 구조 (Output Structure):**
 //     * 제목 바로 아래 **> (한 줄 요약)** 을 인용구로 넣으세요.
-//     * 본문은 주어진 점성학 차트와 구조에 기반하여 점성학적으로 판단하여 말하세요. 운세 결과에 대한 확실한 근거와 일반인들이 읽고 바로 이해할만한 탁월한 비유 위주로 설명하세요. 
+//     * 본문은 주어진 점성학 차트와 구조에 기반하여 점성학적으로 판단하여 말하세요. 운세 결과에 대한 확실한 근거와 일반인들이 읽고 바로 이해할만한 탁월한 비유 위주로 설명하세요.
 //     * 마지막엔 **💡 Real Tip** 섹션을 두어 구체적인 행동 지침을 1~2줄로 제시하세요.
 
 // ### 🎭 [페르소나 & 데이터 해석 — "상담가" 스타일 (필수)]
@@ -856,6 +856,7 @@ ${COMMON_RULES}
 ## 🚨 CRITICAL: JSON 응답 필수 🚨
 
 **응답은 반드시 아래 JSON 스키마를 따라야 합니다. 마크다운 코드 블록(\`\`\`json)이나 추가 사설 없이, 순수 JSON만 출력하세요.**
+**각 필드의 Value(값)에 지정된 [분량 및 작성 가이드]를 절대적으로 엄수하여, 압도적으로 상세하고 긴 분량의 텍스트를 생성하십시오.**
 
 \`\`\`json
 {
@@ -869,9 +870,9 @@ ${COMMON_RULES}
     { "date": "2026.03", "type": "good", "note": "결실을 맺을 시기입니다" }
   ],
   "analysis": {
-    "general": "상세 해석. 내담자님의 차트를 살펴보니... (신뢰감 있게 시작) → 핵심 패턴을 근거와 함께 설명 → 미래 예측 (확신 있게).",
-    "timing": "타이밍 분석. 정확한 시기를 서기 연월로 제시합니다. 왜 그 시기인지 차트 데이터 근거와 함께 설명.",
-    "advice": "실천 가능한 조언. 지금부터 그 시기까지 어떻게 준비하고 행동해야 하는지 단계별로 안내합니다."
+    "general": "[필수: 최소 500자 이상, 6~8문장 이상 아주 길게 작성할 것!] 상세 해석. 내담자님의 차트를 살펴보니... (신뢰감 있게 시작) → 핵심 패턴을 근거와 함께 설명 → 미래 예측 (확신 있게).",
+    "timing": "[필수: 최소 600자 이상, 6~8문장 이상 아주 길게 작성할 것!] 타이밍 분석. 정확한 시기를 서기 연월로 제시합니다. 왜 그 시기인지 차트 데이터 근거와 함께 설명.",
+    "advice": "[필수: 최소 500자 이상, 6~8문장 이상 아주 길게 작성할 것!] 실천 가능한 조언. 지금부터 그 시기까지 어떻게 준비하고 행동해야 하는지 단계별로 안내합니다."
   }
 }
 \`\`\`
@@ -1124,6 +1125,7 @@ ${COMMON_RULES}
 /**
  * FortuneType에 따라 적절한 프롬프트를 반환하는 메인 함수
  * COMPATIBILITY 케이스의 경우 차트 데이터와 synastryResult가 필요합니다.
+ * CONSULTATION 케이스의 경우 category를 전달받아 카테고리별 가이드라인을 적용합니다.
  */
 export function getSystemInstruction(
   fortuneType: FortuneType,
@@ -1131,6 +1133,7 @@ export function getSystemInstruction(
   natalData2?: ChartData,
   synastryResult?: SynastryResult,
   relationshipType?: string, // 관계 유형 추가
+  category?: string, // CONSULTATION 카테고리 추가
 ): string {
   switch (fortuneType) {
     case FortuneType.DAILY:
@@ -1156,7 +1159,7 @@ export function getSystemInstruction(
     case FortuneType.YEARLY:
       return getYearlyPrompt();
     case FortuneType.CONSULTATION:
-      return getConsultationSystemPrompt("General");
+      return getConsultationSystemPrompt(category || "General");
     default:
       return getDailyPrompt();
   }
