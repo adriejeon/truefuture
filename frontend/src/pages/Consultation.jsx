@@ -8,7 +8,6 @@ import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
 import TypewriterLoader from "../components/TypewriterLoader";
-import ShimmerSkeleton from "../components/ShimmerSkeleton";
 import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
 import ReactMarkdown from "react-markdown";
@@ -2084,8 +2083,8 @@ function Consultation() {
                 </PrimaryButton>
               </form>
 
-              {/* 로딩 모달: waiting 상태에서만 중앙 애니메이션 */}
-              {processStatus === "waiting" && (
+              {/* 로딩 모달: waiting 또는 streaming 상태에서 중앙 애니메이션 */}
+              {(processStatus === "waiting" || processStatus === "streaming") && (
                 <div
                   className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
                   role="dialog"
@@ -2098,49 +2097,13 @@ function Consultation() {
                 </div>
               )}
 
-              {/* 상담 결과: streaming부터 표시, 스켈레톤은 streaming 시에만 */}
-              {(processStatus === "streaming" || consultationAnswer) && (
+              {/* 상담 결과: done 상태에서만 표시 */}
+              {consultationAnswer && (
                 <div
                   ref={resultSectionRef}
-                  className={`mb-8 transition-colors duration-300 rounded-xl ${
-                    processStatus === "streaming"
-                      ? "border border-slate-600/50"
-                      : ""
-                  }`}
+                  className="mb-8 transition-colors duration-300 rounded-xl"
                 >
-                  {processStatus === "streaming" ? (
-                    <div className="contents">
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <button
-                          type="button"
-                          onClick={clearConsultationDraft}
-                          className="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          새 상담 하기
-                        </button>
-                      </div>
-                      <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
-                        <div className="flex items-start gap-3">
-                          <div className="text-2xl">💬</div>
-                          <div className="flex-1">
-                            <p className="text-white font-medium">{userQuestion}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="relative p-6 min-h-[200px] rounded-b-xl">
-                        <div className="absolute inset-0 p-6 pt-6 flex flex-col justify-center rounded-b-xl pointer-events-none">
-                          <ShimmerSkeleton className="mt-2" />
-                        </div>
-                        <div className="relative z-10 prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed">
-                          <ReactMarkdown>{streamingInterpretation || "\u00A0"}</ReactMarkdown>
-                        </div>
-                      </div>
-                    </div>
-                  ) : consultationAnswer ? (
-                    <div className="contents">
+                  <div className="contents">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <button
                       type="button"
@@ -2627,9 +2590,7 @@ function Consultation() {
                       </div>
                     ))}
                     </div>
-                  ) }
-                    </div>
-                  ) : null}
+                  )}
                 </div>
               )}
             </>

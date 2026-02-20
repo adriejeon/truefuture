@@ -7,7 +7,6 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
-import ShimmerSkeleton from "../components/ShimmerSkeleton";
 import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
 import OrderCheckModal from "../components/OrderCheckModal";
@@ -921,7 +920,7 @@ function YearlyFortune() {
         </form>
 
         {/* 로딩 모달: waiting 상태에서만 */}
-        {processStatus === "waiting" && (
+        {(processStatus === "waiting" || processStatus === "streaming") && (
           <div
             className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
             role="dialog"
@@ -959,28 +958,17 @@ function YearlyFortune() {
               </p>
             </div>
           )}
-        {!showLoadingCache && !showRestoring && (processStatus === "streaming" || processStatus === "done" || interpretation) && (
+        {!showLoadingCache && !showRestoring && (processStatus === "done" || interpretation) && (
           <div
             ref={resultContainerRef}
-            className={`transition-colors duration-300 rounded-xl ${
-              processStatus === "streaming"
-                ? "relative border border-slate-600/50 min-h-[280px]"
-                : ""
-            }`}
+            className="transition-colors duration-300 rounded-xl"
           >
-            {processStatus === "streaming" && (
-              <div className="absolute inset-0 p-6 flex flex-col justify-center rounded-xl pointer-events-none">
-                <ShimmerSkeleton />
-              </div>
-            )}
-            <div className={processStatus === "streaming" ? "relative z-10" : ""}>
-              <FortuneResult
-                title={getResultTitle()}
-                interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
-                shareId={shareId}
-                profileName={selectedProfile?.name}
-              />
-            </div>
+            <FortuneResult
+              title={getResultTitle()}
+              interpretation={interpretation}
+              shareId={shareId}
+              profileName={selectedProfile?.name}
+            />
           </div>
         )}
       </div>

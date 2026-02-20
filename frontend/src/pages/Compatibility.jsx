@@ -7,7 +7,6 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import TypewriterLoader from "../components/TypewriterLoader";
-import ShimmerSkeleton from "../components/ShimmerSkeleton";
 import StarModal from "../components/StarModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
@@ -570,8 +569,8 @@ function Compatibility() {
           </button>
         </form>
 
-        {/* 로딩 모달: waiting 상태에서만 */}
-        {processStatus === "waiting" && (
+        {/* 로딩 모달: waiting 또는 streaming 상태에서 */}
+        {(processStatus === "waiting" || processStatus === "streaming") && (
           <div
             className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
             role="dialog"
@@ -594,28 +593,17 @@ function Compatibility() {
             이전 결과 불러오는 중...
           </div>
         )}
-        {!restoring && (processStatus === "streaming" || processStatus === "done" || interpretation) && (
+        {!restoring && (processStatus === "done" || interpretation) && (
           <div
             ref={resultContainerRef}
-            className={`transition-colors duration-300 rounded-xl ${
-              processStatus === "streaming"
-                ? "relative border border-slate-600/50 min-h-[280px]"
-                : ""
-            }`}
+            className="transition-colors duration-300 rounded-xl"
           >
-            {processStatus === "streaming" && (
-              <div className="absolute inset-0 p-6 flex flex-col justify-center rounded-xl pointer-events-none">
-                <ShimmerSkeleton />
-              </div>
-            )}
-            <div className={processStatus === "streaming" ? "relative z-10" : ""}>
-              <FortuneResult
-                title="진짜 궁합"
-                interpretation={processStatus === "streaming" ? streamingInterpretation : interpretation}
-                shareId={shareId}
-                shareSummary={compatibilityShareSummary}
-              />
-            </div>
+            <FortuneResult
+              title="진짜 궁합"
+              interpretation={interpretation}
+              shareId={shareId}
+              shareSummary={compatibilityShareSummary}
+            />
           </div>
         )}
       </div>
