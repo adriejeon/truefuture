@@ -13,7 +13,7 @@ import {
   redirectToExternalBrowser,
   getBrowserGuideMessage,
 } from "../utils/inAppBrowserDetector";
-import { logDebugInfoIfPresent } from "../utils/debugFortune";
+import { logFortuneInput } from "../utils/debugFortune";
 
 function Home() {
   const { user, loadingAuth } = useAuth();
@@ -114,7 +114,7 @@ function Home() {
       const data = await response.json();
       if (data.error) throw new Error(data.error);
 
-      logDebugInfoIfPresent(data);
+      logFortuneInput(data);
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);

@@ -26,6 +26,10 @@ import type {
   FirdariaResult,
   InteractionResult,
   ProgressionResult,
+  DailyAspectWithPhase,
+  DailyAngleStrike,
+  LordProfectionAngleEntry,
+  AspectPhase,
 } from "../types.ts";
 
 // ========== 상수 정의 ==========
@@ -873,6 +877,194 @@ export function getLordOfYearTransitStatus(
     (!isDayChart && NIGHT_SECT_PLANETS.has(lordOfTheYear));
 
   return { isRetrograde, isDayChart, sectStatus, isInSect };
+}
+
+// ========== 데일리 운세: Orb 한도 및 4대 감응점 타격 ==========
+
+/** 연주/행성 각도: 접근 시 허용 Orb (도) */
+export const DAILY_ASPECT_ORB_APPLYING = 4;
+/** 연주/행성 각도: 분리 시 허용 Orb (도) */
+export const DAILY_ASPECT_ORB_SEPARATING = 3;
+/** 4대 감응점 타격 Orb (도) */
+export const DAILY_ANGLE_STRIKE_ORB = 2;
+/** Partile(완전 합) 판정: 이 값 미만이면 isPartile */
+const PARTILE_ORB_DEG = 0.1;
+
+/** 데일리: 4대 감응점 타격에만 쓰는 애스펙트 타입 (Trine 제외) */
+export const DAILY_ANGLE_ASPECT_TYPES = {
+  CONJUNCTION: { name: "Conjunction" as const, angle: 0 },
+  SEXTILE: { name: "Sextile" as const, angle: 60 },
+  SQUARE: { name: "Square" as const, angle: 90 },
+  OPPOSITION: { name: "Opposition" as const, angle: 180 },
+};
+
+/**
+ * 연주 행성(Lord of the Year)이 프로펙션 별자리를 1하우스로 둔 차트에서
+ * 1, 4, 7, 10번째 앵글 하우스에 진입했는지 검사
+ */
+export function getLordOfYearProfectionAngleEntry(
+  transitChart: ChartData,
+  lordOfTheYear: string,
+  profectionSign: string
+): LordProfectionAngleEntry | null {
+  const lordKey = LORD_NAME_TO_KEY[lordOfTheYear];
+  if (!lordKey) return null;
+  const lordPlanet =
+    transitChart.planets?.[lordKey as keyof typeof transitChart.planets];
+  if (!lordPlanet) return null;
+
+  const natalAscIndex = SIGNS.indexOf(profectionSign);
+  if (natalAscIndex === -1) return null;
+  const profectionAscendant = natalAscIndex * 30;
+  const lordLon = lordPlanet.degree;
+  const house = getWholeSignHouse(lordLon, profectionAscendant);
+  if (house === 1 || house === 4 || house === 7 || house === 10) {
+    return {
+      inAngleHouse: true,
+      house: house as 1 | 4 | 7 | 10,
+      message: "올해 가장 중요한 이벤트 발생 시기",
+    };
+  }
+  return null;
+}
+
+/**
+ * AM/PM 두 시점의 Orb 비교로 접근(Applying)/분리(Separating) 판별
+ * - Orb가 줄어들면 접근, 늘어나면 분리
+ */
+function getAspectPhase(orbAM: number, orbPM: number): AspectPhase {
+  return orbPM < orbAM ? "Applying" : "Separating";
+}
+
+/**
+ * 연주 행성이 트랜짓 차트에서 다른 트랜짓 행성과 맺는 각도를
+ * 접근 4° / 분리 3° 이내로 필터하고, Applying/Separating 및 Partile 플래그 부여
+ */
+export function calculateLordAspectsWithPhase(
+  transitChartAM: ChartData,
+  transitChartPM: ChartData,
+  lordOfTheYear: string,
+  applyingMaxOrb: number = DAILY_ASPECT_ORB_APPLYING,
+  separatingMaxOrb: number = DAILY_ASPECT_ORB_SEPARATING
+): DailyAspectWithPhase[] {
+  const lordKey = LORD_NAME_TO_KEY[lordOfTheYear];
+  if (!lordKey) return [];
+  const lordAM =
+    transitChartAM.planets?.[lordKey as keyof typeof transitChartAM.planets];
+  const lordPM =
+    transitChartPM.planets?.[lordKey as keyof typeof transitChartPM.planets];
+  if (!lordAM || !lordPM) return [];
+
+  const results: DailyAspectWithPhase[] = [];
+  for (const [otherKey, otherAM] of Object.entries(transitChartAM.planets)) {
+    if (otherKey === lordKey) continue;
+    const otherPM = transitChartPM.planets?.[otherKey as keyof typeof transitChartPM.planets];
+    if (!otherPM) continue;
+    const otherName = PLANET_NAMES[otherKey];
+    if (!otherName) continue;
+
+    for (const [, aspectType] of Object.entries(ASPECT_TYPES)) {
+      const expected = aspectType.angle;
+      const diffAM = calculateAngleDifference(lordAM.degree, otherAM.degree);
+      const diffPM = calculateAngleDifference(lordPM.degree, otherPM.degree);
+      const orbAM = Math.abs(diffAM - expected);
+      const orbPM = Math.abs(diffPM - expected);
+      const orb = Math.min(orbAM, orbPM);
+      const phase = getAspectPhase(orbAM, orbPM);
+      const withinOrb =
+        (phase === "Applying" && orb <= applyingMaxOrb) ||
+        (phase === "Separating" && orb <= separatingMaxOrb);
+      if (!withinOrb) continue;
+
+      const isPartile = orb < PARTILE_ORB_DEG;
+      results.push({
+        type: aspectType.name,
+        orb: Math.round(orb * 10) / 10,
+        phase,
+        isPartile,
+        transitPlanet: lordOfTheYear,
+        otherLabel: `Transit ${otherName}`,
+        description: `연주(${lordOfTheYear}) ${aspectType.name} Transit ${otherName} (orb ${orb.toFixed(1)}°, ${phase})${isPartile ? " [Partile]" : ""}`,
+      });
+    }
+  }
+  results.sort((a, b) => a.orb - b.orb);
+  return results;
+}
+
+/**
+ * 4대 감응점(태양, 달, 상승점, 포르투나)만 타격하는 트랜짓 각도 계산
+ * Orb 2° 이내, Conjunction/Sextile/Square/Opposition만. Neo4j 메타태그는 호출처에서 채움.
+ */
+export function calculateDailyAngleStrikes(
+  natalChart: ChartData,
+  transitChartAM: ChartData,
+  transitChartPM: ChartData,
+  orbMax: number = DAILY_ANGLE_STRIKE_ORB
+): DailyAngleStrike[] {
+  const targets: Array<{
+    target: DailyAngleStrike["target"];
+    longitude: number;
+    sign: string;
+  }> = [
+    {
+      target: "Sun",
+      longitude: natalChart.planets.sun.degree,
+      sign: natalChart.planets.sun.sign,
+    },
+    {
+      target: "Moon",
+      longitude: natalChart.planets.moon.degree,
+      sign: natalChart.planets.moon.sign,
+    },
+    {
+      target: "Ascendant",
+      longitude: natalChart.houses.angles.ascendant,
+      sign: getSignFromLongitude(natalChart.houses.angles.ascendant).sign,
+    },
+    {
+      target: "PartOfFortune",
+      longitude: natalChart.fortuna.degree,
+      sign: natalChart.fortuna.sign,
+    },
+  ];
+
+  const strikes: DailyAngleStrike[] = [];
+  const planetEntries = Object.entries(transitChartAM.planets);
+  for (const [strikerKey, strikerAM] of planetEntries) {
+    const strikerName = PLANET_NAMES[strikerKey];
+    if (!strikerName) continue;
+    const strikerPM = transitChartPM.planets?.[strikerKey as keyof typeof transitChartPM.planets];
+    if (!strikerPM) continue;
+
+    for (const { target, longitude: targetLon, sign: targetSign } of targets) {
+      for (const [, aspectDef] of Object.entries(DAILY_ANGLE_ASPECT_TYPES)) {
+        const expected = aspectDef.angle;
+        const diffAM = calculateAngleDifference(strikerAM.degree, targetLon);
+        const diffPM = calculateAngleDifference(strikerPM.degree, targetLon);
+        const orbAM = Math.abs(diffAM - expected);
+        const orbPM = Math.abs(diffPM - expected);
+        const orb = Math.min(orbAM, orbPM);
+        if (orb > orbMax) continue;
+        const phase = getAspectPhase(orbAM, orbPM);
+        const isPartile = orb < PARTILE_ORB_DEG;
+        const desc = `Transit ${strikerName} ${aspectDef.name} Natal ${target} (orb ${orb.toFixed(1)}°, ${phase})${isPartile ? " [Partile]" : ""}`;
+        strikes.push({
+          target,
+          targetSign,
+          striker: strikerName,
+          type: aspectDef.name,
+          orb: Math.round(orb * 10) / 10,
+          phase,
+          isPartile,
+          neo4jMetaTag: null,
+          description: desc,
+        });
+      }
+    }
+  }
+  strikes.sort((a, b) => a.orb - b.orb);
+  return strikes;
 }
 
 // ========== Secondary Progression (진행 달) ==========

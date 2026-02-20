@@ -80,6 +80,60 @@ export interface Aspect {
   description: string;
 }
 
+// 데일리 운세: 접근(Applying) / 분리(Separating) 상태
+export type AspectPhase = "Applying" | "Separating";
+
+// 데일리 운세: Orb 필터 통과한 각도 (연주·행성/항성용)
+export interface DailyAspectWithPhase {
+  type: string;
+  orb: number;
+  /** 접근 중이면 true, 분리 중이면 false */
+  phase: AspectPhase;
+  /** Partile(완전 합): orb < 0.1° 등 가장 강한 영향 플래그 */
+  isPartile: boolean;
+  transitPlanet: string;
+  otherLabel: string; // "Transit Venus" 또는 "항성 Regulus" 등
+  description: string;
+}
+
+// 데일리 운세: 4대 감응점(Sun, Moon, Asc, PoF)을 트랜짓이 타격한 경우
+export interface DailyAngleStrike {
+  target: "Sun" | "Moon" | "Ascendant" | "PartOfFortune";
+  targetSign: string; // Neo4j 리셉션/리젝션용: 해당 감응점의 별자리
+  striker: string; // 트랜짓 행성명 (Sun, Moon, ...)
+  type: "Conjunction" | "Sextile" | "Square" | "Opposition";
+  orb: number;
+  phase: AspectPhase;
+  isPartile: boolean;
+  /** Neo4j 조회 결과 메타 태그 (리셉션/리젝션). 없으면 null */
+  neo4jMetaTag: string | null;
+  description: string;
+}
+
+// 데일리 운세: 연주 행성이 프로펙션 앵글(1,4,7,10) 진입 여부
+export interface LordProfectionAngleEntry {
+  inAngleHouse: true;
+  house: 1 | 4 | 7 | 10;
+  message: string; // "올해 가장 중요한 이벤트 발생 시기"
+}
+
+// 데일리 운세: 오전/오후 각각의 요약 데이터 (연주 상태, 접근/분리각, 주요 타격)
+export interface DailyFlowSummary {
+  label: "AM" | "PM";
+  /** 연주 행성 역행 여부 */
+  lordRetrograde: boolean;
+  /** 연주 행성의 트랜짓 각도 (Orb 필터 통과한 것만) */
+  lordAspects: DailyAspectWithPhase[];
+  /** 4대 감응점 타격 중 이 시간대와 관련된 것 (공통 사용 시 AM/PM 동일 목록일 수 있음) */
+  angleStrikes: DailyAngleStrike[];
+}
+
+// Neo4j 리셉션/리젝션 단일 조회 결과 (데일리 감응점 타격용)
+export interface Neo4jReceptionRejectionResult {
+  dignityType: string | null; // "RULES" | "EXALTED_IN" | "DETRIMENT_IN" | "FALL_IN" | null(방랑)
+  metaTag: string; // LLM에 넘길 문구
+}
+
 // Profection 정보 타입
 export interface ProfectionData {
   age: number; // 만 나이

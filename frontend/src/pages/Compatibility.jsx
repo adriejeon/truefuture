@@ -16,7 +16,7 @@ import {
   fetchFortuneByResultId,
 } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
-import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
+import { logFortuneInput } from "../utils/debugFortune";
 import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
@@ -109,7 +109,7 @@ function Compatibility() {
       const data = await loadSharedFortune(id);
 
       console.log("✅ 공유된 궁합 조회 성공:", data);
-      logDebugInfoIfPresent(data);
+      logFortuneInput(data, { fortuneType: "compatibility" });
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
@@ -356,7 +356,6 @@ function Compatibility() {
         throw new Error(data?.error || "서버 오류가 발생했습니다.");
       }
 
-      logDebugInfoIfPresent(data);
       logFortuneInput(data, { fortuneType: "compatibility" });
 
       console.log("\n" + "=".repeat(60));

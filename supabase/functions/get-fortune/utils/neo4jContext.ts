@@ -5,7 +5,7 @@
  */
 
 import neo4j, { Driver, Session } from "npm:neo4j-driver@5.25.0";
-import type { ChartData } from "../types.ts";
+import type { ChartData, Neo4jReceptionRejectionResult } from "../types.ts";
 import { getSignFromLongitude, getSignRuler } from "./astrologyCalculator.ts";
 
 const DIGNITY_LABELS: Record<string, string> = {
@@ -202,6 +202,79 @@ export async function getNeo4jContext(
       await driver.close();
     }
   }
+}
+
+// ========== 데일리 운세: 행성–별자리 위계(리셉션/리젝션) 조회 ==========
+
+/**
+ * 특정 행성이 특정 별자리에 있을 때의 위계(Dignity) 타입을 Neo4j에서 조회
+ * @returns "RULES" | "EXALTED_IN" | "DETRIMENT_IN" | "FALL_IN" | null(방랑)
+ */
+export async function getPlanetSignDignity(
+  planetName: string,
+  signName: string
+): Promise<string | null> {
+  const uri = Deno.env.get("NEO4J_URI");
+  const user = Deno.env.get("NEO4J_USER");
+  const password = Deno.env.get("NEO4J_PASSWORD");
+
+  if (!uri || !user || !password) return null;
+
+  let driver: Driver | null = null;
+  try {
+    driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
+    const session = driver.session();
+    const result = await session.run(
+      `
+      MATCH (p:Planet {name: $planetName})
+      MATCH (s:Sign {name: $signName})
+      OPTIONAL MATCH (p)-[r:RULES|EXALTED_IN|DETRIMENT_IN|FALL_IN]->(s)
+      RETURN type(r) AS dignity_type
+      `,
+      { planetName, signName }
+    );
+    await session.close();
+    if (result.records.length === 0) return null;
+    const dtype = result.records[0].get("dignity_type");
+    return dtype ?? null;
+  } catch (err: any) {
+    console.warn("[Neo4j] getPlanetSignDignity 실패:", err?.message);
+    return null;
+  } finally {
+    if (driver) await driver.close();
+  }
+}
+
+/** 데일리용 리셉션/리젝션 메타 태그 문구 (한국어) */
+const DAILY_DIGNITY_META: Record<string, string> = {
+  RULES:
+    "[Neo4j 판단: 리셉션(룰러쉽) 상태. 해당 영역에서 주도권과 안정감이 강화되는 시기로 작용함]",
+  EXALTED_IN:
+    "[Neo4j 판단: 리셉션(항진) 상태. 책임을 맡거나 뼈대를 단단히 세우는 긍정적 시기로 작용함]",
+  DETRIMENT_IN:
+    "[Neo4j 판단: 리젝션(손상) 상태. 과유불급, 오지랖으로 인한 감정·에너지 소모 주의]",
+  FALL_IN:
+    "[Neo4j 판단: 리젝션(추락) 상태. 해당 영역에서 힘이 분산되거나 지연될 수 있으니 무리하지 마세요]",
+};
+
+/**
+ * 트랜짓 행성이 네이탈 감응점(별자리)을 타격할 때, Neo4j 위계를 조회해 LLM용 메타 태그 반환
+ * @param transitPlanetName - 타격 주체 행성명 (예: "Saturn")
+ * @param natalAngleSign - 타겟 감응점의 별자리 (예: "Libra" = Ascendant가 천칭자리)
+ */
+export async function getDailyReceptionRejectionMeta(
+  transitPlanetName: string,
+  natalAngleSign: string
+): Promise<Neo4jReceptionRejectionResult> {
+  const dignityType = await getPlanetSignDignity(
+    transitPlanetName,
+    natalAngleSign
+  );
+  const metaTag =
+    dignityType && DAILY_DIGNITY_META[dignityType]
+      ? DAILY_DIGNITY_META[dignityType]
+      : "[Neo4j 판단: 방랑자(중립). 해당 별자리에서 위계가 없어 영향이 중립적으로 작용함]";
+  return { dignityType, metaTag };
 }
 
 /**

@@ -15,7 +15,7 @@ import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
-import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
+import { logFortuneInput } from "../utils/debugFortune";
 import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
@@ -156,7 +156,7 @@ function YearlyFortune() {
       const data = await loadSharedFortune(id);
 
       console.log("✅ 공유된 1년 운세 조회 성공:", data);
-      logDebugInfoIfPresent(data);
+      logFortuneInput(data, { fortuneType: "lifetime" });
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
@@ -271,7 +271,6 @@ function YearlyFortune() {
             throw new Error(functionError.message || "서버 오류가 발생했습니다.");
           if (!data || data.error)
             throw new Error(data?.error || "서버 오류가 발생했습니다.");
-          logDebugInfoIfPresent(data);
           logFortuneInput(data, { fortuneType: "lifetime" });
           if (data.interpretation && typeof data.interpretation === "string") {
             setInterpretation(data.interpretation);
@@ -518,7 +517,6 @@ function YearlyFortune() {
         throw new Error(functionError.message || "서버 오류가 발생했습니다.");
       if (!data || data.error)
         throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      logDebugInfoIfPresent(data);
       logFortuneInput(data, { fortuneType: "daily" });
       if (data.interpretation && typeof data.interpretation === "string") {
         const todayDate = getTodayDate();
@@ -693,10 +691,9 @@ function YearlyFortune() {
         throw new Error(functionError.message || "서버 오류가 발생했습니다.");
       if (!data || data.error)
         throw new Error(data?.error || "서버 오류가 발생했습니다.");
-      logDebugInfoIfPresent(data);
       logFortuneInput(data, { fortuneType: "lifetime" });
-      if (data.interpretation && typeof data.interpretation === "string") {
-        setInterpretation(data.interpretation);
+          if (data.interpretation && typeof data.interpretation === "string") {
+            setInterpretation(data.interpretation);
         setShareId(data.share_id || null);
         await saveFortuneHistory(
           selectedProfile.id,

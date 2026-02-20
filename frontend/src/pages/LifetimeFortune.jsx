@@ -15,7 +15,7 @@ import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
-import { logDebugInfoIfPresent, logFortuneInput } from "../utils/debugFortune";
+import { logFortuneInput } from "../utils/debugFortune";
 import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
@@ -78,7 +78,7 @@ function LifetimeFortune() {
       const data = await loadSharedFortune(id);
 
       console.log("✅ 공유된 인생 종합운 조회 성공:", data);
-      logDebugInfoIfPresent(data);
+      logFortuneInput(data, { fortuneType: "lifetime" });
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
@@ -376,7 +376,6 @@ function LifetimeFortune() {
         throw new Error(data?.error || "서버 오류가 발생했습니다.");
       }
 
-      logDebugInfoIfPresent(data);
       logFortuneInput(data, { fortuneType: "lifetime" });
 
       console.log("\n" + "=".repeat(60));

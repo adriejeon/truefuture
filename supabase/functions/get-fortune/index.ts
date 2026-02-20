@@ -71,6 +71,9 @@ import {
   getLordOfYearTransitStatus,
   getPlanetLongitudeAndSpeed,
   getLordKeyFromName,
+  getLordOfYearProfectionAngleEntry,
+  calculateLordAspectsWithPhase,
+  calculateDailyAngleStrikes,
 } from "./utils/astrologyCalculator.ts";
 import { calculateSynastry } from "./utils/synastryCalculator.ts";
 import {
@@ -89,6 +92,7 @@ import {
   getNeo4jContext,
   isDayChartFromSun,
   fetchConsultationContext,
+  getDailyReceptionRejectionMeta,
 } from "./utils/neo4jContext.ts";
 
 // ========== CORS 헤더 설정 ==========
@@ -274,26 +278,33 @@ function buildUserPrompt(
     isInSect: boolean;
   },
   lordStarConjunctionsText?: string,
-  transitToTransitAspects?: any[], // 트랜짓 to 트랜짓 각도 추가
+  transitToTransitAspects?: any[],
+  // 데일리 고전 점성술 리팩토링용 (오전/오후 분할, 4대 감응점, Neo4j 리셉션/리젝션)
+  dailyFlowAM?: import("./types.ts").DailyFlowSummary,
+  dailyFlowPM?: import("./types.ts").DailyFlowSummary,
+  dailyAngleStrikes?: import("./types.ts").DailyAngleStrike[],
+  lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
+  neo4jContextForDaily?: string | null,
 ): string {
-  // DAILY 운세의 경우 새로운 상세 프롬프트 사용 (프로펙션/연주 + 연주 행성 트랜짓 상태·각도·항성 회합 포함)
+  // DAILY: 고전 점성술 포맷 (오전/오후, 4대 감응점 타격, Neo4j 리셉션/리젝션)
   if (
     fortuneType === FortuneType.DAILY &&
-    transitChartData &&
-    aspects &&
-    transitMoonHouse !== undefined
+    dailyFlowAM != null &&
+    dailyFlowPM != null &&
+    dailyAngleStrikes != null
   ) {
     return generateDailyUserPrompt(
       chartData as ChartData,
-      transitChartData as ChartData,
-      aspects,
-      transitMoonHouse,
-      timeLordRetrogradeAlert ?? null,
       profectionData ?? null,
+      dailyFlowAM,
+      dailyFlowPM,
+      dailyAngleStrikes,
+      neo4jContextForDaily ?? null,
+      lordProfectionAngleEntry ?? null,
+      timeLordRetrogradeAlert ?? null,
       lordTransitStatus ?? null,
-      lordTransitAspects,
       lordStarConjunctionsText ?? null,
-      transitToTransitAspects, // 트랜짓 to 트랜짓 각도 추가
+      transitMoonHouse,
     );
   }
 
@@ -543,8 +554,13 @@ async function getInterpretation(
     isInSect: boolean;
   },
   lordStarConjunctionsText?: string,
-  relationshipType?: string, // 관계 유형 추가
-  transitToTransitAspects?: any[], // 트랜짓 to 트랜짓 각도 추가
+  relationshipType?: string,
+  transitToTransitAspects?: any[],
+  // 데일리 고전 점성술: 오전/오후 흐름, 4대 감응점 타격, 연주 앵글 진입
+  dailyFlowAM?: import("./types.ts").DailyFlowSummary,
+  dailyFlowPM?: import("./types.ts").DailyFlowSummary,
+  dailyAngleStrikes?: import("./types.ts").DailyAngleStrike[],
+  lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
 ): Promise<any> {
   try {
     if (!apiKey) {
@@ -566,12 +582,12 @@ async function getInterpretation(
       );
     }
 
-    // Neo4j 전문 해석 데이터: 데일리 운세에서는 Gemini 인풋에 넣지 않음
+    // Neo4j 전문 해석 데이터: 데일리 포함 모든 타입에서 조회 (데일리는 프롬프트 내 [Neo4j 리셉션/리젝션] 섹션에 사용)
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
-    const neo4jContext =
-      fortuneType === FortuneType.DAILY
-        ? null
-        : await getNeo4jContext(chartData?.planets ?? null, isDayChart);
+    const neo4jContext = await getNeo4jContext(
+      chartData?.planets ?? null,
+      isDayChart,
+    );
 
     // COMPATIBILITY 케이스의 경우 synastryResult와 relationshipType을 전달
     const systemInstructionText =
@@ -609,10 +625,24 @@ async function getInterpretation(
       lordTransitAspects,
       lordTransitStatus,
       lordStarConjunctionsText,
-      transitToTransitAspects, // 트랜짓 to 트랜짓 각도 추가
+      transitToTransitAspects,
+      dailyFlowAM,
+      dailyFlowPM,
+      dailyAngleStrikes,
+      lordProfectionAngleEntry,
+      neo4jContext || null,
     );
 
-    if (neo4jContext) {
+    // 데일리 고전 포맷은 이미 프롬프트 내에 Neo4j 포함; 그 외 타입은 여기서 덧붙임
+    if (
+      !(
+        fortuneType === FortuneType.DAILY &&
+        dailyFlowAM != null &&
+        dailyFlowPM != null &&
+        dailyAngleStrikes != null
+      ) &&
+      neo4jContext
+    ) {
       userPrompt = userPrompt + NEO4J_SECTION_HEADER + neo4jContext;
     }
 
@@ -2383,26 +2413,35 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       );
     }
 
-    // DAILY 운세의 경우: Transit 차트 및 Aspect 계산
+    // DAILY 운세: 오전 06:00(KST) / 오후 18:00(KST) 기준 트랜짓 차트 (활동 시간 반영, KST→UTC 정확 변환)
     let transitChartData: ChartData | undefined;
+    let transitChartDataAM: ChartData | undefined;
+    let transitChartDataPM: ChartData | undefined;
     let aspects: any[] | undefined;
     let transitToTransitAspects: any[] | undefined;
     let transitMoonHouse: number | undefined;
 
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
     if (fortuneType === FortuneType.DAILY) {
       try {
-        // 현재 시간의 Transit 차트 계산
         const now = new Date();
-        transitChartData = await calculateChart(now, { lat, lng });
+        // KST 기준 '오늘' 날짜: UTC + 9시간 후의 연/월/일
+        const kstNow = new Date(now.getTime() + KST_OFFSET_MS);
+        const kstY = kstNow.getUTCFullYear();
+        const kstM = kstNow.getUTCMonth();
+        const kstD = kstNow.getUTCDate();
+        // 06:00 KST = UTC (6-9) = 전날 21:00 UTC → Date.UTC(kstY, kstM, kstD, -3, 0, 0)
+        const amDate = new Date(Date.UTC(kstY, kstM, kstD, 6 - 9, 0, 0));
+        // 18:00 KST = UTC (18-9) = 당일 09:00 UTC
+        const pmDate = new Date(Date.UTC(kstY, kstM, kstD, 18 - 9, 0, 0));
+        transitChartDataAM = await calculateChart(amDate, { lat, lng });
+        transitChartDataPM = await calculateChart(pmDate, { lat, lng });
+        transitChartData = transitChartDataPM;
 
-        // Natal to Transit Aspect 계산
         aspects = calculateAspects(chartData, transitChartData);
-
-        // Transit to Transit Aspect 계산 (모든 트랜짓 행성 쌍 간의 각도)
         transitToTransitAspects =
           calculateTransitToTransitAspects(transitChartData);
-
-        // Transit Moon이 Natal 차트의 몇 번째 하우스에 있는지 계산
         transitMoonHouse = getTransitMoonHouseInNatalChart(
           chartData,
           transitChartData,
@@ -2412,7 +2451,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           "⚠️ Transit 차트 계산 실패 (기본 모드로 진행):",
           transitError,
         );
-        // Transit 계산 실패 시에도 기본 운세는 제공
       }
     }
 
@@ -2508,6 +2546,12 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         }
       | undefined;
     let dailyLordStarConjunctionsText: string | undefined;
+    let dailyFlowAM: import("./types.ts").DailyFlowSummary | undefined;
+    let dailyFlowPM: import("./types.ts").DailyFlowSummary | undefined;
+    let dailyAngleStrikes: import("./types.ts").DailyAngleStrike[] | undefined;
+    let lordProfectionAngleEntry: import("./types.ts").LordProfectionAngleEntry | null =
+      null;
+
     if (fortuneType === FortuneType.DAILY && transitChartData) {
       try {
         const now = new Date();
@@ -2553,7 +2597,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           transitChartData,
           lordName,
         );
-        // 연주–항성 회합 (현재 시점, 세차 적용)
+        // 연주–항성 회합 (접근 0.66° / 분리 0.5° 엄격 Orb, 세차 적용)
         try {
           const { longitude: lordLon, speed: lordSpeed } =
             getPlanetLongitudeAndSpeed(lordKey, now);
@@ -2577,6 +2621,48 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           console.log(
             `⚠️ [DAILY] 타임로드 ${lordName} 역행 — [CRITICAL WARNING] 프롬프트 주입`,
           );
+        }
+
+        // 고전 점성술: 연주 앵글 진입, 접근/분리 각도, 4대 감응점 타격 + Neo4j 리셉션/리젝션
+        if (transitChartDataAM && transitChartDataPM) {
+          lordProfectionAngleEntry = getLordOfYearProfectionAngleEntry(
+            transitChartDataPM,
+            lordName,
+            dailyProfection.profectionSign,
+          );
+          const lordAspectsWithPhase = calculateLordAspectsWithPhase(
+            transitChartDataAM,
+            transitChartDataPM,
+            lordName,
+          );
+          dailyAngleStrikes = calculateDailyAngleStrikes(
+            chartData,
+            transitChartDataAM,
+            transitChartDataPM,
+          );
+          for (const strike of dailyAngleStrikes) {
+            const { metaTag } = await getDailyReceptionRejectionMeta(
+              strike.striker,
+              strike.targetSign,
+            );
+            strike.neo4jMetaTag = metaTag;
+          }
+          dailyFlowAM = {
+            label: "AM",
+            lordRetrograde: isRetrograde,
+            lordAspects: lordAspectsWithPhase.filter((a) => a.phase === "Applying"),
+            angleStrikes: dailyAngleStrikes.filter((s) => s.phase === "Applying"),
+          };
+          dailyFlowPM = {
+            label: "PM",
+            lordRetrograde: isRetrograde,
+            lordAspects: lordAspectsWithPhase.filter(
+              (a) => a.phase === "Separating",
+            ),
+            angleStrikes: dailyAngleStrikes.filter(
+              (s) => s.phase === "Separating",
+            ),
+          };
         }
       } catch (err: any) {
         console.warn(
@@ -2619,9 +2705,9 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       chartData,
       fortuneType,
       apiKey,
-      requestData.gender, // gender
-      birthDate, // birthDate
-      { lat: requestData.lat, lng: requestData.lng }, // location
+      requestData.gender,
+      birthDate,
+      { lat: requestData.lat, lng: requestData.lng },
       undefined,
       transitChartData,
       aspects,
@@ -2635,8 +2721,12 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       dailyLordTransitAspects,
       dailyLordTransitStatus,
       dailyLordStarConjunctionsText,
-      undefined, // relationshipType
-      transitToTransitAspects, // 트랜짓 to 트랜짓 각도
+      undefined,
+      transitToTransitAspects,
+      dailyFlowAM,
+      dailyFlowPM,
+      dailyAngleStrikes,
+      lordProfectionAngleEntry ?? undefined,
     );
 
     if (!interpretation.success || interpretation.error) {

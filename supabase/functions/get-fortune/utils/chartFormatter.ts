@@ -11,6 +11,9 @@ import type {
   FirdariaResult,
   InteractionResult,
   ProgressionResult,
+  DailyFlowSummary,
+  DailyAngleStrike,
+  LordProfectionAngleEntry,
 } from "../types.ts";
 import {
   getSignFromLongitude,
@@ -287,189 +290,99 @@ export function formatLordOfYearTransitSectionForPrompt(
 }
 
 /**
- * DAILY 운세를 위한 User Prompt 생성 함수
- * Natal 차트, Transit 차트, 계산된 Aspect 정보를 포맷팅하여 반환합니다.
- * 타임로드가 역행 중이면 [CRITICAL WARNING] 섹션을 추가합니다.
- * 프로펙션/연주 정보와 연주 행성의 트랜짓 상태·각도를 포함할 수 있습니다.
- * 트랜짓 to 트랜짓 행성 간 각도도 포함합니다.
+ * 데일리 운세용 User Prompt (고전 점성술 리팩토링)
+ * - 오전/오후 시간대 분할, 접근/분리 각도, 4대 감응점 타격만 포함
+ * - Neo4j 리셉션/리젝션 메타 태그로 길흉 가이드
+ * 출력 순서: 1. 내담자·프로펙션 요약 2. 오전 흐름 3. 오후 흐름 4. 4대 감응점 타격 경보 5. Neo4j 리셉션/리젝션
  */
 export function generateDailyUserPrompt(
   natalData: ChartData,
-  transitData: ChartData,
-  aspects: Aspect[],
-  transitMoonHouse: number,
-  timeLordRetrogradeAlert?: TimeLordRetrogradeAlert,
-  profectionData?: ProfectionData | null,
-  lordTransitStatus?: LordOfYearTransitStatus | null,
-  lordTransitAspects?: Aspect[],
-  lordStarConjunctionsText?: string | null,
-  transitToTransitAspects?: Aspect[], // 트랜짓 to 트랜짓 각도 추가
+  profectionData: ProfectionData | null,
+  flowAM: DailyFlowSummary,
+  flowPM: DailyFlowSummary,
+  angleStrikes: DailyAngleStrike[],
+  neo4jContext: string | null,
+  lordProfectionAngleEntry: LordProfectionAngleEntry | null,
+  timeLordRetrogradeAlert: { planet: string; isRetrograde: boolean } | null,
+  lordTransitStatus: LordOfYearTransitStatus | null,
+  lordStarConjunctionsText: string | null,
+  transitMoonHouse: number | undefined,
 ): string {
-  // Natal 차트 포맷팅
-  const natalPlanets = Object.entries(natalData.planets)
-    .map(([name, planet]) => {
-      return `  - ${name.toUpperCase()}: ${
-        planet.sign
-      } ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`;
-    })
-    .join("\n");
+  const natalAscSign = getSignDisplay(natalData.houses.angles.ascendant);
 
-  const natalAscendant = natalData.houses.angles.ascendant;
-  const natalMC = natalData.houses.angles.midheaven;
-  const natalIC = normalizeDegrees(natalMC + 180);
-  const natalDsc = normalizeDegrees(natalAscendant + 180);
-  const natalAscSign = getSignDisplay(natalAscendant);
-  const natalMCSign = getSignDisplay(natalMC);
-  const natalICSign = getSignDisplay(natalIC);
-  const natalDscSign = getSignDisplay(natalDsc);
-
-  // Transit 차트 포맷팅
-  const transitPlanets = Object.entries(transitData.planets)
-    .map(([name, planet]) => {
-      return `  - ${name.toUpperCase()}: ${
-        planet.sign
-      } ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`;
-    })
-    .join("\n");
-
-  // Aspect 포맷팅 (중요도 순으로 상위 15개만)
-  const aspectsList = aspects
-    .slice(0, 15)
-    .map((aspect, index) => {
-      return `  ${index + 1}. ${aspect.description}`;
-    })
-    .join("\n");
-
-  // 3외행성 분석
-  const outerPlanetSection = analyzeOuterPlanetAspects(
-    natalData,
-    transitData,
-    profectionData?.lordOfTheYear,
-  );
-
-  // 최종 User Prompt 생성
-  return `
-오늘의 운세 분석을 위한 데이터입니다.
-
+  const section1 = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Natal Chart - 출생 차트]
+[1. 내담자 기본 정보 및 프로펙션 요약]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 출생 시간: ${natalData.date}
 출생 위치: 위도 ${natalData.location.lat}, 경도 ${natalData.location.lng}
-
-감응점(앵글):
-  상승점(Ascendant): ${natalAscSign}
-  천정(MC): ${natalMCSign}
-  천저(IC): ${natalICSign}
-  하강점(Descendant): ${natalDscSign}
-
-행성 위치:
-${natalPlanets}
-
-Part of Fortune: ${
-    natalData.fortuna.sign
-  } ${natalData.fortuna.degreeInSign.toFixed(1)}° (House ${
-    natalData.fortuna.house
-  })
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Transit Chart - 현재 하늘]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-행성 위치:
-${transitPlanets}
-${
-  profectionData
-    ? `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Annual Profection - 연주]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-연주(Annual Profection)란: 만 나이에 따라 1년 동안 특정 하우스·별자리가 활성화되고, 그 별자리의 지배 행성(연주의 주인, Lord of the Year)이 그 해의 길흉을 주관합니다. 오늘의 하루도 이 연주 행성의 영향 아래 있습니다.
-
-나이: ${profectionData.age}세 (만 나이)
-활성화된 하우스 (Profection House): ${profectionData.profectionHouse}번째 하우스
-프로펙션 별자리 (Profection Sign): ${profectionData.profectionSign}
-올해의 주인 (Lord of the Year): ${profectionData.lordOfTheYear}
-
-💡 해석 힌트: 올해는 ${profectionData.profectionHouse}번째 하우스의 주제가 인생의 중심이 되며, ${profectionData.lordOfTheYear}가 1년의 길흉을 주관합니다. 오늘의 운세 해석 시 연주 행성의 트랜짓 상태와 다른 행성과의 각도를 반드시 반영하세요.`
-    : ""
-}
-${
-  lordTransitStatus || (lordTransitAspects && lordTransitAspects.length > 0)
-    ? `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[연주 행성의 트랜짓 상태 및 각도]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-현재 트랜짓 차트에서 연주 행성(올해의 주인)의 상태:
-${lordTransitStatus ? `- 역행 여부: ${lordTransitStatus.isRetrograde ? "역행 중 (Retrograde)" : "순행 중"}` : ""}
-${
-  lordTransitAspects && lordTransitAspects.length > 0
-    ? `
-연주 행성이 오늘 트랜짓 차트에서 다른 행성들과 맺는 각도 (해석 시 이 각도들의 영향을 반드시 반영하세요):
-${lordTransitAspects.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n")}`
-    : ""
-}
-`
-    : ""
-}
-${
-  lordStarConjunctionsText
-    ? `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${lordStarConjunctionsText}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-    : ""
-}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Calculated Aspects - 주요 각도 관계]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${aspectsList || "  (오늘은 주요 Aspect가 형성되지 않았습니다)"}
-${outerPlanetSection}
-${
-  transitToTransitAspects && transitToTransitAspects.length > 0
-    ? `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Transit to Transit Aspects - 현재 하늘의 행성들 간 각도]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-오늘 현재 하늘(트랜짓)에서 행성들 간에 형성된 각도 관계입니다. 이는 오늘 하루의 전반적인 분위기와 에너지를 나타냅니다.
-3외행성(Uranus, Neptune, Pluto)을 포함한 모든 트랜짓 행성들 간의 각도가 계산되었습니다.
-
-${transitToTransitAspects
-  .slice(0, 20)
-  .map((aspect, index) => `  ${index + 1}. ${aspect.description}`)
-  .join("\n")}
-${
-  transitToTransitAspects.length > 20
-    ? `\n  ... (총 ${transitToTransitAspects.length}개의 트랜짓 to 트랜짓 각도 중 상위 20개만 표시)`
-    : ""
-}
-
-💡 해석 힌트: 트랜짓 to 트랜짓 각도는 오늘 하늘에서 일어나는 행성들 간의 상호작용을 보여줍니다. 
-예를 들어, 트랜짓 태양과 트랜짓 달이 Trine을 이루면 하루의 전반적인 흐름이 조화롭고, 
-트랜짓 금성과 트랜짓 화성이 Square를 이루면 사랑이나 예술 분야에서 긴장감이 있을 수 있습니다.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-    : ""
-}
-${
-  timeLordRetrogradeAlert?.isRetrograde
-    ? `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[CRITICAL WARNING] 타임로드 역행 — 핵심 변곡점
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-현재 회원님의 1년을 관장하는 행성인 ${timeLordRetrogradeAlert.planet}이(가) 역행하고 있습니다.
-오늘은 돌발적인 변화나 과거의 문제가 다시 불거질 수 있는 중요한 변곡점입니다.
-직업·금전·연애·건강 등 인생의 흐름이 바뀌거나 대형 이벤트가 발생할 확률이 높은 시기이므로, 해석 시 이를 반드시 강조하세요.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-    : ""
-}
-
-위 데이터를 기반으로 오늘의 운세를 분석해 주세요.
+상승점(ASC): ${natalAscSign}
+${profectionData ? `만 나이: ${profectionData.age}세 | 프로펙션 하우스: ${profectionData.profectionHouse} | 프로펙션 별자리: ${profectionData.profectionSign} | 올해의 주인(Lord of the Year): ${profectionData.lordOfTheYear}` : ""}
+${transitMoonHouse != null ? `오늘 트랜짓 달이 네이탈 차트 기준 ${transitMoonHouse}하우스에 위치 (오늘의 주요 무대/테마 참고)` : ""}
+${lordProfectionAngleEntry ? `⚠️ ${lordProfectionAngleEntry.message} (연주 행성이 프로펙션 앵글 ${lordProfectionAngleEntry.house}하우스 진입)` : ""}
+${timeLordRetrogradeAlert?.isRetrograde ? `[CRITICAL WARNING] 타임로드 ${timeLordRetrogradeAlert.planet} 역행 중 — 핵심 변곡점` : ""}
+${lordTransitStatus ? `연주 행성 트랜짓 상태: ${lordTransitStatus.isRetrograde ? "역행 중" : "순행 중"} | 섹트: ${lordTransitStatus.sectStatus} | In Sect: ${lordTransitStatus.isInSect}` : ""}
+${lordStarConjunctionsText ? "\n" + lordStarConjunctionsText : ""}
 `.trim();
+
+  const formatLordAspects = (items: DailyFlowSummary["lordAspects"]) =>
+    items.length === 0
+      ? "  (없음)"
+      : items.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n");
+  const formatStrikes = (items: DailyAngleStrike[]) =>
+    items.length === 0
+      ? "  (없음)"
+      : items.map((s, i) => `  ${i + 1}. ${s.description}${s.neo4jMetaTag ? "\n     " + s.neo4jMetaTag : ""}`).join("\n");
+
+  const section2 = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2. 오전의 주요 점성학적 흐름]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+연주 행성 역행 여부: ${flowAM.lordRetrograde ? "역행 중" : "순행 중"}
+연주 행성의 트랜짓 각도 (접근/분리, Orb 필터 통과):
+${formatLordAspects(flowAM.lordAspects)}
+오전 관련 4대 감응점 타격:
+${formatStrikes(flowAM.angleStrikes)}
+`.trim();
+
+  const section3 = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[3. 오후의 주요 점성학적 흐름]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+연주 행성 역행 여부: ${flowPM.lordRetrograde ? "역행 중" : "순행 중"}
+연주 행성의 트랜짓 각도:
+${formatLordAspects(flowPM.lordAspects)}
+오후 관련 4대 감응점 타격:
+${formatStrikes(flowPM.angleStrikes)}
+`.trim();
+
+  const section4 = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[4. 4대 감응점 타격 경보]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+타겟: Natal Sun, Moon, Ascendant, Part of Fortune. Orb 2° 이내, Conjunction/Sextile/Square/Opposition만 포함.
+${angleStrikes.length === 0 ? "  (오늘 해당 타격 없음)" : angleStrikes.map((s, i) => `${i + 1}. ${s.description}${s.neo4jMetaTag ? "\n   " + s.neo4jMetaTag : ""}`).join("\n")}
+`.trim();
+
+  const hasReceptionRejection = angleStrikes.some((s) => s.neo4jMetaTag);
+  const section5 = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[5. Neo4j 리셉션/리젝션 분석]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${hasReceptionRejection ? angleStrikes.filter((s) => s.neo4jMetaTag).map((s) => `${s.striker} → Natal ${s.target} (${s.targetSign}): ${s.neo4jMetaTag}`).join("\n") : "해당되는 4대 감응점 타격이 없거나, Neo4j 위계 조회 결과가 없습니다."}
+${neo4jContext ? "\n\n[Neo4j 네이탈 차트 위계/하우스 해석]\n" + neo4jContext : ""}
+`.trim();
+
+  return [
+    "오늘의 운세 분석을 위한 데이터입니다. (고전 점성술: 오전/오후 분할, 접근/분리 각도, 4대 감응점 타격, Neo4j 리셉션/리젝션 반영)",
+    section1,
+    section2,
+    section3,
+    section4,
+    section5,
+    "",
+    "위 데이터를 기반으로 오늘의 운세를 분석해 주세요.",
+  ].join("\n\n");
 }
 
 /**

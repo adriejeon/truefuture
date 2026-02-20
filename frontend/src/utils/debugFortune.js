@@ -4,30 +4,6 @@
  */
 
 /**
- * get-fortune 응답의 debugInfo만 출력 (기존 호환용)
- * @param {object} data - get-fortune API 응답 객체
- */
-export function logDebugInfoIfPresent(data) {
-  if (!data?.debugInfo) return;
-
-  console.groupCollapsed("🔍 [Debug] get-fortune 디버그 정보");
-  console.log(
-    "🚀 [Debug] Gemini 프롬프트 (fullPromptSentToGemini):",
-    data.debugInfo.fullPromptSentToGemini ?? "(없음)",
-  );
-  console.log(
-    "🧠 [Debug] Neo4j 해석 데이터 (neo4jContext):",
-    data.debugInfo.neo4jContext ?? "(없음)",
-  );
-  console.log(
-    "📦 [Debug] Gemini 원본 응답 (rawGeminiResponse):",
-    data.debugInfo.rawGeminiResponse ?? "(없음)",
-  );
-  console.log("📋 [Debug] debugInfo 전체:", data.debugInfo);
-  console.groupEnd();
-}
-
-/**
  * 차트 요약 한 줄 (날짜, Asc, 행성 수)
  * @param {object} chart - chart 또는 chart_data.chart
  * @returns {string}
