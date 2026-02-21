@@ -11,10 +11,7 @@ import StarModal from "../components/StarModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
-import {
-  restoreFortuneIfExists,
-  fetchFortuneByResultId,
-} from "../services/fortuneService";
+import { fetchFortuneByResultId } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { logFortuneInput } from "../utils/debugFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
@@ -46,10 +43,13 @@ function Compatibility() {
   const [error, setError] = useState("");
   const resultContainerRef = useRef(null);
   const firstChunkReceivedRef = useRef(false);
+  const hasRestoredProfile2Ref = useRef(false);
 
   // 두 사람의 프로필 선택
   const [profile1, setProfile1] = useState(null);
   const [profile2, setProfile2] = useState(null);
+  // 내역에서 진입 시 복원용: user_info (로드 완료 후 profile1/profile2 매칭)
+  const [pendingHistoryUserInfo, setPendingHistoryUserInfo] = useState(null);
   const [shareId, setShareId] = useState(null);
   const [synastryResult, setSynastryResult] = useState(null); // 궁합 점수 등 (카카오 공유 요약용)
   const [isSharedFortune, setIsSharedFortune] = useState(false);
@@ -87,14 +87,15 @@ function Compatibility() {
     }
   }, [profiles, profile1, selectedProfile]);
 
-  // 두 번째 사람 프로필: 저장된 선택 복원 (새로고침 후에도 유지)
+  // 두 번째 사람 프로필: 저장된 선택 복원 (새로고침 후 한 번만)
   useEffect(() => {
-    if (profiles.length === 0 || profile2) return;
+    if (profiles.length === 0 || hasRestoredProfile2Ref.current) return;
+    hasRestoredProfile2Ref.current = true;
     const savedId = localStorage.getItem(COMPAT_PROFILE2_KEY);
     if (!savedId) return;
     const saved = profiles.find((p) => p.id === savedId);
     if (saved) setProfile2(saved);
-  }, [profiles, profile2]);
+  }, [profiles]);
 
   // 두 번째 사람 선택 시 localStorage에 저장
   useEffect(() => {
@@ -104,6 +105,37 @@ function Compatibility() {
       localStorage.removeItem(COMPAT_PROFILE2_KEY);
     }
   }, [profile2?.id]);
+
+  // 내역에서 진입 시: user_info로 profile1/profile2 매칭 복원
+  useEffect(() => {
+    const ui = pendingHistoryUserInfo;
+    if (!ui?.user1?.birthDate || !ui.user2?.birthDate || profiles.length === 0) return;
+
+    const norm = (s) => (s ? String(s).replace("Z", "").substring(0, 19) : "");
+    const profileKey = (p) =>
+      `${String(p.birth_date || "").substring(0, 10)}_${(p.birth_time || "").substring(0, 5)}`;
+    const birthDateKey = (s) => {
+      if (!s || typeof s !== "string") return "";
+      const date = s.substring(0, 10);
+      const time = s.length >= 16 ? s.substring(11, 16) : "";
+      return `${date}_${time}`;
+    };
+    const match = (birthDateStr) => {
+      const key = birthDateKey(birthDateStr);
+      const normalized = norm(birthDateStr);
+      return (
+        profiles.find((p) => profileKey(p) === key) ||
+        profiles.find((p) => norm(p.birth_date) === normalized) ||
+        null
+      );
+    };
+
+    const p1 = match(ui.user1.birthDate);
+    const p2 = match(ui.user2.birthDate);
+    if (p1) setProfile1(p1);
+    if (p2) setProfile2(p2);
+    setPendingHistoryUserInfo(null);
+  }, [pendingHistoryUserInfo, profiles]);
 
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
@@ -166,6 +198,10 @@ function Compatibility() {
       setShareId(data.shareId);
       setIsSharedFortune(false); // 내역에서 불러온 것이므로 공유 링크 아님
       setError("");
+      // user_info가 있으면 profile1/profile2 복원용으로 저장 (위 useEffect에서 매칭)
+      if (data.userInfo?.user1?.birthDate && data.userInfo?.user2?.birthDate) {
+        setPendingHistoryUserInfo(data.userInfo);
+      }
     } catch (err) {
       console.error("❌ 궁합 내역 조회 실패:", err);
       setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
@@ -227,40 +263,14 @@ function Compatibility() {
     }
   }, [profiles]);
 
-  // 로그인 계정에 저장된 이전 궁합 결과 복구 (다른 기기/새로고침 후에도 결과 유지)
+  // 과거 내역이 아닌 일반 진입 시: 하단 결과 영역 비우기 (이전에 본 궁합 결과 노출 방지)
   useEffect(() => {
     if (!profile1 || isSharedFortune || !user) return;
-    if (searchParams.get("id")) return; // URL에 id가 있으면 복구하지 않음
+    if (searchParams.get("id")) return; // URL에 id 있으면 내역에서 진입 → loadFromHistory에서 처리
 
-    setRestoring(true);
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const restored = await restoreFortuneIfExists(
-          profile1.id,
-          "compatibility",
-        );
-        if (cancelled) return;
-        if (restored) {
-          console.log("✅ [복구] 궁합 운세 DB에서 복구");
-          setInterpretation(restored.interpretation);
-          setShareId(restored.shareId);
-          setError("");
-        } else {
-          setInterpretation("");
-          setShareId(null);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err.message || "복구 중 오류가 발생했습니다.");
-      } finally {
-        if (!cancelled) setRestoring(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    setInterpretation("");
+    setShareId(null);
+    setRestoring(false);
   }, [profile1?.id, isSharedFortune, user, searchParams]);
 
   // 프로필 생성 핸들러
