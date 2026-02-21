@@ -10,12 +10,12 @@ export function useProfiles() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // 프로필 목록 조회
+  // 프로필 목록 조회. 반환값: 조회된 프로필 배열 (호출처에서 삭제 후 선택 갱신 등에 사용)
   const fetchProfiles = useCallback(async () => {
     if (!user) {
       setProfiles([]);
       setSelectedProfile(null);
-      return;
+      return [];
     }
 
     setLoading(true);
@@ -30,15 +30,16 @@ export function useProfiles() {
 
       if (fetchError) throw fetchError;
 
-      setProfiles(data || []);
+      const list = data || [];
+      setProfiles(list);
 
       // 기본 프로필이 있으면 선택, 없으면 첫 번째 프로필 선택
-      const defaultProfile = data?.find((p) => p.is_default);
-      const profileToSelect = defaultProfile || data?.[0] || null;
+      const defaultProfile = list.find((p) => p.is_default);
+      const profileToSelect = defaultProfile || list[0] || null;
 
       // localStorage에 저장된 프로필 ID 확인
       const savedProfileId = localStorage.getItem("selected_profile_id");
-      const savedProfile = data?.find((p) => p.id === savedProfileId);
+      const savedProfile = list.find((p) => p.id === savedProfileId);
 
       setSelectedProfile(savedProfile || profileToSelect);
 
@@ -49,9 +50,12 @@ export function useProfiles() {
           (savedProfile || profileToSelect).id,
         );
       }
+
+      return list;
     } catch (err) {
       console.error("프로필 조회 실패:", err);
       setError(err.message);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -151,7 +155,7 @@ export function useProfiles() {
     [user, fetchProfiles],
   );
 
-  // 프로필 삭제
+  // 프로필 삭제. 반환값: 삭제 후 남은 프로필 배열 (호출처에서 슬롯 선택 갱신용)
   const deleteProfile = useCallback(
     async (profileId) => {
       if (!user) throw new Error("로그인이 필요합니다.");
@@ -167,20 +171,20 @@ export function useProfiles() {
 
         if (deleteError) throw deleteError;
 
-        // 프로필 목록 새로고침
-        await fetchProfiles();
+        // 프로필 목록 새로고침 (created_at 오름차순 → 마지막이 가장 최근)
+        const newProfiles = await fetchProfiles();
 
-        // 삭제한 프로필이 선택된 프로필이었다면 다른 프로필 선택
-        if (selectedProfile?.id === profileId) {
-          const remainingProfiles = profiles.filter((p) => p.id !== profileId);
-          const newSelected = remainingProfiles[0] || null;
-          setSelectedProfile(newSelected);
-          if (newSelected) {
-            localStorage.setItem("selected_profile_id", newSelected.id);
-          } else {
-            localStorage.removeItem("selected_profile_id");
-          }
+        // 삭제한 프로필이 선택된 프로필이었다면 가장 최근 등록 프로필로 선택
+        if (selectedProfile?.id === profileId && newProfiles.length > 0) {
+          const mostRecent = newProfiles[newProfiles.length - 1];
+          setSelectedProfile(mostRecent);
+          localStorage.setItem("selected_profile_id", mostRecent.id);
+        } else if (selectedProfile?.id === profileId) {
+          setSelectedProfile(null);
+          localStorage.removeItem("selected_profile_id");
         }
+
+        return newProfiles;
       } catch (err) {
         console.error("프로필 삭제 실패:", err);
         setError(err.message);
@@ -189,7 +193,7 @@ export function useProfiles() {
         setLoading(false);
       }
     },
-    [user, selectedProfile, profiles, fetchProfiles],
+    [user, selectedProfile?.id, fetchProfiles],
   );
 
   // 프로필 선택

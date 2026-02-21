@@ -174,6 +174,18 @@ function Compatibility() {
     };
   };
 
+  // 프로필 삭제 시 해당 슬롯(첫 번째/두 번째 사람)을 가장 최근 등록 프로필로 갱신
+  const handleDeleteProfile = useCallback(
+    async (profileId) => {
+      const newProfiles = await deleteProfile(profileId);
+      const mostRecent =
+        newProfiles?.length > 0 ? newProfiles[newProfiles.length - 1] : null;
+      if (profile1?.id === profileId) setProfile1(mostRecent);
+      if (profile2?.id === profileId) setProfile2(mostRecent);
+    },
+    [deleteProfile, profile1?.id, profile2?.id],
+  );
+
   // 프로필이 없을 때 모달 표시
   useEffect(() => {
     if (
@@ -493,7 +505,7 @@ function Compatibility() {
               selectedProfile={profile1}
               onSelectProfile={setProfile1}
               onCreateProfile={() => setShowProfileModal(true)}
-              onDeleteProfile={deleteProfile}
+              onDeleteProfile={handleDeleteProfile}
               loading={profilesLoading}
             />
           </div>
@@ -519,7 +531,7 @@ function Compatibility() {
               selectedProfile={profile2}
               onSelectProfile={setProfile2}
               onCreateProfile={() => setShowProfileModal(true)}
-              onDeleteProfile={deleteProfile}
+              onDeleteProfile={handleDeleteProfile}
               loading={profilesLoading}
             />
           </div>
