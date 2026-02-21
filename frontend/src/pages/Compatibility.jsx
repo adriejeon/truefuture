@@ -78,12 +78,32 @@ function Compatibility() {
     return `${name1}님과 ${name2}님의 궁합 점수 ${score}점! ${phrase}`;
   }, [synastryResult, profile1?.name, profile2?.name]);
 
+  const COMPAT_PROFILE2_KEY = "compatibility_profile2_id";
+
   // 프로필이 변경되면 첫 번째 프로필 자동 선택
   useEffect(() => {
     if (profiles.length > 0 && !profile1) {
       setProfile1(selectedProfile || profiles[0]);
     }
   }, [profiles, profile1, selectedProfile]);
+
+  // 두 번째 사람 프로필: 저장된 선택 복원 (새로고침 후에도 유지)
+  useEffect(() => {
+    if (profiles.length === 0 || profile2) return;
+    const savedId = localStorage.getItem(COMPAT_PROFILE2_KEY);
+    if (!savedId) return;
+    const saved = profiles.find((p) => p.id === savedId);
+    if (saved) setProfile2(saved);
+  }, [profiles, profile2]);
+
+  // 두 번째 사람 선택 시 localStorage에 저장
+  useEffect(() => {
+    if (profile2?.id) {
+      localStorage.setItem(COMPAT_PROFILE2_KEY, profile2.id);
+    } else {
+      localStorage.removeItem(COMPAT_PROFILE2_KEY);
+    }
+  }, [profile2?.id]);
 
   // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
