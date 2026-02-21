@@ -62,12 +62,12 @@ function ProfileSelector({
 
   const formatBirthInfo = (profile) => {
     if (!profile) return "";
-    const birthDate = new Date(profile.birth_date);
-    return `${birthDate.getFullYear()}.${String(
-      birthDate.getMonth() + 1
-    ).padStart(2, "0")}.${String(birthDate.getDate()).padStart(2, "0")} ${
-      profile.birth_time
-    }`;
+    // ISO 문자열의 날짜 부분(YYYY-MM-DD)만 사용해 타임존 변환으로 인한 하루 밀림 방지
+    const iso = profile.birth_date && String(profile.birth_date);
+    const datePart =
+      iso && iso.length >= 10 ? iso.substring(0, 10).replace(/-/g, ".") : "";
+    const timePart = profile.birth_time || "";
+    return [datePart, timePart].filter(Boolean).join(" ");
   };
 
   // 프로필별 색상 팔레트 (그라데이션 조합)
