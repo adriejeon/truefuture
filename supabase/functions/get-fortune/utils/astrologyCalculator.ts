@@ -185,17 +185,20 @@ export function calculateAscendant(
   const latRad = lat * (Math.PI / 180);
   const ramcRad = ramc * (Math.PI / 180);
 
-  // 5. 상승점 계산 공식 (사분면 정확성을 위해 atan2 사용, 180도 하드코딩 금지)
-  // y = cos(RAMC), x = -(sin(RAMC)*cos(ε) + tan(φ)*sin(ε)) → ASC_rad = atan2(y, x)
+  // 5. 상승점 계산 공식 (360도 전 구간 무결점 표준 로직)
+  // y = cos(RAMC)
+  // x = - (sin(RAMC) * cos(obliquity) + tan(lat) * sin(obliquity))
   const y = Math.cos(ramcRad);
-  const x =
-    -(Math.sin(ramcRad) * Math.cos(obliquityRad)) -
-    Math.tan(latRad) * Math.sin(obliquityRad);
+  const x = -(Math.sin(ramcRad) * Math.cos(obliquityRad) + Math.tan(latRad) * Math.sin(obliquityRad));
+
   const ascendantRad = Math.atan2(y, x);
-  // atan2 반환 범위 (-π, π] → 음수일 때 360도(2π)를 더해 [0, 360)으로 정규화 (180도 추가 금지)
   let ascendant = (ascendantRad * 180) / Math.PI;
-  if (ascendant < 0) ascendant += 360;
-  ascendant = normalizeDegrees(ascendant);
+
+  // 음수일 경우 360도를 더해 양수화하고 정규화
+  if (ascendant < 0) {
+    ascendant += 360;
+  }
+  ascendant = ascendant % 360;
 
   return {
     ascendant,
