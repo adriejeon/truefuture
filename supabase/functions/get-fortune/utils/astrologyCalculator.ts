@@ -191,6 +191,8 @@ export function calculateAscendant(
   const y = Math.cos(ramcRad);
   const x = -(Math.sin(ramcRad) * Math.cos(obliquityRad) + Math.tan(latRad) * Math.sin(obliquityRad));
 
+  console.log(`RAMC: ${ramc}, y: ${y}, x: ${x}`);
+
   const ascendantRad = Math.atan2(y, x);
   let ascendant = (ascendantRad * 180) / Math.PI;
 
