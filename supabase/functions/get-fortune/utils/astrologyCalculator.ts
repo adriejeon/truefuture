@@ -312,7 +312,8 @@ export function getLordKeyFromName(lordName: string): string | null {
  * 점성술 차트 계산
  * @param date - 계산할 날짜/시간 (UTC)
  * @param location - 위치 정보 (위도, 경도)
- * @param timezoneOffsetHours - 하우스 계산용 Timezone Offset (시간 단위, 예: 서울 = +9)
+ * @param timezoneOffsetHours - 하우스 계산용 **국가 표준시(또는 해당 시점 DST) 오프셋** (시간 단위, 예: 서울 = +9).
+ *   반드시 IANA/위경도 기반으로 구한 값만 사용할 것. lng/15(LMT) 사용 금지.
  * @returns 계산된 차트 데이터
  */
 export async function calculateChart(
@@ -336,6 +337,15 @@ export async function calculateChart(
       throw new Error("Invalid longitude.");
     }
 
+    // 타임존 오프셋 방어: 유한한 숫자이며, 통상 범위(-14 ~ +14) 밖이면 0으로 취급
+    let offsetHours = Number(timezoneOffsetHours);
+    if (!Number.isFinite(offsetHours) || offsetHours < -14 || offsetHours > 14) {
+      offsetHours = 0;
+      console.warn(
+        "⚠️ [calculateChart] timezoneOffsetHours가 유효하지 않아 0(UTC)으로 처리합니다. 호출부에서 IANA/위경도 기반 오프셋을 전달해야 합니다.",
+      );
+    }
+
     // 행성 계산용: UTC 그대로 사용 (정확함)
     const time = MakeTime(date);
 
@@ -343,13 +353,13 @@ export async function calculateChart(
     // 하우스 시스템은 "그 장소의 그 시간"을 기준으로 계산되므로,
     // UTC 시간에 Timezone Offset을 더해서 현지 시간 기준으로 만들어줌
     const localDateForHouses = new Date(
-      date.getTime() + timezoneOffsetHours * 60 * 60 * 1000,
+      date.getTime() + offsetHours * 60 * 60 * 1000,
     );
     const localTimeForHouses = MakeTime(localDateForHouses);
 
-    if (timezoneOffsetHours !== 0) {
+    if (offsetHours !== 0) {
       console.log(
-        `🏠 하우스 계산용 시간 변환: UTC ${date.toISOString()} + ${timezoneOffsetHours}h = Local ${localDateForHouses.toISOString()}`,
+        `🏠 하우스 계산용 시간 변환: UTC ${date.toISOString()} + ${offsetHours}h = Local ${localDateForHouses.toISOString()}`,
       );
     }
 
