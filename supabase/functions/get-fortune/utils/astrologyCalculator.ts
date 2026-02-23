@@ -310,10 +310,10 @@ export function getLordKeyFromName(lordName: string): string | null {
 
 /**
  * 점성술 차트 계산
- * @param date - 계산할 날짜/시간 (UTC)
+ * @param date - 계산할 날짜/시간 (UTC). JavaScript Date는 절대 시각(UTC)을 담고 있음.
  * @param location - 위치 정보 (위도, 경도)
- * @param timezoneOffsetHours - 하우스 계산용 **국가 표준시(또는 해당 시점 DST) 오프셋** (시간 단위, 예: 서울 = +9).
- *   반드시 IANA/위경도 기반으로 구한 값만 사용할 것. lng/15(LMT) 사용 금지.
+ * @param timezoneOffsetHours - (현재 미사용) 예약: 솔라 리턴 기준일 포맷팅·결과물 현지 시간 표시용.
+ *   천체/하우스 계산에 date를 변형하는 데 사용하지 않음 — 이중 타임존 시프트 방지.
  * @returns 계산된 차트 데이터
  */
 export async function calculateChart(
@@ -337,39 +337,11 @@ export async function calculateChart(
       throw new Error("Invalid longitude.");
     }
 
-    // 타임존 오프셋 방어: 유한한 숫자이며, 통상 범위(-14 ~ +14) 밖이면 0으로 취급
-    let offsetHours = Number(timezoneOffsetHours);
-    if (!Number.isFinite(offsetHours) || offsetHours < -14 || offsetHours > 14) {
-      offsetHours = 0;
-      console.warn(
-        "⚠️ [calculateChart] timezoneOffsetHours가 유효하지 않아 0(UTC)으로 처리합니다. 호출부에서 IANA/위경도 기반 오프셋을 전달해야 합니다.",
-      );
-    }
-
-    // 행성 계산용: UTC 그대로 사용 (정확함)
+    // 절대 시각(UTC) 그대로 엔진에 주입. Date에 오프셋을 더/빼지 않음 (이중 시프트 방지).
     const time = MakeTime(date);
 
-    // 하우스 계산용: 현지 시간으로 변환
-    // 하우스 시스템은 "그 장소의 그 시간"을 기준으로 계산되므로,
-    // UTC 시간에 Timezone Offset을 더해서 현지 시간 기준으로 만들어줌
-    const localDateForHouses = new Date(
-      date.getTime() + offsetHours * 60 * 60 * 1000,
-    );
-    const localTimeForHouses = MakeTime(localDateForHouses);
-
-    if (offsetHours !== 0) {
-      console.log(
-        `🏠 하우스 계산용 시간 변환: UTC ${date.toISOString()} + ${offsetHours}h = Local ${localDateForHouses.toISOString()}`,
-      );
-    }
-
-    // 상승점 계산 (현지 시간 기준). MC는 RAMC → 황경 변환으로 정확히 계산.
-    const { ascendant, ramc } = calculateAscendant(
-      localDateForHouses,
-      lat,
-      lng,
-      localTimeForHouses,
-    );
+    // 상승점/하우스: GMST(date) + 경도 보정으로 LST 산출. 동일한 UTC date 사용.
+    const { ascendant, ramc } = calculateAscendant(date, lat, lng, time);
     const ascendantSignInfo = getSignFromLongitude(ascendant);
 
     // 행성 위치 계산 (역행·속도 포함)
