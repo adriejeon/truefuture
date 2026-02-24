@@ -104,6 +104,17 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+/** birthDateTime 등이 NaN/Invalid Date인 상태로 calculateChart에 넘어가는 것 방지 */
+function assertValidDate(d: Date, context: string): void {
+  if (
+    !(d instanceof Date) ||
+    Number.isNaN(d.getTime()) ||
+    !Number.isFinite(d.getTime())
+  ) {
+    throw new Error(`[${context}] Invalid date (got: ${String(d)})`);
+  }
+}
+
 // ========== AI 해석 관련 함수 ==========
 const GEMINI_MODEL = "gemini-3-pro-preview"; // 전 타입 공통 Primary: 종합운세, 데일리, 1년 운세, 궁합 + 자유 상담소 첫 질문 (Gemini 3 Pro)
 const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"; // 503/과부하 시 폴백
@@ -1517,7 +1528,9 @@ serve(async (req) => {
           parseInt(second),
         );
         birthDateTime = new Date(tempUtcTimestamp - 9 * 60 * 60 * 1000);
-        if (isNaN(birthDateTime.getTime())) throw new Error("Invalid date");
+        if (isNaN(birthDateTime.getTime()) || !Number.isFinite(birthDateTime.getTime())) {
+          throw new Error("Invalid date");
+        }
         console.log(
           `🕐 [CONSULTATION] Timezone 보정 완료: ${birthDateTime.toISOString()}`,
         );
@@ -1532,6 +1545,8 @@ serve(async (req) => {
           },
         );
       }
+
+      assertValidDate(birthDateTime, "CONSULTATION Natal");
 
       // 만 나이 계산
       const now = new Date();
@@ -2305,7 +2320,9 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
         if (
           isNaN(birthDateTime1.getTime()) ||
-          isNaN(birthDateTime2.getTime())
+          isNaN(birthDateTime2.getTime()) ||
+          !Number.isFinite(birthDateTime1.getTime()) ||
+          !Number.isFinite(birthDateTime2.getTime())
         ) {
           throw new Error("Invalid date format");
         }
@@ -2328,6 +2345,9 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           },
         );
       }
+
+      assertValidDate(birthDateTime1, "Compatibility User1");
+      assertValidDate(birthDateTime2, "Compatibility User2");
 
       // 두 명의 타임존 오프셋 해석 (각 출생지·출생시 기준)
       const tzOffset1 = await resolveTimezoneOffsetHours(
@@ -2615,7 +2635,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       // 3. 최종 Date 객체 생성
       birthDateTime = new Date(kstToUtcTimestamp);
 
-      if (isNaN(birthDateTime.getTime())) {
+      if (isNaN(birthDateTime.getTime()) || !Number.isFinite(birthDateTime.getTime())) {
         throw new Error("Invalid date format");
       }
 
@@ -2634,6 +2654,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         },
       );
     }
+
+    assertValidDate(birthDateTime, "Natal");
 
     // 타임존 옵션 (각 차트 시점별로 오프셋을 따로 구함 — DST 역사 반영)
     const tzOpts = {

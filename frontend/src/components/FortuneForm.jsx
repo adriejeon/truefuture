@@ -5,6 +5,7 @@ import PrimaryButton from "./PrimaryButton";
 function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
   const [birthDate, setBirthDate] = useState("");
   const [birthTime, setBirthTime] = useState("");
+  const [timeError, setTimeError] = useState("");
   const [cityData, setCityData] = useState({
     name: "",
     lat: null,
@@ -29,9 +30,15 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
       return;
     }
 
-    const birthDateTime = birthTime
-      ? `${birthDate}T${birthTime}:00`
-      : `${birthDate}T00:00:00`;
+    // 시간 미입력 시 00:00으로 서버에 보내지 않음 (RAMC 등 새벽 시간으로 잘못 계산되는 것 방지)
+    const timeToSend = birthTime.trim() || null;
+    if (!timeToSend) {
+      setTimeError("태어난 시간을 입력해주세요.");
+      return;
+    }
+    setTimeError("");
+
+    const birthDateTime = `${birthDate}T${timeToSend}:00`;
 
     onSubmit({
       birthDate: birthDateTime,
@@ -91,11 +98,17 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
                 type="time"
                 id="birthTime"
                 value={birthTime}
-                onChange={(e) => setBirthTime(e.target.value)}
+                onChange={(e) => {
+                  setBirthTime(e.target.value);
+                  if (timeError) setTimeError("");
+                }}
                 required
                 className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
                 style={{ backgroundColor: "#0F0F2B" }}
               />
+              {timeError && (
+                <p className="mt-1.5 text-sm text-red-400">{timeError}</p>
+              )}
             </div>
           </div>
 

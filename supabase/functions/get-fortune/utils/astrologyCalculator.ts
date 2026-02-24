@@ -170,6 +170,17 @@ export function calculateAscendant(
   lng: number,
   time: any,
 ): AscendantResult {
+  // 호출 시점 검증: 잘못된 Date면 즉시 throw (새벽 등 잘못 계산되는 것 방지)
+  if (
+    !(date instanceof Date) ||
+    Number.isNaN(date.getTime()) ||
+    !Number.isFinite(date.getTime())
+  ) {
+    throw new Error(
+      `calculateAscendant: invalid date (expected valid Date, got: ${date})`,
+    );
+  }
+
   // 1. 그리니치 항성시(GMST) 계산
   const gmst = SiderealTime(time); // 시간 단위로 반환
 
@@ -191,8 +202,9 @@ export function calculateAscendant(
   const y = Math.cos(ramcRad);
   const x = -(Math.sin(ramcRad) * Math.cos(obliquityRad) + Math.tan(latRad) * Math.sin(obliquityRad));
 
+  const dateIso = date.toISOString();
   console.log(
-    `[Ascendant] lat: ${lat}, lng: ${lng}, RAMC: ${ramc}, y: ${y}, x: ${x}`,
+    `[Ascendant] dateUTC: ${dateIso}, lat: ${lat}, lng: ${lng}, RAMC: ${ramc}, y: ${y}, x: ${x}`,
   );
 
   const ascendantRad = Math.atan2(y, x);
@@ -329,9 +341,15 @@ export async function calculateChart(
   try {
     const { lat, lng } = location;
 
-    // 입력 검증
-    if (!(date instanceof Date) || isNaN(date.getTime())) {
-      throw new Error("Invalid date provided.");
+    // 입력 검증: NaN·잘못된 Date로 차트가 새벽 등 잘못 계산되는 것 방지
+    if (
+      !(date instanceof Date) ||
+      Number.isNaN(date.getTime()) ||
+      !Number.isFinite(date.getTime())
+    ) {
+      throw new Error(
+        `calculateChart: invalid date (expected valid Date, got: ${date})`,
+      );
     }
 
     if (typeof lat !== "number" || isNaN(lat) || lat < -90 || lat > 90) {
