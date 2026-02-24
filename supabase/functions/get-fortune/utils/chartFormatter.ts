@@ -291,8 +291,9 @@ export function formatLordOfYearTransitSectionForPrompt(
 
 /**
  * 데일리 운세용 User Prompt (고전 점성술 리팩토링)
- * - 오전/오후 시간대 분할, 접근/분리 각도, 4대 감응점 타격만 포함
- * - Neo4j 리셉션/리젝션 메타 태그로 길흉 가이드
+ * - 오전/오후 블록: 연주 행성의 Transit-to-Transit 각도만 (접근/분리 Orb 필터). 4대 감응점 타격은 포함하지 않음.
+ * - 4대 감응점 타격(Transit to Natal)은 [4. 4대 감응점 타격 경보] 블록에서만 별도 출력.
+ * - Neo4j 리셉션/리젝션 메타 태그로 길흉 가이드.
  * 출력 순서: 1. 내담자·프로펙션 요약 2. 오전 흐름 3. 오후 흐름 4. 4대 감응점 타격 경보 5. Neo4j 리셉션/리젝션
  */
 export function generateDailyUserPrompt(
@@ -329,20 +330,14 @@ ${lordStarConjunctionsText ? "\n" + lordStarConjunctionsText : ""}
     items.length === 0
       ? "  (없음)"
       : items.map((a, i) => `  ${i + 1}. ${a.description}`).join("\n");
-  const formatStrikes = (items: DailyAngleStrike[]) =>
-    items.length === 0
-      ? "  (없음)"
-      : items.map((s, i) => `  ${i + 1}. ${s.description}${s.neo4jMetaTag ? "\n     " + s.neo4jMetaTag : ""}`).join("\n");
 
   const section2 = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [2. 오전의 주요 점성학적 흐름]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 연주 행성 역행 여부: ${flowAM.lordRetrograde ? "역행 중" : "순행 중"}
-연주 행성의 트랜짓 각도 (접근/분리, Orb 필터 통과):
+연주 행성의 트랜짓 각도 (Transit to Transit, 접근/분리 Orb 필터 통과):
 ${formatLordAspects(flowAM.lordAspects)}
-오전 관련 4대 감응점 타격:
-${formatStrikes(flowAM.angleStrikes)}
 `.trim();
 
   const section3 = `
@@ -350,10 +345,8 @@ ${formatStrikes(flowAM.angleStrikes)}
 [3. 오후의 주요 점성학적 흐름]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 연주 행성 역행 여부: ${flowPM.lordRetrograde ? "역행 중" : "순행 중"}
-연주 행성의 트랜짓 각도:
+연주 행성의 트랜짓 각도 (Transit to Transit, 접근/분리 Orb 필터 통과):
 ${formatLordAspects(flowPM.lordAspects)}
-오후 관련 4대 감응점 타격:
-${formatStrikes(flowPM.angleStrikes)}
 `.trim();
 
   const section4 = `

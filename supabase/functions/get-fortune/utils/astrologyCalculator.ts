@@ -886,10 +886,10 @@ export function getLordOfYearTransitStatus(
 
 // ========== 데일리 운세: Orb 한도 및 4대 감응점 타격 ==========
 
-/** 연주/행성 각도: 접근 시 허용 Orb (도) */
+/** 연주/행성 각도: 접근(Applying) 시 허용 Orb (도) */
 export const DAILY_ASPECT_ORB_APPLYING = 4;
-/** 연주/행성 각도: 분리 시 허용 Orb (도) */
-export const DAILY_ASPECT_ORB_SEPARATING = 3;
+/** 연주/행성 각도: 분리(Separating) 시 허용 Orb (도) */
+export const DAILY_ASPECT_ORB_SEPARATING = 2;
 /** 4대 감응점 타격 Orb (도) */
 export const DAILY_ANGLE_STRIKE_ORB = 2;
 /** Partile(완전 합) 판정: 이 값 미만이면 isPartile */
@@ -943,7 +943,7 @@ function getAspectPhase(orbAM: number, orbPM: number): AspectPhase {
 
 /**
  * 연주 행성이 트랜짓 차트에서 다른 트랜짓 행성과 맺는 각도를
- * 접근 4° / 분리 3° 이내로 필터하고, Applying/Separating 및 Partile 플래그 부여
+ * 접근 4° / 분리 2° 이내로 필터하고, Applying/Separating 및 Partile 플래그 부여
  */
 export function calculateLordAspectsWithPhase(
   transitChartAM: ChartData,

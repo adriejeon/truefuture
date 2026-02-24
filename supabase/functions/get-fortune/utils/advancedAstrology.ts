@@ -464,10 +464,10 @@ export const FIXED_STARS: FixedStar[] = [
   },
 ];
 
-/** Orb: 접근(Applying) 40분 = 40/60도 */
+/** Orb: 접근(Applying) 40분 = 40/60도 (연주 vs 트랜짓 항성) */
 export const STAR_TRANSIT_ORB_APPLYING_DEG = 40 / 60;
-/** Orb: 분리(Separating) 30분 = 30/60도 */
-export const STAR_TRANSIT_ORB_SEPARATING_DEG = 30 / 60;
+/** Orb: 분리(Separating) 20분 = 20/60도 (연주 vs 트랜짓 항성) */
+export const STAR_TRANSIT_ORB_SEPARATING_DEG = 20 / 60;
 
 /** 세차운동: (BirthYear - 2000) * PRECESSION_PER_YEAR → 항성 현재 황경 보정 */
 export const PRECESSION_PER_YEAR = 0.013969;
@@ -763,7 +763,7 @@ export interface StarTransitResult {
 /**
  * 트랜짓 행성이 항성과 회합(Conjunction)인지 판별.
  * - 오직 회합(Conjunction)만 체크.
- * - 접근(Applying): 0.67도 이내 / 분리(Separating): 0.5도 이내
+ * - 접근(Applying): 0.67도 이내 / 분리(Separating): 0.33도 이내
  * - 매칭 시 planetName에 해당하는 combinations 해석이 있으면 우선 사용, 없으면 meaning 사용.
  *
  * @param planetLongitude - 행성 황경 (도)
@@ -883,7 +883,7 @@ export function formatLordStarConjunctionsForPrompt(
 ): string {
   if (conjunctions.length === 0) {
     return `[연주 행성–항성 회합 (현재)]
-현재 연주 행성(${lordName})은 유의미한 항성 회합 범위(접근 0.67° / 분리 0.5° 이내)에 없습니다.`;
+현재 연주 행성(${lordName})은 유의미한 항성 회합 범위(접근 0.67° / 분리 0.33° 이내)에 없습니다.`;
   }
 
   const lines = [
