@@ -903,15 +903,21 @@ export const DAILY_ANGLE_ASPECT_TYPES = {
   OPPOSITION: { name: "Opposition" as const, angle: 180 },
 };
 
+/** 연주가 프로펙션 앵글 알림 대상에서 제외되는 무거운 행성 (목성, 토성) */
+const HEAVY_LORDS_EXCLUDED_FROM_ANGLE_ALERT = new Set(["Jupiter", "Saturn"]);
+
 /**
  * 연주 행성(Lord of the Year)이 프로펙션 별자리를 1하우스로 둔 차트에서
- * 1, 4, 7, 10번째 앵글 하우스에 진입했는지 검사
+ * 1, 4, 7, 10번째 앵글 하우스에 있으며, 해당 사인 내 0°~2°에 있을 때만 알림.
+ * 목성·토성은 무거운 행성이므로 이 알림 대상에서 제외.
  */
 export function getLordOfYearProfectionAngleEntry(
   transitChart: ChartData,
   lordOfTheYear: string,
   profectionSign: string
 ): LordProfectionAngleEntry | null {
+  if (HEAVY_LORDS_EXCLUDED_FROM_ANGLE_ALERT.has(lordOfTheYear)) return null;
+
   const lordKey = LORD_NAME_TO_KEY[lordOfTheYear];
   if (!lordKey) return null;
   const lordPlanet =
@@ -923,14 +929,16 @@ export function getLordOfYearProfectionAngleEntry(
   const profectionAscendant = natalAscIndex * 30;
   const lordLon = lordPlanet.degree;
   const house = getWholeSignHouse(lordLon, profectionAscendant);
-  if (house === 1 || house === 4 || house === 7 || house === 10) {
-    return {
-      inAngleHouse: true,
-      house: house as 1 | 4 | 7 | 10,
-      message: "올해 가장 중요한 이벤트 발생 시기",
-    };
-  }
-  return null;
+  if (house !== 1 && house !== 4 && house !== 7 && house !== 10) return null;
+
+  const degreeInSign = lordLon % 30;
+  if (degreeInSign > 2) return null;
+
+  return {
+    inAngleHouse: true,
+    house: house as 1 | 4 | 7 | 10,
+    message: "올해 가장 중요한 이벤트 발생 시기",
+  };
 }
 
 /**

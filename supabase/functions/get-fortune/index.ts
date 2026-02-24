@@ -173,7 +173,7 @@ function getConsultationFirstQuestionConfig(): Record<string, number> {
     temperature: 0.9,
     topK: 50,
     topP: 0.95,
-    maxOutputTokens: 8000,
+    maxOutputTokens: 10000,
   };
 }
 
@@ -197,7 +197,7 @@ function getGenerationConfig(fortuneType: FortuneType): any {
         temperature: 0.9,
         topK: 50,
         topP: 0.95,
-        maxOutputTokens: 8000,
+        maxOutputTokens: 9000,
       };
     case FortuneType.COMPATIBILITY:
     case FortuneType.YEARLY:
@@ -213,7 +213,7 @@ function getGenerationConfig(fortuneType: FortuneType): any {
         temperature: 0.9,
         topK: 50,
         topP: 0.95,
-        maxOutputTokens: 3000,
+        maxOutputTokens: 9000,
       };
   }
 }
