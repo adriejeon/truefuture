@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useLocation } from "react-router-dom";
 import { ASTROLOGY_PAGE_META, SITE_ORIGIN } from "../constants/seoMeta";
@@ -53,15 +54,34 @@ const ASTROLOGY_PRODUCT_JSON_LD = {
   ],
 };
 
+const JSON_LD_SCRIPT_ID = "astrology-product-ld-json";
+
 /**
  * 점성술/운세 결과 페이지 전용 SEO 메타.
  * og:url / canonical은 현재 라우트 기준으로 동적 할당 (프로덕션 도메인 사용).
- * JSON-LD Product 스키마를 head에 동적 삽입하여 GEO/리치 결과 노출을 지원.
+ * JSON-LD는 react-helmet-async가 script 본문을 head에 넣지 않는 이슈가 있어
+ * useEffect로 document.head에 직접 삽입/제거하여 확실히 렌더되도록 함.
  */
 function AstrologyPageHelmet() {
   const location = useLocation();
   const canonicalUrl = `${SITE_ORIGIN}${location.pathname}`;
   const { title, description, keywords, ogImage } = ASTROLOGY_PAGE_META;
+
+  useEffect(() => {
+    const existing = document.getElementById(JSON_LD_SCRIPT_ID);
+    if (existing) existing.remove();
+
+    const script = document.createElement("script");
+    script.id = JSON_LD_SCRIPT_ID;
+    script.type = "application/ld+json";
+    script.textContent = JSON.stringify(ASTROLOGY_PRODUCT_JSON_LD);
+    document.head.appendChild(script);
+
+    return () => {
+      const el = document.getElementById(JSON_LD_SCRIPT_ID);
+      if (el) el.remove();
+    };
+  }, [location.pathname]);
 
   return (
     <Helmet>
@@ -79,12 +99,6 @@ function AstrologyPageHelmet() {
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
       <meta name="twitter:image:alt" content={title} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(ASTROLOGY_PRODUCT_JSON_LD),
-        }}
-      />
     </Helmet>
   );
 }
