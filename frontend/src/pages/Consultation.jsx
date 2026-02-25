@@ -22,6 +22,7 @@ import {
   checkStarBalance,
 } from "../utils/starConsumption";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
+import LoginRequiredModal from "../components/LoginRequiredModal";
 
 // 카테고리 옵션 (백엔드 consultationTopic과 일치)
 const TOPIC_OPTIONS = [
@@ -242,6 +243,7 @@ function Consultation() {
   );
   const [historyLoadingFollowUp, setHistoryLoadingFollowUp] = useState(false);
   const [starModalMode, setStarModalMode] = useState("first"); // 'first' | 'followUp' | 'historyFollowUp' | 'sharedFollowUp'
+  const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
 
   // 공유 페이지에서의 후속 질문 (친구가 공유 링크로 들어왔을 때)
   const [sharedShowFollowUpInput, setSharedShowFollowUpInput] = useState(false);
@@ -640,7 +642,7 @@ function Consultation() {
       e?.preventDefault?.();
       if (!selectedProfile || !userQuestion.trim()) return;
       if (!user?.id) {
-        setError("로그인이 필요합니다.");
+        setShowLoginRequiredModal(true);
         return;
       }
 
@@ -691,7 +693,10 @@ function Consultation() {
 
   // 별 차감 후 운세 조회 (SSE 스트리밍)
   const handleConfirmStarUsage = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setShowLoginRequiredModal(true);
+      return;
+    }
 
     setLoadingConsultation(true);
     setError("");
@@ -802,7 +807,7 @@ function Consultation() {
     e?.preventDefault?.();
     if (!followUpQuestion.trim() || !consultationAnswer?.shareId) return;
     if (!user?.id) {
-      setError("로그인이 필요합니다.");
+      setShowLoginRequiredModal(true);
       return;
     }
 
@@ -845,7 +850,7 @@ function Consultation() {
     e?.preventDefault?.();
     if (!historyFollowUpQuestion.trim() || !historyView?.shareId || !resultId) return;
     if (!user?.id) {
-      setError("로그인이 필요합니다.");
+      setShowLoginRequiredModal(true);
       return;
     }
     if (!selectedProfile) {
@@ -1039,7 +1044,7 @@ function Consultation() {
     e?.preventDefault?.();
     if (!sharedFollowUpQuestion.trim() || !sharedConsultation?.shareId) return;
     if (!user?.id) {
-      setError("로그인이 필요합니다.");
+      setShowLoginRequiredModal(true);
       return;
     }
     if (!selectedProfile) {
@@ -1064,7 +1069,11 @@ function Consultation() {
   };
 
   const handleConfirmSharedFollowUpStarUsage = useCallback(async () => {
-    if (!user?.id || !sharedConsultation?.shareId || !sharedFollowUpQuestion.trim() || !selectedProfile) return;
+    if (!user?.id) {
+      setShowLoginRequiredModal(true);
+      return;
+    }
+    if (!sharedConsultation?.shareId || !sharedFollowUpQuestion.trim() || !selectedProfile) return;
 
     setSharedLoadingFollowUp(true);
     setError("");
@@ -1134,19 +1143,10 @@ function Consultation() {
     loadSharedConsultation,
   ]);
 
-  // 인증 로딩 중
-  if (loadingAuth) {
-    return (
-      <div className="w-full flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-slate-400 text-sm sm:text-base">로딩 중...</p>
-        </div>
-      </div>
-    );
-  }
+  // 인증 로딩 중에는 스피너만 보이고, 화면/SEO를 가리지 않도록 블록하지 않음 (아래 공유 로딩/공유 뷰/메인으로 진행)
+  // SEO 및 비로그인 노출을 위해 진입 차단 제거
 
-  // 앱 내 대화 목록에서 연 경우 vs 공유 링크로 연 경우 구분 (로딩 문구·공유 뷰 판단에 사용)
+  // 앱 내 대화 목록에서 연 경우 vs 공유 링크로 연 경우 구분
   const fromHistoryDrawer = Boolean(location.state?.fromHistory);
 
   // 공유 링크로 들어온 경우에만 로딩 스피너 (URL에 id가 있을 때). 과거 이력 전용 로딩과 분리해 플래시 방지.
@@ -1407,31 +1407,13 @@ function Consultation() {
             </div>
           </div>
         )}
-        {user && <BottomNavigation />}
-      </div>
-    );
-  }
-
-  // 로그인 필요 (공유 뷰가 아닐 때만: 공유 링크는 로그인 없이 열람 가능)
-  if (!user) {
-    return (
-      <div className="w-full max-w-[600px] mx-auto px-4 py-12">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">
-            로그인이 필요합니다
-          </h2>
-          <p className="text-slate-300 mb-6">
-            진짜미래는 로그인 후 이용하실 수 있습니다.
-          </p>
-          <PrimaryButton as="a" href="/login" variant="gold">
-            로그인하기
-          </PrimaryButton>
-        </div>
+        <BottomNavigation />
       </div>
     );
   }
 
   // 히스토리 뷰 (대화 목록에서 클릭한 경우, 또는 /consultation/:resultId 로만 들어온 경우)
+  // 비로그인 시 진입 차단하지 않음: 메인 UI는 항상 렌더링, 프로필/제출 액션 시에만 로그인 모달
   if (historyView) {
     return (
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
@@ -1917,7 +1899,7 @@ function Consultation() {
             </div>
           </div>
         )}
-        {user && <BottomNavigation />}
+        <BottomNavigation />
 
         {/* 히스토리 뷰에서도 별 차감 모달 노출 필요 (후속 질문 시 확인 모달) */}
         <StarModal
@@ -1943,6 +1925,11 @@ function Consultation() {
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
       <AstrologyPageHelmet />
+      <LoginRequiredModal
+        isOpen={showLoginRequiredModal}
+        onClose={() => setShowLoginRequiredModal(false)}
+        description="진짜미래는 로그인 후 이용하실 수 있습니다."
+      />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
@@ -1967,7 +1954,13 @@ function Consultation() {
               profiles={profiles}
               selectedProfile={selectedProfile}
               onSelectProfile={selectProfile}
-              onCreateProfile={() => setShowProfileModal(true)}
+              onCreateProfile={() => {
+                if (!user) {
+                  setShowLoginRequiredModal(true);
+                  return;
+                }
+                setShowProfileModal(true);
+              }}
               onDeleteProfile={deleteProfile}
               loading={profilesLoading}
             />
@@ -2639,7 +2632,7 @@ function Consultation() {
           </div>
         )}
 
-      {user && <BottomNavigation />}
+      <BottomNavigation />
 
       {/* 프로필 등록 모달 */}
       <ProfileModal

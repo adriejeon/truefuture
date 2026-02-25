@@ -194,9 +194,7 @@ function Home() {
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
       <div
-        className={`w-full max-w-[600px] mx-auto px-4 ${
-          !user && !interpretation ? "" : "pb-20 sm:pb-24"
-        }`}
+        className={`w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24`}
         style={{ position: "relative", zIndex: 1 }}
       >
         {/* 메인 히어로: 피그마 원본 디자인 스펙 (반응형 비율 적용) */}
@@ -409,7 +407,7 @@ function Home() {
             );
           })()}
       </div>
-      {user && <BottomNavigation />}
+      <BottomNavigation />
 
       <ProfileModal
         isOpen={showProfileModal}

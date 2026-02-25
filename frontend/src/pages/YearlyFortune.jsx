@@ -27,6 +27,7 @@ import {
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
+import LoginRequiredModal from "../components/LoginRequiredModal";
 
 // 운세 타입 탭
 const FORTUNE_TABS = [
@@ -85,6 +86,7 @@ function YearlyFortune() {
     current: 0,
   });
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
 
   // 데일리 운세용: 한국 시간 기준 오늘 날짜
   const getKoreaTime = () => {
@@ -178,10 +180,9 @@ function YearlyFortune() {
     }
   };
 
-  // 로그인 필요 액션 처리
+  // 로그인 필요 액션 시 모달 표시 (진입 차단 대신 Soft Gating)
   const handleRequireLogin = () => {
-    alert("로그인이 필요합니다.");
-    navigate("/");
+    setShowLoginRequiredModal(true);
   };
 
   // 프로필 데이터를 API 형식으로 변환하는 함수
@@ -414,7 +415,7 @@ function YearlyFortune() {
   const handleSubmitDaily = async (e) => {
     e.preventDefault();
     if (!user) {
-      handleRequireLogin();
+      setShowLoginRequiredModal(true);
       return;
     }
     if (!selectedProfile) {
@@ -572,12 +573,8 @@ function YearlyFortune() {
 
   const handleSubmitLifetime = async (e) => {
     e.preventDefault();
-    if (isSharedFortune && !user) {
-      handleRequireLogin();
-      return;
-    }
     if (!user) {
-      handleRequireLogin();
+      setShowLoginRequiredModal(true);
       return;
     }
     if (!selectedProfile) {
@@ -746,17 +743,6 @@ function YearlyFortune() {
     !getTodayFortuneFromStorage(selectedProfile?.id);
   const canViewLifetime = fortuneAvailability.lifetime === true;
 
-  if (loadingAuth) {
-    return (
-      <div className="w-full flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-slate-400 text-sm sm:text-base">로딩 중...</p>
-        </div>
-      </div>
-    );
-  }
-
   // 공유 링크: 로그인 여부 무관하게 '친구가 공유한 운세 결과'만 표시 (프로필 선택기 없음)
   const sharedId = searchParams.get("id");
   if (sharedId) {
@@ -811,11 +797,6 @@ function YearlyFortune() {
     }
   }
 
-  if (!user && !loadingAuth) {
-    navigate("/");
-    return null;
-  }
-
   const getSubmitHandler = () => {
     if (fortuneTab === "daily") return handleSubmitDaily;
     return handleSubmitLifetime;
@@ -833,6 +814,11 @@ function YearlyFortune() {
       style={{ position: "relative", zIndex: 1 }}
     >
       <AstrologyPageHelmet />
+      <LoginRequiredModal
+        isOpen={showLoginRequiredModal}
+        onClose={() => setShowLoginRequiredModal(false)}
+        description="진짜 운세는 로그인 후 이용하실 수 있습니다."
+      />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
@@ -897,7 +883,13 @@ function YearlyFortune() {
             profiles={profiles}
             selectedProfile={selectedProfile}
             onSelectProfile={selectProfile}
-            onCreateProfile={() => setShowProfileModal(true)}
+            onCreateProfile={() => {
+              if (!user) {
+                setShowLoginRequiredModal(true);
+                return;
+              }
+              setShowProfileModal(true);
+            }}
             onDeleteProfile={deleteProfile}
             loading={profilesLoading}
           />
@@ -975,7 +967,7 @@ function YearlyFortune() {
           </div>
         )}
       </div>
-      {user && <BottomNavigation activeTab="yearly" />}
+      <BottomNavigation activeTab="yearly" />
 
       {/* 데일리 운세 별 차감 확인 / 잔액 부족 모달 */}
       <StarModal

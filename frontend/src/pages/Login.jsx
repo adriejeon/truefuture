@@ -1,18 +1,20 @@
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import { useAuth } from "../hooks/useAuth";
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 function Login() {
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // 이미 로그인한 경우 홈으로 리다이렉트
+  // 이미 로그인한 경우: 이전 페이지(from) 또는 홈으로 리다이렉트
   useEffect(() => {
     if (!loadingAuth && user) {
-      navigate("/");
+      const from = location.state?.from?.pathname;
+      navigate(from || "/", { replace: true });
     }
-  }, [user, loadingAuth, navigate]);
+  }, [user, loadingAuth, navigate, location.state?.from?.pathname]);
 
   if (loadingAuth) {
     return (

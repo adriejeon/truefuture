@@ -23,6 +23,7 @@ import {
   checkStarBalance,
 } from "../utils/starConsumption";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
+import LoginRequiredModal from "../components/LoginRequiredModal";
 
 function Compatibility() {
   const { user, loadingAuth } = useAuth();
@@ -65,6 +66,7 @@ function Compatibility() {
     required: FORTUNE_STAR_COSTS.compatibility,
     current: 0,
   });
+  const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
 
   // 카카오 공유용 궁합 한 줄 요약 (점수 + 이름)
   const compatibilityShareSummary = useMemo(() => {
@@ -212,10 +214,9 @@ function Compatibility() {
     }
   };
 
-  // 로그인 필요 액션 처리
+  // 로그인 필요 액션 시 모달 표시 (진입 차단 대신 Soft Gating)
   const handleRequireLogin = () => {
-    alert("로그인이 필요합니다.");
-    navigate("/");
+    setShowLoginRequiredModal(true);
   };
 
   // 프로필 데이터를 API 형식으로 변환하는 함수
@@ -286,11 +287,12 @@ function Compatibility() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 공유 링크로 들어온 경우 로그인 필요
-    if (isSharedFortune && !user) {
-      handleRequireLogin();
+    if (!user) {
+      setShowLoginRequiredModal(true);
       return;
     }
+
+    // 공유 링크로 들어온 경우 로그인 필요 (이미 위에서 처리)
 
     // 두 프로필이 선택되었는지 확인
     if (!profile1) {
@@ -440,19 +442,7 @@ function Compatibility() {
     }
   };
 
-  if (loadingAuth) {
-    return (
-      <div className="w-full flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-slate-400 text-sm sm:text-base">로딩 중...</p>
-        </div>
-      </div>
-    );
-  }
-
   // 공유 링크 확인 (URL에 id 파라미터가 있는지)
-  // 공유 링크: 로그인 여부 무관하게 '친구가 공유한 운세 결과'만 표시 (프로필 선택기 없음)
   const sharedId = searchParams.get("id");
   const fromHistory = searchParams.get("from") === "history"; // 내역에서 클릭한 경우
   if (sharedId && !fromHistory) {
@@ -501,17 +491,17 @@ function Compatibility() {
     }
   }
 
-  if (!user && !loadingAuth) {
-    navigate("/");
-    return null;
-  }
-
   return (
     <div
       className="w-full py-8 sm:py-12"
       style={{ position: "relative", zIndex: 1 }}
     >
       <AstrologyPageHelmet />
+      <LoginRequiredModal
+        isOpen={showLoginRequiredModal}
+        onClose={() => setShowLoginRequiredModal(false)}
+        description="진짜 궁합은 로그인 후 이용하실 수 있습니다."
+      />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
@@ -536,7 +526,13 @@ function Compatibility() {
               profiles={profiles}
               selectedProfile={profile1}
               onSelectProfile={setProfile1}
-              onCreateProfile={() => setShowProfileModal(true)}
+              onCreateProfile={() => {
+                if (!user) {
+                  setShowLoginRequiredModal(true);
+                  return;
+                }
+                setShowProfileModal(true);
+              }}
               onDeleteProfile={handleDeleteProfile}
               loading={profilesLoading}
             />
@@ -562,7 +558,13 @@ function Compatibility() {
               profiles={profiles}
               selectedProfile={profile2}
               onSelectProfile={setProfile2}
-              onCreateProfile={() => setShowProfileModal(true)}
+              onCreateProfile={() => {
+                if (!user) {
+                  setShowLoginRequiredModal(true);
+                  return;
+                }
+                setShowProfileModal(true);
+              }}
               onDeleteProfile={handleDeleteProfile}
               loading={profilesLoading}
             />
@@ -657,7 +659,7 @@ function Compatibility() {
           </div>
         )}
       </div>
-      {user && <BottomNavigation activeTab="compatibility" />}
+      <BottomNavigation activeTab="compatibility" />
 
       {/* 별 차감 확인 / 잔액 부족 모달 */}
       <StarModal
