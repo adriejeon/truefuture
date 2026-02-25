@@ -309,6 +309,7 @@ function Home() {
                 to={user ? "/consultation" : "/login"}
                 variant="gold"
                 fullWidth
+                aria-label="100% 리얼 정통 고전 점성술 컨설팅, 진짜미래 보러가기"
               >
                 진짜미래 보러가기
               </PrimaryButton>
