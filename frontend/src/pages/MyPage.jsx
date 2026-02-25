@@ -168,7 +168,6 @@ function MyPage() {
           <div className="text-center">
             <p className="text-slate-300 text-sm mb-3">보유 운세권</p>
             <div className="flex items-center justify-center gap-2 mb-4">
-              <span className="text-3xl">🎫</span>
               <span className="text-3xl font-bold text-white">
                 {stars.total.toLocaleString()}
               </span>
