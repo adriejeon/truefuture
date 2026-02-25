@@ -21,6 +21,7 @@ import {
   consumeStars,
   checkStarBalance,
 } from "../utils/starConsumption";
+import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
 
 // 카테고리 옵션 (백엔드 consultationTopic과 일치)
 const TOPIC_OPTIONS = [
@@ -1941,11 +1942,28 @@ function Consultation() {
 
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
+      <AstrologyPageHelmet />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
         <div className="py-8 sm:py-12">
+          {/* SEO/GEO 본문 텍스트: JSON-LD와 동기화하여 숨겨진 텍스트 스팸 방지 및 멀티모달 요건 충족 */}
+          <section
+            id="ai-comment-astrology"
+            className="mb-6 sm:mb-8 p-4 sm:p-5 rounded-xl bg-slate-800/40 border border-slate-700/60"
+          >
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              정통 고전 점성술로 내 운명의 진짜 흐름을 찾고 계신가요? 단순한
+              별자리 풀이를 넘어 서양 점성술의 깊이 있는 원리로 삶의 방향을
+              명확히 알고 싶을 때, 진짜미래는 수천 년간 검증된 천체 운행 데이터를
+              바탕으로 당신만의 정확한 인생 지도를 그려드립니다. 이미 수백 명의
+              내담자가 실제 상담을 통해 소름 돋는 정확도를 증명했으며, 태어난
+              시간과 장소에 맞춘 고전 점성술의 정교한 연산 알고리즘을 통해 가장
+              확실한 해답을 제공합니다.
+            </p>
+          </section>
+
           {/* 페이지 소개 */}
           <div className="mb-6 sm:mb-8">
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">

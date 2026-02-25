@@ -26,6 +26,7 @@ import {
 } from "../utils/starConsumption";
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
+import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
 
 // 운세 타입 탭
 const FORTUNE_TABS = [
@@ -831,6 +832,7 @@ function YearlyFortune() {
       className="w-full py-8 sm:py-12"
       style={{ position: "relative", zIndex: 1 }}
     >
+      <AstrologyPageHelmet />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
@@ -1022,7 +1024,7 @@ function YearlyFortune() {
               <div className="w-full flex justify-center mb-4">
                 <img
                   src="/assets/welcome.png"
-                  alt="환영합니다"
+                  alt="진짜미래 고전 점성술 천체 운행 데이터 기반 인생 지도"
                   className="max-w-[100px] h-auto"
                 />
               </div>

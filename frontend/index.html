@@ -47,88 +47,25 @@
     <meta name="theme-color" content="#343261" />
     <meta name="color-scheme" content="dark light" />
 
-    <!-- SEO Meta Tags -->
+    <!-- SEO Fallback: Helmet이 로드되기 전/기본 페이지용. 동적 페이지는 react-helmet-async로 덮어씀 -->
     <title>진짜미래 | 더 나은 미래를 위한 운명 컨설팅</title>
     <meta
       name="description"
       content="운명에 끌려가지 마세요. 점성학 정밀 분석을 통해 미래의 흐름을 읽고, 더 나은 내일을 위한 확실한 전략을 제시합니다. 단순한 운세 풀이가 아닌, 삶을 변화시키는 운명 컨설팅 '진짜미래'를 지금 경험하세요."
     />
-    <meta
-      name="keywords"
-      content="진짜미래, 점성학, 점성술, 운세, 타로, 사주, 별자리, 연애운, 금전운, 직장운, 결혼운, 자녀운, 건강운, 신년운세"
-    />
-    <meta name="author" content="진짜미래" />
-    <meta name="robots" content="index, follow" />
-    <meta name="googlebot" content="index, follow" />
-    <meta name="language" content="Korean" />
 
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph / Twitter 기본값: 앱 단위 공통만. url/title/description은 Helmet에서 라우트별 설정 -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://truefuture.kr" />
     <meta property="og:site_name" content="진짜미래" />
-    <meta
-      property="og:title"
-      content="진짜미래 | 더 나은 미래를 위한 운명 컨설팅"
-    />
-    <meta
-      property="og:description"
-      content="운명에 끌려가지 마세요. 점성학 정밀 분석을 통해 미래의 흐름을 읽고, 더 나은 내일을 위한 확실한 전략을 제시합니다. 단순한 운세 풀이가 아닌, 삶을 변화시키는 운명 컨설팅 '진짜미래'를 지금 경험하세요."
-    />
-    <meta
-      property="og:image"
-      content="https://truefuture.kr/assets/1200x630.png"
-    />
+    <meta property="og:image" content="https://truefuture.kr/assets/1200x630.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta
-      property="og:image:alt"
-      content="진짜미래 | 더 나은 미래를 위한 운명 컨설팅"
-    />
     <meta property="og:locale" content="ko_KR" />
-
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://truefuture.kr" />
-    <meta
-      name="twitter:title"
-      content="진짜미래 | 더 나은 미래를 위한 운명 컨설팅"
-    />
-    <meta
-      name="twitter:description"
-      content="운명에 끌려가지 마세요. 점성학 정밀 분석을 통해 미래의 흐름을 읽고, 더 나은 내일을 위한 확실한 전략을 제시합니다. 단순한 운세 풀이가 아닌, 삶을 변화시키는 운명 컨설팅 '진짜미래'를 지금 경험하세요."
-    />
     <meta
       name="twitter:image"
       content="https://truefuture.kr/assets/1200x630.png"
     />
-    <meta
-      name="twitter:image:alt"
-      content="진짜미래 | 더 나은 미래를 위한 운명 컨설팅"
-    />
-
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://truefuture.kr" />
-
-    <!-- Structured Data (JSON-LD) -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "진짜미래",
-        "alternateName": "TrueFuture",
-        "url": "https://truefuture.kr",
-        "description": "운명에 끌려가지 마세요. 점성학 정밀 분석을 통해 미래의 흐름을 읽고, 더 나은 내일을 위한 확실한 전략을 제시합니다. 단순한 운세 풀이가 아닌, 삶을 변화시키는 운명 컨설팅 '진짜미래'를 지금 경험하세요.",
-        "applicationCategory": "LifestyleApplication",
-        "operatingSystem": "Web",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "KRW"
-        },
-        "inLanguage": "ko-KR",
-        "keywords": "진짜미래, 점성학, 점성술, 운세, 오늘의운세, 별자리, 연애운, 금전운, 재물운, 직업운, 취업운, 결혼운, 자녀운, 타로, 사주"
-      }
-    </script>
 
     <!-- 카카오톡 SDK -->
     <script

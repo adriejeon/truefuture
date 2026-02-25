@@ -205,7 +205,7 @@ function Home() {
             <div className="relative w-full inline-block">
               <img
                 src="/assets/main.png"
-                alt="진짜미래"
+                alt="진짜미래 고전 점성술 천체 운행 데이터 기반 인생 지도"
                 className="w-full h-auto object-contain block"
               />
               <div className="absolute top-[42.8%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[15%] sm:w-[12%] md:w-[10%] max-w-[320px] aspect-square z-10">
@@ -338,7 +338,7 @@ function Home() {
               <div className="w-full flex justify-center mb-4">
                 <img
                   src="/assets/welcome.png"
-                  alt="환영합니다"
+                  alt="진짜미래 고전 점성술 천체 운행 데이터 기반 인생 지도"
                   className="max-w-[100px] h-auto"
                 />
               </div>
