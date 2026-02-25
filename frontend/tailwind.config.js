@@ -9,6 +9,10 @@ export default {
         primary: colors.primary,
         subText: colors.subText,
       },
+      fontFamily: {
+        noto: ['"Noto Serif KR"', "serif"],
+        gmarket: ["GmarketSansBold", "GmarketSansMedium", "sans-serif"],
+      },
       keyframes: {
         "article-cross-fade-1": {
           "0%, 100%": {
@@ -30,6 +34,14 @@ export default {
             transform: "rotate(360deg) scale(1)",
           },
         },
+        "spin-slow": {
+          from: { transform: "rotate(0deg)" },
+          to: { transform: "rotate(360deg)" },
+        },
+        "spin-slow-center": {
+          from: { transform: "translate(-50%, -50%) rotate(0deg)" },
+          to: { transform: "translate(-50%, -50%) rotate(360deg)" },
+        },
         "scale-in": {
           "0%": {
             opacity: "0",
@@ -48,6 +60,8 @@ export default {
       animation: {
         "article-cross-fade-1": "article-cross-fade-1 6s ease-in-out infinite",
         "article-cross-fade-2": "article-cross-fade-2 6s ease-in-out infinite",
+        "spin-slow": "spin-slow 12s linear infinite",
+        "spin-slow-center": "spin-slow-center 12s linear infinite",
         "scale-in": "scale-in 0.2s ease-out",
         shimmer: "shimmer 1.5s ease-in-out infinite",
       },

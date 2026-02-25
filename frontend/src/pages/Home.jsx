@@ -69,7 +69,7 @@ function Home() {
     if (isInApp && appName) {
       const redirectSuccess = redirectToExternalBrowser(
         appName,
-        window.location.href
+        window.location.href,
       );
 
       if (!redirectSuccess) {
@@ -106,7 +106,7 @@ function Home() {
         {
           method: "GET",
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!response.ok) throw new Error("운세를 불러올 수 없습니다.");
@@ -140,7 +140,7 @@ function Home() {
 
     if (!email || !password) {
       alert(
-        "테스트 계정이 설정되지 않았습니다.\n.env에 VITE_TEST_LOGIN_EMAIL, VITE_TEST_LOGIN_PASSWORD를 설정해 주세요."
+        "테스트 계정이 설정되지 않았습니다.\n.env에 VITE_TEST_LOGIN_EMAIL, VITE_TEST_LOGIN_PASSWORD를 설정해 주세요.",
       );
       return;
     }
@@ -160,7 +160,7 @@ function Home() {
       if (error) {
         if (error.message?.includes("Invalid login credentials")) {
           alert(
-            "테스트 계정 로그인에 실패했습니다.\nSupabase 대시보드 > Auth > Users에서 해당 이메일/비밀번호 사용자를 추가했는지 확인해 주세요."
+            "테스트 계정 로그인에 실패했습니다.\nSupabase 대시보드 > Auth > Users에서 해당 이메일/비밀번호 사용자를 추가했는지 확인해 주세요.",
           );
         } else {
           alert(`로그인 실패: ${error.message}`);
@@ -199,29 +199,113 @@ function Home() {
         }`}
         style={{ position: "relative", zIndex: 1 }}
       >
-        {/* 메인 이미지 + 로그인 CTA (로그인 여부와 관계없이 표시) */}
+        {/* 메인 히어로: 피그마 원본 디자인 스펙 (반응형 비율 적용) */}
         {!interpretation && (
-          <div className="w-full">
-            <div className="relative w-full inline-block">
+          <div className="w-full font-noto flex flex-col items-center text-center pt-4 sm:pt-6">
+            {/* [1] 상단 텍스트 영역 (Top Section) - 1200px 기준 clamp */}
+            <section className="flex flex-col items-center gap-[clamp(16px,5vw,30px)] w-full px-4">
+              <img src="/assets/divider1.png" alt="" className="w-full h-auto" />
+
+              <p className="text-[#D8D8ED] text-center font-noto text-[clamp(16px,5vw,30px)] font-light leading-[1.48] tracking-[-2.4px]">
+                틀린 운세에 돈 쓰기엔,
+                <br />
+                당신의 운이 아깝습니다.
+              </p>
+
               <img
-                src="/assets/main.png"
-                alt="진짜미래 고전 점성술 천체 운행 데이터 기반 인생 지도"
-                className="w-full h-auto object-contain block"
+                src="/assets/divider2.png"
+                alt=""
+                className="w-[5%] min-w-[20px] max-w-[40px] h-auto"
               />
-              <div className="absolute top-[42.8%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[15%] sm:w-[12%] md:w-[10%] max-w-[320px] aspect-square z-10">
+
+              <p className="text-[#D8D8ED] text-center font-noto text-[clamp(15.47px,4.833vw,29px)] font-light leading-[1.68] tracking-[-2.32px]">
+                진짜가 나타났습니다. 100% 리얼 점성술.
+              </p>
+
+              <div className="flex flex-col items-center gap-[clamp(2px,0.5vw,6px)]">
+                <p className="text-[#FFFFFF] text-center font-noto text-[clamp(18.13px,5.667vw,34px)] font-light leading-[1.68] tracking-[-2.72px]">
+                  20년 경력의 진짜 점성술사가 만든
+                </p>
+                <h1 className="font-gmarket text-[clamp(36.85px,11.51vw,69.09px)] font-bold leading-normal text-primary">
+                  진짜 미래
+                </h1>
+              </div>
+            </section>
+
+            {/* [2] 중앙 그래픽 영역 (Graphic Section) */}
+            <section className="relative w-full mx-auto px-4 py-6 sm:py-8 flex flex-col items-center">
+              <div className="relative w-full aspect-square">
+                <img
+                  src="/assets/graphic.png"
+                  alt="진짜미래 고전 점성술"
+                  className="w-full h-full object-contain block"
+                />
                 <img
                   src="/assets/article.png"
                   alt=""
-                  className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-1"
-                />
-                <img
-                  src="/assets/article1.png"
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-contain animate-article-cross-fade-2"
+                  className="absolute top-[48.5%] left-1/2 w-[20%] h-auto object-contain animate-article-spin-center"
                 />
               </div>
-            </div>
-            <div className="w-full mt-6 sm:mt-8 mb-6 sm:mb-8 px-0">
+            </section>
+
+            {/* [3] 하단 텍스트 영역 (Bottom Section) - 1200px 기준 clamp */}
+            <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full px-4">
+              <div className="flex flex-col items-center text-center">
+                <p className="text-[#FFFFFF] font-noto text-[clamp(15px,4.8vw,28px)] font-light leading-[1.48]">
+                  미래를 미리 알면,
+                </p>
+                <p className="text-primary font-noto text-[clamp(15px,4.8vw,28px)] font-medium leading-[1.48]">
+                  더 좋은 미래로 바꿀 수 있습니다.
+                </p>
+              </div>
+
+              <div className="flex flex-col items-center text-center">
+                <p className="text-primary font-noto text-[clamp(18px,5.8vw,34px)] font-medium leading-[1.58]">
+                  단돈 1,000원,
+                </p>
+                <p className="text-[#FFFFFF] font-noto text-[clamp(15px,4.8vw,28px)] font-medium leading-[1.58]">
+                  진짜 미래를 확인하고 내일을 바꾸세요.
+                </p>
+              </div>
+
+              <img
+                src="/assets/divider3.png"
+                alt=""
+                className="w-[5%] min-w-[20px] max-w-[40px] h-auto"
+              />
+
+              <div className="flex flex-col items-center gap-[clamp(4px,1vw,10px)]">
+                <p className="text-[#D8D8ED] text-center font-noto text-[clamp(17.07px,5.333vw,32px)] font-light leading-[1.48]">
+                  &ldquo;백만장자는 점성술을 안 믿지만,
+                  <br />
+                  억만장자는 믿는다.&rdquo;
+                </p>
+                <p className="text-[#D8D8ED] text-center font-noto text-[clamp(10px,3vw,18px)] font-light leading-[1.68]">
+                  JP 모건
+                </p>
+              </div>
+
+              <p className="text-[#D8D8ED] text-center font-noto text-[clamp(13.87px,4.333vw,26px)] font-light leading-[1.68]">
+                미국 금융의 아버지 JP 모건,
+                <br />
+                그는 이미 알고 있었습니다.
+              </p>
+
+              <p className="text-[#D8D8ED] text-center font-noto text-[clamp(13.87px,4.333vw,26px)] font-light leading-[1.68]">
+                더 높이 오르려면
+                <br />
+                &lsquo;운의 흐름&rsquo;을 읽어야 한다는 것을.
+              </p>
+
+              <img
+                src="/assets/divider2.png"
+                alt=""
+                className="w-[5%] min-w-[20px] max-w-[40px] h-auto"
+              />
+            </section>
+
+            {/* CTA 버튼 */}
+            <div className="w-full font-sans mt-6 sm:mt-8 mb-6 sm:mb-8 px-0">
               <PrimaryButton
                 as={Link}
                 to={user ? "/consultation" : "/login"}
@@ -283,37 +367,47 @@ function Home() {
         )}
 
         {/* 공유된 운세 표시 */}
-        {isSharedFortune && interpretation && (() => {
-          const profileName = sharedUserInfo?.profileName?.trim() || "";
-          const sharedTitle =
-            sharedFortuneType === "consultation"
-              ? profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요"
-              : sharedFortuneType === "daily"
-              ? profileName ? `${profileName}님의 진짜 오늘이에요` : "진짜 오늘이에요"
-              : sharedFortuneType === "lifetime"
-              ? profileName ? `${profileName}님의 진짜 인생이에요` : "진짜 인생이에요"
-              : profileName ? `${profileName}님의 운세` : "공유된 운세";
+        {isSharedFortune &&
+          interpretation &&
+          (() => {
+            const profileName = sharedUserInfo?.profileName?.trim() || "";
+            const sharedTitle =
+              sharedFortuneType === "consultation"
+                ? profileName
+                  ? `${profileName}님의 진짜 미래예요`
+                  : "진짜 미래예요"
+                : sharedFortuneType === "daily"
+                  ? profileName
+                    ? `${profileName}님의 진짜 오늘이에요`
+                    : "진짜 오늘이에요"
+                  : sharedFortuneType === "lifetime"
+                    ? profileName
+                      ? `${profileName}님의 진짜 인생이에요`
+                      : "진짜 인생이에요"
+                    : profileName
+                      ? `${profileName}님의 운세`
+                      : "공유된 운세";
 
-          return (
-            <div className="mb-6 sm:mb-8">
-              <FortuneResult
-                title={sharedTitle}
-                interpretation={interpretation}
-                shareId={shareId}
-                isShared={true}
-              />
+            return (
+              <div className="mb-6 sm:mb-8">
+                <FortuneResult
+                  title={sharedTitle}
+                  interpretation={interpretation}
+                  shareId={shareId}
+                  isShared={true}
+                />
 
-              {!user && (
-                <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
-                  <p className="text-center text-slate-300 mb-4 text-base">
-                    나도 내 운세를 확인하고 싶다면?
-                  </p>
-                  <SocialLoginButtons />
-                </div>
-              )}
-            </div>
-          );
-        })()}
+                {!user && (
+                  <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
+                    <p className="text-center text-slate-300 mb-4 text-base">
+                      나도 내 운세를 확인하고 싶다면?
+                    </p>
+                    <SocialLoginButtons />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
       </div>
       {user && <BottomNavigation />}
 

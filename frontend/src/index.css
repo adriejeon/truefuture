@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Gmarket Sans (메인 홈 브랜드 타이틀 전용) */
+@font-face {
+  font-family: "GmarketSansMedium";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff")
+    format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "GmarketSansBold";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff")
+    format("woff");
+  font-weight: 700;
+  font-style: normal;
+}
+
 @layer base {
   :root {
     --color-sub-text: #343261; /* colors.js에서 동기화 필요 */
@@ -168,6 +184,20 @@ a {
 
 .animate-article-cross-fade-2 {
   animation: article-cross-fade-2 6s ease-in-out infinite;
+}
+
+/* Home 메인 그래픽: article 이미지 중앙 회전 (translate 유지) */
+@keyframes article-spin-center {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.animate-article-spin-center {
+  animation: article-spin-center 12s linear infinite;
 }
 
 /* Consultation 로딩 메시지 Fade In/Out 애니메이션 */
