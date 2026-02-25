@@ -1948,11 +1948,8 @@ function Consultation() {
         style={{ position: "relative", zIndex: 1 }}
       >
         <div className="py-8 sm:py-12">
-          {/* SEO/GEO 본문 텍스트: JSON-LD와 동기화하여 숨겨진 텍스트 스팸 방지 및 멀티모달 요건 충족 */}
-          <section
-            id="ai-comment-astrology"
-            className="mb-6 sm:mb-8 p-4 sm:p-5 rounded-xl bg-slate-800/40 border border-slate-700/60"
-          >
+          {/* 페이지 소개 (SEO/GEO 본문 텍스트 동기화용 section id 유지) */}
+          <section id="ai-comment-astrology" className="mb-6 sm:mb-8">
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
               정통 고전 점성술로 내 운명의 진짜 흐름을 찾고 계신가요? 단순한
               별자리 풀이를 넘어 서양 점성술의 깊이 있는 원리로 삶의 방향을
@@ -1963,14 +1960,6 @@ function Consultation() {
               확실한 해답을 제공합니다.
             </p>
           </section>
-
-          {/* 페이지 소개 */}
-          <div className="mb-6 sm:mb-8">
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              궁금한 것을 구체적으로 물어보세요. 점성술사 AI가 내담자님의 점성학
-              차트와 현재 우주의 흐름을 분석하여 진짜 미래를 알려드립니다.
-            </p>
-          </div>
 
           {/* 프로필 선택 */}
           <div className="mb-6 sm:mb-8">
