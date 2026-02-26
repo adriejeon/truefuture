@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
@@ -523,6 +523,12 @@ function LifetimeFortune() {
           >
             진짜미래 확인
           </PrimaryButton>
+          <Link
+            to="/faq"
+            className="block mt-3 text-center text-sm text-slate-400 hover:text-white transition-colors duration-200"
+          >
+            궁금한 점이 있으신가요?
+          </Link>
         </form>
 
         {/* 로딩 모달: waiting 상태에서만 */}

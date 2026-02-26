@@ -13,6 +13,7 @@ import Consultation from "./pages/Consultation";
 import Home from "./pages/Home";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
+import FAQ from "./pages/FAQ";
 import Login from "./pages/Login";
 import Purchase from "./pages/Purchase";
 import PurchaseHistory from "./pages/PurchaseHistory";
@@ -88,6 +89,7 @@ function AppContent() {
           <Route path="/refund-inquiry" element={<RefundInquiry />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/faq" element={<FAQ />} />
         </Routes>
       </main>
       {showFooter && <Footer />}

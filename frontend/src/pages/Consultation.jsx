@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams, useParams, useNavigate, useLocation } from "react-router-dom";
+import { useSearchParams, useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -2081,6 +2081,12 @@ function Consultation() {
                 >
                   진짜미래 확인
                 </PrimaryButton>
+                <Link
+                  to="/faq"
+                  className="block mt-3 text-center text-sm text-slate-400 hover:text-white transition-colors duration-200"
+                >
+                  궁금한 점이 있으신가요?
+                </Link>
               </form>
 
               {/* 로딩 모달: waiting 또는 streaming 상태에서 중앙 애니메이션 */}

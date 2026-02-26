@@ -38,6 +38,11 @@ const routes = [
     changefreq: 'monthly',
     priority: 0.3,
   },
+  {
+    url: 'https://truefuture.kr/faq',
+    changefreq: 'monthly',
+    priority: 0.3,
+  },
 ];
 
 // 현재 날짜를 ISO 형식으로

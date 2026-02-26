@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
@@ -619,6 +619,12 @@ function Compatibility() {
           >
             <span>진짜 궁합 확인하기</span>
           </button>
+          <Link
+            to="/faq"
+            className="block mt-3 text-center text-sm text-slate-400 hover:text-white transition-colors duration-200"
+          >
+            궁금한 점이 있으신가요?
+          </Link>
         </form>
 
         {/* 로딩 모달: waiting 또는 streaming 상태에서 */}

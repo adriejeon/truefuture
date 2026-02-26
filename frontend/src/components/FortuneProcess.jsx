@@ -6,6 +6,7 @@ import {
   isValidElement,
   Children,
 } from "react";
+import { Link } from "react-router-dom";
 import TypewriterLoader from "./TypewriterLoader";
 import PrimaryButton from "./PrimaryButton";
 
@@ -106,6 +107,12 @@ function FortuneProcess({
           >
             {readyButtonText}
           </PrimaryButton>
+          <Link
+            to="/faq"
+            className="block mt-3 text-center text-sm text-slate-400 hover:text-white transition-colors duration-200"
+          >
+            궁금한 점이 있으신가요?
+          </Link>
         </>
       );
 

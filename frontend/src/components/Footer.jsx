@@ -35,6 +35,13 @@ function Footer() {
           style={{ color: colors.subText }}
         >
           <Link
+            to="/faq"
+            className="hover:text-white transition-colors duration-200 underline"
+          >
+            자주 묻는 질문
+          </Link>
+          <span className="hidden sm:inline text-slate-600">|</span>
+          <Link
             to="/privacy-policy"
             className="hover:text-white transition-colors duration-200 underline"
           >
