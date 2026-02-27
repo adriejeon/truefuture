@@ -889,6 +889,8 @@ function Consultation() {
     setLoadingFollowUp(true);
     setError("");
     setStreamingFollowUpInterpretation("");
+    setProcessStatus("waiting");
+    firstChunkReceivedRef.current = false;
 
     try {
       await consumeStars(
@@ -915,9 +917,16 @@ function Consultation() {
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
-        onChunk: (text) => setStreamingFollowUpInterpretation((prev) => prev + text),
+        onChunk: (text) => {
+          if (!firstChunkReceivedRef.current) {
+            firstChunkReceivedRef.current = true;
+            setProcessStatus("streaming");
+          }
+          setStreamingFollowUpInterpretation((prev) => prev + text);
+        },
         onDone: ({ fullText }) => {
           setLoadingFollowUp(false);
+          setProcessStatus("done");
           const interpretation = fullText ?? "";
           const parsedData = parseFortuneResult(interpretation);
           const answer = {
@@ -949,11 +958,13 @@ function Consultation() {
         onError: (err) => {
           setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
           setLoadingFollowUp(false);
+          setProcessStatus("idle");
         },
       });
     } catch (err) {
       setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
       setLoadingFollowUp(false);
+      setProcessStatus("idle");
     }
   }, [
     user,
@@ -972,6 +983,8 @@ function Consultation() {
 
     setHistoryLoadingFollowUp(true);
     setError("");
+    setProcessStatus("waiting");
+    firstChunkReceivedRef.current = false;
 
     try {
       await consumeStars(
@@ -1006,8 +1019,14 @@ function Consultation() {
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
-        onChunk: () => {},
+        onChunk: () => {
+          if (!firstChunkReceivedRef.current) {
+            firstChunkReceivedRef.current = true;
+            setProcessStatus("streaming");
+          }
+        },
         onDone: async () => {
+          setProcessStatus("done");
           await saveFortuneHistory(
             user.id,
             selectedProfile.id,
@@ -1022,10 +1041,14 @@ function Consultation() {
           setHistoryShowFollowUpInput(false);
           await loadHistoryItem();
         },
-        onError: (err) => setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다."),
+        onError: (err) => {
+          setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+          setProcessStatus("idle");
+        },
       });
     } catch (err) {
       setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+      setProcessStatus("idle");
     } finally {
       setHistoryLoadingFollowUp(false);
     }
@@ -1419,6 +1442,20 @@ function Consultation() {
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
         <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
           <div className="py-8 sm:py-12">
+            {/* 로딩 모달: 본 질문과 동일하게 processStatus 기반 */}
+            {(processStatus === "waiting" || processStatus === "streaming") && (
+              <div
+                className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="운세 분석 중"
+              >
+                <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+                  <TypewriterLoader />
+                </div>
+              </div>
+            )}
+
             {/* 상단: 새로운 질문 버튼 */}
             <div className="mb-6">
               <button
@@ -1887,18 +1924,6 @@ function Consultation() {
             )}
           </div>
         </div>
-        {historyLoadingFollowUp && (
-          <div
-            className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label="후속 질문 분석 중"
-          >
-            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
-              <TypewriterLoader />
-            </div>
-          </div>
-        )}
         <BottomNavigation />
 
         {/* 히스토리 뷰에서도 별 차감 모달 노출 필요 (후속 질문 시 확인 모달) */}
@@ -2391,22 +2416,7 @@ function Consultation() {
                     </div>
                   )}
 
-                  {/* 후속 질문 스트리밍 중 표시 */}
-                  {loadingFollowUp && (
-                    <div className="mt-6 border-t border-slate-600/50 pt-6">
-                      <div className="mb-4 p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
-                        <div className="flex items-start gap-3">
-                          <div className="text-2xl">💬</div>
-                          <div className="flex-1">
-                            <p className="text-white font-medium">{followUpQuestion}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-6 bg-[rgba(37,61,135,0.15)] border border-slate-600/50 rounded-xl min-h-[120px]">
-                        <ReactMarkdown>{streamingFollowUpInterpretation || "..."}</ReactMarkdown>
-                      </div>
-                    </div>
-                  )}
+                  {/* 후속 질문 대기/표시: 본 질문과 동일하게 processStatus 기반 전체 화면 모달 사용 */}
 
                   {/* 후속 질문 답변들 (여러 개일 수 있음) */}
                   {followUpAnswers.length > 0 && (

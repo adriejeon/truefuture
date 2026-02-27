@@ -286,6 +286,11 @@ a {
   }
 }
 
+/* TypewriterLoader: 노출 위치를 상단으로 8% 올림 */
+.typewriter-loader-position-up {
+  transform: translateY(-8vh);
+}
+
 /* 타이핑 모달 배경: 다크/라이트 모드 공통 검정 95% (운세 로딩 시 공통) */
 /* color-scheme: light 로 모달 내부는 항상 동일 렌더링 → Android 다크 모드에서도 그라데이션 동일하게 표시 */
 .typing-modal-backdrop {

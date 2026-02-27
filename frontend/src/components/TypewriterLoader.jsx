@@ -100,7 +100,7 @@ function TypewriterLoader({ typeSpeed = 80, pauseAfterType = 1700 }) {
   const isFadeIn = phase === "fadeIn";
 
   return (
-    <div className="flex items-center justify-center w-full">
+    <div className="flex items-center justify-center w-full typewriter-loader-position-up">
       <p
         className={`text-xl sm:text-2xl text-center typewriter-gradient-text ${
           isFadeOut ? "typewriter-fade-out-up" : ""
