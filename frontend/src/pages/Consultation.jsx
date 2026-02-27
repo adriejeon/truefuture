@@ -223,6 +223,7 @@ function Consultation() {
   const chipScrollRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
   const resultSectionRef = useRef(null);
+  const followUpInputRef = useRef(null); // 후속 질문 입력창 스크롤용
   const firstChunkReceivedRef = useRef(false);
   
   // 후속 질문 관련 상태 (currentFollowUpInput은 드래프트에서 복원)
@@ -801,6 +802,17 @@ function Consultation() {
     setShowFollowUpInput(true);
     setShowFollowUpButton(false);
   };
+
+  // 후속 질문 입력창이 열릴 때 해당 영역으로 스크롤 (두 번째 후속 질문 시 입력창이 화면 위에 있어서 안 보이는 문제 방지)
+  useEffect(() => {
+    if (!showFollowUpInput || !followUpInputRef.current) return;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        followUpInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [showFollowUpInput]);
 
   // 후속 질문 제출
   const handleFollowUpSubmit = async (e) => {
@@ -2386,7 +2398,7 @@ function Consultation() {
 
                   {/* 후속 질문 입력창 (결과 영역 안에 유지) */}
                   {showFollowUpInput && (
-                    <div className="mt-6 animate-fade-in">
+                    <div ref={followUpInputRef} className="mt-6 animate-fade-in">
                       <form onSubmit={handleFollowUpSubmit}>
                         <label className="block text-sm font-medium text-slate-300 mb-3">
                           후속 질문
