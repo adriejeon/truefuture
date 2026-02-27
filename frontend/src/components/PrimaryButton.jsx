@@ -24,6 +24,7 @@ export default function PrimaryButton({
   ...rest
 }) {
   const isGold = variant === "gold";
+  const variantClass = isGold ? "primary-button--gold" : "primary-button--gradient";
   const baseStyle = {
     position: "relative",
     zIndex: 1,
@@ -40,6 +41,8 @@ export default function PrimaryButton({
         : CTA_HOVER_SHADOW_CLASS;
   const textClass = isGold ? "text-black" : "text-white";
   const combinedClassName = [
+    "primary-button",
+    variantClass,
     BASE_CLASS,
     textClass,
     widthClass,

@@ -63,6 +63,23 @@ body,
   color: #ffffff !important;
 }
 
+/* Samsung Internet(특히 강제 다크모드)에서 그라데이션/클립 텍스트가 과도하게 어두워지는 현상 완화 */
+@media (prefers-color-scheme: dark) {
+  html.samsung-internet .typewriter-gradient-text {
+    background: none !important;
+    -webkit-background-clip: initial !important;
+    background-clip: initial !important;
+    -webkit-text-fill-color: currentColor !important;
+    color: #f3eeff !important;
+    text-shadow: 0 0 12px rgba(243, 238, 255, 0.18);
+  }
+
+  html.samsung-internet .primary-button--gradient {
+    background: #6148eb !important;
+    color: #ffffff !important;
+  }
+}
+
 /* 다크 모드에서도 색상 유지 */
 @media (prefers-color-scheme: dark) {
   html,
