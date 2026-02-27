@@ -217,11 +217,14 @@ function Home() {
                 당신의 운이 아깝습니다.
               </p>
 
-              <img
-                src="/assets/divider2.png"
-                alt=""
-                className="w-[5%] min-w-[20px] max-w-[40px] h-auto"
-              />
+              <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0">
+                <img
+                  src="/assets/divider2.png"
+                  alt=""
+                  className="w-full h-auto block object-contain"
+                  style={{ height: "auto" }}
+                />
+              </div>
 
               <p className="text-[#D8D8ED] text-center font-noto text-[clamp(15.47px,4.833vw,29px)] font-light leading-[1.68] tracking-[-2.32px]">
                 진짜가 나타났습니다. 100% 리얼 점성술.
@@ -275,11 +278,14 @@ function Home() {
                 </p>
               </div>
 
-              <img
-                src="/assets/divider3.png"
-                alt=""
-                className="w-[5%] min-w-[20px] max-w-[40px] h-auto"
-              />
+              <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0">
+                <img
+                  src="/assets/divider3.png"
+                  alt=""
+                  className="w-full h-auto block object-contain"
+                  style={{ height: "auto" }}
+                />
+              </div>
 
               <div className="flex flex-col items-center gap-[clamp(4px,1vw,10px)]">
                 <p className="text-[#D8D8ED] text-center font-noto text-[clamp(17.07px,5.333vw,32px)] font-light leading-[1.48]">
@@ -304,11 +310,14 @@ function Home() {
                 &lsquo;운의 흐름&rsquo;을 읽어야 한다는 것을.
               </p>
 
-              <img
-                src="/assets/divider2.png"
-                alt=""
-                className="w-[5%] min-w-[20px] max-w-[40px] h-auto"
-              />
+              <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0">
+                <img
+                  src="/assets/divider2.png"
+                  alt=""
+                  className="w-full h-auto block object-contain"
+                  style={{ height: "auto" }}
+                />
+              </div>
             </section>
 
             {/* CTA 버튼 */}
