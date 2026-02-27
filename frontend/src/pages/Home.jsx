@@ -202,7 +202,14 @@ function Home() {
           <div className="w-full font-noto flex flex-col items-center text-center pt-4 sm:pt-6">
             {/* [1] 상단 텍스트 영역 (Top Section) - 1200px 기준 clamp */}
             <section className="flex flex-col items-center gap-[clamp(16px,5vw,30px)] w-full px-4">
-              <img src="/assets/divider1.png" alt="" className="w-full h-auto" />
+              {/* 메인 컨테이너와 동일한 좌우 16px만 적용되도록 섹션 패딩만큼 넓게 */}
+              <div className="-mx-4 w-[calc(100%+2rem)]">
+                <img
+                  src="/assets/divider1.png"
+                  alt=""
+                  className="w-full h-auto max-h-[60px] object-contain"
+                />
+              </div>
 
               <p className="text-[#D8D8ED] text-center font-noto text-[clamp(16px,5vw,30px)] font-light leading-[1.48] tracking-[-2.4px]">
                 틀린 운세에 돈 쓰기엔,
@@ -230,19 +237,21 @@ function Home() {
               </div>
             </section>
 
-            {/* [2] 중앙 그래픽 영역 (Graphic Section) */}
+            {/* [2] 중앙 그래픽 영역 (Graphic Section) - 메인 컨테이너와 동일 좌우 16px만 */}
             <section className="relative w-full mx-auto px-4 py-6 sm:py-8 flex flex-col items-center">
-              <div className="relative w-full aspect-square">
-                <img
-                  src="/assets/graphic.png"
-                  alt="진짜미래 고전 점성술"
-                  className="w-full h-full object-contain block"
-                />
-                <img
-                  src="/assets/article.png"
-                  alt=""
-                  className="absolute top-[48.5%] left-1/2 w-[20%] h-auto object-contain animate-article-spin-center"
-                />
+              <div className="-mx-4 w-[calc(100%+2rem)]">
+                <div className="relative w-full">
+                  <img
+                    src="/assets/graphic.png"
+                    alt="진짜미래 고전 점성술"
+                    className="w-full h-auto block"
+                  />
+                  <img
+                    src="/assets/article.png"
+                    alt=""
+                    className="absolute top-[48.5%] left-1/2 w-[20%] h-auto object-contain animate-article-spin-center"
+                  />
+                </div>
               </div>
             </section>
 
