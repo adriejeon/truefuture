@@ -161,7 +161,7 @@ function GNB() {
             <div className="flex-1 flex items-center justify-end min-w-0 gap-2 sm:gap-3">
               {!user ? (
                 <>
-                  <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500/90 text-slate-900 border border-amber-400/80 shadow-sm">
+                  <span className="relative px-2.5 py-1 text-xs font-semibold rounded-[4px] bg-amber-500/90 text-slate-900 border border-amber-400/80 shadow-sm after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:-right-[7px] after:w-0 after:h-0 after:border-y-[6px] after:border-y-transparent after:border-l-[7px] after:border-l-amber-500/90">
                     EVENT
                   </span>
                   <button
