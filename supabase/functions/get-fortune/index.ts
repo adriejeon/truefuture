@@ -735,8 +735,8 @@ function parseGeminiResponse(apiResponse: any): string {
   return markdownText;
 }
 
-const NEO4J_SECTION_HEADER =
-  "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n[Neo4j 전문 해석 데이터]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+const DIGNITY_SECTION_HEADER =
+  "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n[차트 위계/섹트/헤이즈 해석]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
 
 async function getInterpretation(
   chartData: any,
@@ -838,7 +838,7 @@ async function getInterpretation(
 
     // Neo4j 전문 해석 데이터: 데일리 포함 모든 타입에서 조회 (데일리는 프롬프트 내 [Neo4j 리셉션/리젝션] 섹션에 사용)
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
-    const neo4jContext = await getNeo4jContext(
+    const neo4jContext = getNeo4jContext(
       chartData?.planets ?? null,
       isDayChart,
     );
@@ -898,7 +898,7 @@ async function getInterpretation(
       ) &&
       neo4jContext
     ) {
-      userPrompt = userPrompt + NEO4J_SECTION_HEADER + neo4jContext;
+      userPrompt = userPrompt + DIGNITY_SECTION_HEADER + neo4jContext;
     }
 
     if (shortTermPromptSection) {
@@ -1014,7 +1014,7 @@ async function generateLifetimeFortune(
 ): Promise<any> {
   try {
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
-    const neo4jContext = await getNeo4jContext(
+    const neo4jContext = getNeo4jContext(
       chartData?.planets ?? null,
       isDayChart,
     );
@@ -1112,7 +1112,7 @@ async function generateLifetimeFortune(
     });
 
     const userPromptBase = neo4jContext
-      ? userPrompt + NEO4J_SECTION_HEADER + neo4jContext
+      ? userPrompt + DIGNITY_SECTION_HEADER + neo4jContext
       : userPrompt;
 
     // Nature 요청 본문 (Identity + Roots 항성)
@@ -1628,9 +1628,11 @@ serve(async (req) => {
         topic === "WEEKLY" || topic === "MONTHLY";
       const graphKnowledgePromise = skipNeo4jForConsultation
         ? Promise.resolve("")
-        : fetchConsultationContext(
-            requestData.consultationTopic || "GENERAL",
-            chartData,
+        : Promise.resolve(
+            fetchConsultationContext(
+              requestData.consultationTopic || "GENERAL",
+              chartData,
+            ),
           );
 
       // 2. Firdaria
@@ -2949,7 +2951,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             transitChartDataPM,
           );
           for (const strike of dailyAngleStrikes) {
-            const { metaTag } = await getDailyReceptionRejectionMeta(
+            const { metaTag } = getDailyReceptionRejectionMeta(
               strike.striker,
               strike.targetSign,
             );
