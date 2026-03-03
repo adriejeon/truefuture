@@ -42,6 +42,16 @@ function Login() {
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 md:p-8 shadow-xl border border-slate-700">
           <SocialLoginButtons />
         </div>
+
+        {/* 이벤트 안내 영역 */}
+        <div className="mt-6 p-4 sm:p-5 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30">
+          <p className="text-amber-200 font-medium text-center text-sm sm:text-base mb-1">
+            지금 회원 가입 하시면 망원경 1개를 무료로 지급합니다!
+          </p>
+          <p className="text-amber-100/90 text-center text-sm sm:text-base">
+            지금 바로 나의 진짜미래를 옅보세요!
+          </p>
+        </div>
       </div>
     </div>
   );

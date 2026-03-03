@@ -160,12 +160,17 @@ function GNB() {
             {/* 우측: 로그인 버튼 또는 별 잔액 + 프로필 이미지 */}
             <div className="flex-1 flex items-center justify-end min-w-0 gap-2 sm:gap-3">
               {!user ? (
-                <button
-                  onClick={handleAuthClick}
-                  className="px-4 py-2 text-sm sm:text-base bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20 transition-all duration-200 font-medium"
-                >
-                  로그인
-                </button>
+                <>
+                  <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500/90 text-slate-900 border border-amber-400/80 shadow-sm">
+                    EVENT
+                  </span>
+                  <button
+                    onClick={handleAuthClick}
+                    className="px-4 py-2 text-sm sm:text-base bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20 transition-all duration-200 font-medium"
+                  >
+                    로그인
+                  </button>
+                </>
               ) : (
                 <>
                   {/* 별 잔액 버튼 */}
