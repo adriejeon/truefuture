@@ -365,30 +365,34 @@ function LifetimeFortune() {
 
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
-        onDone: ({ fullData: data }) => {
+        onDone: ({ fullData: data, fullText, shareId: sid }) => {
           setLoading(false);
           setProcessStatus("done");
-          if (!data) return;
-          logFortuneInput(data, { fortuneType: "lifetime" });
-          if (
-            data.share_id &&
-            data.share_id !== "undefined" &&
-            data.share_id !== null &&
-            data.share_id !== "null"
-          ) {
-            setShareId(data.share_id);
-          } else {
-            setShareId(null);
-          }
-          if (data.interpretation && typeof data.interpretation === "string") {
-            setInterpretation(data.interpretation);
+          const interpretationText =
+            (typeof fullText === "string" && fullText)
+              ? fullText
+              : (data?.interpretation && typeof data.interpretation === "string")
+                ? data.interpretation
+                : "";
+          if (interpretationText) {
+            setInterpretation(interpretationText);
+            if (data) logFortuneInput(data, { fortuneType: "lifetime" });
+            if (
+              sid &&
+              sid !== "undefined" &&
+              sid !== null &&
+              sid !== "null"
+            ) {
+              setShareId(sid);
+            } else {
+              setShareId(null);
+            }
             saveFortuneHistory(
               selectedProfile.id,
               "lifetime",
-              data.share_id ?? undefined
+              sid ?? undefined
             ).then(() => {});
             setCanViewLifetime(false);
-            // interpretation 설정 후 스크롤
             requestAnimationFrame(() => {
               resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             });

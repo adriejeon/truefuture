@@ -786,7 +786,42 @@ async function getInterpretation(
       throw new Error("Missing GEMINI_API_KEY environment variable.");
     }
 
-    // LIFETIME 운세는 별도 함수에서 처리 (스트리밍 미지원)
+    // LIFETIME 운세: streamOptions가 있으면 스트리밍 응답(SSE)으로 통일 (4개 병렬 호출 후 한 번에 전송)
+    if (fortuneType === FortuneType.LIFETIME && streamOptions) {
+      const result = await generateLifetimeFortune(
+        chartData,
+        apiKey,
+        gender,
+        birthDate,
+        location,
+        compatibilityChartData,
+        transitChartData,
+        aspects,
+        transitMoonHouse,
+      );
+      if (result.error || !result.success) {
+        return result;
+      }
+      const fullText = result.interpretation ?? "";
+      async function* lifetimeChunkGenerator(): AsyncGenerator<string, void, unknown> {
+        yield fullText;
+      }
+      const debugPayload: Record<string, unknown> = {
+        chart: chartData,
+        userPrompt: result.userPrompt,
+        systemInstruction: result.systemInstruction,
+        debugInfo: result.debugInfo,
+      };
+      const stream = createFortuneSSEStream(
+        lifetimeChunkGenerator(),
+        streamOptions.insertPayloadBuilder,
+        streamOptions.supabase,
+        { ...streamOptions.opts, debugPayload },
+      );
+      return { stream };
+    }
+
+    // LIFETIME 운세 (streamOptions 없음: 폴백 비스트리밍)
     if (fortuneType === FortuneType.LIFETIME) {
       return await generateLifetimeFortune(
         chartData,
@@ -2994,23 +3029,25 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             : null;
 
     const profileName = requestData.profileName ?? null;
-    const streamOptions =
-      fortuneType !== FortuneType.LIFETIME
-        ? {
-            supabase,
-            insertPayloadBuilder: (fullText: string) => ({
-              user_info: {
-                birthDate,
-                lat,
-                lng,
-                ...(profileName && { profileName }),
-              },
-              fortune_text: fullText,
-              fortune_type: fortuneType,
-              ...(chartDataForDb && { chart_data: chartDataForDb }),
-            }),
-          }
-        : undefined;
+    const streamOptions = {
+      supabase,
+      insertPayloadBuilder: (fullText: string) => ({
+        user_info: {
+          birthDate,
+          lat,
+          lng,
+          ...(profileName && { profileName }),
+        },
+        fortune_text: fullText,
+        fortune_type: fortuneType,
+        ...(chartDataForDb && { chart_data: chartDataForDb }),
+      }),
+      opts: {
+        userId: user?.id,
+        profileId: requestData.profileId ?? null,
+        fortuneType,
+      },
+    };
 
     const interpretation = await getInterpretation(
       chartData,
