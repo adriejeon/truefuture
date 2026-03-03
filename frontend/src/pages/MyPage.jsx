@@ -12,7 +12,7 @@ function MyPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteAgreeChecked, setDeleteAgreeChecked] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // 로그인하지 않은 경우 로그인 페이지로 리다이렉트 (로딩 완료 후에만, 마이페이지에 있을 때만)
@@ -97,18 +97,10 @@ function MyPage() {
   ];
 
   async function handleDeleteAccount() {
-    if (deleteConfirmText !== "탈퇴하기") {
-      alert("'탈퇴하기'를 정확히 입력해주세요.");
-      return;
-    }
-
-    if (!confirm("정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
-      return;
-    }
+    if (!deleteAgreeChecked) return;
 
     setIsDeleting(true);
     try {
-      // Supabase Edge Function 호출 (인증 토큰은 자동으로 전달됨)
       const { data, error } = await supabase.functions.invoke("delete-account", {
         body: {},
       });
@@ -122,7 +114,6 @@ function MyPage() {
         throw new Error(data?.error || "회원 탈퇴 처리 중 오류가 발생했습니다.");
       }
 
-      // 로그아웃 및 홈으로 이동
       alert("회원 탈퇴가 완료되었습니다.");
       await logout();
       navigate("/");
@@ -132,6 +123,7 @@ function MyPage() {
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);
+      setDeleteAgreeChecked(false);
     }
   }
 
@@ -233,36 +225,47 @@ function MyPage() {
       {/* 회원 탈퇴 모달 */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-white mb-4">회원 탈퇴</h2>
-            <p className="text-slate-300 text-sm mb-4 leading-relaxed">
-              회원 탈퇴 시 모든 데이터가 삭제되며, 보유하신 운세권도 함께 소멸됩니다.
-              이 작업은 되돌릴 수 없습니다.
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-white mb-4">
+              정말 진짜미래를 떠나시겠습니까?
+            </h2>
+            <ul className="text-slate-300 text-sm mb-4 space-y-2 leading-relaxed list-disc list-inside">
+              <li>
+                사주 및 운세 조회 기록, 보유 중인 쿠폰(망원경/나침반)은 즉시 삭제되며 복구할 수 없습니다.
+              </li>
+              <li>
+                단, 신규 가입 혜택 악용을 막기 위해 암호화된 가입 식별값은 1년간 안전하게 보관 후 파기됩니다.
+              </li>
+            </ul>
+            <p className="text-slate-300 text-sm mb-4">
+              👉 자세한 내용은{" "}
+              <a
+                href="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-400 hover:text-amber-300 underline font-medium"
+                onClick={(e) => e.stopPropagation()}
+              >
+                개인정보 처리방침
+              </a>
+              을 확인해 주세요.
             </p>
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
-              <p className="text-red-300 text-sm">
-                <strong>삭제될 데이터:</strong>
-                <br />• 보유 운세권: {stars.total}장
-                <br />• 상담 내역
-                <br />• 구매 내역
-                <br />• 프로필 정보
-              </p>
-            </div>
-            <p className="text-slate-300 text-sm mb-2">
-              계속하시려면 아래에 <strong>"탈퇴하기"</strong>를 입력해주세요.
-            </p>
-            <input
-              type="text"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder="탈퇴하기"
-              className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-red-500 mb-4"
-            />
+            <label className="flex items-start gap-3 cursor-pointer mb-5 group">
+              <input
+                type="checkbox"
+                checked={deleteAgreeChecked}
+                onChange={(e) => setDeleteAgreeChecked(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-900 text-red-500 focus:ring-red-500/50"
+              />
+              <span className="text-slate-300 text-sm select-none group-hover:text-slate-200">
+                안내 사항을 모두 확인했으며, 탈퇴에 동의합니다.
+              </span>
+            </label>
             <div className="flex gap-3">
               <button
                 onClick={() => {
                   setShowDeleteModal(false);
-                  setDeleteConfirmText("");
+                  setDeleteAgreeChecked(false);
                 }}
                 disabled={isDeleting}
                 className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
@@ -271,7 +274,7 @@ function MyPage() {
               </button>
               <button
                 onClick={handleDeleteAccount}
-                disabled={isDeleting || deleteConfirmText !== "탈퇴하기"}
+                disabled={isDeleting || !deleteAgreeChecked}
                 className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isDeleting ? "처리 중..." : "탈퇴하기"}
