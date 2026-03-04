@@ -160,7 +160,7 @@ function GNB() {
             {/* 우측: 로그인 버튼 또는 별 잔액 + 프로필 이미지 */}
             <div className="flex-1 flex items-center justify-end min-w-0 gap-2 sm:gap-3">
               {!user ? (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-[0.5rem]">
                   <span
                     className="relative px-2.5 py-1 text-xs font-semibold rounded-[4px] text-slate-900 shadow-sm bg-[var(--event-chip-bg)] after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:-right-[7px] after:w-0 after:h-0 after:border-y-[6px] after:border-y-transparent after:border-l-[7px] after:border-l-[var(--event-chip-bg)]"
                     style={{ "--event-chip-bg": colors.primary }}
