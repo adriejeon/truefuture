@@ -115,8 +115,11 @@ function MyPage() {
       }
 
       alert("회원 탈퇴가 완료되었습니다.");
-      await logout();
-      navigate("/");
+      // 이미 삭제된 유저 토큰으로 signOut 시 403 발생할 수 있음 → 에러 무시
+      await supabase.auth.signOut().catch(() => {});
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = "/";
     } catch (err) {
       console.error("회원 탈퇴 오류:", err);
       alert(err.message || "회원 탈퇴 처리 중 오류가 발생했습니다.");
