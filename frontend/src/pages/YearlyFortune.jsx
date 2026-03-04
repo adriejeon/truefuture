@@ -254,6 +254,7 @@ function YearlyFortune() {
 
         setLoading(true);
         setError("");
+        setProcessStatus("waiting");
         setInterpretation("");
         setShareId(null);
 
@@ -273,6 +274,7 @@ function YearlyFortune() {
             onDone: async ({ fullData }) => {
               const data = fullData;
               setLoading(false);
+              setProcessStatus("done");
               if (data?.interpretation && typeof data.interpretation === "string") {
                 setInterpretation(data.interpretation);
                 setShareId(data.share_id || null);
@@ -286,15 +288,20 @@ function YearlyFortune() {
                 setInterpretation("결과를 불러올 수 없습니다.");
               }
               if (data) logFortuneInput(data, { fortuneType: "lifetime" });
+              requestAnimationFrame(() => {
+                resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              });
             },
             onError: (err) => {
               setError(err?.message || "요청 중 오류가 발생했습니다.");
               setLoading(false);
+              setProcessStatus("idle");
             },
           });
         } catch (err) {
           setError(err.message || "요청 중 오류가 발생했습니다.");
           setLoading(false);
+          setProcessStatus("idle");
         }
       })();
       return;
