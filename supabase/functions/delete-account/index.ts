@@ -82,28 +82,15 @@ serve(async (req) => {
     // Supabase Admin 클라이언트 생성 (DB 삭제용)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 0. 재가입 어뷰징 방지: identity_hash 계산 후 deleted_users_hash에 저장 (계정 삭제 전)
-    const { data: identityHash, error: hashError } = await supabaseAdmin.rpc(
-      "compute_identity_hash",
-      { p_user_id: user_id }
-    );
+    // 0. 재가입 어뷰징 방지: 해시 계산 + 저장을 DB(compute_identity_hash) 하나로 통일
+    const { error: hashError } = await supabaseAdmin.rpc("store_deleted_user_hash", {
+      p_user_id: user_id,
+    });
     if (hashError) {
-      console.error("❌ identity_hash 계산 실패:", hashError);
+      console.error("❌ store_deleted_user_hash 실패:", hashError);
       throw new Error("탈퇴 처리 중 식별 정보 저장에 실패했습니다.");
     }
-    if (identityHash && typeof identityHash === "string") {
-      const { error: insertHashError } = await supabaseAdmin
-        .from("deleted_users_hash")
-        .upsert(
-          { identity_hash: identityHash, deleted_at: new Date().toISOString() },
-          { onConflict: "identity_hash" }
-        );
-      if (insertHashError) {
-        console.error("❌ deleted_users_hash INSERT 실패:", insertHashError);
-        throw new Error("탈퇴 이력 저장에 실패했습니다.");
-      }
-      console.log("✅ 탈퇴 식별 해시 저장 완료");
-    }
+    console.log("✅ 탈퇴 식별 해시 저장 완료");
 
     // 1. user_wallets에서 데이터 삭제
     const { error: walletError } = await supabaseAdmin
