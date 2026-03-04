@@ -114,12 +114,37 @@ serve(async (req) => {
       throw new Error("거래 내역 삭제 실패");
     }
 
-    // 3. auth.users에서 사용자 삭제 (Service Role Key 필요)
+    // 3. payment_logs에서 데이터 삭제 (FK 제약 해제용 - ON DELETE CASCADE 미설정 테이블)
+    const { error: paymentLogError } = await supabaseAdmin
+      .from("payment_logs")
+      .delete()
+      .eq("user_id", user_id);
+
+    if (paymentLogError && paymentLogError.code !== "42703") {
+      // 42703 = column does not exist (user_id 컬럼 없는 경우 무시)
+      console.error("❌ payment_logs 삭제 실패:", paymentLogError);
+      throw new Error("결제 로그 삭제 실패");
+    }
+    console.log("✅ payment_logs 삭제 완료 (또는 해당 컬럼 없음)");
+
+    // 4. readings에서 데이터 삭제 (FK 제약 해제용 - ON DELETE CASCADE 미설정 테이블)
+    const { error: readingsError } = await supabaseAdmin
+      .from("readings")
+      .delete()
+      .eq("user_id", user_id);
+
+    if (readingsError && readingsError.code !== "42703") {
+      console.error("❌ readings 삭제 실패:", readingsError);
+      throw new Error("리딩 데이터 삭제 실패");
+    }
+    console.log("✅ readings 삭제 완료 (또는 해당 컬럼 없음)");
+
+    // 5. auth.users에서 사용자 삭제 (Service Role Key 필요)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
 
     if (deleteError) {
-      console.error("❌ 사용자 삭제 실패:", deleteError);
-      throw new Error("사용자 계정 삭제 실패");
+      console.error("❌ 사용자 삭제 실패 (상세):", JSON.stringify(deleteError));
+      throw new Error(`사용자 계정 삭제 실패: ${deleteError.message}`);
     }
 
     console.log("✅ 회원 탈퇴 완료:", user_id);
