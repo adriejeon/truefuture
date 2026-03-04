@@ -38,6 +38,13 @@ function SocialLoginButtons() {
       redirectTo: redirectUrl,
     }
 
+    // 구글: 매번 계정 선택 화면 표시 (탈퇴 후 재가입 시 기존 구글 세션으로 자동 로그인되는 UX 방지)
+    if (provider === 'google') {
+      options.queryParams = {
+        prompt: 'select_account',
+      }
+    }
+
     // 카카오인 경우에만 scopes와 queryParams 추가
     // queryParams를 사용하여 account_email을 명시적으로 제외
     if (provider === 'kakao') {
