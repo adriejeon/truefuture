@@ -15,6 +15,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import FAQ from "./pages/FAQ";
 import Login from "./pages/Login";
+import AuthCallback from "./pages/AuthCallback";
 import Purchase from "./pages/Purchase";
 import PurchaseHistory from "./pages/PurchaseHistory";
 import PaymentComplete from "./pages/PaymentComplete";
@@ -76,6 +77,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<RootRoute />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/lifetime" element={<LifetimeFortune />} />
           <Route path="/compatibility" element={<Compatibility />} />
           <Route path="/yearly" element={<YearlyFortune />} />

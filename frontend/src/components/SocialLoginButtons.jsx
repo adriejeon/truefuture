@@ -2,13 +2,12 @@ import { supabase } from '../lib/supabaseClient'
 
 /**
  * 리디렉션 URL을 환경에 따라 반환하는 헬퍼 함수
- * @returns {string} 환경에 맞는 리디렉션 URL
+ * OAuth 후 세션 복원을 위해 전용 콜백 경로로 돌아옵니다.
+ * @returns {string} 환경에 맞는 리디렉션 URL (예: https://도메인/auth/callback)
  */
 const getRedirectUrl = () => {
-  // window.location.origin은 현재 브라우저 주소창의 "프로토콜 + 도메인 + 포트"를 가져옵니다.
-  // 로컬에서는 'http://localhost:5173'
-  // 배포 후에는 'https://truefuture.pages.dev'가 자동으로 됩니다.
-  return window.location.origin
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return origin ? `${origin}/auth/callback` : ''
 }
 
 /**

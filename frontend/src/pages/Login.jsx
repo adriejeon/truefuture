@@ -1,22 +1,43 @@
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import { useAuth } from "../hooks/useAuth";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { supabase } from "../lib/supabaseClient";
 
 function Login() {
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [verifying, setVerifying] = useState(false);
 
-  // 이미 로그인한 경우: 이전 페이지(from) 또는 홈으로 리다이렉트
+  // 이미 로그인한 경우: 세션 유효성 검증 후에만 이전 페이지(from) 또는 홈으로 리다이렉트
+  // 캐시된(만료된) 세션으로 인해 검증 없이 홈으로 가는 문제 방지
   useEffect(() => {
-    if (!loadingAuth && user) {
-      const from = location.state?.from?.pathname;
-      navigate(from || "/", { replace: true });
+    if (!loadingAuth && user && !verifying) {
+      let cancelled = false;
+      setVerifying(true);
+      supabase?.auth
+        .getUser()
+        .then(({ data: { user: currentUser }, error }) => {
+          if (cancelled) return;
+          setVerifying(false);
+          if (error || !currentUser) {
+            supabase?.auth.signOut();
+            return;
+          }
+          const from = location.state?.from?.pathname;
+          navigate(from || "/", { replace: true });
+        })
+        .catch(() => {
+          if (!cancelled) setVerifying(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [user, loadingAuth, navigate, location.state?.from?.pathname]);
+  }, [loadingAuth, user, navigate, location.state?.from?.pathname, verifying]);
 
-  if (loadingAuth) {
+  if (loadingAuth || (user && verifying)) {
     return (
       <div className="w-full flex items-center justify-center py-20">
         <div className="text-center">
