@@ -78,34 +78,46 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
   /**
    * SSE 한 건(완전히 끝맺음된 메시지)만 파싱. "data: " 제거 후 JSON.parse.
    * 불완전한 payload는 JSON.parse 시 SyntaxError가 나므로 catch에서 무시.
+   * data: [DONE] 순수 문자열은 JSON이 아니므로 JSON.parse 시도하지 않고 건너뛰고 다음 청크를 계속 읽는다.
+   * 한 이벤트에 data: [DONE]\ndata: {"done":true,...} 처럼 여러 줄이 올 수 있으므로 줄 단위로 처리한다.
    */
   function processOneEvent(rawEvent) {
     const trimmed = rawEvent.trim();
-    if (!trimmed || !trimmed.startsWith("data:")) return false;
-    const payload = trimmed.slice(5).trim();
-    if (payload === "[DONE]" || !payload) return false;
-    try {
-      const data = JSON.parse(payload);
-      if (data?.done === true) {
-        onDone({
-          shareId: data.share_id ?? null,
-          fullText,
-          debug: data.debug ?? undefined,
-        });
-        return true;
-      }
-      if (data?.error) {
-        onError?.(new Error(data.error));
-        throw new Error(data.error);
-      }
-      if (typeof data?.text === "string" && data.text) {
-        fullText += data.text;
-        onChunk(data.text);
-      }
-    } catch (e) {
-      if (e?.message && e.message !== "Unexpected end of JSON input") {
-        onError?.(e);
-        throw e;
+    if (!trimmed) return false;
+
+    const lines = trimmed.split("\n");
+    for (const line of lines) {
+      const lineTrimmed = line.trim();
+      if (!lineTrimmed.startsWith("data:")) continue;
+      const payload = lineTrimmed.slice(5).trim();
+      // [DONE]은 스트림 종료 신호일 뿐이며, 그 다음에 {"done":true,"share_id":"..."}가 올 수 있으므로 파싱만 건너뛰고 스트림 읽기는 계속한다.
+      if (!payload || payload === "[DONE]") continue;
+
+      try {
+        const data = JSON.parse(payload);
+        if (data?.done === true) {
+          onDone({
+            shareId: data.share_id ?? null,
+            fullText,
+            debug: data.debug ?? undefined,
+          });
+          return true;
+        }
+        if (data?.error) {
+          onError?.(new Error(data.error));
+          throw new Error(data.error);
+        }
+        if (typeof data?.text === "string" && data.text) {
+          fullText += data.text;
+          onChunk(data.text);
+        }
+      } catch (e) {
+        // [DONE] 문자열이 어차피 JSON이 아니므로 파싱 실패 시 무시하고 다음 줄/청크 계속 읽기
+        if (payload.trim() === "[DONE]") continue;
+        if (e?.message && e.message !== "Unexpected end of JSON input") {
+          onError?.(e);
+          throw e;
+        }
       }
     }
     return false;
