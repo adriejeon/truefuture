@@ -92,8 +92,17 @@ export async function resolveTimezoneOffsetHours(
     return getTimezoneOffsetHoursFromIANA(iana, date);
   }
 
+  // Fallback 1: 위경도가 한국 범위 내인지 확인
+  const isKorea = lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;
+  if (isKorea) {
+    console.warn(`[timezoneUtils] IANA 조회 실패. 한국 좌표 추정(lat=${lat}, lng=${lng}). Asia/Seoul(+9) 사용.`);
+    return getTimezoneOffsetHoursFromIANA("Asia/Seoul", date);
+  }
+
+  // Fallback 2: 경도 기반 근사치 계산 (LMT 기반 표준시)
+  const approximateOffset = Math.round(lng / 15);
   console.warn(
-    `[timezoneUtils] IANA 조회 실패 (lat=${lat}, lng=${lng}). 하우스 계산에 UTC(0) 사용.`,
+    `[timezoneUtils] IANA 조회 실패 (lat=${lat}, lng=${lng}). 경도 기반 근사치(UTC${approximateOffset > 0 ? '+' : ''}${approximateOffset}) 사용.`,
   );
-  return 0;
+  return approximateOffset;
 }
