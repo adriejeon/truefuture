@@ -13,8 +13,6 @@ import {
   redirectToExternalBrowser,
   getBrowserGuideMessage,
 } from "../utils/inAppBrowserDetector";
-import { logFortuneInput } from "../utils/debugFortune";
-
 function Home() {
   const { user, loadingAuth } = useAuth();
   const { profiles, loading: profilesLoading, createProfile } = useProfiles();
@@ -112,8 +110,6 @@ function Home() {
 
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-
-      logFortuneInput(data);
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);

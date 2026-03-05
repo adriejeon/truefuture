@@ -15,7 +15,6 @@ import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
-import { logFortuneInput } from "../utils/debugFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
@@ -79,8 +78,6 @@ function LifetimeFortune() {
 
     try {
       const data = await loadSharedFortune(id);
-
-      logFortuneInput(data, { fortuneType: "lifetime" });
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
@@ -354,14 +351,9 @@ function LifetimeFortune() {
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
-        onDone: ({ fullData: data, fullText, shareId: sid, debug }) => {
+        onDone: ({ fullData: data, fullText, shareId: sid }) => {
           setLoading(false);
           setProcessStatus("done");
-          const dataForLog = data ?? debug;
-          if (dataForLog) {
-            console.log("🔍 [종합운세] Gemini에 넘긴 인풋 (전체)", dataForLog);
-            logFortuneInput(dataForLog, { fortuneType: "lifetime" });
-          }
           const interpretationText =
             (typeof fullText === "string" && fullText)
               ? fullText

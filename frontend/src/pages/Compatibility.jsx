@@ -13,7 +13,6 @@ import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { fetchFortuneByResultId } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
-import { logFortuneInput } from "../utils/debugFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
@@ -166,8 +165,6 @@ function Compatibility() {
 
     try {
       const data = await loadSharedFortune(id);
-
-      logFortuneInput(data, { fortuneType: "compatibility" });
 
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
@@ -400,10 +397,7 @@ function Compatibility() {
           const data = fullData ?? debug;
           const text = fullText ?? data?.interpretation ?? "";
           setStreamingInterpretation("");
-          if (data) {
-            logFortuneInput(data, { fortuneType: "compatibility" });
-            if (data.synastryResult) setSynastryResult(data.synastryResult);
-          }
+          if (data?.synastryResult) setSynastryResult(data.synastryResult);
           if (sid) {
             setShareId(sid);
             await saveFortuneHistory(profile1.id, "compatibility", sid);

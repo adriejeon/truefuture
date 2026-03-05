@@ -12,7 +12,6 @@ import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
 import ReactMarkdown from "react-markdown";
 import { colors } from "../constants/colors";
-import { logFortuneInput } from "../utils/debugFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
@@ -727,11 +726,6 @@ function Consultation() {
         onDone: ({ shareId, fullText, fullData, debug }) => {
           setLoadingConsultation(false);
           setProcessStatus("done");
-          const dataForLog = fullData ?? debug;
-          if (dataForLog) {
-            console.log("🔍 [Consultation] Gemini에 넘긴 인풋 (전체)", dataForLog);
-            logFortuneInput(dataForLog, { fortuneType: "consultation" });
-          }
           const interpretation = fullText ?? fullData?.interpretation ?? "";
           setConsultationAnswer({
             question: userQuestion.trim(),
@@ -932,11 +926,6 @@ function Consultation() {
         onDone: ({ shareId, fullText, fullData, debug }) => {
           setLoadingFollowUp(false);
           setProcessStatus("done");
-          const dataForLog = fullData ?? debug;
-          if (dataForLog) {
-            console.log("🔍 [Consultation 후속질문] Gemini에 넘긴 인풋 (전체)", dataForLog);
-            logFortuneInput(dataForLog, { fortuneType: "consultation" });
-          }
           const interpretation = fullText ?? "";
           const parsedData = parseFortuneResult(interpretation);
           const answer = {
@@ -1035,12 +1024,7 @@ function Consultation() {
             setProcessStatus("streaming");
           }
         },
-        onDone: async ({ fullData, debug }) => {
-          const dataForLog = fullData ?? debug;
-          if (dataForLog) {
-            console.log("🔍 [Consultation 히스토리 후속질문] Gemini에 넘긴 인풋 (전체)", dataForLog);
-            logFortuneInput(dataForLog, { fortuneType: "consultation" });
-          }
+        onDone: async () => {
           setProcessStatus("done");
           await saveFortuneHistory(
             user.id,
@@ -1150,12 +1134,7 @@ function Consultation() {
 
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
-        onDone: async ({ fullData, debug }) => {
-          const dataForLog = fullData ?? debug;
-          if (dataForLog) {
-            console.log("🔍 [Consultation 공유 후속질문] Gemini에 넘긴 인풋 (전체)", dataForLog);
-            logFortuneInput(dataForLog, { fortuneType: "consultation" });
-          }
+        onDone: async () => {
           await saveFortuneHistory(
             user.id,
             selectedProfile.id,

@@ -71,7 +71,7 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
   }
 
   const decoder = new TextDecoder();
-  /** 청크가 패킷 단위로 쪼개져 올 수 있으므로, 완전한 이벤트만 파싱하기 위해 누적하는 버퍼 */
+  /** 청크가 패킷 단위로 쪼개져 올 수 있으므로, 완전한 라인만 파싱하기 위해 누적하는 버퍼 */
   let buffer = "";
   let fullText = "";
 
@@ -130,12 +130,11 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // SSE 규격: 이벤트 구분자는 \n\n. 완전히 끝맺음된 덩어리만 분리한다.
-      const parts = buffer.split("\n\n");
-      // 마지막 조각은 \n\n으로 끝나지 않았을 수 있으므로 버퍼에 되돌린다.
-      buffer = parts.pop() ?? "";
+      // 줄바꿈 기준으로 분리. 마지막 요소는 불완전한 청크일 수 있으므로 버퍼에 되돌린다.
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
 
-      for (const part of parts) {
+      for (const part of lines) {
         if (processOneEvent(part)) {
           try {
             reader.releaseLock?.();

@@ -15,7 +15,6 @@ import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import { restoreFortuneIfExists } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
-import { logFortuneInput } from "../utils/debugFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
   FORTUNE_STAR_COSTS,
@@ -162,8 +161,6 @@ function YearlyFortune() {
     try {
       const data = await loadSharedFortune(id);
 
-      logFortuneInput(data, { fortuneType: "lifetime" });
-
       setInterpretation(data.interpretation);
       setIsSharedFortune(true);
       setShareId(id);
@@ -265,14 +262,10 @@ function YearlyFortune() {
           };
           await invokeGetFortuneStream(supabase, requestBody, {
             onChunk: () => {},
-            onDone: async ({ fullData, debug }) => {
-              const data = fullData ?? debug;
+            onDone: async ({ fullData }) => {
+              const data = fullData;
               setLoading(false);
               setProcessStatus("done");
-              if (data) {
-                console.log("🔍 [종합운세] Gemini에 넘긴 인풋 (전체)", data);
-                logFortuneInput(data, { fortuneType: "lifetime" });
-              }
               if (data?.interpretation && typeof data.interpretation === "string") {
                 setInterpretation(data.interpretation);
                 setShareId(data.share_id || null);
@@ -535,8 +528,6 @@ function YearlyFortune() {
           setProcessStatus("done");
           const text = fullText ?? fullData?.interpretation ?? "";
           setStreamingInterpretation("");
-          const dataForLog = fullData ?? debug;
-          if (dataForLog) logFortuneInput(dataForLog, { fortuneType: "daily" });
           if (text) {
             const todayDate = getTodayDate();
             const sid = currentShareId ?? fullData?.share_id ?? null;
@@ -701,10 +692,6 @@ function YearlyFortune() {
           const data = fullData ?? debug;
           setLoading(false);
           setProcessStatus("done");
-          if (data) {
-            console.log("🔍 [종합운세] Gemini에 넘긴 인풋 (전체)", data);
-            logFortuneInput(data, { fortuneType: "lifetime" });
-          }
           if (data?.interpretation && typeof data.interpretation === "string") {
             setInterpretation(data.interpretation);
             setShareId(data.share_id || null);
