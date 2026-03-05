@@ -116,11 +116,10 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
       return;
     }
 
-    // [수정] URL API를 사용해서 현재 경로를 유지하면서 id만 교체
-    const url = new URL(window.location.href);
-    url.searchParams.set("id", shareId); // 기존 id가 있으면 덮어쓰고, 없으면 추가
-    url.hash = ""; // 해시(#) 제거 (카카오톡 공유 시 문제 방지)
-    const shareUrl = url.toString();
+    // [수정] 결제 파라미터 누출을 막기 위해 깨끗한 URL 생성
+    const origin = window.location.origin;
+    const pathname = window.location.pathname; // 예: /yearly, /lifetime 등 현재 경로만 가져옴
+    const shareUrl = `${origin}${pathname}?id=${shareId}`;
 
     // 이미지 URL (로컬 개발 시 외부 이미지 사용)
     const isLocalhost = window.location.hostname === "localhost";
