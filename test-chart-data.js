@@ -171,67 +171,7 @@ function compressChartData(chartData) {
 
 // 메인 실행
 async function main() {
-  console.log('='.repeat(60))
-  console.log('점성술 차트 데이터 구조 확인')
-  console.log('='.repeat(60))
-  console.log()
-  
-  console.log('테스트 입력:')
-  console.log(`  날짜: ${testDate.toISOString()}`)
-  console.log(`  위치: 위도 ${testLat}, 경도 ${testLng} (서울)`)
-  console.log()
-  
-  const chartData = await calculateChart(testDate, testLat, testLng)
-  
-  console.log('='.repeat(60))
-  console.log('1. 계산된 차트 데이터 (전체 구조)')
-  console.log('='.repeat(60))
-  console.log(JSON.stringify(chartData, null, 2))
-  console.log()
-  
-  console.log('='.repeat(60))
-  console.log('2. 행성별 상세 정보')
-  console.log('='.repeat(60))
-  Object.entries(chartData.planets).forEach(([name, planet]) => {
-    console.log(`${name.padEnd(10)}: ${planet.sign.padEnd(12)} ${planet.degreeInSign.toFixed(2).padStart(6)}도 (전체 경도: ${planet.degree.toFixed(2)}도) - 하우스 ${planet.house}`)
-  })
-  console.log()
-  
-  console.log('='.repeat(60))
-  console.log('3. 포르투나(Fortune) 정보')
-  console.log('='.repeat(60))
-  console.log(`별자리: ${chartData.fortuna.sign}`)
-  console.log(`별자리 내 각도: ${chartData.fortuna.degreeInSign.toFixed(2)}도`)
-  console.log(`전체 경도: ${chartData.fortuna.degree.toFixed(2)}도`)
-  console.log(`하우스: ${chartData.fortuna.house}`)
-  console.log()
-  
-  console.log('='.repeat(60))
-  console.log('4. 상승점(Ascendant) 정보')
-  console.log('='.repeat(60))
-  const ascSign = getSignFromLongitude(chartData.houses.angles.ascendant)
-  console.log(`별자리: ${ascSign.sign}`)
-  console.log(`별자리 내 각도: ${ascSign.degreeInSign.toFixed(2)}도`)
-  console.log(`전체 경도: ${chartData.houses.angles.ascendant.toFixed(2)}도`)
-  console.log()
-  
-  console.log('='.repeat(60))
-  console.log('5. 제미나이에 전달되는 압축된 데이터')
-  console.log('='.repeat(60))
-  const compressedData = compressChartData(chartData)
-  console.log(compressedData)
-  console.log()
-  
-  console.log('='.repeat(60))
-  console.log('6. 제미나이 프롬프트 예시 (일일 운세)')
-  console.log('='.repeat(60))
-  const examplePrompt = `일일 운세 분석:\n\n${compressedData}\n\n응답 형식 (JSON만, 마크다운 없음):\n{"s":"요약150자이내","a":["행동1","행동2","행동3"],"k":["키워드1","키워드2"]}`
-  console.log(examplePrompt)
-  console.log()
-  
-  console.log('='.repeat(60))
-  console.log('검증 완료!')
-  console.log('='.repeat(60))
+  await calculateChart(testDate, testLat, testLng)
 }
 
 main().catch(console.error)

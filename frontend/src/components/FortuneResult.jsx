@@ -35,11 +35,6 @@ function parseDailyScores(interpretation) {
 }
 
 function FortuneResult({ title, interpretation, shareId, isShared = false, shareSummary: shareSummaryProp, profileName: profileNameProp }) {
-  // 디버깅: shareId 확인
-  useEffect(() => {
-    console.log(`[FortuneResult] ${title} - shareId:`, shareId);
-  }, [shareId, title]);
-
   // Markdown 파싱: ## 헤더를 아코디언으로 처리
   const { intro, accordionSections } = useMemo(() => {
     return parseMarkdownToSections(interpretation);
@@ -110,10 +105,6 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
 
   // 카카오톡 공유하기
   const handleKakaoShare = () => {
-    console.log("🔗 [카카오톡 공유] 시작");
-    console.log("  - Kakao 초기화 여부:", window.Kakao?.isInitialized());
-    console.log("  - shareId:", shareId);
-
     if (!window.Kakao || !window.Kakao.isInitialized()) {
       alert("카카오톡 공유 기능을 사용할 수 없습니다.");
       return;
@@ -136,12 +127,6 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
       : `${window.location.origin}/assets/800x800.png`;
-
-    console.log("📍 [공유 URL 정보]");
-    console.log("  - 현재 페이지:", window.location.href);
-    console.log("  - 공유 URL:", shareUrl);
-    console.log("  - 이미지 URL:", imageUrl);
-    console.log("  - Origin:", window.location.origin);
 
     // 카카오 공유 설정 객체 (요약이 있으면 한 줄 요약으로 노출)
     const description = shareSummary || "AI가 분석한 서양 점성술 결과입니다.";
@@ -168,14 +153,8 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
       ],
     };
 
-    console.log(
-      "📤 [카카오 공유 설정]",
-      JSON.stringify(kakaoShareConfig, null, 2)
-    );
-
     try {
       window.Kakao.Share.sendDefault(kakaoShareConfig);
-      console.log("✅ 카카오톡 공유 완료");
     } catch (error) {
       console.error("❌ 카카오톡 공유 실패:", error);
       alert("카카오톡 공유 중 오류가 발생했습니다: " + error.message);

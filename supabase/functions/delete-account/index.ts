@@ -35,15 +35,6 @@ serve(async (req) => {
     // PROJECT_ANON_KEY를 우선 사용하고, 없으면 SUPABASE_ANON_KEY 사용
     const supabaseAnonKey = Deno.env.get("PROJECT_ANON_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // 디버깅: 로드된 환경 변수 확인 (키는 앞 5글자만 표시)
-    const maskedAnonKey = supabaseAnonKey 
-      ? `${supabaseAnonKey.substring(0, 5)}...` 
-      : "없음";
-    console.log("🔍 환경 변수 확인:", {
-      supabaseUrl,
-      supabaseAnonKey: maskedAnonKey,
-    });
-
     // 사용자 인증 클라이언트 초기화 (JWT 토큰 검증용)
     // ANON_KEY를 사용하고 Authorization 헤더를 전달하여 사용자 정보 가져오기
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
@@ -76,8 +67,6 @@ serve(async (req) => {
     }
 
     const user_id = user.id;
-    console.log("✅ 유저 인증 성공:", user_id);
-    console.log("🗑️ 회원 탈퇴 시작:", user_id);
 
     // Supabase Admin 클라이언트 생성 (DB 삭제용)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -90,8 +79,6 @@ serve(async (req) => {
       console.error("❌ store_deleted_user_hash 실패:", hashError);
       throw new Error("탈퇴 처리 중 식별 정보 저장에 실패했습니다.");
     }
-    console.log("✅ 탈퇴 식별 해시 저장 완료");
-
     // 1. user_wallets에서 데이터 삭제
     const { error: walletError } = await supabaseAdmin
       .from("user_wallets")
@@ -125,7 +112,6 @@ serve(async (req) => {
       console.error("❌ payment_logs 삭제 실패:", paymentLogError);
       throw new Error("결제 로그 삭제 실패");
     }
-    console.log("✅ payment_logs 삭제 완료 (또는 해당 컬럼 없음)");
 
     // 4. readings에서 데이터 삭제 (FK 제약 해제용 - ON DELETE CASCADE 미설정 테이블)
     const { error: readingsError } = await supabaseAdmin
@@ -137,7 +123,6 @@ serve(async (req) => {
       console.error("❌ readings 삭제 실패:", readingsError);
       throw new Error("리딩 데이터 삭제 실패");
     }
-    console.log("✅ readings 삭제 완료 (또는 해당 컬럼 없음)");
 
     // 5. auth.users에서 사용자 삭제 (Service Role Key 필요)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
@@ -146,8 +131,6 @@ serve(async (req) => {
       console.error("❌ 사용자 삭제 실패 (상세):", JSON.stringify(deleteError));
       throw new Error(`사용자 계정 삭제 실패: ${deleteError.message}`);
     }
-
-    console.log("✅ 회원 탈퇴 완료:", user_id);
 
     return new Response(
       JSON.stringify({

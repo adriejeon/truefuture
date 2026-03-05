@@ -90,11 +90,8 @@ function GNB() {
   const handleMyPageClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("handleMyPageClick 호출됨, navigate 실행 전");
     setIsDropdownOpen(false);
-    console.log("navigate 실행 직전");
     navigate("/mypage", { replace: false });
-    console.log("navigate 실행 완료");
   };
 
   return (

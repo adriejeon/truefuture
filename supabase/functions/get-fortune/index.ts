@@ -375,12 +375,6 @@ async function callGeminiAPI(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      if (attempt === 0) {
-        console.log("📤 Gemini API 호출 시작");
-      } else {
-        console.log(`🔄 Gemini API 재시도 (${attempt}/${maxRetries})...`);
-      }
-
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -463,12 +457,6 @@ async function callGeminiAPI(
             apiResponse.error.message || JSON.stringify(apiResponse.error)
           }`,
         );
-      }
-
-      if (attempt > 0) {
-        console.log(`✅ Gemini API 호출 성공 (재시도 ${attempt}회 후)`);
-      } else {
-        console.log("✅ Gemini API 호출 성공");
       }
 
       return apiResponse;
@@ -1231,9 +1219,6 @@ async function generateLifetimeFortune(
     const modelName = getGeminiModel(FortuneType.LIFETIME);
 
     // 병렬 호출로 속도 최적화 (4배 빠름!)
-    console.log(
-      "🔄 Lifetime 운세: Nature, Love, MoneyCareer, HealthTotal을 병렬로 호출합니다...",
-    );
     const [resultNature, resultLove, resultMoneyCareer, resultHealthTotal] =
       await Promise.all([
         callGeminiAPIWithFallback(
@@ -1262,8 +1247,6 @@ async function generateLifetimeFortune(
         ),
       ]);
 
-    console.log("✅ 4개 API 호출 완료");
-
     // 결과 파싱
     const interpretationNature = parseGeminiResponse(resultNature);
     const interpretationLove = parseGeminiResponse(resultLove);
@@ -1272,8 +1255,6 @@ async function generateLifetimeFortune(
 
     // 결과 합치기 (줄바꿈만 사용, 구분선 없음)
     const combinedInterpretation = `${interpretationNature}\n\n${interpretationLove}\n\n${interpretationMoneyCareer}\n\n${interpretationHealthTotal}`;
-
-    console.log("✅ Lifetime 운세: 네 결과를 성공적으로 합쳤습니다.");
 
     const fullPromptSentToGemini =
       "=== System (Nature) ===\n" +
@@ -1487,7 +1468,6 @@ serve(async (req) => {
       );
     }
 
-    console.log("✅ 유저 인증 성공:", user.id);
 
     // Supabase Admin 클라이언트 생성 (DB 저장용)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -1566,9 +1546,6 @@ serve(async (req) => {
         if (isNaN(birthDateTime.getTime()) || !Number.isFinite(birthDateTime.getTime())) {
           throw new Error("Invalid date");
         }
-        console.log(
-          `🕐 [CONSULTATION] Timezone 보정 완료: ${birthDateTime.toISOString()}`,
-        );
       } catch (error) {
         return new Response(
           JSON.stringify({
@@ -1714,7 +1691,6 @@ serve(async (req) => {
           chartData,
           solarReturnChartData,
         );
-        console.log(`✅ [CONSULTATION] Solar Return 차트 계산 완료`);
       } catch (srErr: any) {
         console.warn(
           "⚠️ [CONSULTATION] Solar Return 계산 실패 (무시하고 진행):",
@@ -1815,9 +1791,6 @@ serve(async (req) => {
         const scanResult = scanShortTermEvents(chartData, now, 6);
         const shortTermSection = formatShortTermEventsForPrompt(scanResult);
         systemContext = systemContext + "\n\n" + shortTermSection;
-        console.log(
-          `📅 [CONSULTATION] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`,
-        );
       } catch (scanErr: any) {
         console.warn(
           "⚠️ [CONSULTATION] 단기 이벤트 스캔 실패 (무시하고 진행):",
@@ -2364,12 +2337,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           throw new Error("Invalid date format");
         }
 
-        console.log(
-          `🕐 User1 Timezone 보정 완료: 입력(${hour1}:${minute1} KST) → 변환(${birthDateTime1.toISOString()})`,
-        );
-        console.log(
-          `🕐 User2 Timezone 보정 완료: 입력(${hour2}:${minute2} KST) → 변환(${birthDateTime2.toISOString()})`,
-        );
       } catch (error) {
         return new Response(
           JSON.stringify({
@@ -2475,7 +2442,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
       // 관계 유형 추출 (기본값: "연인")
       const relationshipType = requestData.relationshipType || "연인";
-      console.log(`🤝 관계 유형: ${relationshipType}`);
 
       const synastryResult = calculateSynastry(
         chartData1,
@@ -2560,7 +2526,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       // 스트리밍이 아닌 경우(폴백): DB 저장 후 JSON 반환
       let shareId: string | undefined;
       try {
-        console.log("💾 [COMPATIBILITY] 운세 저장 시작...");
         const { data: insertData, error: insertError } = await supabase
           .from("fortune_results")
           .insert({
@@ -2590,7 +2555,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           console.error("❌ [COMPATIBILITY] 운세 저장 실패:", insertError);
         } else if (insertData) {
           shareId = insertData.id;
-          console.log("✅ [COMPATIBILITY] 운세 저장 성공:", shareId);
         }
       } catch (saveError: any) {
         console.error("❌ [COMPATIBILITY] 운세 저장 중 예외 발생:", saveError);
@@ -2676,9 +2640,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         throw new Error("Invalid date format");
       }
 
-      console.log(
-        `🕐 Timezone 보정 완료: 입력(${hour}:${minute} KST) → 변환(${birthDateTime.toISOString()})`,
-      );
     } catch (error) {
       return new Response(
         JSON.stringify({
@@ -2703,9 +2664,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
     // 1단계: Natal 차트 계산 (출생 시점 기준 오프셋)
     const natalTzOffset = await resolveTimezoneOffsetHours(tzOpts, birthDateTime);
-    console.log(
-      `🌍 Natal Timezone Offset (하우스 계산용): ${natalTzOffset}시간`,
-    );
     let chartData: ChartData;
     try {
       chartData = await calculateChart(birthDateTime, { lat, lng }, natalTzOffset);
@@ -2780,7 +2738,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
         // 1. 현재 적용 중인 Solar Return 연도 결정
         const solarReturnYear = getActiveSolarReturnYear(birthDateTime, now);
-        console.log(`📅 Solar Return Year: ${solarReturnYear}`);
 
         // 2. Natal 태양의 황경
         const natalSunLongitude = chartData.planets.sun.degree;
@@ -2790,9 +2747,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           birthDateTime,
           solarReturnYear,
           natalSunLongitude,
-        );
-        console.log(
-          `🌞 Solar Return DateTime: ${solarReturnDateTime.toISOString()}`,
         );
 
         // 4. Solar Return 차트 계산 (솔라 리턴 시점 기준 오프셋 — DST 역사 반영)
@@ -2823,7 +2777,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           solarReturnChartData,
         );
 
-        console.log(`✅ YEARLY 운세 데이터 계산 완료`);
       } catch (yearlyError: any) {
         console.error("⚠️ YEARLY 운세 계산 실패:", yearlyError);
         // YEARLY 계산 실패 시 에러 반환
@@ -2928,9 +2881,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           );
         }
         if (isRetrograde) {
-          console.log(
-            `⚠️ [DAILY] 타임로드 ${lordName} 역행 — [CRITICAL WARNING] 프롬프트 주입`,
-          );
         }
 
         // 고전 점성술: 연주 앵글 진입, 접근/분리 각도, 4대 감응점 타격 + Neo4j 리셉션/리젝션
@@ -2988,9 +2938,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       try {
         const scanResult = scanShortTermEvents(chartData, new Date(), 6);
         shortTermPromptSection = formatShortTermEventsForPrompt(scanResult);
-        console.log(
-          `📅 [YEARLY] 6개월 단기 이벤트 ${scanResult.events.length}건 스캔 완료`,
-        );
       } catch (scanErr: any) {
         console.warn(
           "⚠️ [YEARLY] 단기 이벤트 스캔 실패 (무시하고 진행):",
@@ -3112,7 +3059,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     // LIFETIME 등 스트리밍이 아닌 경우: Supabase에 운세 저장 후 JSON 반환
     let shareId: string | undefined;
     try {
-      console.log(`💾 [${fortuneType}] 운세 저장 시작...`);
       const { data: insertData, error: insertError } = await supabase
         .from("fortune_results")
         .insert({
@@ -3134,7 +3080,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         console.error("에러 상세:", JSON.stringify(insertError, null, 2));
       } else if (insertData) {
         shareId = insertData.id;
-        console.log(`✅ [${fortuneType}] 운세 저장 성공:`, shareId);
       } else {
         console.warn(`⚠️ [${fortuneType}] insertData가 null입니다.`);
       }
@@ -3143,9 +3088,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       console.error("에러 스택:", saveError.stack);
     }
 
-    console.log(
-      `📤 [${fortuneType}] 응답 전송 - share_id: ${shareId || "null"}`,
-    );
     const responseData: any = {
       success: true,
       chart: chartData,

@@ -83,7 +83,6 @@ export async function saveFortuneHistory(
 
     if (insertError) throw insertError;
 
-    console.log("✅ 운세 조회 이력 저장 완료:", historyData);
   } catch (err) {
     console.error("운세 이력 저장 실패:", err);
   }
@@ -295,8 +294,6 @@ export async function deleteExpiredDailyFortunes(userId) {
 
     if (deleteError) {
       console.error("만료된 데일리 운세 삭제 실패:", deleteError);
-    } else {
-      console.log(`✅ 만료된 데일리 운세 ${resultIds.length}개 삭제 완료`);
     }
   } catch (err) {
     console.error("만료된 데일리 운세 삭제 중 오류:", err);
@@ -375,10 +372,6 @@ export async function deleteExpiredYearlyFortunes(userId) {
         console.error(
           `프로필 ${profile.id}의 만료된 1년 운세 삭제 실패:`,
           deleteError
-        );
-      } else {
-        console.log(
-          `✅ 프로필 ${profile.id}의 만료된 1년 운세 ${resultIds.length}개 삭제 완료`
         );
       }
     }

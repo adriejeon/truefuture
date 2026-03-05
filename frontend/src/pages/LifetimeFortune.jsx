@@ -68,7 +68,6 @@ function LifetimeFortune() {
     const sharedId = searchParams.get("id");
 
     if (sharedId) {
-      console.log("🔗 공유된 인생 종합운 ID 발견:", sharedId);
       loadShared(sharedId);
     }
   }, [searchParams]);
@@ -81,7 +80,6 @@ function LifetimeFortune() {
     try {
       const data = await loadSharedFortune(id);
 
-      console.log("✅ 공유된 인생 종합운 조회 성공:", data);
       logFortuneInput(data, { fortuneType: "lifetime" });
 
       setInterpretation(data.interpretation);
@@ -146,7 +144,6 @@ function LifetimeFortune() {
     // 결제 완료 후 복귀한 경우 자동으로 운세 조회
     const paymentCompleted = searchParams.get("payment_completed");
     if (paymentCompleted === "true") {
-      console.log("🎉 결제 완료 후 복귀, 운세 조회 시작");
       // URL 파라미터 제거
       searchParams.delete("payment_completed");
       searchParams.delete("profile_id");
@@ -174,7 +171,6 @@ function LifetimeFortune() {
         );
         if (cancelled) return;
         if (restored) {
-          console.log("✅ [복구] 인생 종합운 DB에서 복구");
           setInterpretation(restored.interpretation);
           setShareId(restored.shareId);
           setError("");
@@ -293,8 +289,6 @@ function LifetimeFortune() {
         redirectUrl: redirectUrl,
       });
 
-      console.log("포트원 결제 응답:", response);
-
       // 결제 실패 처리
       if (response?.code != null) {
         throw new Error(response.message || "결제에 실패했습니다.");
@@ -357,12 +351,6 @@ function LifetimeFortune() {
         reportType: "lifetime",
         profileName: selectedProfile?.name || null,
       };
-      console.log("\n" + "=".repeat(60));
-      console.log("📤 API 요청 전송 데이터");
-      console.log("=".repeat(60));
-      console.log("전체 요청 본문:", JSON.stringify(requestBody, null, 2));
-      console.log("=".repeat(60) + "\n");
-
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
         onDone: ({ fullData: data, fullText, shareId: sid }) => {

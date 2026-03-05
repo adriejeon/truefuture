@@ -668,10 +668,6 @@ function Consultation() {
             required: requiredStars,
             current: paidStars,
           };
-          console.log("[별 모달] 잔액 부족 알림", {
-            필요한별: nextData.required,
-            보유별: nextData.current,
-          });
           setStarModalData(nextData);
           setStarModalMode("first");
           setShowStarModal(true);
@@ -717,12 +713,6 @@ function Consultation() {
       );
 
       const requestBody = buildFirstQuestionRequestBody();
-      console.groupCollapsed(
-        "🔍 [자유 상담소] get-fortune 요청 — 제미나이 인풋 기반 정보"
-      );
-      console.log("요청 본문 (requestBody):", requestBody);
-      console.groupEnd();
-
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
           if (!firstChunkReceivedRef.current) {

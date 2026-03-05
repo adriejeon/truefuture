@@ -150,7 +150,6 @@ function YearlyFortune() {
     const sharedId = searchParams.get("id");
 
     if (sharedId) {
-      console.log("🔗 공유된 1년 운세 ID 발견:", sharedId);
       loadShared(sharedId);
     }
   }, [searchParams]);
@@ -163,7 +162,6 @@ function YearlyFortune() {
     try {
       const data = await loadSharedFortune(id);
 
-      console.log("✅ 공유된 1년 운세 조회 성공:", data);
       logFortuneInput(data, { fortuneType: "lifetime" });
 
       setInterpretation(data.interpretation);
@@ -225,8 +223,7 @@ function YearlyFortune() {
     const fortuneTabParam = searchParams.get("fortune_tab");
     
     if (paymentCompleted === "true" && fortuneTabParam === "lifetime" && user?.id && selectedProfile) {
-      console.log("🎉 결제 완료 후 복귀, 종합 운세 조회 시작");
-      
+
       // URL 파라미터 제거
       searchParams.delete("payment_completed");
       searchParams.delete("fortune_tab");
@@ -265,10 +262,6 @@ function YearlyFortune() {
             reportType: "lifetime",
             profileName: selectedProfile.name || null,
           };
-          console.groupCollapsed("🔍 [종합 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
-          console.log("요청 본문 (requestBody):", requestBody);
-          console.groupEnd();
-
           await invokeGetFortuneStream(supabase, requestBody, {
             onChunk: () => {},
             onDone: async ({ fullData }) => {
@@ -521,11 +514,6 @@ function YearlyFortune() {
         reportType: "daily",
         profileName: selectedProfile.name || null,
       };
-      console.groupCollapsed("🔍 [데일리 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
-      console.log("요청 본문 (requestBody):", requestBody);
-      console.log("프로필(생년월시, 좌표):", formData);
-      console.groupEnd();
-
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
           if (!firstChunkReceivedRef.current) {
@@ -644,8 +632,6 @@ function YearlyFortune() {
         redirectUrl: redirectUrl,
       });
 
-      console.log("포트원 결제 응답:", response);
-
       // 결제 취소 또는 실패 처리
       if (response?.code != null) {
         setError(response.message || "결제가 취소되었습니다.");
@@ -703,10 +689,6 @@ function YearlyFortune() {
         reportType: "lifetime",
         profileName: selectedProfile.name || null,
       };
-      console.groupCollapsed("🔍 [종합 운세] get-fortune 요청 — 제미나이 인풋 기반 정보");
-      console.log("요청 본문 (requestBody):", requestBody);
-      console.groupEnd();
-
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
         onDone: async ({ fullData, debug }) => {

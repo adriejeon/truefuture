@@ -202,11 +202,6 @@ export function calculateAscendant(
   const y = Math.cos(ramcRad);
   const x = -(Math.sin(ramcRad) * Math.cos(obliquityRad) + Math.tan(latRad) * Math.sin(obliquityRad));
 
-  const dateIso = date.toISOString();
-  console.log(
-    `[Ascendant] dateUTC: ${dateIso}, lat: ${lat}, lng: ${lng}, RAMC: ${ramc}, y: ${y}, x: ${x}`,
-  );
-
   const ascendantRad = Math.atan2(y, x);
   let ascendant = (ascendantRad * 180) / Math.PI;
 
@@ -2345,10 +2340,6 @@ export function calculateSolarReturnDateTime(
       ),
     );
 
-    console.log(
-      `✅ Solar Return 계산 완료 (UTC): ${solarReturnDate.toISOString()}`,
-    );
-
     return solarReturnDate;
   } catch (error: any) {
     console.error("❌ Solar Return 계산 실패:", error);
@@ -2442,9 +2433,6 @@ export function calculateProfection(
       // Solar Return의 경우: 단순 연도 차이 (생일 도달 여부와 무관)
       // targetDate가 Solar Return 시점이므로, 그 해에 도달하는 나이를 사용
       age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear();
-      console.log(
-        `📅 Profection 계산 (Solar Return 모드): targetYear ${targetDate.getUTCFullYear()} - birthYear ${birthDate.getUTCFullYear()} = ${age}세`,
-      );
     } else {
       // 일반 만 나이 계산 (생일이 지났는지 체크)
       age = targetDate.getUTCFullYear() - birthDate.getUTCFullYear();
@@ -2460,7 +2448,6 @@ export function calculateProfection(
       if (targetDate < birthdayThisYear) {
         age -= 1;
       }
-      console.log(`📅 Profection 계산 (일반 모드): 만 나이 ${age}세`);
     }
 
     // Profection House 계산 (Age를 12로 나눈 나머지 + 1)
@@ -2477,10 +2464,6 @@ export function calculateProfection(
 
     // Lord of the Year (Profection Sign의 지배 행성)
     const lordOfTheYear = getSignRuler(profectionSign);
-
-    console.log(
-      `✅ Profection 계산 완료: Age ${age}, House ${profectionHouse}, Sign ${profectionSign}, Lord ${lordOfTheYear}`,
-    );
 
     return {
       age,
@@ -2525,8 +2508,6 @@ export function getSolarReturnOverlays(
       const natalHouse = getWholeSignHouse(planetLongitude, natalAscendant);
       planetsInNatalHouses[planetKey] = natalHouse;
     }
-
-    console.log(`✅ Solar Return Overlay 계산 완료`);
 
     return {
       solarReturnAscendantInNatalHouse,

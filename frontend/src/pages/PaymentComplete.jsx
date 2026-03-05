@@ -18,7 +18,6 @@ function PaymentComplete() {
   useEffect(() => {
     const ensureSession = async () => {
       try {
-        console.log("🔐 세션 확인 중...");
         setMessage("로그인 정보를 확인하는 중입니다...");
         
         // getSession을 직접 호출하여 세션 복구 대기
@@ -31,18 +30,12 @@ function PaymentComplete() {
         }
 
         if (session?.user) {
-          console.log("✅ 세션 확인 완료:", session.user.id);
           setSessionLoading(false);
         } else {
-          console.log("⚠️ 세션이 없습니다. 인증 상태 변경 대기 중...");
-          
           // 3. 재시도 로직: onAuthStateChange로 세션 대기
           const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-              console.log("🔔 인증 상태 변경:", event, session?.user?.id);
-              
               if (session?.user) {
-                console.log("✅ 세션 복구 완료:", session.user.id);
                 setSessionLoading(false);
                 subscription.unsubscribe();
               } else if (event === "SIGNED_OUT") {
@@ -77,19 +70,16 @@ function PaymentComplete() {
     const processPayment = async () => {
       // 세션 로딩 중이면 대기
       if (sessionLoading) {
-        console.log("⏳ 세션 로딩 중... 대기");
         return;
       }
 
       // 1. 중복 호출 방지: 이미 처리 중이면 즉시 종료
       if (isProcessing.current) {
-        console.log("⚠️ 이미 처리 중인 결제 요청이 있습니다. 중복 호출 방지.");
         return;
       }
 
       // 2. 성공 우선 처리: 이미 성공 상태면 무시
       if (status === "success") {
-        console.log("✅ 이미 성공 처리된 결제입니다. 추가 처리 건너뜀.");
         return;
       }
 
@@ -98,7 +88,6 @@ function PaymentComplete() {
       
       // user가 없으면 직접 getUser() 호출
       if (!currentUser) {
-        console.log("🔍 user 객체가 없어서 직접 getUser() 호출...");
         try {
           const { data: { user: fetchedUser }, error: userError } = await supabase.auth.getUser();
           
@@ -111,7 +100,6 @@ function PaymentComplete() {
           }
           
           currentUser = fetchedUser;
-          console.log("✅ 사용자 정보 확인 완료:", currentUser.id);
         } catch (err) {
           console.error("❌ getUser() 예외:", err);
           isProcessing.current = false;
@@ -130,10 +118,6 @@ function PaymentComplete() {
         searchParams.forEach((value, key) => {
           allParams[key] = value;
         });
-        
-        console.log("=== 결제 완료 페이지 진입 ===");
-        console.log("전체 URL:", window.location.href);
-        console.log("모든 파라미터:", allParams);
 
         // PortOne V2 파라미터 (새 버전)
         const paymentId = searchParams.get("paymentId");
@@ -156,9 +140,6 @@ function PaymentComplete() {
             if (stored) merchantUid = stored;
           } catch (_) {}
         }
-
-        console.log("V2 파라미터:", { paymentId, code, errorMessage, txId });
-        console.log("V1 파라미터:", { impUid, impSuccess, merchantUid, errorMsg });
 
         // 결제 실패 처리: code 또는 imp_success=false일 때만 실패. txId가 있으면 성공으로 간주하고 검증 진행
         if (code || impSuccess === "false") {
@@ -205,11 +186,6 @@ function PaymentComplete() {
             return;
           }
 
-          // imp_uid가 없고 merchant_uid만 있는 경우 로그
-          if (!finalImpUid && finalMerchantUid) {
-            console.log("⚠️ imp_uid가 없지만 merchant_uid가 있습니다. merchant_uid로 진행합니다:", finalMerchantUid);
-          }
-
           // 사용자 로그인 확인 (이미 위에서 확인했지만 재확인)
           if (!currentUser || !currentUser.id) {
             console.error("❌ 사용자 정보 없음");
@@ -220,7 +196,6 @@ function PaymentComplete() {
           }
         } else {
           // 이미 성공 상태면 더 이상 처리하지 않음
-          console.log("✅ 이미 성공 상태입니다. 추가 처리 건너뜀.");
           isProcessing.current = false;
           return;
         }
@@ -240,8 +215,6 @@ function PaymentComplete() {
         if (finalMerchantUid) {
           requestBody.merchant_uid = finalMerchantUid;
         }
-        
-        console.log("백엔드 호출 시작:", requestBody);
 
         const { data, error: purchaseError } = await supabase.functions.invoke(
           "purchase-stars",
@@ -249,8 +222,6 @@ function PaymentComplete() {
             body: requestBody,
           }
         );
-
-        console.log("백엔드 응답:", { data, purchaseError });
 
         // 3. "이미 처리된 결제"는 성공으로 간주
         if (purchaseError) {
@@ -264,7 +235,6 @@ function PaymentComplete() {
             (purchaseError.status === 400 && errorString.includes("이미"));
 
           if (isAlreadyProcessed) {
-            console.log("✅ 이미 처리된 결제입니다. 성공으로 처리합니다.");
             isProcessing.current = false;
             setStatus("success");
             setMessage(
@@ -300,7 +270,6 @@ function PaymentComplete() {
             errorString.includes("already processed");
 
           if (isAlreadyProcessed) {
-            console.log("✅ 이미 처리된 결제입니다. 성공으로 처리합니다.");
             isProcessing.current = false;
             setStatus("success");
             setMessage(
@@ -327,7 +296,6 @@ function PaymentComplete() {
         }
 
         // 성공 처리
-        console.log("✅ 운세권 구매 성공:", data);
         isProcessing.current = false; // 처리 완료 표시
         setStatus("success");
         setMessage(
@@ -360,7 +328,6 @@ function PaymentComplete() {
           errorString.includes("already processed");
 
         if (isAlreadyProcessed) {
-          console.log("✅ 이미 처리된 결제입니다. 성공으로 처리합니다.");
           setStatus("success");
           setMessage(
             "🎉 별 충전이 완료되었습니다!\n\n이미 처리된 결제입니다. 별이 정상적으로 충전되었습니다."

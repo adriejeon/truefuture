@@ -147,7 +147,6 @@ async function saveToSupabase(env, chartData, interpretation, requestData) {
       const errorText = await response.text();
       console.error('Supabase insert error:', response.status, errorText);
     } else {
-      console.log('Successfully saved reading to Supabase');
     }
   } catch (error) {
     console.error('Error saving to Supabase:', error);

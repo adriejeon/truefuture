@@ -37,25 +37,16 @@ export function logFortuneInput(data, options = {}) {
   // 1. 차트 정보 요약
   console.group("📊 차트 정보");
   if (data.chart) {
-    console.log("Natal (출생 차트):", chartSummary(data.chart));
-    console.log("Natal 상세:", data.chart);
   }
   if (data.chart2) {
-    console.log("Natal 2 (상대방 출생 차트):", chartSummary(data.chart2));
-    console.log("Natal 2 상세:", data.chart2);
   }
   if (data.transitChart) {
-    console.log("Transit (트랜짓 차트):", chartSummary(data.transitChart));
-    console.log("Transit 상세:", data.transitChart);
   }
   if (data.aspects && Array.isArray(data.aspects)) {
-    console.log("Aspects (각도):", data.aspects.length, "건", data.aspects);
   }
   if (data.transitMoonHouse != null) {
-    console.log("Transit Moon House (트랜짓 달 하우스):", data.transitMoonHouse);
   }
   if (data.synastryResult) {
-    console.log("Synastry 결과 요약:", data.synastryResult);
   }
   console.groupEnd();
 
@@ -64,10 +55,8 @@ export function logFortuneInput(data, options = {}) {
     data.userPrompt ?? data.geminiInput?.userPrompt ?? null;
   if (userPrompt) {
     console.group("📝 User Prompt (제미나이에게 전달한 사용자/차트 프롬프트)");
-    console.log(userPrompt);
     console.groupEnd();
   } else {
-    console.log("📝 User Prompt: (응답에 없음)");
   }
 
   // 3. System Instruction
@@ -75,31 +64,15 @@ export function logFortuneInput(data, options = {}) {
     data.systemInstruction ?? data.geminiInput?.systemInstruction ?? null;
   if (systemInstruction) {
     console.group("📋 System Instruction (시스템 지시문)");
-    console.log(systemInstruction);
     console.groupEnd();
   } else {
-    console.log("📋 System Instruction: (응답에 없음)");
   }
 
   // 4. debugInfo (fullPromptSentToGemini, neo4jContext, rawGeminiResponse 등)
   if (data.debugInfo) {
     console.group("🛠️ debugInfo");
-    if (data.debugInfo.fullPromptSentToGemini) {
-      console.log(
-        "fullPromptSentToGemini (System+User 통합):",
-        data.debugInfo.fullPromptSentToGemini,
-      );
-    }
-    if (data.debugInfo.neo4jContext) {
-      console.log("neo4jContext:", data.debugInfo.neo4jContext);
-    }
-    if (data.debugInfo.rawGeminiResponse) {
-      console.log("rawGeminiResponse:", data.debugInfo.rawGeminiResponse);
-    }
-    console.log("debugInfo 전체:", data.debugInfo);
     console.groupEnd();
   } else {
-    console.log("🛠️ debugInfo: (응답에 없음)");
   }
 
   console.groupEnd();

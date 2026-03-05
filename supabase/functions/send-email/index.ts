@@ -124,7 +124,6 @@ ${content.refundReason || "사유 미입력"}
     }
 
     const result = await resendResponse.json();
-    console.log("✅ 이메일 전송 성공:", result);
 
     return new Response(
       JSON.stringify({

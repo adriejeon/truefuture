@@ -30,7 +30,6 @@ function SocialLoginButtons() {
 
     // 환경에 맞는 리디렉션 URL 가져오기
     const redirectUrl = getRedirectUrl()
-    console.log('OAuth 리디렉션 URL:', redirectUrl)
 
     // 프로바이더별로 options 객체 동적 생성
     const options = {
@@ -66,7 +65,6 @@ function SocialLoginButtons() {
       }
 
       // OAuth 페이지로 자동 리디렉션됩니다
-      console.log('로그인 시작:', provider)
     } catch (error) {
       console.error(`${provider} 로그인 오류:`, error.message)
       alert(`로그인 중 오류가 발생했습니다: ${error.message}`)

@@ -169,8 +169,6 @@ function Purchase() {
         redirectUrl: redirectUrl,
       });
 
-      console.log("포트원 결제 응답:", response);
-
       // 결제 실패 처리
       if (response?.code != null) {
         throw new Error(response.message || "결제에 실패했습니다.");

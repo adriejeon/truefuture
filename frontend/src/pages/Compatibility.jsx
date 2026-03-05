@@ -146,7 +146,6 @@ function Compatibility() {
     const fromHistory = searchParams.get("from") === "history"; // 내역에서 클릭한 경우
 
     if (sharedId) {
-      console.log("🔗 궁합 ID 발견:", sharedId, "내역에서:", fromHistory);
       if (fromHistory && user) {
         // 내역에서 클릭한 경우
         loadFromHistory(sharedId);
@@ -168,7 +167,6 @@ function Compatibility() {
     try {
       const data = await loadSharedFortune(id);
 
-      console.log("✅ 공유된 궁합 조회 성공:", data);
       logFortuneInput(data, { fortuneType: "compatibility" });
 
       setInterpretation(data.interpretation);
@@ -196,7 +194,6 @@ function Compatibility() {
         throw new Error("운세를 찾을 수 없습니다.");
       }
 
-      console.log("✅ 궁합 내역 조회 성공:", id);
       setInterpretation(data.interpretation);
       setShareId(data.shareId);
       setIsSharedFortune(false); // 내역에서 불러온 것이므로 공유 링크 아님
@@ -382,12 +379,6 @@ function Compatibility() {
         user2,
         relationshipType,
       };
-      console.log("\n" + "=".repeat(60));
-      console.log("📤 API 요청 전송 데이터 (궁합)");
-      console.log("=".repeat(60));
-      console.log("전체 요청 본문:", JSON.stringify(requestBody, null, 2));
-      console.log("=".repeat(60) + "\n");
-
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
           if (!firstChunkReceivedRef.current) {

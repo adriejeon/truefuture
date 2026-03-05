@@ -30,7 +30,6 @@ function MyPage() {
   const handleUsageHistory = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("사용내역 클릭됨");
     navigate("/purchase/history", { replace: false });
   };
 
