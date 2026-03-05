@@ -37,16 +37,22 @@ export function logFortuneInput(data, options = {}) {
   // 1. 차트 정보 요약
   console.group("📊 차트 정보");
   if (data.chart) {
+    console.log("chart:", chartSummary(data.chart));
   }
   if (data.chart2) {
+    console.log("chart2:", chartSummary(data.chart2));
   }
   if (data.transitChart) {
+    console.log("transitChart:", chartSummary(data.transitChart));
   }
   if (data.aspects && Array.isArray(data.aspects)) {
+    console.log("aspects:", data.aspects);
   }
   if (data.transitMoonHouse != null) {
+    console.log("transitMoonHouse:", data.transitMoonHouse);
   }
   if (data.synastryResult) {
+    console.log("synastryResult:", data.synastryResult);
   }
   console.groupEnd();
 
@@ -55,8 +61,10 @@ export function logFortuneInput(data, options = {}) {
     data.userPrompt ?? data.geminiInput?.userPrompt ?? null;
   if (userPrompt) {
     console.group("📝 User Prompt (제미나이에게 전달한 사용자/차트 프롬프트)");
+    console.log(userPrompt);
     console.groupEnd();
   } else {
+    console.log("📝 User Prompt: (없음)");
   }
 
   // 3. System Instruction
@@ -64,15 +72,22 @@ export function logFortuneInput(data, options = {}) {
     data.systemInstruction ?? data.geminiInput?.systemInstruction ?? null;
   if (systemInstruction) {
     console.group("📋 System Instruction (시스템 지시문)");
+    console.log(systemInstruction);
     console.groupEnd();
   } else {
+    console.log("📋 System Instruction: (없음)");
   }
 
   // 4. debugInfo (fullPromptSentToGemini, neo4jContext, rawGeminiResponse 등)
   if (data.debugInfo) {
     console.group("🛠️ debugInfo");
+    console.log(data.debugInfo);
+    if (data.debugInfo.fullPromptSentToGemini) {
+      console.log("fullPromptSentToGemini (전체):", data.debugInfo.fullPromptSentToGemini);
+    }
     console.groupEnd();
   } else {
+    console.log("🛠️ debugInfo: (없음)");
   }
 
   console.groupEnd();

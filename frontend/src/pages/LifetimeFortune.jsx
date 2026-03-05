@@ -354,9 +354,14 @@ function LifetimeFortune() {
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
-        onDone: ({ fullData: data, fullText, shareId: sid }) => {
+        onDone: ({ fullData: data, fullText, shareId: sid, debug }) => {
           setLoading(false);
           setProcessStatus("done");
+          const dataForLog = data ?? debug;
+          if (dataForLog) {
+            console.log("🔍 [종합운세] Gemini에 넘긴 인풋 (전체)", dataForLog);
+            logFortuneInput(dataForLog, { fortuneType: "lifetime" });
+          }
           const interpretationText =
             (typeof fullText === "string" && fullText)
               ? fullText
@@ -365,7 +370,6 @@ function LifetimeFortune() {
                 : "";
           if (interpretationText) {
             setInterpretation(interpretationText);
-            if (data) logFortuneInput(data, { fortuneType: "lifetime" });
             if (
               sid &&
               sid !== "undefined" &&

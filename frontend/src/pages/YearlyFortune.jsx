@@ -265,10 +265,14 @@ function YearlyFortune() {
           };
           await invokeGetFortuneStream(supabase, requestBody, {
             onChunk: () => {},
-            onDone: async ({ fullData }) => {
-              const data = fullData;
+            onDone: async ({ fullData, debug }) => {
+              const data = fullData ?? debug;
               setLoading(false);
               setProcessStatus("done");
+              if (data) {
+                console.log("🔍 [종합운세] Gemini에 넘긴 인풋 (전체)", data);
+                logFortuneInput(data, { fortuneType: "lifetime" });
+              }
               if (data?.interpretation && typeof data.interpretation === "string") {
                 setInterpretation(data.interpretation);
                 setShareId(data.share_id || null);
@@ -281,7 +285,6 @@ function YearlyFortune() {
               } else {
                 setInterpretation("결과를 불러올 수 없습니다.");
               }
-              if (data) logFortuneInput(data, { fortuneType: "lifetime" });
               requestAnimationFrame(() => {
                 resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               });
@@ -698,7 +701,10 @@ function YearlyFortune() {
           const data = fullData ?? debug;
           setLoading(false);
           setProcessStatus("done");
-          if (data) logFortuneInput(data, { fortuneType: "lifetime" });
+          if (data) {
+            console.log("🔍 [종합운세] Gemini에 넘긴 인풋 (전체)", data);
+            logFortuneInput(data, { fortuneType: "lifetime" });
+          }
           if (data?.interpretation && typeof data.interpretation === "string") {
             setInterpretation(data.interpretation);
             setShareId(data.share_id || null);

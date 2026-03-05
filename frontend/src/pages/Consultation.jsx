@@ -728,7 +728,10 @@ function Consultation() {
           setLoadingConsultation(false);
           setProcessStatus("done");
           const dataForLog = fullData ?? debug;
-          if (dataForLog) logFortuneInput(dataForLog, { fortuneType: "consultation" });
+          if (dataForLog) {
+            console.log("🔍 [Consultation] Gemini에 넘긴 인풋 (전체)", dataForLog);
+            logFortuneInput(dataForLog, { fortuneType: "consultation" });
+          }
           const interpretation = fullText ?? fullData?.interpretation ?? "";
           setConsultationAnswer({
             question: userQuestion.trim(),
@@ -926,9 +929,14 @@ function Consultation() {
           }
           setStreamingFollowUpInterpretation((prev) => prev + text);
         },
-        onDone: ({ fullText }) => {
+        onDone: ({ shareId, fullText, fullData, debug }) => {
           setLoadingFollowUp(false);
           setProcessStatus("done");
+          const dataForLog = fullData ?? debug;
+          if (dataForLog) {
+            console.log("🔍 [Consultation 후속질문] Gemini에 넘긴 인풋 (전체)", dataForLog);
+            logFortuneInput(dataForLog, { fortuneType: "consultation" });
+          }
           const interpretation = fullText ?? "";
           const parsedData = parseFortuneResult(interpretation);
           const answer = {
@@ -1027,7 +1035,12 @@ function Consultation() {
             setProcessStatus("streaming");
           }
         },
-        onDone: async () => {
+        onDone: async ({ fullData, debug }) => {
+          const dataForLog = fullData ?? debug;
+          if (dataForLog) {
+            console.log("🔍 [Consultation 히스토리 후속질문] Gemini에 넘긴 인풋 (전체)", dataForLog);
+            logFortuneInput(dataForLog, { fortuneType: "consultation" });
+          }
           setProcessStatus("done");
           await saveFortuneHistory(
             user.id,
@@ -1137,7 +1150,12 @@ function Consultation() {
 
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
-        onDone: async () => {
+        onDone: async ({ fullData, debug }) => {
+          const dataForLog = fullData ?? debug;
+          if (dataForLog) {
+            console.log("🔍 [Consultation 공유 후속질문] Gemini에 넘긴 인풋 (전체)", dataForLog);
+            logFortuneInput(dataForLog, { fortuneType: "consultation" });
+          }
           await saveFortuneHistory(
             user.id,
             selectedProfile.id,
