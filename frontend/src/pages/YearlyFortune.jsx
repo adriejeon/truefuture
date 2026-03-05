@@ -261,6 +261,7 @@ function YearlyFortune() {
             fortuneType: "lifetime",
             reportType: "lifetime",
             profileName: selectedProfile.name || null,
+            profileId: selectedProfile?.id ?? null,
           };
           await invokeGetFortuneStream(supabase, requestBody, {
             onChunk: () => {},
@@ -513,6 +514,7 @@ function YearlyFortune() {
         fortuneType: "daily",
         reportType: "daily",
         profileName: selectedProfile.name || null,
+        profileId: selectedProfile?.id ?? null,
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
@@ -688,6 +690,7 @@ function YearlyFortune() {
         fortuneType: "lifetime",
         reportType: "lifetime",
         profileName: selectedProfile.name || null,
+        profileId: selectedProfile?.id ?? null,
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},

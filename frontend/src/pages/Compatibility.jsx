@@ -378,6 +378,7 @@ function Compatibility() {
         user1,
         user2,
         relationshipType,
+        profileId: profile1?.id ?? null,
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {

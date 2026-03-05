@@ -350,6 +350,7 @@ function LifetimeFortune() {
         fortuneType: "lifetime",
         reportType: "lifetime",
         profileName: selectedProfile?.name || null,
+        profileId: selectedProfile?.id ?? null,
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},

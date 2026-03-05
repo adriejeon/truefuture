@@ -632,7 +632,8 @@ function createFortuneSSEStream(
           console.error("❌ [스트림] fortune_results insert 실패:", resultError);
           const errEvent = `data: ${JSON.stringify({ error: resultError.message })}\n\n`;
           controller.enqueue(encoder.encode(errEvent));
-        } else if (resultData?.id && options?.userId && options?.fortuneType) {
+        } else if (resultData?.id && options?.userId && options?.fortuneType && options?.profileId) {
+          // profileId가 명확히 존재할 때만 이력을 저장하도록 조건 추가
           const shareId = resultData.id;
           const { error: historyError } = await supabase
             .from("fortune_history")
