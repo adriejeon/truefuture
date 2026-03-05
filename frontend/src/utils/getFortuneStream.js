@@ -27,7 +27,7 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
 
   const url = `${supabaseUrl}/functions/v1/get-fortune`;
   const controller = new AbortController();
-  const timeoutMs = 90000;
+  const timeoutMs = 120000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
