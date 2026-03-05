@@ -750,10 +750,23 @@ function Consultation() {
           setSelectedChipIndex(null);
           setTimeout(() => setShowFollowUpButton(true), 500);
         },
-        onError: (err) => {
+        onError: async (err, options) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoadingConsultation(false);
           setProcessStatus("idle");
+          if (options?.shouldRefund) {
+            try {
+              const { error: refundError } = await supabase.rpc("refund_stars", {
+                p_user_id: user.id,
+                p_amount: requiredStars,
+                p_description: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
+              });
+              if (refundError) throw refundError;
+              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 망원경이 복구되었습니다.");
+            } catch (refundErr) {
+              console.error("환불 처리 실패:", refundErr);
+            }
+          }
         },
       });
     } catch (err) {
@@ -954,10 +967,23 @@ function Consultation() {
           setShowFollowUpInput(false);
           setStreamingFollowUpInterpretation("");
         },
-        onError: (err) => {
+        onError: async (err, options) => {
           setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
           setLoadingFollowUp(false);
           setProcessStatus("idle");
+          if (options?.shouldRefund) {
+            try {
+              const { error: refundError } = await supabase.rpc("refund_stars", {
+                p_user_id: user.id,
+                p_amount: requiredStars,
+                p_description: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
+              });
+              if (refundError) throw refundError;
+              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 망원경이 복구되었습니다.");
+            } catch (refundErr) {
+              console.error("환불 처리 실패:", refundErr);
+            }
+          }
         },
       });
     } catch (err) {
@@ -1040,9 +1066,22 @@ function Consultation() {
           setHistoryShowFollowUpInput(false);
           await loadHistoryItem();
         },
-        onError: (err) => {
+        onError: async (err, options) => {
           setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
           setProcessStatus("idle");
+          if (options?.shouldRefund) {
+            try {
+              const { error: refundError } = await supabase.rpc("refund_stars", {
+                p_user_id: user.id,
+                p_amount: requiredStars,
+                p_description: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
+              });
+              if (refundError) throw refundError;
+              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 망원경이 복구되었습니다.");
+            } catch (refundErr) {
+              console.error("환불 처리 실패:", refundErr);
+            }
+          }
         },
       });
     } catch (err) {
@@ -1149,7 +1188,22 @@ function Consultation() {
           setSharedShowFollowUpInput(false);
           await loadSharedConsultation(sharedConsultation.shareId);
         },
-        onError: (err) => setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다."),
+        onError: async (err, options) => {
+          setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+          if (options?.shouldRefund) {
+            try {
+              const { error: refundError } = await supabase.rpc("refund_stars", {
+                p_user_id: user.id,
+                p_amount: requiredStars,
+                p_description: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
+              });
+              if (refundError) throw refundError;
+              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 망원경이 복구되었습니다.");
+            } catch (refundErr) {
+              console.error("환불 처리 실패:", refundErr);
+            }
+          }
+        },
       });
     } catch (err) {
       setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
