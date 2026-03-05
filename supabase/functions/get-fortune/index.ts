@@ -116,9 +116,10 @@ function assertValidDate(d: Date, context: string): void {
 }
 
 // ========== AI 해석 관련 함수 ==========
-const GEMINI_MODEL = "gemini-2.5-pro"; // 전 타입 공통 Primary: 종합운세, 데일리, 1년 운세, 궁합 + 자유 상담소 첫 질문 (Gemini 2.5 Pro)
+const GEMINI_MODEL = "gemini-3-flash-preview"; // 전 타입 공통: 종합운세, 데일리, 1년 운세, 궁합
 const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"; // 503/과부하 시 폴백
-const GEMINI_CONSULTATION_FOLLOWUP_MODEL = "gemini-2.5-flash"; // 자유 상담소 후속 질문 전용
+const GEMINI_CONSULTATION_FIRST_MODEL = "gemini-2.5-pro"; // 자유 상담소 첫 질문 전용
+const GEMINI_CONSULTATION_FOLLOWUP_MODEL = "gemini-3-flash-preview"; // 자유 상담소 후속 질문
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 /** 503 또는 Overloaded 관련 에러인지 판별 (폴백 트리거용) */
@@ -162,9 +163,9 @@ function getGeminiModel(_fortuneType: FortuneType): string {
   return GEMINI_MODEL;
 }
 
-/** 자유 상담소: 첫 질문이면 Pro, 후속 질문이면 2.5 Flash */
+/** 자유 상담소: 첫 질문은 2.5 Pro, 후속 질문은 3 Flash */
 function getConsultationModel(isFollowUp: boolean): string {
-  return isFollowUp ? GEMINI_CONSULTATION_FOLLOWUP_MODEL : GEMINI_MODEL;
+  return isFollowUp ? GEMINI_CONSULTATION_FOLLOWUP_MODEL : GEMINI_CONSULTATION_FIRST_MODEL;
 }
 
 /** 자유 상담소: 첫 질문용 generation config (Pro 모델 사용) */
