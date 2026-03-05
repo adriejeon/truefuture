@@ -652,12 +652,12 @@ function createFortuneSSEStream(
 
         const shareId = resultData?.id ?? null;
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        // done 이벤트는 share_id만 전송 (debug 제외 → JSON 크기 축소로 파싱 실패/잘림 방지)
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
               done: true,
               share_id: shareId,
-              debug: options?.debugPayload ?? undefined,
             })}\n\n`,
           ),
         );

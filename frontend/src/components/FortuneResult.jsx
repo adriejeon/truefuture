@@ -211,8 +211,8 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
         ) : null}
       </div>
 
-      {/* Intro (서론) - 컨테이너 밖 */}
-      {intro && (
+      {/* Intro (서론) - ## 헤더가 있을 때만 표시 (아코디언과 함께) */}
+      {intro && accordionSections.length > 0 && (
         <div className="mb-4 sm:mb-6 prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
           <ReactMarkdown>{intro}</ReactMarkdown>
         </div>
@@ -355,7 +355,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
           })()}
         </div>
       ) : (
-        /* 헤더가 없는 경우 기존 방식으로 렌더링 */
+        /* 헤더가 없으면 intro와 동일한 내용 중복 방지: interpretation만 렌더 */
         <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
           <ReactMarkdown>{interpretation}</ReactMarkdown>
         </div>

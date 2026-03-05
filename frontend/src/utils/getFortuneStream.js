@@ -99,6 +99,7 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
           onDone({
             shareId: data.share_id ?? null,
             fullText,
+            fullData: fullText ? { interpretation: fullText } : undefined,
             debug: data.debug ?? undefined,
           });
           return true;
@@ -148,7 +149,7 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
     if (buffer.trim()) {
       if (processOneEvent(buffer)) return;
     }
-    onDone({ shareId: null, fullText });
+    onDone({ shareId: null, fullText, fullData: fullText ? { interpretation: fullText } : undefined });
   } finally {
     try {
       reader.releaseLock?.();
