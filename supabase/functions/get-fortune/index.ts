@@ -1294,12 +1294,26 @@ async function generateLifetimeFortune(
   }
 }
 
+/** 차감 시 사용한 description으로 환불 재화 타입 추론 (프론트 getCurrencyTypeFromDescription와 동일) */
+function getRefundTypeFromDescription(description: string): "PAID" | "BONUS" | "PROBE" {
+  if (!description || typeof description !== "string") return "PAID";
+  const d = description;
+  if (d.includes("데일리") || d.includes("오늘 운세")) return "BONUS";
+  if (d.includes("종합운세") || d.includes("종합 운세") || d.includes("탐사선")) return "PROBE";
+  return "PAID";
+}
+
 // ========== 메인 핸들러 ==========
 serve(async (req) => {
   // CORS Preflight 처리
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  let consumed = false;
+  let consumeAmount = 0;
+  let consumeDescription = "";
+  let authUserId: string | null = null;
 
   try {
     // Supabase 클라이언트 초기화
@@ -1469,7 +1483,7 @@ serve(async (req) => {
         },
       );
     }
-
+    authUserId = user.id;
 
     // Supabase Admin 클라이언트 생성 (DB 저장용)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -1493,6 +1507,42 @@ serve(async (req) => {
       fortuneType = reportTypeMap[requestData.reportType] || FortuneType.DAILY;
     } else {
       fortuneType = FortuneType.DAILY;
+    }
+
+    // ========== 운세권 차감 (스트리밍 전 서버에서 선차감, 실패 시 롤백) ==========
+    const cost = Number(requestData?.cost) || 0;
+    const description = typeof requestData?.description === "string" ? requestData.description.trim() : "";
+    if (cost > 0 && description) {
+      const { data: consumeResult, error: consumeError } = await supabase.rpc("consume_stars", {
+        p_user_id: user.id,
+        p_amount: cost,
+        p_description: description,
+      });
+      if (consumeError) {
+        console.error("❌ consume_stars RPC 오류:", consumeError);
+        return new Response(
+          JSON.stringify({
+            error: consumeError.message || "운세권 차감에 실패했습니다.",
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      if (consumeResult && !(consumeResult as { success?: boolean }).success) {
+        const msg = (consumeResult as { message?: string }).message || "운세권이 부족합니다.";
+        return new Response(
+          JSON.stringify({ error: msg }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      consumed = true;
+      consumeAmount = cost;
+      consumeDescription = description;
     }
 
     // ========== CONSULTATION 처리 (싱글턴 자유 질문) ==========
@@ -3134,6 +3184,27 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     console.error("에러 스택:", error.stack);
     console.error("에러 타입:", error.name);
     console.error("=".repeat(60) + "\n");
+
+    // 스트리밍 전 차감했던 경우 서버에서 자동 환불 (네트워크 단절 시에도 복구 가능)
+    if (consumed && authUserId && consumeAmount > 0) {
+      try {
+        const refundUrl = Deno.env.get("SUPABASE_URL");
+        const refundKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (refundUrl && refundKey) {
+          const supabaseRefund = createClient(refundUrl, refundKey);
+          const refundType = getRefundTypeFromDescription(consumeDescription);
+          await supabaseRefund.rpc("refund_stars", {
+            p_user_id: authUserId,
+            p_amount: consumeAmount,
+            p_description: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
+            p_refund_type: refundType,
+          });
+          console.log("✅ 차감분 자동 환불 완료:", { authUserId, consumeAmount, refundType });
+        }
+      } catch (refundErr) {
+        console.error("❌ refund_stars 롤백 실패:", refundErr);
+      }
+    }
 
     return new Response(
       JSON.stringify({

@@ -20,9 +20,7 @@ import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
   fetchUserStars,
-  consumeStars,
   checkStarBalance,
-  refundStars,
 } from "../utils/starConsumption";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
 import LoginRequiredModal from "../components/LoginRequiredModal";
@@ -419,25 +417,14 @@ function YearlyFortune() {
     firstChunkReceivedRef.current = false;
 
     try {
-      await consumeStars(
-        user.id,
-        FORTUNE_STAR_COSTS.daily,
-        `${FORTUNE_TYPE_NAMES.daily} 조회`
-      );
-    } catch (err) {
-      setError(err?.message || "별 차감에 실패했습니다.");
-      setLoading(false);
-      setProcessStatus("idle");
-      return;
-    }
-
-    try {
       const requestBody = {
         ...formData,
         fortuneType: "daily",
         reportType: "daily",
         profileName: selectedProfile.name || null,
         profileId: selectedProfile?.id ?? null,
+        cost: FORTUNE_STAR_COSTS.daily,
+        description: `${FORTUNE_TYPE_NAMES.daily} 조회`,
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
@@ -476,23 +463,11 @@ function YearlyFortune() {
             setInterpretation("결과를 불러올 수 없습니다.");
           }
         },
-        onError: async (err, options) => {
+        onError: async (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoading(false);
           setProcessStatus("idle");
-          if (options?.shouldRefund) {
-            try {
-              await refundStars(
-                user.id,
-                FORTUNE_STAR_COSTS.daily,
-                "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-                `${FORTUNE_TYPE_NAMES.daily} 조회`
-              );
-              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 운세권이 복구되었습니다.");
-            } catch (refundErr) {
-              console.error("환불 처리 실패:", refundErr);
-            }
-          }
+          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
         },
       });
     } catch (err) {
@@ -570,25 +545,14 @@ function YearlyFortune() {
     setShareId(null);
 
     try {
-      await consumeStars(
-        user.id,
-        1,
-        "종합운세 조회"
-      );
-    } catch (err) {
-      setError(err?.message || "탐사선 차감에 실패했습니다.");
-      setLoading(false);
-      setProcessStatus("idle");
-      return;
-    }
-
-    try {
       const requestBody = {
         ...formData,
         fortuneType: "lifetime",
         reportType: "lifetime",
         profileName: selectedProfile.name || null,
         profileId: selectedProfile?.id ?? null,
+        cost: 1,
+        description: "종합운세 조회",
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
@@ -612,23 +576,11 @@ function YearlyFortune() {
             setInterpretation("결과를 불러올 수 없습니다.");
           }
         },
-        onError: async (err, options) => {
+        onError: async (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoading(false);
           setProcessStatus("idle");
-          if (options?.shouldRefund) {
-            try {
-              await refundStars(
-                user.id,
-                1,
-                "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-                `${FORTUNE_TYPE_NAMES.lifetime} 조회`
-              );
-              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 운세권이 복구되었습니다.");
-            } catch (refundErr) {
-              console.error("환불 처리 실패:", refundErr);
-            }
-          }
+          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
         },
       });
     } catch (err) {

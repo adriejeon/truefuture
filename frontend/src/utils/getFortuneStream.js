@@ -1,12 +1,11 @@
 /**
  * get-fortune 엣지 함수를 fetch + SSE 스트리밍으로 호출합니다.
  * Authorization 헤더에 세션 토큰을 넣고, response.body.getReader()로 청크를 읽어
- * onChunk / onDone 콜백으로 전달합니다.
- * 90초 타임아웃 시 요청을 중단하며, 실패 시 onError에 shouldRefund 플래그를 넘깁니다.
+ * onChunk / onDone 콜백으로 전달합니다. 차감·환불은 서버(get-fortune)에서 처리합니다.
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase - Supabase 클라이언트
- * @param {object} requestBody - POST body (fortuneType, birthDate, lat, lng 등)
- * @param {{ onChunk: (text: string) => void, onDone: (payload: { shareId?: string | null, fullText?: string, interpretation?: string, fullData?: any, debug?: object }) => void, onError?: (err: Error, options?: { shouldRefund?: boolean }) => void }} callbacks
+ * @param {object} requestBody - POST body (fortuneType, birthDate, cost, description 등)
+ * @param {{ onChunk: (text: string) => void, onDone: (payload) => void, onError?: (err: Error) => void }} callbacks
  * @returns {Promise<void>}
  */
 export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
@@ -155,7 +154,7 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
       } catch (_) {}
     }
   } catch (err) {
-    onError?.(err, { shouldRefund: true });
+    onError?.(err);
     throw err;
   } finally {
     clearTimeout(timeoutId);

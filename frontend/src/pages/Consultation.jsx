@@ -17,9 +17,7 @@ import {
   FORTUNE_STAR_COSTS,
   FORTUNE_TYPE_NAMES,
   fetchUserStars,
-  consumeStars,
   checkStarBalance,
-  refundStars,
 } from "../utils/starConsumption";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
 import LoginRequiredModal from "../components/LoginRequiredModal";
@@ -634,8 +632,10 @@ function Consultation() {
       consultationTopic: selectedTopic,
       profileId: selectedProfile.id,
       profileName: selectedProfile.name || null,
+      cost: requiredStars,
+      description: `자유 질문: ${userQuestion.trim().slice(0, 50)}...`,
     };
-  }, [selectedProfile, selectedTopic, userQuestion]);
+  }, [selectedProfile, selectedTopic, userQuestion, requiredStars]);
 
   // 폼 제출: 별 잔액 확인 → 모달 표시 → 차감 → API 호출
   const handleSubmit = useCallback(
@@ -706,12 +706,6 @@ function Consultation() {
     firstChunkReceivedRef.current = false;
 
     try {
-      await consumeStars(
-        user.id,
-        requiredStars,
-        `자유 질문: ${userQuestion.trim().slice(0, 50)}...`
-      );
-
       const requestBody = buildFirstQuestionRequestBody();
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
@@ -751,23 +745,11 @@ function Consultation() {
           setSelectedChipIndex(null);
           setTimeout(() => setShowFollowUpButton(true), 500);
         },
-        onError: async (err, options) => {
+        onError: async (err) => {
           setError(err?.message || "요청 중 오류가 발생했습니다.");
           setLoadingConsultation(false);
           setProcessStatus("idle");
-          if (options?.shouldRefund) {
-            try {
-              await refundStars(
-                user.id,
-                requiredStars,
-                "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-                `자유 질문: ${userQuestion.trim().slice(0, 50)}...`
-              );
-              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 운세권이 복구되었습니다.");
-            } catch (refundErr) {
-              console.error("환불 처리 실패:", refundErr);
-            }
-          }
+          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
         },
       });
     } catch (err) {
@@ -906,12 +888,6 @@ function Consultation() {
     firstChunkReceivedRef.current = false;
 
     try {
-      await consumeStars(
-        user.id,
-        requiredStars,
-        `후속 질문: ${followUpQuestion.trim().slice(0, 50)}...`
-      );
-
       const previousConversation = [
         { question: consultationAnswer.question, interpretation: consultationAnswer.interpretation },
         ...followUpAnswers.map((a) => ({ question: a.question, interpretation: a.interpretation })),
@@ -927,6 +903,8 @@ function Consultation() {
         profileName: selectedProfile.name || null,
         previousConversation,
         parentResultId: consultationAnswer.shareId,
+        cost: requiredStars,
+        description: `후속 질문: ${followUpQuestion.trim().slice(0, 50)}...`,
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
@@ -968,23 +946,11 @@ function Consultation() {
           setShowFollowUpInput(false);
           setStreamingFollowUpInterpretation("");
         },
-        onError: async (err, options) => {
+        onError: async (err) => {
           setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
           setLoadingFollowUp(false);
           setProcessStatus("idle");
-          if (options?.shouldRefund) {
-            try {
-              await refundStars(
-                user.id,
-                requiredStars,
-                "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-                `후속 질문: ${followUpQuestion.trim().slice(0, 50)}...`
-              );
-              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 운세권이 복구되었습니다.");
-            } catch (refundErr) {
-              console.error("환불 처리 실패:", refundErr);
-            }
-          }
+          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
         },
       });
     } catch (err) {
@@ -1013,12 +979,6 @@ function Consultation() {
     firstChunkReceivedRef.current = false;
 
     try {
-      await consumeStars(
-        user.id,
-        requiredStars,
-        `후속 질문: ${historyFollowUpQuestion.trim().slice(0, 50)}...`
-      );
-
       const previousConversation = [
         {
           question: historyView.question,
@@ -1042,6 +1002,8 @@ function Consultation() {
         profileName: selectedProfile.name || null,
         previousConversation,
         parentResultId: historyView.shareId,
+        cost: requiredStars,
+        description: `후속 질문: ${historyFollowUpQuestion.trim().slice(0, 50)}...`,
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
@@ -1067,22 +1029,10 @@ function Consultation() {
           setHistoryShowFollowUpInput(false);
           await loadHistoryItem();
         },
-        onError: async (err, options) => {
+        onError: async (err) => {
           setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
           setProcessStatus("idle");
-          if (options?.shouldRefund) {
-            try {
-              await refundStars(
-                user.id,
-                requiredStars,
-                "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-                `후속 질문: ${historyFollowUpQuestion.trim().slice(0, 50)}...`
-              );
-              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 운세권이 복구되었습니다.");
-            } catch (refundErr) {
-              console.error("환불 처리 실패:", refundErr);
-            }
-          }
+          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
         },
       });
     } catch (err) {
@@ -1141,12 +1091,6 @@ function Consultation() {
     setError("");
 
     try {
-      await consumeStars(
-        user.id,
-        requiredStars,
-        `후속 질문: ${sharedFollowUpQuestion.trim().slice(0, 50)}...`
-      );
-
       const previousConversation = [
         {
           question: sharedConsultation.question,
@@ -1170,6 +1114,8 @@ function Consultation() {
         profileName: selectedProfile.name || null,
         previousConversation,
         parentResultId: sharedConsultation.shareId,
+        cost: requiredStars,
+        description: `후속 질문: ${sharedFollowUpQuestion.trim().slice(0, 50)}...`,
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
@@ -1189,21 +1135,9 @@ function Consultation() {
           setSharedShowFollowUpInput(false);
           await loadSharedConsultation(sharedConsultation.shareId);
         },
-        onError: async (err, options) => {
+        onError: async (err) => {
           setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
-          if (options?.shouldRefund) {
-            try {
-              await refundStars(
-                user.id,
-                requiredStars,
-                "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-                `후속 질문: ${sharedFollowUpQuestion.trim().slice(0, 50)}...`
-              );
-              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 운세권이 복구되었습니다.");
-            } catch (refundErr) {
-              console.error("환불 처리 실패:", refundErr);
-            }
-          }
+          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
         },
       });
     } catch (err) {
