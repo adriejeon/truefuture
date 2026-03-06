@@ -118,7 +118,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
 
     // [수정] 결제 파라미터 누출을 막기 위해 깨끗한 URL 생성
     const origin = window.location.origin;
-    const pathname = window.location.pathname; // 예: /yearly, /lifetime 등 현재 경로만 가져옴
+    const pathname = window.location.pathname; // 예: /yearly 등 현재 경로만 가져옴
     const shareUrl = `${origin}${pathname}?id=${shareId}`;
 
     // 이미지 URL (로컬 개발 시 외부 이미지 사용)

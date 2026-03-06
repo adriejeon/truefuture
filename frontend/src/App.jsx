@@ -8,7 +8,6 @@ import {
 import { Helmet } from "react-helmet-async";
 import Compatibility from "./pages/Compatibility";
 import YearlyFortune from "./pages/YearlyFortune";
-import LifetimeFortune from "./pages/LifetimeFortune";
 import Consultation from "./pages/Consultation";
 import Home from "./pages/Home";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -78,7 +77,6 @@ function AppContent() {
           <Route path="/" element={<RootRoute />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/lifetime" element={<LifetimeFortune />} />
           <Route path="/compatibility" element={<Compatibility />} />
           <Route path="/yearly" element={<YearlyFortune />} />
           <Route path="/consultation" element={<Consultation />} />
