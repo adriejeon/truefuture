@@ -30,7 +30,12 @@ function StarModal({
   const currentBalance = Number(currentBalanceProp ?? current ?? 0);
 
   // fortuneType에 따라 장비 이름 결정
-  const equipmentName = fortuneType === "오늘 운세" ? "나침반" : "망원경";
+  const equipmentName =
+    fortuneType === "오늘 운세"
+      ? "나침반"
+      : fortuneType === "종합 운세"
+        ? "탐사선"
+        : "망원경";
 
   if (!isOpen) return null;
 

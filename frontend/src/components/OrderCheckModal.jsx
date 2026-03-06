@@ -69,13 +69,13 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
     if (isLifetimeFortune) {
       return `이 상품은 프로필당 1회만 구매 가능한 '종합 운세' 1회 관람권입니다. 구매 즉시 운세를 확인하실 수 있습니다.`;
     }
-    if (packageInfo.paid > 0) {
-      // 망원경 패키지
-      return `망원경 1개로 '자유 질문', '진짜궁합' 1회를 관측할 수 있습니다.`;
-    } else {
-      // 나침반 패키지
-      return `나침반 1개로 '데일리 운세' 1회를 확인할 수 있습니다.`;
+    if ((packageInfo.probe ?? 0) > 0) {
+      return `탐사선 1대로 '종합 운세' 1회를 열람할 수 있습니다.`;
     }
+    if (packageInfo.paid > 0) {
+      return `망원경 1개로 '자유 질문', '진짜궁합' 1회를 관측할 수 있습니다.`;
+    }
+    return `나침반 1개로 '데일리 운세' 1회를 확인할 수 있습니다.`;
   };
 
   // 표시할 정보 (종합 운세인 경우 고정값 사용)
@@ -83,12 +83,14 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
     ? { name: "종합 운세", icon: "🌌", description: "진짜 인생 사용 설명서", price: 2990 }
     : packageInfo;
 
-  // 주문 상품 표시명: 망원경+보너스는 "망원경 N개 + 나침반 N개 보너스", 그 외는 상품명만
+  // 주문 상품 표시명: 망원경+보너스는 "망원경 N개 + 나침반 N개 보너스", 탐사선/나침반만은 상품명만
   const orderProductName = isLifetimeFortune
     ? "종합 운세"
-    : packageInfo.paid > 0 && packageInfo.bonus > 0
-      ? `${packageInfo.name} + 나침반 ${packageInfo.bonus}개 보너스`
-      : packageInfo.name;
+    : (packageInfo.probe ?? 0) > 0
+      ? packageInfo.name
+      : packageInfo.paid > 0 && packageInfo.bonus > 0
+        ? `${packageInfo.name} + 나침반 ${packageInfo.bonus}개 보너스`
+        : packageInfo.name;
 
   // 아이콘 렌더링 함수
   const renderIcon = () => {
@@ -97,7 +99,15 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
     }
     if (packageInfo.iconType === "telescope") {
       return <TelescopeIcon className="w-8 h-8 text-white" />;
-    } else if (packageInfo.iconType === "compass") {
+    }
+    if (packageInfo.iconType === "probe") {
+      return (
+        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.8A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+        </svg>
+      );
+    }
+    if (packageInfo.iconType === "compass") {
       return <CompassIcon className="w-8 h-8 text-white" />;
     }
     return <span className="text-3xl">{displayInfo.icon}</span>;

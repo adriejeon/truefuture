@@ -23,6 +23,39 @@ export const FORTUNE_TYPE_NAMES = {
 };
 
 /**
+ * 차감 시 사용한 description으로 환불 재화 타입 추론
+ * @param {string} description - consume_stars에 넣었던 description
+ * @returns {'PAID' | 'BONUS' | 'PROBE'}
+ */
+export function getCurrencyTypeFromDescription(description) {
+  if (!description || typeof description !== "string") return "PAID";
+  const d = description;
+  if (d.includes("데일리") || d.includes("오늘 운세")) return "BONUS";
+  if (d.includes("종합운세") || d.includes("종합 운세") || d.includes("탐사선")) return "PROBE";
+  return "PAID";
+}
+
+/**
+ * 운세 생성 실패 시 재화 환불 (p_refund_type은 description으로 자동 판단)
+ * @param {string} userId
+ * @param {number} amount - 환불할 개수
+ * @param {string} transactionDescription - 거래 내역에 남길 설명 (예: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불")
+ * @param {string} consumptionDescription - 차감 시 사용했던 description (getCurrencyTypeFromDescription에 전달)
+ * @returns {Promise<void>}
+ */
+export async function refundStars(userId, amount, transactionDescription, consumptionDescription) {
+  if (!userId) throw new Error("사용자 ID가 필요합니다.");
+  const p_refund_type = getCurrencyTypeFromDescription(consumptionDescription);
+  const { error } = await supabase.rpc("refund_stars", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_description: transactionDescription,
+    p_refund_type,
+  });
+  if (error) throw error;
+}
+
+/**
  * 사용자의 현재 운세권 잔액 조회 (유효한 운세권만 계산)
  * @param {string} userId
  * @returns {Promise<{paid: number, bonus: number, total: number}>}
@@ -45,14 +78,16 @@ export async function fetchUserStars(userId) {
 
     const paid = data?.[0]?.paid_stars ?? 0;
     const bonus = data?.[0]?.bonus_stars ?? 0;
+    const probe = data?.[0]?.probe_stars ?? 0;
+    const total = data?.[0]?.total_stars ?? paid + bonus + probe;
 
-    return { paid, bonus, total: paid + bonus };
+    return { paid, bonus, probe, total };
   } catch (err) {
     console.error("❌ 운세권 잔액 조회 중 오류:", err);
     // RPC가 없으면 기존 방식으로 폴백
     const { data, error } = await supabase
       .from("user_wallets")
-      .select("paid_stars, bonus_stars")
+      .select("paid_stars, bonus_stars, probe_stars")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -60,8 +95,9 @@ export async function fetchUserStars(userId) {
 
     const paid = data?.paid_stars ?? 0;
     const bonus = data?.bonus_stars ?? 0;
+    const probe = data?.probe_stars ?? 0;
 
-    return { paid, bonus, total: paid + bonus };
+    return { paid, bonus, probe, total: paid + bonus + probe };
   }
 }
 

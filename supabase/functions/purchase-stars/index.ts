@@ -18,18 +18,18 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// 패키지 정의 (가격 → 이름, 일반 운세권, 데일리 운세권)
-// paid = 일반 운세권(Standard Ticket), bonus = 데일리 운세권(Daily Ticket)
+// 패키지 정의 (가격 → 이름, 망원경/나침반/탐사선)
+// paid = 망원경, bonus = 나침반, probe = 탐사선(종합운세 1회권)
 const PACKAGES: Record<
   number,
-  { name: string; paid: number; bonus: number }
+  { name: string; paid: number; bonus: number; probe: number }
 > = {
-  1000: { name: "망원경 1개 (Ticket_1)", paid: 1, bonus: 0 },
-  2900: { name: "망원경 3개 (Ticket_3)", paid: 3, bonus: 1 },
-  4950: { name: "망원경 5개 (Ticket_5)", paid: 5, bonus: 3 },
-  1900: { name: "나침반 7개 (Daily_7)", paid: 0, bonus: 7 },
-  3500: { name: "나침반 14개 (Daily_14)", paid: 0, bonus: 14 },
-  2990: { name: "종합 운세 (Grand_Fortune)", paid: 1, bonus: 0 },
+  1000: { name: "망원경 1개 (Ticket_1)", paid: 1, bonus: 0, probe: 0 },
+  2900: { name: "망원경 3개 (Ticket_3)", paid: 3, bonus: 1, probe: 0 },
+  4950: { name: "망원경 5개 (Ticket_5)", paid: 5, bonus: 3, probe: 0 },
+  1900: { name: "나침반 7개 (Daily_7)", paid: 0, bonus: 7, probe: 0 },
+  3500: { name: "나침반 14개 (Daily_14)", paid: 0, bonus: 14, probe: 0 },
+  2990: { name: "탐사선 종합운세 1회권 (Grand_Fortune)", paid: 0, bonus: 0, probe: 1 },
 };
 
 serve(async (req) => {
@@ -243,7 +243,7 @@ serve(async (req) => {
     // 3. 현재 지갑 조회
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from("user_wallets")
-      .select("paid_stars, bonus_stars")
+      .select("paid_stars, bonus_stars, probe_stars")
       .eq("user_id", user_id)
       .maybeSingle();
 
@@ -263,8 +263,10 @@ serve(async (req) => {
 
     const currentPaid = wallet?.paid_stars ?? 0;
     const currentBonus = wallet?.bonus_stars ?? 0;
+    const currentProbe = wallet?.probe_stars ?? 0;
     const newPaid = currentPaid + packageInfo.paid;
     const newBonus = currentBonus + packageInfo.bonus;
+    const newProbe = currentProbe + packageInfo.probe;
 
     // 4. 지갑 업데이트 (Upsert: 없으면 생성, 있으면 갱신)
     const { error: updateError } = await supabaseAdmin
@@ -274,6 +276,7 @@ serve(async (req) => {
           user_id,
           paid_stars: newPaid,
           bonus_stars: newBonus,
+          probe_stars: newProbe,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }
@@ -294,7 +297,7 @@ serve(async (req) => {
     }
 
     // 5. 거래 내역 기록 (유효기간 설정: 결제일로부터 90일/3개월)
-    const totalTickets = packageInfo.paid + packageInfo.bonus;
+    const totalTickets = packageInfo.paid + packageInfo.bonus + packageInfo.probe;
     const purchaseDate = new Date();
     const expiresAt = new Date(purchaseDate);
     expiresAt.setDate(expiresAt.getDate() + 90);
@@ -307,6 +310,7 @@ serve(async (req) => {
       related_item_id: merchant_uid ?? imp_uid ?? null,
       paid_amount: packageInfo.paid,
       bonus_amount: packageInfo.bonus,
+      probe_amount: packageInfo.probe,
       expires_at: expiresAt.toISOString(),
       is_expired: false,
     };
@@ -336,8 +340,9 @@ serve(async (req) => {
       data: {
         paid_stars: packageInfo.paid,
         bonus_stars: packageInfo.bonus,
+        probe_stars: packageInfo.probe,
         total_stars: totalTickets,
-        new_balance: { paid_stars: newPaid, bonus_stars: newBonus },
+        new_balance: { paid_stars: newPaid, bonus_stars: newBonus, probe_stars: newProbe },
       },
     };
 

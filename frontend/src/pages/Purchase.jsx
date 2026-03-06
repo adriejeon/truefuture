@@ -51,6 +51,23 @@ const CompassIcon = ({ className = "w-5 h-5" }) => (
   </svg>
 );
 
+const ProbeIcon = ({ className = "w-5 h-5" }) => (
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    {/* 탐사선(로켓) 아이콘 */}
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.8A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
+    />
+  </svg>
+);
+
 const PACKAGES = [
   {
     id: "ticket_1",
@@ -108,6 +125,18 @@ const PACKAGES = [
     iconType: "compass",
     description: "나침반 14개",
     badge: "8% 할인",
+  },
+  {
+    id: "probe_1",
+    name: "탐사선 1대",
+    nameEn: "Probe_1",
+    price: 2990,
+    paid: 0,
+    bonus: 0,
+    probe: 1,
+    color: "from-amber-400 to-rose-500",
+    iconType: "probe",
+    description: "종합운세 1회 열람권",
   },
 ];
 
@@ -195,8 +224,10 @@ function Purchase() {
 
       // 성공 알림 및 잔액 새로고침
       setShowOrderModal(false);
+      const totalBought = (selectedPackage.paid ?? 0) + (selectedPackage.bonus ?? 0) + (selectedPackage.probe ?? 0);
+      const newTotal = (data.data.new_balance?.paid_stars ?? 0) + (data.data.new_balance?.bonus_stars ?? 0) + (data.data.new_balance?.probe_stars ?? 0);
       alert(
-        `🎉 운세권 구매 완료!\n\n구매한 운세권: ${selectedPackage.paid + selectedPackage.bonus}장\n새로운 잔액: ${data.data.new_balance.paid_stars + data.data.new_balance.bonus_stars}장`,
+        `🎉 운세권 구매 완료!\n\n구매한 운세권: ${totalBought}장\n새로운 잔액: ${newTotal}장`,
       );
       await refetchStars();
     } catch (err) {
@@ -222,7 +253,7 @@ function Purchase() {
         {/* 현재 보유 장비 */}
         <div className="p-6 border border-slate-600 rounded-xl mb-6">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-6">
+            <div className="flex items-center justify-center gap-6 flex-wrap">
               <div className="flex items-center justify-center gap-2">
                 <TelescopeIcon className="w-5 h-5 text-white" />
                 <span className="text-lg font-bold text-white">
@@ -233,6 +264,12 @@ function Purchase() {
                 <CompassIcon className="w-5 h-5 text-white" />
                 <span className="text-lg font-bold text-white">
                   나침반 {stars.bonus.toLocaleString()}개
+                </span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <ProbeIcon className="w-5 h-5 text-white" />
+                <span className="text-lg font-bold text-white">
+                  탐사선 {stars.probe.toLocaleString()}대
                 </span>
               </div>
             </div>
@@ -264,6 +301,8 @@ function Purchase() {
                     <div className="text-white">
                       {pkg.iconType === "telescope" ? (
                         <TelescopeIcon className="w-5 h-5" />
+                      ) : pkg.iconType === "probe" ? (
+                        <ProbeIcon className="w-5 h-5" />
                       ) : (
                         <CompassIcon className="w-5 h-5" />
                       )}

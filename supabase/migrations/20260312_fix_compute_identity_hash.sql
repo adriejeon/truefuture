@@ -53,4 +53,3 @@ $$;
 
 COMMENT ON FUNCTION public.compute_identity_hash(UUID)
 IS '유저 식별 해시 계산 - 이메일 또는 provider:provider_id 기반 SHA-256 hex (identity_data 기반 추출)';
-

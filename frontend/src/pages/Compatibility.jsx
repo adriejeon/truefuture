@@ -20,6 +20,7 @@ import {
   fetchUserStars,
   consumeStars,
   checkStarBalance,
+  refundStars,
 } from "../utils/starConsumption";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
 import LoginRequiredModal from "../components/LoginRequiredModal";
@@ -433,13 +434,13 @@ function Compatibility() {
           setProcessStatus("idle");
           if (options?.shouldRefund) {
             try {
-              const { error: refundError } = await supabase.rpc("refund_stars", {
-                p_user_id: user.id,
-                p_amount: FORTUNE_STAR_COSTS.compatibility,
-                p_description: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-              });
-              if (refundError) throw refundError;
-              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 망원경이 복구되었습니다.");
+              await refundStars(
+                user.id,
+                FORTUNE_STAR_COSTS.compatibility,
+                "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
+                `${FORTUNE_TYPE_NAMES.compatibility} 조회`
+              );
+              alert("네트워크 지연 또는 에러로 운세 생성에 실패하여 소모된 운세권이 복구되었습니다.");
             } catch (refundErr) {
               console.error("환불 처리 실패:", refundErr);
             }

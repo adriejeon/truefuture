@@ -166,9 +166,10 @@ function MyPage() {
                 {stars.total.toLocaleString()}
               </span>
             </div>
-            <div className="flex gap-4 justify-center text-xs text-slate-400 mb-4">
-              <span>일반: {stars.paid}장</span>
-              <span>데일리: {stars.bonus}장</span>
+            <div className="flex gap-4 justify-center text-xs text-slate-400 mb-4 flex-wrap">
+              <span>망원경: {stars.paid}개</span>
+              <span>나침반: {stars.bonus}개</span>
+              <span>탐사선: {stars.probe}대</span>
             </div>
             <PrimaryButton
               type="button"
