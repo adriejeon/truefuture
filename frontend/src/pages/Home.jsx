@@ -20,7 +20,12 @@ import {
 } from "../utils/profileModalStorage";
 function Home() {
   const { user, loadingAuth } = useAuth();
-  const { profiles, loading: profilesLoading, profilesLoadedOnce, createProfile } = useProfiles();
+  const {
+    profiles,
+    loading: profilesLoading,
+    profilesLoadedOnce,
+    createProfile,
+  } = useProfiles();
   const [searchParams, setSearchParams] = useSearchParams();
   const [inAppBrowserWarning, setInAppBrowserWarning] = useState(null);
   const [interpretation, setInterpretation] = useState("");
@@ -235,6 +240,75 @@ function Home() {
                   진짜 미래를 확인하고 내일을 바꾸세요.
                 </p>
               </div>
+
+              {/* 현직 전문가 소셜 프루프 섹션 */}
+              <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)] px-2">
+                <div className="w-full max-w-[520px] flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
+                  <div
+                    className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
+                    aria-hidden="true"
+                  >
+                    <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
+                      ✦
+                    </span>
+                    <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
+                      ✦
+                    </span>
+                    <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
+                      ✦
+                    </span>
+                  </div>
+                  <h2 className="text-center font-noto text-[clamp(17px,4.5vw,24px)] font-medium leading-[1.5] tracking-[-0.02em] text-[#FFFFFF]">
+                    현직 점성술사들도 놀란{" "}
+                    <span className="text-primary">압도적 정확도</span>
+                  </h2>
+                  <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8] max-w-[440px]">
+                    점성술, 타로, 사주, 영성 분야의 전문가들이 이제는
+                    &lsquo;진짜미래&rsquo;로 미래를 설계하고 있습니다.
+                  </p>
+                  <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
+                    <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
+                      <p
+                        className="flex gap-0.5 mb-3 text-primary"
+                        aria-label="별점 5점"
+                      >
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                      </p>
+                      <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
+                        &ldquo;기존 대형 앱들보다 디테일과 정확도가 훨씬
+                        뛰어납니다. 아주 사소한 질문도 상세히 알 수 있어서 너무
+                        좋아요. 매일 매일 사용하게 됩니다.&rdquo;
+                      </p>
+                      <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
+                        10년 차 타로·점성술 마스터
+                      </footer>
+                    </blockquote>
+                    <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
+                      <p
+                        className="flex gap-0.5 mb-3 text-primary"
+                        aria-label="별점 5점"
+                      >
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                        <span aria-hidden="true">★</span>
+                      </p>
+                      <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
+                        &ldquo;단순한 키워드 조합이 아니라, 진짜 전문가가 옆에서
+                        짚어주는 듯한 소름 돋는 통찰력이에요.&rdquo;
+                      </p>
+                      <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
+                        현업 명리학·사주 상담가
+                      </footer>
+                    </blockquote>
+                  </div>
+                </div>
+              </section>
 
               <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0">
                 <img
