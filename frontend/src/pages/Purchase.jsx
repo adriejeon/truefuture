@@ -215,12 +215,12 @@ function Purchase() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">미래 관측 장비</h1>
           <p className="text-slate-300 text-sm">
-            망원경으로 먼 미래를 내다보고, 나침반으로 오늘의 길을 찾으세요
+            망원경으로 미래를 내다보고, 나침반으로 오늘의 길을 찾으세요
           </p>
         </div>
 
         {/* 현재 보유 장비 */}
-        <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-6">
+        <div className="p-6 border border-slate-600 rounded-xl mb-6">
           <div className="text-center">
             <div className="flex items-center justify-center gap-6">
               <div className="flex items-center justify-center gap-2">
