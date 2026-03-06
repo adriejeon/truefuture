@@ -5,68 +5,12 @@ import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
 import OrderCheckModal from "../components/OrderCheckModal";
+import EquipmentGuidePanel from "../components/EquipmentGuidePanel";
 import BottomNavigation from "../components/BottomNavigation";
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { colors } from "../constants/colors";
-
-// 아이콘 컴포넌트
-const TelescopeIcon = ({ className = "w-5 h-5" }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    {/* 별 아이콘 (망원경으로 별을 보는 의미) */}
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-    />
-  </svg>
-);
-
-const CompassIcon = ({ className = "w-5 h-5" }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <circle cx="12" cy="12" r="10" strokeWidth={2} />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 2v4M12 18v4M2 12h4M18 12h4"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 6l-3 6 3 6 3-6-3-6z"
-    />
-  </svg>
-);
-
-const ProbeIcon = ({ className = "w-5 h-5" }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    {/* 탐사선(로켓) 아이콘 */}
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.8A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
-    />
-  </svg>
-);
+import { TelescopeIcon, CompassIcon, ProbeIcon } from "../components/EquipmentIcons";
 
 const PACKAGES = [
   {
@@ -224,8 +168,14 @@ function Purchase() {
 
       // 성공 알림 및 잔액 새로고침
       setShowOrderModal(false);
-      const totalBought = (selectedPackage.paid ?? 0) + (selectedPackage.bonus ?? 0) + (selectedPackage.probe ?? 0);
-      const newTotal = (data.data.new_balance?.paid_stars ?? 0) + (data.data.new_balance?.bonus_stars ?? 0) + (data.data.new_balance?.probe_stars ?? 0);
+      const totalBought =
+        (selectedPackage.paid ?? 0) +
+        (selectedPackage.bonus ?? 0) +
+        (selectedPackage.probe ?? 0);
+      const newTotal =
+        (data.data.new_balance?.paid_stars ?? 0) +
+        (data.data.new_balance?.bonus_stars ?? 0) +
+        (data.data.new_balance?.probe_stars ?? 0);
       alert(
         `🎉 운세권 구매 완료!\n\n구매한 운세권: ${totalBought}장\n새로운 잔액: ${newTotal}장`,
       );
@@ -246,35 +196,47 @@ function Purchase() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">미래 관측 장비</h1>
           <p className="text-slate-300 text-sm">
-            망원경으로 미래를 내다보고, 나침반으로 오늘의 길을 찾으세요
+            나침반으로 오늘의 길을, 망원경으로 다가올 미래를, 탐사선으로 내
+            삶의 전체를 탐험하세요
           </p>
         </div>
 
         {/* 현재 보유 장비 */}
-        <div className="p-6 border border-slate-600 rounded-xl mb-6">
+        <div className="p-4 min-[380px]:p-6 border border-slate-600 rounded-xl mb-6">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-6 flex-wrap">
-              <div className="flex items-center justify-center gap-2">
-                <TelescopeIcon className="w-5 h-5 text-white" />
-                <span className="text-lg font-bold text-white">
-                  망원경 {stars.paid.toLocaleString()}개
+            <div className="flex flex-nowrap items-center justify-center gap-2 min-[380px]:gap-3">
+              <div className="flex items-center justify-center gap-1 min-[380px]:gap-1.5 shrink-0">
+                <TelescopeIcon className="w-4 h-4 min-[380px]:w-[18px] min-[380px]:h-[18px] text-white" />
+                <span className="text-xs min-[380px]:text-base text-white whitespace-nowrap">
+                  망원경{" "}
+                  <span className="font-bold text-white">
+                    {stars.paid.toLocaleString()}개
+                  </span>
                 </span>
               </div>
-              <div className="flex items-center justify-center gap-2">
-                <CompassIcon className="w-5 h-5 text-white" />
-                <span className="text-lg font-bold text-white">
-                  나침반 {stars.bonus.toLocaleString()}개
+              <div className="flex items-center justify-center gap-1 min-[380px]:gap-1.5 shrink-0">
+                <CompassIcon className="w-4 h-4 min-[380px]:w-[18px] min-[380px]:h-[18px] text-white" />
+                <span className="text-xs min-[380px]:text-base text-white whitespace-nowrap">
+                  나침반{" "}
+                  <span className="font-bold text-white">
+                    {stars.bonus.toLocaleString()}개
+                  </span>
                 </span>
               </div>
-              <div className="flex items-center justify-center gap-2">
-                <ProbeIcon className="w-5 h-5 text-white" />
-                <span className="text-lg font-bold text-white">
-                  탐사선 {stars.probe.toLocaleString()}대
+              <div className="flex items-center justify-center gap-1 min-[380px]:gap-1.5 shrink-0">
+                <ProbeIcon className="w-4 h-4 min-[380px]:w-[18px] min-[380px]:h-[18px] text-white" />
+                <span className="text-xs min-[380px]:text-base text-white whitespace-nowrap">
+                  탐사선{" "}
+                  <span className="font-bold text-white">
+                    {stars.probe.toLocaleString()}대
+                  </span>
                 </span>
               </div>
             </div>
           </div>
         </div>
+
+        <EquipmentGuidePanel />
 
         {/* 에러 메시지 */}
         {error && (
@@ -345,9 +307,7 @@ function Purchase() {
                         </span>
                       </span>
                     ) : (
-                      <span className="text-slate-300">
-                        {pkg.description}
-                      </span>
+                      <span className="text-slate-300">{pkg.description}</span>
                     )}
                   </div>
                 </div>

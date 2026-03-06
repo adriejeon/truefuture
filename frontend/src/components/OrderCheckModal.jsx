@@ -1,46 +1,6 @@
 import { useState } from "react";
 import PrimaryButton from "./PrimaryButton";
-
-// 아이콘 컴포넌트
-const TelescopeIcon = ({ className = "w-8 h-8" }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    {/* 별 아이콘 (망원경으로 별을 보는 의미) */}
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-    />
-  </svg>
-);
-
-const CompassIcon = ({ className = "w-8 h-8" }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <circle cx="12" cy="12" r="10" strokeWidth={2} />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 2v4M12 18v4M2 12h4M18 12h4"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 6l-3 6 3 6 3-6-3-6z"
-    />
-  </svg>
-);
+import { TelescopeIcon, CompassIcon, ProbeIcon } from "./EquipmentIcons";
 
 /**
  * 주문 확인 모달 (PG사 심사 기준 충족)
@@ -101,11 +61,7 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
       return <TelescopeIcon className="w-8 h-8 text-white" />;
     }
     if (packageInfo.iconType === "probe") {
-      return (
-        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.8A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-        </svg>
-      );
+      return <ProbeIcon className="w-8 h-8 text-white" />;
     }
     if (packageInfo.iconType === "compass") {
       return <CompassIcon className="w-8 h-8 text-white" />;
