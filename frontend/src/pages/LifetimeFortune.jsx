@@ -26,6 +26,11 @@ import {
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
+import {
+  getProfileModalDismissed,
+  setProfileModalDismissed,
+  clearProfileModalDismissed,
+} from "../utils/profileModalStorage";
 
 function LifetimeFortune() {
   const { user, loadingAuth } = useAuth();
@@ -33,6 +38,7 @@ function LifetimeFortune() {
     profiles,
     selectedProfile,
     loading: profilesLoading,
+    profilesLoadedOnce,
     createProfile,
     deleteProfile,
     selectProfile,
@@ -51,6 +57,8 @@ function LifetimeFortune() {
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
+  const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
+    useState(getProfileModalDismissed);
   const [restoring, setRestoring] = useState(false);
   // 종합 운세 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
   const [canViewLifetime, setCanViewLifetime] = useState(null);
@@ -111,24 +119,28 @@ function LifetimeFortune() {
     };
   };
 
-  // 프로필이 없을 때 모달 표시
+  // 프로필이 없을 때 모달 표시 (사용자가 "나중에 하기"로 닫은 적 없을 때만)
   useEffect(() => {
     if (
       user &&
+      profilesLoadedOnce &&
       !profilesLoading &&
       profiles.length === 0 &&
       !showNoProfileModal &&
+      !userDismissedNoProfileModal &&
       !isSharedFortune
     ) {
       setShowNoProfileModal(true);
     }
-  }, [user, profilesLoading, profiles, showNoProfileModal, isSharedFortune]);
+  }, [user, profilesLoadedOnce, profilesLoading, profiles, showNoProfileModal, userDismissedNoProfileModal, isSharedFortune]);
 
   // 프로필이 생성되면 모달 닫기
   useEffect(() => {
     if (profiles.length > 0) {
       setShowNoProfileModal(false);
       setShowProfileModal(false);
+      setUserDismissedNoProfileModal(false);
+      clearProfileModalDismissed();
     }
   }, [profiles]);
 
@@ -618,6 +630,17 @@ function LifetimeFortune() {
               }}
             >
               프로필 등록하기
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUserDismissedNoProfileModal(true);
+                setProfileModalDismissed();
+                setShowNoProfileModal(false);
+              }}
+              className="w-full mt-3 py-2 px-4 text-slate-300 hover:text-white text-sm transition-colors"
+            >
+              나중에 하기
             </button>
           </div>
         </div>

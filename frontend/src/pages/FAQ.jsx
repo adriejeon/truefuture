@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { SITE_ORIGIN } from "../constants/seoMeta";
+import BottomNavigation from "../components/BottomNavigation";
 
 const FAQ_ITEMS = [
   {
@@ -181,6 +182,8 @@ function FAQ() {
           </div>
         </div>
       </div>
+
+      <BottomNavigation />
     </>
   );
 }

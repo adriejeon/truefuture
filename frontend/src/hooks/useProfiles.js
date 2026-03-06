@@ -7,7 +7,8 @@ export function useProfiles() {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [selectedProfile, setSelectedProfile] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [profilesLoadedOnce, setProfilesLoadedOnce] = useState(false);
   const [error, setError] = useState(null);
 
   // 프로필 목록 조회. 반환값: 조회된 프로필 배열 (호출처에서 삭제 후 선택 갱신 등에 사용)
@@ -15,6 +16,7 @@ export function useProfiles() {
     if (!user) {
       setProfiles([]);
       setSelectedProfile(null);
+      setLoading(false);
       return [];
     }
 
@@ -58,6 +60,7 @@ export function useProfiles() {
       return [];
     } finally {
       setLoading(false);
+      setProfilesLoadedOnce(true);
     }
   }, [user]);
 
@@ -319,6 +322,11 @@ export function useProfiles() {
     [user, profiles],
   );
 
+  // user가 바뀌면 "한 번 로드됨" 플래그 리셋 (다른 사용자/비로그인 전환 시 깜빡임 방지)
+  useEffect(() => {
+    setProfilesLoadedOnce(false);
+  }, [user]);
+
   // 컴포넌트 마운트 시 프로필 조회
   useEffect(() => {
     fetchProfiles();
@@ -328,6 +336,7 @@ export function useProfiles() {
     profiles,
     selectedProfile,
     loading,
+    profilesLoadedOnce,
     error,
     fetchProfiles,
     createProfile,

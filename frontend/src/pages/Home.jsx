@@ -13,9 +13,14 @@ import {
   redirectToExternalBrowser,
   getBrowserGuideMessage,
 } from "../utils/inAppBrowserDetector";
+import {
+  getProfileModalDismissed,
+  setProfileModalDismissed,
+  clearProfileModalDismissed,
+} from "../utils/profileModalStorage";
 function Home() {
   const { user, loadingAuth } = useAuth();
-  const { profiles, loading: profilesLoading, createProfile } = useProfiles();
+  const { profiles, loading: profilesLoading, profilesLoadedOnce, createProfile } = useProfiles();
   const [searchParams, setSearchParams] = useSearchParams();
   const [inAppBrowserWarning, setInAppBrowserWarning] = useState(null);
   const [interpretation, setInterpretation] = useState("");
@@ -28,12 +33,13 @@ function Home() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
-    useState(false);
+    useState(getProfileModalDismissed);
 
-  // 프로필이 없을 때 모달 표시 (사용자가 "나중에 하기"로 닫은 적 없을 때만)
+  // 프로필이 없을 때 모달 표시 (사용자가 "나중에 하기"로 닫은 적 없을 때만, 로드 완료 후에만)
   useEffect(() => {
     if (
       user &&
+      profilesLoadedOnce &&
       !profilesLoading &&
       profiles.length === 0 &&
       !showNoProfileModal &&
@@ -44,6 +50,7 @@ function Home() {
     }
   }, [
     user,
+    profilesLoadedOnce,
     profilesLoading,
     profiles,
     showNoProfileModal,
@@ -56,6 +63,7 @@ function Home() {
       setShowNoProfileModal(false);
       setShowProfileModal(false);
       setUserDismissedNoProfileModal(false); // 프로필 생기면 다음에 다시 보여줄 수 있도록
+      clearProfileModalDismissed();
     }
   }, [profiles]);
 
@@ -417,6 +425,7 @@ function Home() {
               type="button"
               onClick={() => {
                 setUserDismissedNoProfileModal(true);
+                setProfileModalDismissed();
                 setShowNoProfileModal(false);
               }}
               className="w-full mt-3 py-2 px-4 text-slate-300 hover:text-white text-sm transition-colors"
