@@ -18,6 +18,27 @@ import {
   setProfileModalDismissed,
   clearProfileModalDismissed,
 } from "../utils/profileModalStorage";
+import { colors } from "../constants/colors";
+
+function FavoriteStarIcon() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block shrink-0"
+      style={{
+        width: "0.875rem",
+        height: "0.875rem",
+        maskImage: "url(/assets/favorite.svg)",
+        WebkitMaskImage: "url(/assets/favorite.svg)",
+        maskSize: "contain",
+        maskRepeat: "no-repeat",
+        maskPosition: "center",
+        backgroundColor: colors.primary,
+      }}
+    />
+  );
+}
+
 function Home() {
   const { user, loadingAuth } = useAuth();
   const {
@@ -243,7 +264,7 @@ function Home() {
             </section>
 
             {/* 현직 전문가 소셜 프루프 섹션 - 상위 1겹만 감싸서 padding 1번만 적용 */}
-            <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)] px-4">
+            <section className="flex flex-col items-center w-full pt-[clamp(56px,12vw,96px)] pb-[clamp(28px,6vw,48px)] px-4">
               <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
                 <div
                   className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
@@ -274,11 +295,11 @@ function Home() {
                       className="flex gap-0.5 mb-3 text-primary"
                       aria-label="별점 5점"
                     >
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
                     </p>
                     <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
                       &ldquo;기존 대형 앱들보다 디테일과 정확도가 훨씬
@@ -294,11 +315,11 @@ function Home() {
                       className="flex gap-0.5 mb-3 text-primary"
                       aria-label="별점 5점"
                     >
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
-                      <span aria-hidden="true">★</span>
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
+                      <FavoriteStarIcon />
                     </p>
                     <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
                       &ldquo;단순한 키워드 조합이 아니라, 진짜 전문가가 옆에서
@@ -312,9 +333,117 @@ function Home() {
               </div>
             </section>
 
+            {/* 실제 구매자들 리뷰 섹션 - 상위 1겹만 감싸서 padding 1번만 적용 */}
+            <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)] px-4">
+              <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
+                <div
+                  className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
+                  aria-hidden="true"
+                >
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
+                    ✦
+                  </span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
+                    ✦
+                  </span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
+                    ✦
+                  </span>
+                </div>
+                <h2 className="text-center font-noto text-[clamp(17px,4.5vw,24px)] font-medium leading-[1.5] tracking-[-0.02em] text-[#FFFFFF]">
+                  한 번 보면 반드시 다시 찾는{" "}
+                  <span className="text-primary">압도적 적중률</span>
+                </h2>
+                <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
+                  <br />
+                  국내 대형 상담 플랫폼에서 수많은 고객의 미래를 적중시키며
+                  <br />
+                  높은 재구매율을 달성한 노하우를 100% 동일하게 구현했습니다.{" "}
+                  <br />
+                  아래는 실제 고객들에게 받은 생생한 후기입니다.
+                </p>
+                <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
+                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
+                    <p
+                      className="flex items-center gap-1.5 mb-3 text-primary"
+                      aria-label="별점 5점"
+                    >
+                      <span className="flex gap-0.5">
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                      </span>
+                      <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">
+                        5.0
+                      </span>
+                    </p>
+                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
+                      &ldquo;작년에 운세 봤는데 올해 알려준 대로 다
+                      일어났습니다... 소름 끼쳐서 다시 신청했네요. 시기까지 잘
+                      맞추는 곳은 여기가 유일해요.&rdquo;
+                    </p>
+                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
+                      재구매 고객 (달리***)
+                    </footer>
+                  </blockquote>
+                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
+                    <p
+                      className="flex items-center gap-1.5 mb-3 text-primary"
+                      aria-label="별점 5점"
+                    >
+                      <span className="flex gap-0.5">
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                      </span>
+                      <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">
+                        5.0
+                      </span>
+                    </p>
+                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
+                      &ldquo;적중률도 높고 다른 데와 달리 디테일하게 나와서 너무
+                      만족스러워요.&rdquo;
+                    </p>
+                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
+                      재구매 고객 (전통***)
+                    </footer>
+                  </blockquote>
+                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
+                    <p
+                      className="flex items-center gap-1.5 mb-3 text-primary"
+                      aria-label="별점 5점"
+                    >
+                      <span className="flex gap-0.5">
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                        <FavoriteStarIcon />
+                      </span>
+                      <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">
+                        5.0
+                      </span>
+                    </p>
+                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
+                      &ldquo;항상 너무너무 잘 맞습니다. 전에 받았던 상담 파일
+                      보면 다 말씀해 주신 내용입니다. 다음에 또
+                      찾아뵙겠습니다.&rdquo;
+                    </p>
+                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
+                      재구매 고객(진지***)
+                    </footer>
+                  </blockquote>
+                </div>
+              </div>
+            </section>
+
             {/* [3] 하단 텍스트 영역 이어짐 - divider & J.P 모건 */}
             <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full px-4">
-              <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0">
+              <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0 my-[clamp(18px,4vw,32px)]">
                 <img
                   src="/assets/divider3.png"
                   alt=""
