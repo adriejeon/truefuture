@@ -5,6 +5,7 @@ import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
 import BottomNavigation from "../components/BottomNavigation";
+import Toast from "../components/Toast";
 
 function MyPage() {
   const { user, logout, loadingAuth } = useAuth();
@@ -14,6 +15,112 @@ function MyPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteAgreeChecked, setDeleteAgreeChecked] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 추천: 나의 코드, 추천인 정보, 토스트
+  const [myReferralCode, setMyReferralCode] = useState(null);
+  const [myReferral, setMyReferral] = useState(null);
+  const [referralLoading, setReferralLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [referrerCodeInput, setReferrerCodeInput] = useState("");
+  const [isRegisteringReferral, setIsRegisteringReferral] = useState(false);
+
+  const hasReferrer = myReferral?.referral_code != null && myReferral.referral_code !== "";
+
+  // 추천 코드·추천인 정보 조회
+  useEffect(() => {
+    if (!user?.id || !supabase) return;
+    let cancelled = false;
+    setReferralLoading(true);
+    Promise.all([
+      supabase.from("referral_codes").select("code").eq("user_id", user.id).maybeSingle(),
+      supabase.from("referrals").select("referral_code").eq("referee_id", user.id).maybeSingle(),
+    ])
+      .then(([codeRes, refRes]) => {
+        if (cancelled) return;
+        if (codeRes.data?.code) setMyReferralCode(codeRes.data.code);
+        if (refRes.data?.referral_code != null) setMyReferral(refRes.data);
+      })
+      .catch((err) => {
+        if (!cancelled) console.warn("추천 정보 조회 실패:", err);
+      })
+      .finally(() => {
+        if (!cancelled) setReferralLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const handleCopyMyCode = () => {
+    if (!myReferralCode) return;
+    navigator.clipboard.writeText(myReferralCode).then(
+      () => setToastMessage("코드가 복사되었습니다"),
+      () => setToastMessage("복사에 실패했습니다.")
+    );
+  };
+
+  const handleKakaoShareReferral = () => {
+    if (!window.Kakao?.isInitialized()) {
+      setToastMessage("카카오톡 공유 기능을 사용할 수 없습니다.");
+      return;
+    }
+    if (!myReferralCode) {
+      setToastMessage("추천 코드를 불러오는 중입니다.");
+      return;
+    }
+    const shareUrl = `${window.location.origin}/login?ref=${encodeURIComponent(myReferralCode)}`;
+    const isLocalhost = window.location.hostname === "localhost";
+    const imageUrl = isLocalhost
+      ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
+      : `${window.location.origin}/assets/800x800.png`;
+    const kakaoShareConfig = {
+      objectType: "feed",
+      content: {
+        title: "진짜미래 - 더 나은 미래를 위한 운명 컨설팅",
+        description: "점성학 정밀 분석으로 미래의 흐름을 읽고, 더 나은 내일을 위한 전략을 제시합니다. 지금 가입하면 망원경 1개를 무료로 드려요.",
+        imageUrl,
+        link: {
+          mobileWebUrl: shareUrl,
+          webUrl: shareUrl,
+        },
+      },
+      buttons: [
+        {
+          title: "진짜미래 가입하기",
+          link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
+        },
+      ],
+    };
+    try {
+      window.Kakao.Share.sendDefault(kakaoShareConfig);
+    } catch (err) {
+      console.error("카카오톡 공유 실패:", err);
+      setToastMessage("카카오톡 공유 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleRegisterReferral = async () => {
+    const code = referrerCodeInput?.trim();
+    if (!code || !user?.id || !supabase) return;
+    setIsRegisteringReferral(true);
+    try {
+      const { data, error } = await supabase.rpc("register_referral", {
+        p_referee_id: user.id,
+        p_referral_code: code,
+      });
+      if (error) throw error;
+      const result = data ?? {};
+      if (result.success) {
+        setMyReferral({ referral_code: code });
+        setReferrerCodeInput("");
+        setToastMessage("추천인 코드가 등록되었습니다.");
+      } else {
+        setToastMessage(result.message || "등록에 실패했습니다.");
+      }
+    } catch (err) {
+      setToastMessage(err?.message || "등록 중 오류가 발생했습니다.");
+    } finally {
+      setIsRegisteringReferral(false);
+    }
+  };
 
   // 로그인하지 않은 경우 로그인 페이지로 리다이렉트 (로딩 완료 후에만, 마이페이지에 있을 때만)
   useEffect(() => {
@@ -182,6 +289,72 @@ function MyPage() {
           </div>
         </div>
 
+        {/* 나의 추천 코드 */}
+        {!referralLoading && (
+          <div className="p-6 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 mb-6">
+            <p className="text-slate-300 text-sm mb-3">나의 추천 코드</p>
+            <div className="flex items-center gap-2">
+              <span className="flex-1 min-w-0 font-mono text-lg font-semibold text-white bg-slate-900/50 rounded-lg px-3 py-2 truncate">
+                {myReferralCode ?? "—"}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyMyCode}
+                disabled={!myReferralCode}
+                className="shrink-0 p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+                title="복사"
+              >
+                <img src="/assets/copy.svg" alt="복사" className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleKakaoShareReferral}
+                disabled={!myReferralCode}
+                className="shrink-0 p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+                title="카카오톡 공유하기"
+              >
+                <img src="/assets/share.svg" alt="공유" className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 추천인 코드 (친구의 코드) */}
+        {!referralLoading && (
+          <div className="p-6 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 mb-6">
+            <p className="text-slate-300 text-sm mb-3">추천인 코드</p>
+            {hasReferrer ? (
+              <input
+                type="text"
+                readOnly
+                disabled
+                value={myReferral.referral_code}
+                className="w-full font-mono text-base text-slate-400 bg-slate-900/70 rounded-lg px-3 py-2.5 border border-slate-600 cursor-not-allowed"
+                aria-label="등록된 추천인 코드"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={referrerCodeInput}
+                  onChange={(e) => setReferrerCodeInput(e.target.value)}
+                  placeholder="친구의 추천 코드 입력"
+                  className="flex-1 min-w-0 font-mono text-base text-white bg-slate-900/50 rounded-lg px-3 py-2.5 border border-slate-600 placeholder-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
+                  aria-label="추천인 코드 입력"
+                />
+                <button
+                  type="button"
+                  onClick={handleRegisterReferral}
+                  disabled={isRegisteringReferral || !referrerCodeInput?.trim()}
+                  className="shrink-0 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-black font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRegisteringReferral ? "등록 중..." : "등록"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 메뉴 리스트 */}
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden">
           {menuItems.map((item, index) => (
@@ -286,6 +459,7 @@ function MyPage() {
           </div>
         </div>
       )}
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
       {user && <BottomNavigation />}
     </div>
   );

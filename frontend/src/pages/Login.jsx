@@ -3,12 +3,22 @@ import { useAuth } from "../hooks/useAuth";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
+import { setPendingReferralCode } from "../utils/referral";
 
 function Login() {
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [verifying, setVerifying] = useState(false);
+
+  // URL에 ref(초대 코드)가 있으면 localStorage에 저장 (OAuth 리다이렉트 후 콜백에서 사용)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const refCode = params.get("ref");
+    if (refCode?.trim()) {
+      setPendingReferralCode(refCode.trim());
+    }
+  }, [location.search]);
 
   // 이미 로그인한 경우: 세션 유효성 검증 후에만 이전 페이지(from) 또는 홈으로 리다이렉트
   // 캐시된(만료된) 세션으로 인해 검증 없이 홈으로 가는 문제 방지

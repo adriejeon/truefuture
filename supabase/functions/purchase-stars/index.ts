@@ -334,6 +334,15 @@ serve(async (req) => {
       );
     }
 
+    // 6. 친구 추천 이벤트: 이번 결제자가 피추천인이고 생애 첫 결제면 추천인에게 망원경 1개 지급
+    const { data: referralResult, error: referralError } = await supabaseAdmin.rpc(
+      "grant_referral_reward_if_first_purchase",
+      { p_referee_id: user_id }
+    );
+    if (!referralError && referralResult?.success) {
+      console.log("✅ 추천 보상 지급 완료:", referralResult.referrer_id);
+    }
+
     const successResponse = {
       success: true,
       message: "운세권 구매 완료",

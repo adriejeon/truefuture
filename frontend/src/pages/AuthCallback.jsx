@@ -1,23 +1,28 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
+import { registerReferralIfPending } from "../utils/referral";
 
 /**
  * OAuth 로그인 후 리다이렉트되는 콜백 페이지.
  * URL 해시의 access_token을 세션으로 복원한 뒤 홈으로 이동합니다.
  * 세션이 복원되지 않으면 로그인 페이지로 보냅니다.
+ * ref(초대 코드)가 저장되어 있으면 register_referral RPC 호출 (실패해도 로그인 흐름은 유지).
  */
 function AuthCallback() {
   const navigate = useNavigate();
   const [message, setMessage] = useState("로그인 처리 중...");
+
+  const goHome = () => navigate("/", { replace: true });
 
   useEffect(() => {
     let cancelled = false;
 
     const finishAuth = async () => {
       try {
-        // getSession으로 해시 파싱 후 세션 복원 대기
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = supabase
+          ? await supabase.auth.getSession()
+          : { data: { session: null }, error: new Error("Supabase 없음") };
 
         if (cancelled) return;
 
@@ -29,19 +34,28 @@ function AuthCallback() {
 
         if (session?.user) {
           setMessage("로그인되었습니다.");
-          navigate("/", { replace: true });
+          try {
+            await registerReferralIfPending(supabase, session.user.id);
+          } catch (e) {
+            console.warn("[referral] 추천 등록 실패 (진입 계속):", e);
+          }
+          goHome();
           return;
         }
 
-        // 해시가 있는데 아직 세션이 없으면 잠시 대기 후 재시도 (Supabase가 해시 파싱 중일 수 있음)
-        if (typeof window !== "undefined" && window.location.hash) {
+        if (typeof window !== "undefined" && window.location.hash && supabase) {
           const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (event, newSession) => {
+            async (event, newSession) => {
               if (cancelled) return;
               if (newSession?.user) {
                 setMessage("로그인되었습니다.");
-                navigate("/", { replace: true });
+                try {
+                  await registerReferralIfPending(supabase, newSession.user.id);
+                } catch (e) {
+                  console.warn("[referral] 추천 등록 실패 (진입 계속):", e);
+                }
                 subscription?.unsubscribe();
+                goHome();
               }
             }
           );
