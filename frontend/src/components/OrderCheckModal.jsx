@@ -119,6 +119,16 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
             </span>
           </div>
 
+          {/* 카드 결제 제한 안내 */}
+          <div className="rounded-xl p-4 border border-slate-700 bg-slate-900/50">
+            <p className="text-slate-400 text-xs leading-relaxed flex items-start gap-2">
+              <svg className="w-4 h-4 text-amber-400/80 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>카드사 정책(사주/운세)으로 인해 삼성카드, 현대카드는 결제가 제한됩니다.</span>
+            </p>
+          </div>
+
           {/* 약관 동의 */}
           <div>
             <h3 className="text-sm font-semibold text-slate-300 mb-1">취소/환불 규정 및 동의</h3>
