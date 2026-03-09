@@ -1313,6 +1313,7 @@ serve(async (req) => {
   let consumed = false;
   let consumeAmount = 0;
   let consumeDescription = "";
+  let consumeTransactionId: string | null = null;
   let authUserId: string | null = null;
 
   try {
@@ -1543,6 +1544,8 @@ serve(async (req) => {
       consumed = true;
       consumeAmount = cost;
       consumeDescription = description;
+      const txId = (consumeResult as { transactionId?: string })?.transactionId;
+      if (txId) consumeTransactionId = txId;
     }
 
     // ========== CONSULTATION 처리 (싱글턴 자유 질문) ==========
@@ -3172,6 +3175,19 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       responseData.systemInstruction = interpretation.systemInstruction;
     }
 
+    // 재화 차감 건을 SUCCESS로 확정 (PENDING → SUCCESS)
+    if (consumeTransactionId) {
+      try {
+        await supabase
+          .from("star_transactions")
+          .update({ consume_status: "SUCCESS" })
+          .eq("id", consumeTransactionId)
+          .eq("type", "CONSUME");
+      } catch (e) {
+        console.warn("⚠️ consume_status SUCCESS 업데이트 실패 (크론 롤백 대상이 될 수 있음):", e);
+      }
+    }
+
     return new Response(JSON.stringify(responseData), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -3200,6 +3216,13 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             p_refund_type: refundType,
           });
           console.log("✅ 차감분 자동 환불 완료:", { authUserId, consumeAmount, refundType });
+          if (consumeTransactionId) {
+            await supabaseRefund
+              .from("star_transactions")
+              .update({ consume_status: "FAILED" })
+              .eq("id", consumeTransactionId)
+              .eq("type", "CONSUME");
+          }
         }
       } catch (refundErr) {
         console.error("❌ refund_stars 롤백 실패:", refundErr);
