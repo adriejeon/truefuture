@@ -228,9 +228,16 @@ COMMENT ON FUNCTION public.rollback_pending_consumes() IS 'PENDING 상태로 10�
 
 
 -- 4. pg_cron 스케줄 등록 (5분마다 실행)
--- Supabase 대시보드에서 pg_cron 확장이 활성화되어 있어야 합니다.
-SELECT cron.schedule(
-  'rollback-pending-consumes',
-  '*/5 * * * *',
-  $$SELECT * FROM public.rollback_pending_consumes()$$
-);
+-- cron 스키마가 있을 때만 등록 (pg_cron 확장이 활성화된 경우). 없으면 스킵하여 마이그레이션은 성공.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'cron') THEN
+    PERFORM cron.schedule(
+      'rollback-pending-consumes',
+      '*/5 * * * *',
+      'SELECT * FROM public.rollback_pending_consumes()'
+    );
+  END IF;
+END $$;
+-- pg_cron 미활성화 시: Supabase 대시보드 → Database → Extensions → pg_cron 활성화 후
+-- SQL 에디터에서 수동 실행: SELECT cron.schedule('rollback-pending-consumes', '*/5 * * * *', 'SELECT * FROM public.rollback_pending_consumes()');
