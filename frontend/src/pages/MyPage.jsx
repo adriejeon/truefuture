@@ -316,6 +316,11 @@ function MyPage() {
                 <img src="/assets/share.svg" alt="공유" className="w-5 h-5" />
               </button>
             </div>
+            <div className="mt-4 p-4 sm:p-5 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30">
+              <p className="text-amber-200 font-medium text-center text-sm sm:text-base">
+                내 추천으로 들어온 친구가 첫 결제를 하면 망원경 1개가 무료로 지급됩니다.
+              </p>
+            </div>
           </div>
         )}
 
