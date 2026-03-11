@@ -591,6 +591,9 @@ async function* callGeminiAPIStream(
 /**
  * SSE ReadableStream 생성: Gemini 청크를 프론트로 전달하면서 fullText 누적,
  * 스트림 종료 시 Supabase에 insert 후 [DONE] 전송하고 스트림 닫기.
+ * - insert 성공 직후 consumeTransactionId가 있으면 star_transactions.consume_status를 SUCCESS로 확정.
+ * - catch 시 에러 이벤트 전송 후 재throw하여 serve() 최상단 catch에서 refund_stars 실행되도록 유도.
+ * - cancel() 시(클라이언트 연결 끊김) 아직 완료 전이면 refund_stars로 자동 환불.
  */
 function createFortuneSSEStream(
   geminiStream: AsyncGenerator<string, void, unknown>,
@@ -603,18 +606,30 @@ function createFortuneSSEStream(
     fortuneType?: string;
     /** 프론트 콘솔 디버깅용: 차트·프롬프트·debugInfo (logFortuneInput에 전달) */
     debugPayload?: Record<string, unknown>;
+    /** 스트림 완료 시 SUCCESS 확정 및 cancel 시 환불에 사용 */
+    consumeTransactionId?: string | null;
+    authUserId?: string | null;
+    consumeAmount?: number;
+    consumeDescription?: string;
   },
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let fullText = "";
+  const cancelledRef = { current: false };
+  let completed = false;
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
         for await (const chunk of geminiStream) {
+          if (cancelledRef.current) break;
           fullText += chunk;
           const sseData = `data: ${JSON.stringify({ text: chunk })}\n\n`;
           controller.enqueue(encoder.encode(sseData));
+        }
+
+        if (cancelledRef.current) {
+          return;
         }
 
         const normalizedFullText = fullText
@@ -633,8 +648,10 @@ function createFortuneSSEStream(
           console.error("❌ [스트림] fortune_results insert 실패:", resultError);
           const errEvent = `data: ${JSON.stringify({ error: resultError.message })}\n\n`;
           controller.enqueue(encoder.encode(errEvent));
-        } else if (resultData?.id && options?.userId && options?.fortuneType && options?.profileId) {
-          // profileId가 명확히 존재할 때만 이력을 저장하도록 조건 추가
+          throw new Error(resultError.message);
+        }
+
+        if (resultData?.id && options?.userId && options?.fortuneType && options?.profileId) {
           const shareId = resultData.id;
           const { error: historyError } = await supabase
             .from("fortune_history")
@@ -651,9 +668,21 @@ function createFortuneSSEStream(
           options.onInsert?.(shareId);
         }
 
+        if (options?.consumeTransactionId) {
+          try {
+            await supabase
+              .from("star_transactions")
+              .update({ consume_status: "SUCCESS" })
+              .eq("id", options.consumeTransactionId)
+              .eq("type", "CONSUME");
+          } catch (e) {
+            console.warn("⚠️ [스트림] consume_status SUCCESS 업데이트 실패:", e);
+          }
+        }
+        completed = true;
+
         const shareId = resultData?.id ?? null;
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        // done 이벤트는 share_id만 전송 (debug 제외 → JSON 크기 축소로 파싱 실패/잘림 방지)
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
@@ -669,8 +698,39 @@ function createFortuneSSEStream(
             `data: ${JSON.stringify({ error: e?.message ?? "Stream error" })}\n\n`,
           ),
         );
+        throw e;
       } finally {
         controller.close();
+      }
+    },
+    cancel(reason) {
+      cancelledRef.current = true;
+      if (
+        !completed &&
+        options?.consumeTransactionId &&
+        options?.authUserId &&
+        options?.consumeAmount != null &&
+        options?.consumeAmount > 0
+      ) {
+        const refundType = getRefundTypeFromDescription(options.consumeDescription ?? "");
+        (async () => {
+          try {
+            await supabase.rpc("refund_stars", {
+              p_user_id: options!.authUserId!,
+              p_amount: options!.consumeAmount!,
+              p_description: "운세 생성 실패(클라이언트 연결 끊김)로 인한 자동 환불",
+              p_refund_type: refundType,
+            });
+            await supabase
+              .from("star_transactions")
+              .update({ consume_status: "FAILED" })
+              .eq("id", options!.consumeTransactionId!)
+              .eq("type", "CONSUME");
+            console.log("✅ [스트림] 클라이언트 연결 끊김 → 차감분 자동 환불 완료");
+          } catch (err) {
+            console.error("❌ [스트림] cancel 시 refund_stars 실패:", err);
+          }
+        })();
       }
     },
   });
@@ -768,6 +828,10 @@ async function getInterpretation(
       userId?: string;
       profileId?: string | null;
       fortuneType?: string;
+      consumeTransactionId?: string | null;
+      authUserId?: string | null;
+      consumeAmount?: number;
+      consumeDescription?: string;
     };
   },
 ): Promise<any> {
@@ -2279,6 +2343,10 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           userId: currentUserId,
           profileId: currentProfileId,
           fortuneType,
+          consumeTransactionId: consumeTransactionId ?? null,
+          authUserId: authUserId ?? null,
+          consumeAmount,
+          consumeDescription: consumeDescription ?? "",
           debugPayload: {
             chart: chartData,
             userPrompt,
@@ -2554,6 +2622,15 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
               chart2: chartData2,
             },
           }),
+          opts: {
+            userId: user?.id,
+            profileId: requestData.profileId ?? null,
+            fortuneType,
+            consumeTransactionId: consumeTransactionId ?? null,
+            authUserId: authUserId ?? null,
+            consumeAmount,
+            consumeDescription: consumeDescription ?? "",
+          },
         },
       );
 
@@ -3050,6 +3127,10 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         userId: user?.id,
         profileId: requestData.profileId ?? null,
         fortuneType,
+        consumeTransactionId: consumeTransactionId ?? null,
+        authUserId: authUserId ?? null,
+        consumeAmount,
+        consumeDescription: consumeDescription ?? "",
       },
     };
 
