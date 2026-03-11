@@ -112,6 +112,7 @@ function StarModal({
               fullWidth
               onClick={handleConfirmClick}
               className="flex-1"
+              data-testid="star-modal-confirm"
             >
               사용
             </PrimaryButton>
