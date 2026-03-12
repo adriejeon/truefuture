@@ -2324,40 +2324,6 @@ function Consultation() {
                     </div>
                   )}
 
-                  {/* 후속 질문 입력창 (결과 영역 안에 유지) */}
-                  {showFollowUpInput && (
-                    <div ref={followUpInputRef} className="mt-6 animate-fade-in">
-                      <form onSubmit={handleFollowUpSubmit}>
-                        <label className="block text-sm font-medium text-slate-300 mb-3">
-                          후속 질문
-                        </label>
-                        <textarea
-                          value={followUpQuestion}
-                          onChange={(e) => setFollowUpQuestion(e.target.value)}
-                          placeholder="답변에 대해 더 궁금한 점을 물어보세요."
-                          maxLength={1000}
-                          rows={4}
-                          className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                        />
-                        <div className="flex justify-end mt-2">
-                          <span className="text-xs text-slate-400">
-                            {followUpQuestion.length}/1000
-                          </span>
-                        </div>
-                        <PrimaryButton
-                          type="submit"
-                          disabled={!followUpQuestion.trim() || loadingFollowUp}
-                          fullWidth
-                          className="mt-4"
-                        >
-                          질문하기
-                        </PrimaryButton>
-                      </form>
-                    </div>
-                  )}
-
-                  {/* 후속 질문 대기/표시: 본 질문과 동일하게 processStatus 기반 전체 화면 모달 사용 */}
-
                   {/* 후속 질문 답변들 (여러 개일 수 있음) */}
                   {followUpAnswers.length > 0 && (
                     <div className="contents">
@@ -2545,6 +2511,38 @@ function Consultation() {
                         )}
                       </div>
                     ))}
+                    </div>
+                  )}
+
+                  {/* 후속 질문 입력창: followUpAnswers 아래에 배치하여 두 번째 후속 질문이 첫 번째 답변 아래에 나타남 */}
+                  {showFollowUpInput && (
+                    <div ref={followUpInputRef} className="mt-6 animate-fade-in">
+                      <form onSubmit={handleFollowUpSubmit}>
+                        <label className="block text-sm font-medium text-slate-300 mb-3">
+                          후속 질문
+                        </label>
+                        <textarea
+                          value={followUpQuestion}
+                          onChange={(e) => setFollowUpQuestion(e.target.value)}
+                          placeholder="답변에 대해 더 궁금한 점을 물어보세요."
+                          maxLength={1000}
+                          rows={4}
+                          className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                        />
+                        <div className="flex justify-end mt-2">
+                          <span className="text-xs text-slate-400">
+                            {followUpQuestion.length}/1000
+                          </span>
+                        </div>
+                        <PrimaryButton
+                          type="submit"
+                          disabled={!followUpQuestion.trim() || loadingFollowUp}
+                          fullWidth
+                          className="mt-4"
+                        >
+                          질문하기
+                        </PrimaryButton>
+                      </form>
                     </div>
                   )}
                   </div>
