@@ -602,7 +602,7 @@ function Compatibility() {
                 "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
             }}
           >
-            <span>진짜 궁합 확인하기</span>
+            <span>진짜궁합 확인</span>
           </button>
           <Link
             to="/faq"
