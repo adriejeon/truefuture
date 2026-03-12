@@ -81,8 +81,9 @@ function BottomNavigation({ activeTab }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 border-t border-slate-700 z-50"
+      className="fixed bottom-0 left-0 right-0 border-t border-slate-700 z-[9999]"
       style={{ backgroundColor: "#0F0F2B" }}
+      aria-label="하단 탭 메뉴"
     >
       <div className="max-w-4xl mx-auto">
         <div className="grid grid-cols-3 divide-x divide-slate-700">
