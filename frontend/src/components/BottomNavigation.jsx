@@ -1,4 +1,3 @@
-import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import { colors } from "../constants/colors";
 
@@ -80,11 +79,10 @@ function BottomNavigation({ activeTab }) {
     },
   ];
 
-  const navContent = (
+  return (
     <nav
-      className="fixed bottom-0 left-0 right-0 border-t border-slate-700 z-[9999]"
+      className="fixed bottom-0 left-0 right-0 border-t border-slate-700 z-50"
       style={{ backgroundColor: "#0F0F2B" }}
-      aria-label="하단 탭 메뉴"
     >
       <div className="max-w-4xl mx-auto">
         <div className="grid grid-cols-3 divide-x divide-slate-700">
@@ -121,10 +119,6 @@ function BottomNavigation({ activeTab }) {
       </div>
     </nav>
   );
-
-  return typeof document !== "undefined"
-    ? createPortal(navContent, document.body)
-    : null;
 }
 
 export default BottomNavigation;
