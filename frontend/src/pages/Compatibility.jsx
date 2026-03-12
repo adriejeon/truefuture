@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
@@ -612,19 +613,21 @@ function Compatibility() {
           </Link>
         </form>
 
-        {/* 로딩 모달: waiting 또는 streaming 상태에서 */}
-        {(processStatus === "waiting" || processStatus === "streaming") && (
-          <div
-            className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label="궁합 분석 중"
-          >
-            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
-              <TypewriterLoader />
-            </div>
-          </div>
-        )}
+        {/* 로딩 모달: waiting 또는 streaming 상태에서 (포탈로 body에 렌더해 하단 탭까지 덮어 이탈 방지) */}
+        {(processStatus === "waiting" || processStatus === "streaming") &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label="궁합 분석 중"
+            >
+              <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+                <TypewriterLoader />
+              </div>
+            </div>,
+            document.body
+          )}
 
         {error && (
           <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">

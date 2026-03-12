@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useParams, useNavigate, useLocation, Link } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -1411,13 +1412,20 @@ function Consultation() {
             </div>
           </div>
         </div>
-        {sharedLoadingFollowUp && (
-          <div className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4" role="dialog" aria-modal="true" aria-label="후속 질문 분석 중">
-            <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
-              <TypewriterLoader />
-            </div>
-          </div>
-        )}
+        {sharedLoadingFollowUp &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label="후속 질문 분석 중"
+            >
+              <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+                <TypewriterLoader />
+              </div>
+            </div>,
+            document.body
+          )}
         <BottomNavigation />
       </div>
     );
@@ -1430,19 +1438,21 @@ function Consultation() {
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
         <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
           <div className="py-8 sm:py-12">
-            {/* 로딩 모달: 본 질문과 동일하게 processStatus 기반 */}
-            {(processStatus === "waiting" || processStatus === "streaming") && (
-              <div
-                className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
-                role="dialog"
-                aria-modal="true"
-                aria-label="운세 분석 중"
-              >
-                <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
-                  <TypewriterLoader />
-                </div>
-              </div>
-            )}
+            {/* 로딩 모달: 본 질문과 동일하게 processStatus 기반 (포탈로 body에 렌더해 하단 탭까지 덮어 이탈 방지) */}
+            {(processStatus === "waiting" || processStatus === "streaming") &&
+              createPortal(
+                <div
+                  className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="운세 분석 중"
+                >
+                  <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+                    <TypewriterLoader />
+                  </div>
+                </div>,
+                document.body
+              )}
 
             {/* 상단: 새로운 질문 버튼 */}
             <div className="mb-6">
@@ -2078,19 +2088,21 @@ function Consultation() {
                 </Link>
               </form>
 
-              {/* 로딩 모달: waiting 또는 streaming 상태에서 중앙 애니메이션 */}
-              {(processStatus === "waiting" || processStatus === "streaming") && (
-                <div
-                  className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="운세 분석 중"
-                >
-                  <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
-                    <TypewriterLoader />
-                  </div>
-                </div>
-              )}
+              {/* 로딩 모달: waiting 또는 streaming 상태에서 중앙 애니메이션 (포탈로 body에 렌더해 하단 탭까지 덮어 이탈 방지) */}
+              {(processStatus === "waiting" || processStatus === "streaming") &&
+                createPortal(
+                  <div
+                    className="fixed inset-0 z-[10001] flex items-center justify-center typing-modal-backdrop min-h-screen p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="운세 분석 중"
+                  >
+                    <div className="w-full max-w-md min-h-[300px] flex items-center justify-center">
+                      <TypewriterLoader />
+                    </div>
+                  </div>,
+                  document.body
+                )}
 
               {/* 상담 결과: done 상태에서만 표시 */}
               {consultationAnswer && (
