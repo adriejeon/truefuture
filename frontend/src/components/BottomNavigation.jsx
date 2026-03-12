@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import { colors } from "../constants/colors";
 
@@ -79,7 +80,7 @@ function BottomNavigation({ activeTab }) {
     },
   ];
 
-  return (
+  const navContent = (
     <nav
       className="fixed bottom-0 left-0 right-0 border-t border-slate-700 z-[9999]"
       style={{ backgroundColor: "#0F0F2B" }}
@@ -120,6 +121,10 @@ function BottomNavigation({ activeTab }) {
       </div>
     </nav>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(navContent, document.body)
+    : null;
 }
 
 export default BottomNavigation;
