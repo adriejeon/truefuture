@@ -11,6 +11,7 @@ import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { colors } from "../constants/colors";
 import { TelescopeIcon, CompassIcon, ProbeIcon } from "../components/EquipmentIcons";
+import { trackPurchase } from "../utils/analytics";
 
 const PACKAGES = [
   {
@@ -121,6 +122,16 @@ function Purchase() {
       const redirectUrl = `${redirectBase}?merchant_uid=${encodeURIComponent(merchantUid)}`;
       try {
         sessionStorage.setItem("payment_merchant_uid", merchantUid);
+        sessionStorage.setItem(
+          "payment_checkout_items",
+          JSON.stringify({
+            merchantUid,
+            id: selectedPackage.id,
+            name: selectedPackage.name,
+            price: selectedPackage.price,
+            iconType: selectedPackage.iconType,
+          })
+        );
       } catch (_) {}
 
       // 포트원 결제 요청 (모바일: redirectUrl로 돌아올 때 imp_uid, imp_success 등이 쿼리로 붙음)
@@ -180,6 +191,33 @@ function Purchase() {
         `🎉 운세권 구매 완료!\n\n구매한 운세권: ${totalBought}장\n새로운 잔액: ${newTotal}장`,
       );
       await refetchStars();
+
+      // GA4 purchase: 결제·쿠폰 지급이 모두 끝난 직후, 비동기로만 전송 (서비스 영향 0%)
+      const itemCategory =
+        selectedPackage.iconType === "telescope"
+          ? "망원경"
+          : selectedPackage.iconType === "compass"
+            ? "나침반"
+            : "탐사선";
+      setTimeout(() => {
+        trackPurchase({
+          transaction_id: merchantUid,
+          value: selectedPackage.price,
+          currency: "KRW",
+          items: [
+            {
+              item_id: selectedPackage.id,
+              item_name: selectedPackage.name,
+              price: selectedPackage.price,
+              quantity: 1,
+              item_category: itemCategory,
+            },
+          ],
+        });
+        try {
+          sessionStorage.removeItem("payment_checkout_items");
+        } catch (_) {}
+      }, 0);
     } catch (err) {
       console.error("결제 오류:", err);
       setError(err.message || "결제 처리 중 오류가 발생했습니다.");

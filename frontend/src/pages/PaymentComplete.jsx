@@ -3,6 +3,49 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
+import { trackPurchase } from "../utils/analytics";
+
+/** 결제 성공 후 GA4 purchase 전송 (sessionStorage 기반). Fire-and-forget, 서비스 영향 없음. */
+function sendPurchaseEventFromStorage() {
+  try {
+    const uid = sessionStorage.getItem("payment_merchant_uid");
+    const raw = sessionStorage.getItem("payment_checkout_items");
+    let transactionId = uid || "";
+    let value = 0;
+    let items = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        transactionId = parsed.merchantUid || transactionId;
+        value = Number(parsed.price) || 0;
+        const cat =
+          parsed.iconType === "telescope"
+            ? "망원경"
+            : parsed.iconType === "compass"
+              ? "나침반"
+              : "탐사선";
+        items = [
+          {
+            item_id: parsed.id || "",
+            item_name: parsed.name || "운세권",
+            price: value,
+            quantity: 1,
+            item_category: cat,
+          },
+        ];
+      } catch (_) {}
+    }
+    if (transactionId || value > 0) {
+      trackPurchase({
+        transaction_id: transactionId,
+        value,
+        currency: "KRW",
+        items,
+      });
+    }
+    sessionStorage.removeItem("payment_checkout_items");
+  } catch (_) {}
+}
 
 function PaymentComplete() {
   const [searchParams] = useSearchParams();
@@ -247,6 +290,7 @@ function PaymentComplete() {
             setTimeout(() => {
               navigate("/purchase", { replace: true });
             }, 3000);
+            setTimeout(sendPurchaseEventFromStorage, 0);
             return;
           }
 
@@ -282,6 +326,7 @@ function PaymentComplete() {
             setTimeout(() => {
               navigate("/purchase", { replace: true });
             }, 3000);
+            setTimeout(sendPurchaseEventFromStorage, 0);
             return;
           }
 
@@ -315,6 +360,7 @@ function PaymentComplete() {
         setTimeout(() => {
           navigate("/purchase", { replace: true });
         }, 3000);
+        setTimeout(sendPurchaseEventFromStorage, 0);
       } catch (err) {
         console.error("❌ 결제 처리 예외:", err);
         isProcessing.current = false; // 처리 완료 표시 (에러여도)
@@ -339,6 +385,7 @@ function PaymentComplete() {
           setTimeout(() => {
             navigate("/purchase", { replace: true });
           }, 3000);
+          setTimeout(sendPurchaseEventFromStorage, 0);
         } else {
           setStatus("error");
           setMessage(
