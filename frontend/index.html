@@ -56,6 +56,42 @@
       rel="stylesheet"
     />
 
+    <!-- SEO / GEO: Organization + WebSite JSON-LD (브랜드 권위·E-E-A-T) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://truefuture.kr/#organization",
+          "name": "진짜미래",
+          "url": "https://truefuture.kr",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://truefuture.kr/assets/logo.png"
+          },
+          "description": "300회 이상의 리뷰로 검증된 정통 고전 점성술 기반 운명 컨설팅 서비스. 흔한 사주나 타로와 차별화된 개인 맞춤형 출생 차트 분석으로 연애운, 재회 타이밍, 퀴어 궁합에 대한 가장 정확한 해답을 제공합니다.",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "Customer Service",
+            "email": "support@truefuture.kr",
+            "availableLanguage": "Korean"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://truefuture.kr/#website",
+          "url": "https://truefuture.kr",
+          "name": "진짜미래",
+          "publisher": {
+            "@id": "https://truefuture.kr/#organization"
+          },
+          "description": "누구에게도 말하기 힘든 은밀한 연애 고민부터 정확한 고백 타이밍까지. 정해진 결과가 아닌 100% 비대면 자유 질문으로 내 상황에 딱 맞는 완벽한 점성학적 해답을 얻어보세요."
+        }
+      ]
+    }
+    </script>
+
     <!-- SEO Fallback: Helmet이 로드되기 전/기본 페이지용. 동적 페이지는 react-helmet-async로 덮어씀 -->
     <title>진짜미래 | 더 나은 미래를 위한 운명 컨설팅</title>
     <meta
