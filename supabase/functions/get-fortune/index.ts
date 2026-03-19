@@ -858,6 +858,21 @@ function parseGeminiResponse(apiResponse: any): string {
 const DIGNITY_SECTION_HEADER =
   "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n[차트 위계/섹트/헤이즈 해석]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
 
+function logGeminiPromptDebug(
+  fortuneType: FortuneType | string,
+  systemInstruction: string,
+  userPrompt: string,
+) {
+  console.log(
+    JSON.stringify({
+      logType: "GEMINI_PROMPT_DEBUG",
+      fortuneType: fortuneType,
+      systemPrompt: systemInstruction,
+      userPrompt: userPrompt,
+    }),
+  );
+}
+
 async function getInterpretation(
   chartData: any,
   fortuneType: FortuneType,
@@ -1068,6 +1083,8 @@ async function getInterpretation(
       if (aspects?.length) debugPayload.aspects = aspects;
       if (transitMoonHouse != null) debugPayload.transitMoonHouse = transitMoonHouse;
 
+      // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON)
+      logGeminiPromptDebug(fortuneType, systemInstructionText, userPrompt);
       const geminiStream = callGeminiAPIStream(
         modelName,
         GEMINI_FALLBACK_MODEL,
@@ -1083,6 +1100,8 @@ async function getInterpretation(
       return { stream };
     }
 
+    // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON)
+    logGeminiPromptDebug(fortuneType, systemInstructionText, userPrompt);
     const apiResponse = await callGeminiAPIWithFallback(
       modelName,
       GEMINI_FALLBACK_MODEL,
@@ -1101,13 +1120,6 @@ async function getInterpretation(
       success: true,
       fortuneType: fortuneType,
       interpretation: interpretationText,
-      userPrompt: userPrompt,
-      systemInstruction: systemInstructionText,
-      debugInfo: {
-        fullPromptSentToGemini,
-        neo4jContext: neo4jContext || "(없음)",
-        rawGeminiResponse: apiResponse,
-      },
     };
   } catch (error: any) {
     return {
@@ -1356,6 +1368,13 @@ async function generateLifetimeFortune(
     // Lifetime 운세는 flash 모델 사용
     const modelName = getGeminiModel(FortuneType.LIFETIME);
 
+    // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON)
+    logGeminiPromptDebug(
+      FortuneType.LIFETIME,
+      `${natureSystemText}\n\n${loveSystemText}\n\n${moneyCareerSystemText}\n\n${healthTotalSystemText}`,
+      userPrompt,
+    );
+
     // 병렬 호출로 속도 최적화 (4배 빠름!)
     const [resultNature, resultLove, resultMoneyCareer, resultHealthTotal] =
       await Promise.all([
@@ -1404,18 +1423,6 @@ async function generateLifetimeFortune(
       success: true,
       fortuneType: FortuneType.LIFETIME,
       interpretation: combinedInterpretation,
-      userPrompt: userPrompt,
-      systemInstruction: `${natureSystemText}\n\n${loveSystemText}\n\n${moneyCareerSystemText}\n\n${healthTotalSystemText}`,
-      debugInfo: {
-        fullPromptSentToGemini,
-        neo4jContext: neo4jContext || "(없음)",
-        rawGeminiResponse: {
-          nature: resultNature,
-          love: resultLove,
-          moneyCareer: resultMoneyCareer,
-          healthTotal: resultHealthTotal,
-        },
-      },
     };
   } catch (error: any) {
     console.error("❌ Lifetime 운세 생성 중 에러:", error);
@@ -1526,13 +1533,12 @@ serve(async (req) => {
       }
 
       const fortuneType = data.fortune_type || "daily";
-      const payload = {
+      const payload: any = {
         success: true,
         interpretation: data.fortune_text,
         userInfo: data.user_info,
         fortuneType,
         createdAt: data.created_at,
-        chart_data: data.chart_data ?? null,
         isShared: true,
       };
 
@@ -2422,6 +2428,12 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       const currentProfileId = requestData.profileId || null;
 
       // 스트리밍: generateContentStream → SSE → 스트림 종료 시 DB insert 후 [DONE]
+      // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON)
+      logGeminiPromptDebug(
+        fortuneType,
+        systemInstruction.parts?.[0]?.text ?? "",
+        userPrompt,
+      );
       const geminiStream = callGeminiAPIStream(
         modelName,
         GEMINI_FALLBACK_MODEL,
@@ -2818,19 +2830,11 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
       const compatResponse: any = {
         success: true,
-        chart: chartData1,
-        chart2: chartData2,
         interpretation: interpretation.interpretation,
         fortuneType: fortuneType,
         share_id: shareId || null,
         synastryResult: synastryResult,
       };
-      if (interpretation.userPrompt)
-        compatResponse.userPrompt = interpretation.userPrompt;
-      if (interpretation.systemInstruction)
-        compatResponse.systemInstruction = interpretation.systemInstruction;
-      if (interpretation.debugInfo)
-        compatResponse.debugInfo = interpretation.debugInfo;
       return new Response(JSON.stringify(compatResponse), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -3378,35 +3382,11 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
     const responseData: any = {
       success: true,
-      chart: chartData,
       interpretation: interpretation.interpretation,
       fortune: interpretation.interpretation,
       fortuneType: fortuneType,
       share_id: shareId || null,
     };
-
-    if (interpretation.debugInfo) {
-      responseData.debugInfo = interpretation.debugInfo;
-    }
-
-    if (fortuneType === FortuneType.DAILY && transitChartData) {
-      responseData.transitChart = transitChartData;
-      responseData.aspects = aspects;
-      responseData.transitMoonHouse = transitMoonHouse;
-    }
-
-    if (fortuneType === FortuneType.YEARLY && solarReturnChartData) {
-      responseData.solarReturnChart = solarReturnChartData;
-      responseData.profectionData = profectionData;
-      responseData.solarReturnOverlay = solarReturnOverlay;
-    }
-
-    if (interpretation.userPrompt) {
-      responseData.userPrompt = interpretation.userPrompt;
-    }
-    if (interpretation.systemInstruction) {
-      responseData.systemInstruction = interpretation.systemInstruction;
-    }
 
     // 재화 차감 건을 SUCCESS로 확정 (PENDING → SUCCESS)
     if (consumeTransactionId) {
