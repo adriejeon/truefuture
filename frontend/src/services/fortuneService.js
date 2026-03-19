@@ -1,5 +1,28 @@
 import { supabase } from "../lib/supabaseClient";
 
+async function fetchFortuneFromEdgeById(resultId) {
+  if (!resultId) return null;
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) return null;
+    const res = await fetch(
+      `${supabaseUrl}/functions/v1/get-fortune?id=${encodeURIComponent(resultId)}`,
+      { method: "GET", headers: { "Content-Type": "application/json" } },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || data.error || !data.interpretation) return null;
+    return {
+      interpretation: data.interpretation,
+      shareId: resultId,
+      userInfo: data.userInfo ?? null,
+      fortuneType: data.fortuneType ?? null,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 /**
  * 한국 시간대 기준 현재 시간 (UTC+9)
  */
@@ -236,7 +259,15 @@ export async function fetchFortuneByResultId(resultId) {
       .single();
 
     if (resultError || !resultRow?.fortune_text) {
-      return null;
+      const edge = await fetchFortuneFromEdgeById(resultId);
+      if (!edge?.interpretation) return null;
+      return {
+        interpretation: edge.interpretation,
+        chart: null,
+        chart2: null,
+        shareId: resultId,
+        userInfo: edge.userInfo,
+      };
     }
 
     const cd = resultRow.chart_data || {};
@@ -434,7 +465,17 @@ export async function restoreFortuneIfExists(
       .single();
 
     if (resultError || !resultRow?.fortune_text) {
-      return null;
+      // RLS/권한 등으로 fortune_results를 못 읽는 경우를 대비해 Edge Function으로 복구 시도
+      const edge = await fetchFortuneFromEdgeById(historyRow.result_id);
+      if (!edge?.interpretation) return null;
+      return {
+        interpretation: edge.interpretation,
+        chart: null,
+        transitChart: null,
+        aspects: null,
+        transitMoonHouse: null,
+        shareId: historyRow.result_id,
+      };
     }
 
     const cd = resultRow.chart_data || {};
