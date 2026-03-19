@@ -844,9 +844,6 @@ function YearlyFortune() {
                   </svg>
                 </div>
               </div>
-              <p className="text-xs text-slate-400">
-                선택한 날짜에 관계없이 나침반 1개가 소진됩니다.
-              </p>
             </div>
           )}
           <PrimaryButton
