@@ -74,6 +74,8 @@ function YearlyFortune() {
   const [fromCache, setFromCache] = useState(false);
   const [fortuneDate, setFortuneDate] = useState("");
   const [loadingCache, setLoadingCache] = useState(false);
+  // 지정일 데일리 운세: 선택 날짜 (YYYY-MM-DD, 기본값=오늘 KST)
+  const [dailyTargetDate, setDailyTargetDate] = useState("");
   // 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
   const [fortuneAvailability, setFortuneAvailability] = useState({
     daily: null,
@@ -105,6 +107,13 @@ function YearlyFortune() {
     const day = String(koreaTime.getUTCDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
+
+  const formatMonthDayKo = (ymd) => {
+    const match = String(ymd || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "오늘";
+    const [, , mm, dd] = match;
+    return `${parseInt(mm, 10)}월 ${parseInt(dd, 10)}일`;
+  };
   const isWithinDailyFortuneTime = () => {
     const koreaTime = getKoreaTime();
     const hour = koreaTime.getUTCHours();
@@ -112,27 +121,34 @@ function YearlyFortune() {
     if (hour === 0 && minute < 1) return false;
     return true;
   };
-  const getTodayFortuneFromStorage = (profileId) => {
-    if (!profileId) return null;
+  useEffect(() => {
+    // 최초 1회: 오늘 날짜로 default 세팅
+    if (!dailyTargetDate) {
+      setDailyTargetDate(getTodayDate());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const getDailyFortuneFromStorage = (profileId, targetDate) => {
+    if (!profileId || !targetDate) return null;
     try {
-      const storageKey = `daily_fortune_${profileId}`;
+      const storageKey = `daily_fortune_${profileId}_${targetDate}`;
       const stored = localStorage.getItem(storageKey);
       if (!stored) return null;
       const fortuneData = JSON.parse(stored);
-      if (fortuneData.date === getTodayDate()) return fortuneData;
-      localStorage.removeItem(storageKey);
+      // 날짜별 캐시이므로 date 불일치면 그냥 무시(삭제는 하지 않음)
+      if (fortuneData.date === targetDate) return fortuneData;
       return null;
     } catch (err) {
       console.error("로컬스토리지 읽기 에러:", err);
       return null;
     }
   };
-  const saveTodayFortuneToStorage = (profileId, fortuneData) => {
-    if (!profileId) return;
+  const saveDailyFortuneToStorage = (profileId, targetDate, fortuneData) => {
+    if (!profileId || !targetDate) return;
     try {
-      const todayDate = getTodayDate();
       const dataToSave = {
-        date: todayDate,
+        date: targetDate,
         interpretation: fortuneData.interpretation,
         chart: fortuneData.chart,
         transitChart: fortuneData.transitChart,
@@ -142,7 +158,7 @@ function YearlyFortune() {
         createdAt: new Date().toISOString(),
       };
       localStorage.setItem(
-        `daily_fortune_${profileId}`,
+        `daily_fortune_${profileId}_${targetDate}`,
         JSON.stringify(dataToSave)
       );
     } catch (err) {
@@ -233,7 +249,10 @@ function YearlyFortune() {
 
     if (fortuneTab === "daily") {
       setLoadingCache(true);
-      const stored = getTodayFortuneFromStorage(selectedProfile.id);
+      const stored = getDailyFortuneFromStorage(
+        selectedProfile.id,
+        dailyTargetDate || getTodayDate()
+      );
       if (stored) {
         setInterpretation(stored.interpretation);
         setFromCache(true);
@@ -244,21 +263,26 @@ function YearlyFortune() {
           try {
             const restored = await restoreFortuneIfExists(
               selectedProfile.id,
-              "daily"
+              "daily",
+              dailyTargetDate || getTodayDate()
             );
             if (restored) {
               setInterpretation(restored.interpretation);
               setFromCache(true);
-              setFortuneDate(getTodayDate());
+              setFortuneDate(dailyTargetDate || getTodayDate());
               setShareId(restored.shareId || null);
-              saveTodayFortuneToStorage(selectedProfile.id, {
-                interpretation: restored.interpretation,
-                chart: restored.chart,
-                transitChart: restored.transitChart,
-                aspects: restored.aspects,
-                transitMoonHouse: restored.transitMoonHouse,
-                shareId: restored.shareId,
-              });
+              saveDailyFortuneToStorage(
+                selectedProfile.id,
+                dailyTargetDate || getTodayDate(),
+                {
+                  interpretation: restored.interpretation,
+                  chart: restored.chart,
+                  transitChart: restored.transitChart,
+                  aspects: restored.aspects,
+                  transitMoonHouse: restored.transitMoonHouse,
+                  shareId: restored.shareId,
+                }
+              );
             } else {
               setInterpretation("");
               setFromCache(false);
@@ -301,7 +325,14 @@ function YearlyFortune() {
     return () => {
       cancelled = true;
     };
-  }, [selectedProfile?.id, isSharedFortune, user, searchParams, fortuneTab]);
+  }, [
+    selectedProfile?.id,
+    isSharedFortune,
+    user,
+    searchParams,
+    fortuneTab,
+    dailyTargetDate,
+  ]);
 
   // 프로필 선택 시 데일리/종합 운세 조회 가능 여부 체크 (버튼 비활성화용)
   useEffect(() => {
@@ -359,14 +390,19 @@ function YearlyFortune() {
       setError("프로필 정보가 올바르지 않습니다.");
       return;
     }
-    if (!isWithinDailyFortuneTime()) {
+    const targetDate = dailyTargetDate || getTodayDate();
+    // 오늘 날짜를 선택했을 때만 "00:01 이후" 제한 적용 (지정일은 제한 없음)
+    if (targetDate === getTodayDate() && !isWithinDailyFortuneTime()) {
       setError("오늘의 운세는 00시 1분부터 확인하실 수 있습니다.");
       return;
     }
-    const existingFortune = getTodayFortuneFromStorage(selectedProfile.id);
+    const existingFortune = getDailyFortuneFromStorage(
+      selectedProfile.id,
+      targetDate
+    );
     if (existingFortune) {
       setError(
-        "오늘의 운세를 이미 확인하셨습니다. 내일 00시 1분 이후에 새로운 운세를 확인하실 수 있습니다."
+        "선택한 날짜의 운세를 이미 확인하셨습니다. 날짜를 바꿔서 다시 확인해 보세요."
       );
       setInterpretation(existingFortune.interpretation);
       setFromCache(true);
@@ -393,7 +429,7 @@ function YearlyFortune() {
       type: "confirm",
       requiredAmount: requiredStars,
       currentBalance: bonusStars,
-      fortuneType: "오늘 운세",
+      fortuneType: "선택한 날짜 운세",
     });
     setShowStarModalDaily(true);
     } catch (err) {
@@ -418,10 +454,12 @@ function YearlyFortune() {
     firstChunkReceivedRef.current = false;
 
     try {
+      const targetDate = dailyTargetDate || getTodayDate();
       const requestBody = {
         ...formData,
         fortuneType: "daily",
         reportType: "daily",
+        targetDate,
         profileName: selectedProfile.name || null,
         profileId: selectedProfile?.id ?? null,
         cost: FORTUNE_STAR_COSTS.daily,
@@ -444,22 +482,22 @@ function YearlyFortune() {
           const text = fullText ?? fullData?.interpretation ?? "";
           setStreamingInterpretation("");
           if (text) {
-            const todayDate = getTodayDate();
             const sid = currentShareId ?? fullData?.share_id ?? null;
             setShareId(sid);
-            saveTodayFortuneToStorage(selectedProfile.id, {
+            saveDailyFortuneToStorage(selectedProfile.id, targetDate, {
               interpretation: text,
               chart: fullData?.chart ?? debug?.chart,
               transitChart: fullData?.transitChart ?? debug?.transitChart,
               aspects: fullData?.aspects ?? debug?.aspects,
-              transitMoonHouse: fullData?.transitMoonHouse ?? debug?.transitMoonHouse,
+              transitMoonHouse:
+                fullData?.transitMoonHouse ?? debug?.transitMoonHouse,
               shareId: sid,
             });
             await saveFortuneHistory(selectedProfile.id, "daily", sid ?? undefined);
             setFortuneAvailability((prev) => ({ ...prev, daily: false }));
             setInterpretation(text);
             setFromCache(false);
-            setFortuneDate(todayDate);
+            setFortuneDate(targetDate);
           } else {
             setInterpretation("결과를 불러올 수 없습니다.");
           }
@@ -593,8 +631,10 @@ function YearlyFortune() {
 
   // 데일리: 이미 오늘 조회함(DB 또는 로컬캐시) 또는 조회 불가면 버튼 비활성화
   const canViewDaily =
-    fortuneAvailability.daily === true &&
-    !getTodayFortuneFromStorage(selectedProfile?.id);
+    !getDailyFortuneFromStorage(
+      selectedProfile?.id,
+      dailyTargetDate || getTodayDate()
+    );
   const canViewLifetime = fortuneAvailability.lifetime === true;
 
   // 공유 링크: 로그인 여부 무관하게 '친구가 공유한 운세 결과'만 표시 (프로필 선택기 없음)
@@ -614,9 +654,14 @@ function YearlyFortune() {
     }
     if (isSharedFortune && interpretation) {
       const profileName = sharedUserInfo?.profileName?.trim() || "";
+      const sharedTargetDate =
+        sharedUserInfo?.targetDate ||
+        sharedUserInfo?.target_date ||
+        sharedUserInfo?.metadata?.targetDate ||
+        null;
       const sharedTitle =
         sharedFortuneType === "daily"
-          ? `${profileName ? `${profileName}님의 ` : ""}진짜 오늘이에요`
+          ? `${profileName ? `${profileName}님의 ` : ""}진짜 ${formatMonthDayKo(sharedTargetDate)}`
           : sharedFortuneType === "lifetime"
           ? `${profileName ? `${profileName}님의 ` : ""}진짜 인생이에요`
           : profileName ? `${profileName}님의 운세` : "공유된 운세";
@@ -656,7 +701,10 @@ function YearlyFortune() {
     return handleSubmitLifetime;
   };
   const getResultTitle = () => {
-    if (fortuneTab === "daily") return "진짜 오늘";
+    if (fortuneTab === "daily") {
+      const dateForTitle = dailyTargetDate || fortuneDate || getTodayDate();
+      return `진짜 ${formatMonthDayKo(dateForTitle)}`;
+    }
     return "내 인생 사용 설명서";
   };
   const showRestoring = fortuneTab !== "daily" && restoring && !interpretation;
@@ -753,6 +801,43 @@ function YearlyFortune() {
           onSubmit={getSubmitHandler()}
           className="space-y-4 sm:space-y-6 mb-6 sm:mb-8"
         >
+          {fortuneTab === "daily" && (
+            <div className="space-y-2">
+              <label className="block text-sm text-slate-300">
+                날짜 선택
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={dailyTargetDate || getTodayDate()}
+                  onChange={(e) => {
+                    setDailyTargetDate(e.target.value);
+                    setError("");
+                    setFromCache(false);
+                    setShareId(null);
+                    setInterpretation("");
+                    setStreamingInterpretation("");
+                    setProcessStatus("idle");
+                  }}
+                  className="w-full rounded-lg border border-slate-700 bg-[#0F0F2B] px-4 py-3 text-slate-100 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/40"
+                />
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                    <path d="M6.75 2.25a.75.75 0 0 1 .75.75V4.5h9V3a.75.75 0 0 1 1.5 0v1.5h.75A2.25 2.25 0 0 1 21 6.75v12A2.25 2.25 0 0 1 18.75 21H5.25A2.25 2.25 0 0 1 3 18.75v-12A2.25 2.25 0 0 1 5.25 4.5H6V3a.75.75 0 0 1 .75-.75Zm11.25 6H6a.75.75 0 0 0 0 1.5h12a.75.75 0 0 0 0-1.5Z" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400">
+                선택한 날짜에 관계없이 나침반 1개가 소진됩니다.
+              </p>
+            </div>
+          )}
           <PrimaryButton
             type="submit"
             disabled={
@@ -764,7 +849,9 @@ function YearlyFortune() {
             }
             fullWidth
           >
-            진짜미래 확인
+            {fortuneTab === "daily"
+              ? "진짜미래 확인"
+              : "진짜미래 확인"}
           </PrimaryButton>
           <Link
             to="/faq"
@@ -805,16 +892,7 @@ function YearlyFortune() {
             이전 결과 불러오는 중...
           </div>
         )}
-        {fortuneTab === "daily" &&
-          fromCache &&
-          interpretation &&
-          !loadingCache && (
-            <div className="mb-4 px-4 py-2 border rounded-lg border-slate-600">
-              <p className="text-slate-300 text-sm">
-                내일 새로운 운세를 확인하러 또 오세요!
-              </p>
-            </div>
-          )}
+        {/* 지정일 운세로 확장됨에 따라 "내일" 안내 배너 제거 */}
         {!showLoadingCache && !showRestoring && (processStatus === "done" || processStatus === "streaming" || interpretation) && (
           <div
             ref={resultContainerRef}

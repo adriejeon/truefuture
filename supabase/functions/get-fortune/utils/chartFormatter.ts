@@ -298,6 +298,7 @@ export function formatLordOfYearTransitSectionForPrompt(
  */
 export function generateDailyUserPrompt(
   natalData: ChartData,
+  targetDateYmdKst: string,
   profectionData: ProfectionData | null,
   flowAM: DailyFlowSummary,
   flowPM: DailyFlowSummary,
@@ -309,17 +310,19 @@ export function generateDailyUserPrompt(
   lordStarConjunctionsText: string | null,
   transitMoonHouse: number | undefined,
 ): string {
+  const targetDateKo = formatTargetDateYmdToKo(targetDateYmdKst);
   const natalAscSign = getSignDisplay(natalData.houses.angles.ascendant);
 
   const section1 = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [1. 내담자 기본 정보 및 프로펙션 요약]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+분석 대상 날짜: ${targetDateKo}
 출생 시간: ${natalData.date}
 출생 위치: 위도 ${natalData.location.lat}, 경도 ${natalData.location.lng}
 상승점(ASC): ${natalAscSign}
 ${profectionData ? `만 나이: ${profectionData.age}세 | 프로펙션 하우스: ${profectionData.profectionHouse} | 프로펙션 별자리: ${profectionData.profectionSign} | 올해의 주인(Lord of the Year): ${profectionData.lordOfTheYear}` : ""}
-${transitMoonHouse != null ? `오늘 트랜짓 달이 네이탈 차트 기준 ${transitMoonHouse}하우스에 위치 (오늘의 주요 무대/테마 참고)` : ""}
+${transitMoonHouse != null ? `${targetDateKo} 트랜짓 달이 네이탈 차트 기준 ${transitMoonHouse}하우스에 위치 (해당 날짜의 주요 무대/테마 참고)` : ""}
 ${lordProfectionAngleEntry ? `⚠️ ${lordProfectionAngleEntry.message} (연주 행성이 프로펙션 앵글 ${lordProfectionAngleEntry.house}하우스 진입)` : ""}
 ${timeLordRetrogradeAlert?.isRetrograde ? `[CRITICAL WARNING] 타임로드 ${timeLordRetrogradeAlert.planet} 역행 중 — 핵심 변곡점` : ""}
 ${lordTransitStatus ? `연주 행성 트랜짓 상태: ${lordTransitStatus.isRetrograde ? "역행 중" : "순행 중"} | 섹트: ${lordTransitStatus.sectStatus} | In Sect: ${lordTransitStatus.isInSect}` : ""}
@@ -335,6 +338,7 @@ ${lordStarConjunctionsText ? "\n" + lordStarConjunctionsText : ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [2. 오전의 주요 점성학적 흐름]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(${targetDateKo} 오전 06:00 KST 기준)
 연주 행성 역행 여부: ${flowAM.lordRetrograde ? "역행 중" : "순행 중"}
 연주 행성의 트랜짓 각도 (Transit to Transit, 접근/분리 Orb 필터 통과):
 ${formatLordAspects(flowAM.lordAspects)}
@@ -344,6 +348,7 @@ ${formatLordAspects(flowAM.lordAspects)}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [3. 오후의 주요 점성학적 흐름]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+(${targetDateKo} 오후 18:00 KST 기준)
 연주 행성 역행 여부: ${flowPM.lordRetrograde ? "역행 중" : "순행 중"}
 연주 행성의 트랜짓 각도 (Transit to Transit, 접근/분리 Orb 필터 통과):
 ${formatLordAspects(flowPM.lordAspects)}
@@ -354,7 +359,7 @@ ${formatLordAspects(flowPM.lordAspects)}
 [4. 4대 감응점 타격 경보]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 타겟: Natal Sun, Moon, Ascendant, Part of Fortune. Orb 2° 이내, Conjunction/Sextile/Square/Opposition만 포함.
-${angleStrikes.length === 0 ? "  (오늘 해당 타격 없음)" : angleStrikes.map((s, i) => `${i + 1}. ${s.description}${s.neo4jMetaTag ? "\n   " + s.neo4jMetaTag : ""}`).join("\n")}
+${angleStrikes.length === 0 ? `  (${targetDateKo} 해당 타격 없음)` : angleStrikes.map((s, i) => `${i + 1}. ${s.description}${s.neo4jMetaTag ? "\n   " + s.neo4jMetaTag : ""}`).join("\n")}
 `.trim();
 
   const hasReceptionRejection = angleStrikes.some((s) => s.neo4jMetaTag);
@@ -367,15 +372,22 @@ ${neo4jContext ? "\n\n[네이탈 차트 위계/섹트/헤이즈 해석]\n" + neo
 `.trim();
 
   return [
-    "오늘의 운세 분석을 위한 데이터입니다. (고전 점성술: 오전/오후 분할, 접근/분리 각도, 4대 감응점 타격, 리셉션/리젝션 반영)",
+    `지정일 운세 분석을 위한 데이터입니다. (고전 점성술: 오전/오후 분할, 접근/분리 각도, 4대 감응점 타격, 리셉션/리젝션 반영)\n분석 대상 날짜: ${targetDateKo}`,
     section1,
     section2,
     section3,
     section4,
     section5,
     "",
-    "위 데이터를 기반으로 오늘의 운세를 분석해 주세요.",
+    "위 데이터를 기반으로 해당 날짜의 운세(지정일 운세)를 분석해 주세요.",
   ].join("\n\n");
+}
+
+function formatTargetDateYmdToKo(targetDateYmd: string): string {
+  const match = String(targetDateYmd || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return String(targetDateYmd || "").trim() || "(날짜 미지정)";
+  const [, y, m, d] = match;
+  return `${y}년 ${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
 }
 
 /**

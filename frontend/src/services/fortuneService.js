@@ -34,7 +34,8 @@ export async function saveFortuneHistory(
   fortuneType,
   resultId = null,
   profile = null,
-  userQuestion = null
+  userQuestion = null,
+  targetDate = null
 ) {
   if (!userId || !profileId) return;
 
@@ -46,7 +47,10 @@ export async function saveFortuneHistory(
       user_id: userId,
       profile_id: profileId,
       fortune_type: fortuneType,
-      fortune_date: getTodayDate(),
+      fortune_date:
+        fortuneType === "daily" && typeof targetDate === "string" && targetDate
+          ? targetDate
+          : getTodayDate(),
       ...(resultId && { result_id: resultId }),
       ...(userQuestion &&
         fortuneType === "consultation" && { user_question: userQuestion }),
@@ -386,7 +390,11 @@ export async function deleteExpiredYearlyFortunes(userId) {
  * @param {string} fortuneType - 'daily' | 'lifetime' | 'yearly' | 'compatibility'
  * @returns {Promise<{interpretation, chart, transitChart, aspects, transitMoonHouse, shareId}|null>}
  */
-export async function restoreFortuneIfExists(profileId, fortuneType = "daily") {
+export async function restoreFortuneIfExists(
+  profileId,
+  fortuneType = "daily",
+  targetDate = null
+) {
   if (!profileId) return null;
 
   try {
@@ -401,8 +409,10 @@ export async function restoreFortuneIfExists(profileId, fortuneType = "daily") {
       .not("result_id", "is", null);
 
     if (fortuneType === "daily") {
-      // Case A: 오늘 날짜인 daily만
-      historyQuery = historyQuery.eq("fortune_date", todayDate).maybeSingle();
+      // Case A: daily — 지정일 운세는 targetDate(YYYY-MM-DD)를 우선 사용
+      const dateToUse =
+        typeof targetDate === "string" && targetDate ? targetDate : todayDate;
+      historyQuery = historyQuery.eq("fortune_date", dateToUse).maybeSingle();
     } else {
       // Case B: lifetime / yearly — 날짜 조건 없이 최신 1건
       historyQuery = historyQuery

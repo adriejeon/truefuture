@@ -115,6 +115,69 @@ function assertValidDate(d: Date, context: string): void {
   }
 }
 
+/**
+ * YYYY-MM-DD 형식의 targetDate를 파싱/검증.
+ * 값이 없으면 현재 KST 기준 날짜(YYYY-MM-DD)를 반환.
+ */
+function resolveTargetDateYmdKst(input: unknown): string {
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+  const toYmd = (d: Date): string => {
+    // KST 날짜를 얻기 위해 UTC에 +9h 쉬프트 후 UTC getters 사용
+    const kst = new Date(d.getTime() + KST_OFFSET_MS);
+    const y = kst.getUTCFullYear();
+    const m = kst.getUTCMonth() + 1;
+    const day = kst.getUTCDate();
+    return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
+  if (typeof input !== "string" || input.trim() === "") {
+    return toYmd(new Date());
+  }
+
+  const s = input.trim();
+  const match = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    throw new Error("Invalid targetDate format. Expected YYYY-MM-DD");
+  }
+  const [, yy, mm, dd] = match;
+  const y = Number(yy);
+  const m = Number(mm);
+  const d = Number(dd);
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  // 캘린더 유효성 검증 (예: 2026-02-31 방지)
+  if (
+    utc.getUTCFullYear() !== y ||
+    utc.getUTCMonth() !== m - 1 ||
+    utc.getUTCDate() !== d
+  ) {
+    throw new Error("Invalid targetDate value.");
+  }
+  return s;
+}
+
+/**
+ * targetDate(YYYY-MM-DD, KST)를 기준으로 06:00/18:00 KST를 UTC Date로 변환해 반환.
+ */
+function getDailyTransitDatesUtcFromTargetDateKst(targetDateYmdKst: string): {
+  amDateUtc: Date;
+  pmDateUtc: Date;
+} {
+  const match = targetDateYmdKst.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    throw new Error("Invalid targetDate format. Expected YYYY-MM-DD");
+  }
+  const [, yy, mm, dd] = match;
+  const y = Number(yy);
+  const m = Number(mm) - 1;
+  const d = Number(dd);
+  // 06:00 KST = 21:00 UTC (전날) → Date.UTC(y,m,d, -3,0,0)과 동일
+  const amDateUtc = new Date(Date.UTC(y, m, d, 6 - 9, 0, 0));
+  // 18:00 KST = 09:00 UTC (당일)
+  const pmDateUtc = new Date(Date.UTC(y, m, d, 18 - 9, 0, 0));
+  return { amDateUtc, pmDateUtc };
+}
+
 // ========== AI 해석 관련 함수 ==========
 const GEMINI_MODEL = "gemini-3-flash-preview"; // 전 타입 공통: 종합운세, 데일리, 1년 운세, 궁합
 const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"; // 503/과부하 시 폴백
@@ -298,6 +361,7 @@ function buildUserPrompt(
   dailyAngleStrikes?: import("./types.ts").DailyAngleStrike[],
   lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
   neo4jContextForDaily?: string | null,
+  targetDateYmdKst?: string,
 ): string {
   // DAILY: 고전 점성술 포맷 (오전/오후, 4대 감응점 타격, Neo4j 리셉션/리젝션)
   if (
@@ -308,6 +372,7 @@ function buildUserPrompt(
   ) {
     return generateDailyUserPrompt(
       chartData as ChartData,
+      targetDateYmdKst || new Date().toISOString().split("T")[0],
       profectionData ?? null,
       dailyFlowAM,
       dailyFlowPM,
@@ -604,6 +669,8 @@ function createFortuneSSEStream(
     userId?: string;
     profileId?: string | null;
     fortuneType?: string;
+    /** fortune_history.fortune_date에 저장할 날짜 (YYYY-MM-DD). DAILY targetDate에 사용 */
+    fortuneDate?: string;
     /** 프론트 콘솔 디버깅용: 차트·프롬프트·debugInfo (logFortuneInput에 전달) */
     debugPayload?: Record<string, unknown>;
     /** 스트림 완료 시 SUCCESS 확정 및 cancel 시 환불에 사용 */
@@ -660,7 +727,10 @@ function createFortuneSSEStream(
               profile_id: options.profileId ?? null,
               result_id: shareId,
               fortune_type: options.fortuneType,
-              fortune_date: new Date().toISOString().split("T")[0],
+              fortune_date:
+                (typeof options?.fortuneDate === "string" && options.fortuneDate.trim())
+                  ? options.fortuneDate.trim()
+                  : new Date().toISOString().split("T")[0],
             });
           if (historyError) {
             console.error("❌ [스트림] fortune_history insert 실패:", historyError);
@@ -820,6 +890,7 @@ async function getInterpretation(
   dailyFlowPM?: import("./types.ts").DailyFlowSummary,
   dailyAngleStrikes?: import("./types.ts").DailyAngleStrike[],
   lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
+  targetDateYmdKst?: string,
   category?: string, // CONSULTATION 카테고리 추가
   streamOptions?: {
     supabase: ReturnType<typeof createClient>;
@@ -940,6 +1011,7 @@ async function getInterpretation(
       dailyAngleStrikes,
       lordProfectionAngleEntry,
       neo4jContext || null,
+      targetDateYmdKst,
     );
 
     // 데일리 고전 포맷은 이미 프롬프트 내에 Neo4j 포함; 그 외 타입은 여기서 덧붙임
@@ -1556,6 +1628,22 @@ serve(async (req) => {
     // 요청 본문 파싱
     const requestData = await req.json();
 
+    // DAILY(지정일 운세)용 targetDate 파싱 (없으면 오늘 KST)
+    let targetDateYmdKst: string;
+    try {
+      targetDateYmdKst = resolveTargetDateYmdKst((requestData as any)?.targetDate);
+    } catch (e: any) {
+      return new Response(
+        JSON.stringify({
+          error: e?.message ?? "Invalid targetDate",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // reportType을 fortuneType으로 매핑 (하위 호환성 유지)
     let fortuneType: FortuneType;
     if (requestData.fortuneType) {
@@ -1572,6 +1660,41 @@ serve(async (req) => {
       fortuneType = reportTypeMap[requestData.reportType] || FortuneType.DAILY;
     } else {
       fortuneType = FortuneType.DAILY;
+    }
+
+    // DAILY 제한(프로필당 targetDate 1회): 기존 "하루 1회" → "동일 targetDate 1회"
+    // 프론트에서 복구/제한을 하더라도, 백엔드에서 중복 생성은 방지한다.
+    if (fortuneType === FortuneType.DAILY && requestData.profileId) {
+      try {
+        const { data: existingHistory, error: historyErr } = await supabase
+          .from("fortune_history")
+          .select("id, result_id")
+          .eq("profile_id", requestData.profileId)
+          .eq("fortune_type", FortuneType.DAILY)
+          .eq("fortune_date", targetDateYmdKst)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (historyErr) {
+          console.warn("⚠️ DAILY fortune_history 조회 실패 (무시하고 진행):", historyErr);
+        } else if (existingHistory?.result_id) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "이미 해당 프로필로 이 targetDate의 데일리 운세를 생성/조회했습니다.",
+              result_id: existingHistory.result_id,
+              targetDate: targetDateYmdKst,
+              fortuneType: FortuneType.DAILY,
+            }),
+            {
+              status: 409,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      } catch (e) {
+        console.warn("⚠️ DAILY 중복 제한 체크 실패 (무시하고 진행):", e);
+      }
     }
 
     // ========== 운세권 차감 (스트리밍 전 서버에서 선차감, 실패 시 롤백) ==========
@@ -2599,6 +2722,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         undefined,
         undefined,
         undefined,
+        undefined, // targetDateYmdKst (DAILY 전용)
         undefined, // category (COMPATIBILITY 케이스에서는 사용하지 않음)
         {
           supabase,
@@ -2822,24 +2946,22 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     let transitToTransitAspects: any[] | undefined;
     let transitMoonHouse: number | undefined;
 
-    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
     if (fortuneType === FortuneType.DAILY) {
       try {
-        const now = new Date();
-        // KST 기준 '오늘' 날짜: UTC + 9시간 후의 연/월/일
-        const kstNow = new Date(now.getTime() + KST_OFFSET_MS);
-        const kstY = kstNow.getUTCFullYear();
-        const kstM = kstNow.getUTCMonth();
-        const kstD = kstNow.getUTCDate();
-        // 06:00 KST = UTC (6-9) = 전날 21:00 UTC → Date.UTC(kstY, kstM, kstD, -3, 0, 0)
-        const amDate = new Date(Date.UTC(kstY, kstM, kstD, 6 - 9, 0, 0));
-        // 18:00 KST = UTC (18-9) = 당일 09:00 UTC
-        const pmDate = new Date(Date.UTC(kstY, kstM, kstD, 18 - 9, 0, 0));
-        const tzOffsetAM = await resolveTimezoneOffsetHours(tzOpts, amDate);
-        const tzOffsetPM = await resolveTimezoneOffsetHours(tzOpts, pmDate);
-        transitChartDataAM = await calculateChart(amDate, { lat, lng }, tzOffsetAM);
-        transitChartDataPM = await calculateChart(pmDate, { lat, lng }, tzOffsetPM);
+        const { amDateUtc, pmDateUtc } =
+          getDailyTransitDatesUtcFromTargetDateKst(targetDateYmdKst);
+        const tzOffsetAM = await resolveTimezoneOffsetHours(tzOpts, amDateUtc);
+        const tzOffsetPM = await resolveTimezoneOffsetHours(tzOpts, pmDateUtc);
+        transitChartDataAM = await calculateChart(
+          amDateUtc,
+          { lat, lng },
+          tzOffsetAM,
+        );
+        transitChartDataPM = await calculateChart(
+          pmDateUtc,
+          { lat, lng },
+          tzOffsetPM,
+        );
         transitChartData = transitChartDataPM;
 
         aspects = calculateAspects(chartData, transitChartData);
@@ -2949,7 +3071,9 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
     if (fortuneType === FortuneType.DAILY && transitChartData) {
       try {
-        const now = new Date();
+        // DAILY 지정일 운세는 targetDate(KST)의 오후(18:00 KST) 시점을 기준 시각으로 사용
+        const { pmDateUtc: now } =
+          getDailyTransitDatesUtcFromTargetDateKst(targetDateYmdKst);
         const natalAscSign = getSignFromLongitude(
           chartData.houses.angles.ascendant,
         ).sign;
@@ -3097,6 +3221,13 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             transitChart: transitChartData,
             aspects: aspects ?? null,
             transitMoonHouse: transitMoonHouse ?? null,
+            metadata: {
+              targetDate: targetDateYmdKst,
+              kstTransitTimes: {
+                am: "06:00",
+                pm: "18:00",
+              },
+            },
           }
         : fortuneType === FortuneType.YEARLY
           ? {
@@ -3117,6 +3248,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           birthDate,
           lat,
           lng,
+          ...(fortuneType === FortuneType.DAILY && { targetDate: targetDateYmdKst }),
           ...(profileName && { profileName }),
         },
         fortune_text: fullText,
@@ -3127,6 +3259,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         userId: user?.id,
         profileId: requestData.profileId ?? null,
         fortuneType,
+        ...(fortuneType === FortuneType.DAILY && { fortuneDate: targetDateYmdKst }),
         consumeTransactionId: consumeTransactionId ?? null,
         authUserId: authUserId ?? null,
         consumeAmount,
@@ -3160,6 +3293,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       dailyFlowPM,
       dailyAngleStrikes,
       lordProfectionAngleEntry ?? undefined,
+      fortuneType === FortuneType.DAILY ? targetDateYmdKst : undefined,
       undefined, // category (일반 운세 케이스에서는 사용하지 않음)
       streamOptions,
     );
@@ -3202,6 +3336,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             birthDate: birthDate,
             lat: lat,
             lng: lng,
+            ...(fortuneType === FortuneType.DAILY && { targetDate: targetDateYmdKst }),
             ...(profileName && { profileName }),
           },
           fortune_text: interpretation.interpretation,
@@ -3216,6 +3351,23 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         console.error("에러 상세:", JSON.stringify(insertError, null, 2));
       } else if (insertData) {
         shareId = insertData.id;
+        // 스트리밍이 아닌 경우에도 fortune_history에 기록 (DAILY는 targetDate 기준으로 1회 제한/복구에 사용)
+        if (user?.id && requestData.profileId) {
+          try {
+            await supabase.from("fortune_history").insert({
+              user_id: user.id,
+              profile_id: requestData.profileId ?? null,
+              result_id: shareId,
+              fortune_type: fortuneType,
+              fortune_date:
+                fortuneType === FortuneType.DAILY
+                  ? targetDateYmdKst
+                  : new Date().toISOString().split("T")[0],
+            });
+          } catch (historyErr) {
+            console.warn("⚠️ fortune_history insert 실패(무시):", historyErr);
+          }
+        }
       } else {
         console.warn(`⚠️ [${fortuneType}] insertData가 null입니다.`);
       }
