@@ -211,7 +211,7 @@ export function useProfiles() {
 
   // 운세 조회 가능 여부 체크
   const checkFortuneAvailability = useCallback(
-    async (profileId, fortuneType) => {
+    async (profileId, fortuneType, targetDate = null) => {
       if (!user || !profileId)
         return { available: false, reason: "프로필을 선택해주세요" };
 
@@ -230,8 +230,15 @@ export function useProfiles() {
 
         if (historyError) throw historyError;
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const getTodayDateKst = () => {
+          const now = new Date();
+          const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+          const year = kst.getUTCFullYear();
+          const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(kst.getUTCDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        };
+        const todayDateKst = getTodayDateKst();
 
         switch (fortuneType) {
           case "lifetime":
@@ -249,6 +256,8 @@ export function useProfiles() {
             if (history && history.length > 0) {
               const lastHistory = history[0];
               const birthDate = new Date(profile.birth_date);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
               const currentYear = today.getFullYear();
 
               // 올해 생일 계산
@@ -275,16 +284,18 @@ export function useProfiles() {
             return { available: true };
 
           case "daily":
-            // 하루에 1번
+            // 지정일 운세: 동일 targetDate(YYYY-MM-DD)에 대해 1번
+            // targetDate가 없으면 오늘(KST)로 간주
+            const dateToCheck =
+              typeof targetDate === "string" && targetDate
+                ? targetDate
+                : todayDateKst;
             if (history && history.length > 0) {
-              const lastHistory = history[0];
-              const lastDate = new Date(lastHistory.fortune_date);
-              lastDate.setHours(0, 0, 0, 0);
-
-              if (lastDate.getTime() === today.getTime()) {
+              const already = history.some((h) => h?.fortune_date === dateToCheck);
+              if (already) {
                 return {
                   available: false,
-                  reason: "오늘의 운세는 하루에 한 번만 확인하실 수 있습니다",
+                  reason: "선택한 날짜의 운세는 같은 날짜에 한 번만 확인하실 수 있습니다",
                 };
               }
             }
@@ -307,7 +318,7 @@ export function useProfiles() {
 
   // 운세 조회 이력 저장 (resultId: share_id, fortune_results.id - 기기 변경 시 복구용)
   const saveFortuneHistory = useCallback(
-    async (profileId, fortuneType, resultId = null) => {
+    async (profileId, fortuneType, resultId = null, targetDate = null) => {
       if (!user || !profileId) return;
       const profile = profiles.find((p) => p.id === profileId);
       if (!profile) return;
@@ -317,6 +328,8 @@ export function useProfiles() {
         fortuneType,
         resultId,
         profile,
+        null,
+        targetDate,
       );
     },
     [user, profiles],

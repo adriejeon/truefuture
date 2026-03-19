@@ -343,7 +343,11 @@ function YearlyFortune() {
     let cancelled = false;
     (async () => {
       const [dailyRes, lifetimeRes] = await Promise.all([
-        checkFortuneAvailability(selectedProfile.id, "daily"),
+        checkFortuneAvailability(
+          selectedProfile.id,
+          "daily",
+          dailyTargetDate || getTodayDate()
+        ),
         checkFortuneAvailability(selectedProfile.id, "lifetime"),
       ]);
       if (cancelled) return;
@@ -355,7 +359,7 @@ function YearlyFortune() {
     return () => {
       cancelled = true;
     };
-  }, [selectedProfile?.id, user, checkFortuneAvailability]);
+  }, [selectedProfile?.id, user, checkFortuneAvailability, dailyTargetDate]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -379,7 +383,8 @@ function YearlyFortune() {
     }
     const availability = await checkFortuneAvailability(
       selectedProfile.id,
-      "daily"
+      "daily",
+      dailyTargetDate || getTodayDate()
     );
     if (!availability.available) {
       setError(availability.reason);
@@ -493,7 +498,12 @@ function YearlyFortune() {
                 fullData?.transitMoonHouse ?? debug?.transitMoonHouse,
               shareId: sid,
             });
-            await saveFortuneHistory(selectedProfile.id, "daily", sid ?? undefined);
+            await saveFortuneHistory(
+              selectedProfile.id,
+              "daily",
+              sid ?? undefined,
+              targetDate
+            );
             setFortuneAvailability((prev) => ({ ...prev, daily: false }));
             setInterpretation(text);
             setFromCache(false);
@@ -819,6 +829,7 @@ function YearlyFortune() {
                     setStreamingInterpretation("");
                     setProcessStatus("idle");
                   }}
+                  min={getTodayDate()}
                   className="w-full rounded-lg border border-slate-700 bg-[#0F0F2B] px-4 py-3 text-slate-100 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/40"
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
