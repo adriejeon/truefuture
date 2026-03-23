@@ -4,16 +4,32 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+  "Access-Control-Max-Age": "86400",
 };
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 serve(async (req) => {
   // CORS preflight 처리
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
   try {
-    const { to, subject, type, content } = await req.json();
+    const body = await req.json();
+    const { to, subject, type, content, replyTo, userEmail, message } = body;
+
+    const replyEmailRaw = (
+      replyTo ??
+      userEmail ??
+      content?.userEmail ??
+      ""
+    ).toString().trim();
+    const replyEmailForResend =
+      replyEmailRaw && isValidEmail(replyEmailRaw) ? replyEmailRaw : undefined;
 
     if (!to || !subject) {
       return new Response(
@@ -29,6 +45,10 @@ serve(async (req) => {
     let emailBody = "";
     
     if (type === "contact") {
+      const inquiryMessage =
+        (typeof message === "string" && message.trim()) ||
+        content?.message ||
+        "";
       // 문의하기 이메일
       emailBody = `
 문의하기 요청이 접수되었습니다.
@@ -37,15 +57,15 @@ serve(async (req) => {
 [문의 정보]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-이름: ${content.userName}
-이메일: ${content.userEmail}
-제목: ${content.subject}
+이름: ${content?.userName ?? "알 수 없음"}
+이메일: ${content?.userEmail || replyEmailRaw || "알 수 없음"}
+제목: ${content?.subject ?? ""}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [문의 내용]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${content.message}
+${inquiryMessage}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 요청 시간: ${new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
@@ -114,6 +134,7 @@ ${content.refundReason || "사유 미입력"}
         to: [to],
         subject: subject,
         text: emailBody,
+        ...(replyEmailForResend ? { reply_to: replyEmailForResend } : {}),
       }),
     });
 

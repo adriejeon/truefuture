@@ -4,21 +4,32 @@ import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function Contact() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [replyEmail, setReplyEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setEmailError("");
+
     if (!subject.trim()) {
       alert("제목을 입력해주세요.");
       return;
     }
-    
+
+    const trimmedReply = replyEmail.trim();
+    if (!trimmedReply || !EMAIL_REGEX.test(trimmedReply)) {
+      setEmailError("정확한 이메일 주소를 입력해 주세요.");
+      return;
+    }
+
     if (!message.trim()) {
       alert("문의 내용을 입력해주세요.");
       return;
@@ -32,8 +43,10 @@ function Contact() {
           to: "jupiteradrie@gmail.com",
           subject: `[문의하기] ${subject}`,
           type: "contact",
+          replyTo: trimmedReply,
+          message: message.trim(),
           content: {
-            userEmail: user?.email || "알 수 없음",
+            userEmail: trimmedReply,
             userName: user?.user_metadata?.full_name || user?.email || "알 수 없음",
             subject: subject.trim(),
             message: message.trim(),
@@ -78,7 +91,36 @@ function Contact() {
         </div>
 
         {/* 문의 폼 */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+          <div>
+            <label className="block text-white font-medium mb-2">
+              답변 받을 이메일 <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={replyEmail}
+              onChange={(e) => {
+                setReplyEmail(e.target.value);
+                if (emailError) setEmailError("");
+              }}
+              placeholder="답변 받을 이메일 주소를 입력해 주세요 (예: example@email.com)"
+              className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              aria-invalid={!!emailError}
+              aria-describedby={emailError ? "contact-email-error" : undefined}
+            />
+            {emailError && (
+              <p
+                id="contact-email-error"
+                className="mt-2 text-sm text-red-300"
+                role="alert"
+              >
+                {emailError}
+              </p>
+            )}
+          </div>
+
           <div>
             <label className="block text-white font-medium mb-2">제목</label>
             <input
