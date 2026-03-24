@@ -7,9 +7,9 @@ function RefundInquiry() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const paymentMethod = "domestic_card"; // 기본값: 국내카드 결제만 사용
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(searchParams.get("purchaseDate") || "");
+  const [productName, setProductName] = useState("");
+  const [paymentDateTime, setPaymentDateTime] = useState("");
   const [transactionId, setTransactionId] = useState(searchParams.get("transactionId") || "");
   const [refundReason, setRefundReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,8 +22,8 @@ function RefundInquiry() {
     if (txId) {
       setTransactionId(txId);
     }
-    if (date) {
-      setPaymentDate(date);
+    if (date && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+      setPaymentDateTime(`${date.slice(0, 10)}T00:00`);
     }
   }, [searchParams]);
 
@@ -31,7 +31,20 @@ function RefundInquiry() {
     e.preventDefault();
 
     if (!paymentAmount.trim()) {
-      alert("결제 금액을 선택해주세요.");
+      alert("결제 금액을 입력해주세요.");
+      return;
+    }
+
+    if (!productName.trim()) {
+      alert("결제한 상품명을 입력해주세요.");
+      return;
+    }
+
+    const dt = paymentDateTime.trim();
+    if (!dt || Number.isNaN(Date.parse(dt))) {
+      alert(
+        "카드 결제 일시를 날짜와 시·분까지 모두 선택해 주세요."
+      );
       return;
     }
 
@@ -48,7 +61,8 @@ function RefundInquiry() {
             userName: user?.user_metadata?.full_name || user?.email || "알 수 없음",
             paymentMethod: "국내카드 결제",
             paymentAmount: paymentAmount.trim(),
-            paymentDate: paymentDate.trim() || "미입력",
+            productName: productName.trim(),
+            paymentDateTime: dt,
             transactionId: transactionId || "미입력",
             refundReason: refundReason.trim() || "미입력",
           },
@@ -119,10 +133,12 @@ function RefundInquiry() {
         </div>
 
         {/* 환불 요청 폼 */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {/* 결제 금액 */}
           <div>
-            <label className="block text-gray-900 font-medium mb-2">결제 금액</label>
+            <label className="block text-gray-900 font-medium mb-2">
+              결제 금액 <span className="text-red-600">*</span>
+            </label>
             <input
               type="text"
               value={paymentAmount}
@@ -133,17 +149,34 @@ function RefundInquiry() {
             />
           </div>
 
-          {/* 결제 일자 */}
+          {/* 결제 상품명 */}
           <div>
             <label className="block text-gray-900 font-medium mb-2">
-              카드 결제 일자를 알려주세요 (선택)
+              결제한 상품명 <span className="text-red-600">*</span>
             </label>
             <input
               type="text"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-              placeholder="예: 2025-01-15"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="예: 유성 패키지"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-yellow-500 bg-white"
+              required
+            />
+          </div>
+
+          {/* 카드 결제 일시 */}
+          <div>
+            <label className="block text-gray-900 font-medium mb-2">
+              카드 결제 일시 <span className="text-red-600">*</span>
+            </label>
+            <p className="text-xs text-gray-600 mb-2">
+              날짜와 시·분까지 선택해 주세요. (결제 시점이 정확할수록 확인이 빨라집니다.)
+            </p>
+            <input
+              type="datetime-local"
+              value={paymentDateTime}
+              onChange={(e) => setPaymentDateTime(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:border-yellow-500 bg-white"
             />
           </div>
 

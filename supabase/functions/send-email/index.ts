@@ -12,6 +12,12 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function formatPaymentDateTimeKorea(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+}
+
 serve(async (req) => {
   // CORS preflight 처리
   if (req.method === "OPTIONS") {
@@ -89,7 +95,8 @@ ${inquiryMessage}
 
 결제 수단: ${content.paymentMethod}
 결제 금액: ${content.paymentAmount}
-결제 일자: ${content.paymentDate}
+결제 상품명: ${content.productName ?? "미입력"}
+카드 결제 일시: ${content.paymentDateTime ? formatPaymentDateTimeKorea(String(content.paymentDateTime)) : (content.paymentDate ?? "미입력")}
 거래 ID: ${content.transactionId || "미입력"}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

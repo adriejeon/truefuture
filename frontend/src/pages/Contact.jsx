@@ -105,7 +105,7 @@ function Contact() {
                 setReplyEmail(e.target.value);
                 if (emailError) setEmailError("");
               }}
-              placeholder="답변 받을 이메일 주소를 입력해 주세요 (예: example@email.com)"
+              placeholder="example@email.com"
               className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
               aria-invalid={!!emailError}
               aria-describedby={emailError ? "contact-email-error" : undefined}
