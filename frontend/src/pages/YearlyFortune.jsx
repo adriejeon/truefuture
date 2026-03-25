@@ -469,6 +469,7 @@ function YearlyFortune() {
         profileId: selectedProfile?.id ?? null,
         cost: FORTUNE_STAR_COSTS.daily,
         description: `${FORTUNE_TYPE_NAMES.daily} 조회`,
+        language: i18n.language?.startsWith("en") ? "en" : "ko",
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
@@ -602,6 +603,7 @@ function YearlyFortune() {
         profileId: selectedProfile?.id ?? null,
         cost: 1,
         description: "종합운세 조회",
+        language: i18n.language?.startsWith("en") ? "en" : "ko",
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},

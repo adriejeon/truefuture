@@ -117,7 +117,7 @@ function FollowUpConsultationCard({ parsedData }) {
 }
 
 function Consultation() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
 
   const TOPIC_OPTIONS = [
@@ -637,8 +637,9 @@ function Consultation() {
       profileName: selectedProfile.name || null,
       cost: requiredStars,
       description: `자유 질문: ${userQuestion.trim().slice(0, 50)}...`,
+      language: i18n.language?.startsWith("en") ? "en" : "ko",
     };
-  }, [selectedProfile, selectedTopic, userQuestion, requiredStars]);
+  }, [selectedProfile, selectedTopic, userQuestion, requiredStars, i18n.language]);
 
   // 폼 제출: 별 잔액 확인 → 모달 표시 → 차감 → API 호출
   const handleSubmit = useCallback(
@@ -909,6 +910,7 @@ function Consultation() {
         parentResultId: consultationAnswer.shareId,
         cost: requiredStars,
         description: `후속 질문: ${followUpQuestion.trim().slice(0, 50)}...`,
+        language: i18n.language?.startsWith("en") ? "en" : "ko",
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
@@ -1009,6 +1011,7 @@ function Consultation() {
         parentResultId: historyView.shareId,
         cost: requiredStars,
         description: `후속 질문: ${historyFollowUpQuestion.trim().slice(0, 50)}...`,
+        language: i18n.language?.startsWith("en") ? "en" : "ko",
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
@@ -1122,6 +1125,7 @@ function Consultation() {
         parentResultId: sharedConsultation.shareId,
         cost: requiredStars,
         description: `후속 질문: ${sharedFollowUpQuestion.trim().slice(0, 50)}...`,
+        language: i18n.language?.startsWith("en") ? "en" : "ko",
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {

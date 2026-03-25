@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 /** 스토리 진행용: 로딩 시작 시 순서대로 딱 한 번만 표시 */
 const STORY_PHRASES = [
@@ -6,6 +7,13 @@ const STORY_PHRASES = [
   "복잡한 실타래를 풀어가는 중...",
   "운명의 페이지를 펴는 중...",
   "별들의 이야기를 적는 중...",
+];
+
+const STORY_PHRASES_EN = [
+  "Reading the cosmos from your birth moment...",
+  "Untangling the threads of your destiny...",
+  "Opening the pages of your fate...",
+  "Writing the story the stars have for you...",
 ];
 
 /** 대기 지연용: 스토리 종료 후에도 로딩 중이면 이 문구들을 무한 반복 */
@@ -17,17 +25,26 @@ const LOOP_PHRASES = [
   "정확한 해석을 위해 다시 보는 중...",
 ];
 
+const LOOP_PHRASES_EN = [
+  "Listening to the universe...",
+  "Searching for your true future...",
+  "Tracing the echoes of your past...",
+  "Carving your future with deeper insight...",
+  "Taking one more look for the most accurate reading...",
+];
+
 const FADEOUT_DURATION = 350;
 const FADEIN_DURATION = 400;
 
-/** sequenceIndex에 따라 현재 표시할 문구 결정 (스토리 → 루프) */
-function getPhraseAt(sequenceIndex) {
-  if (sequenceIndex < STORY_PHRASES.length) {
-    return STORY_PHRASES[sequenceIndex];
+/** sequenceIndex와 언어에 따라 현재 표시할 문구 결정 (스토리 → 루프) */
+function getPhraseAt(sequenceIndex, isEn) {
+  const storyPhrases = isEn ? STORY_PHRASES_EN : STORY_PHRASES;
+  const loopPhrases = isEn ? LOOP_PHRASES_EN : LOOP_PHRASES;
+  if (sequenceIndex < storyPhrases.length) {
+    return storyPhrases[sequenceIndex];
   }
-  const loopIndex =
-    (sequenceIndex - STORY_PHRASES.length) % LOOP_PHRASES.length;
-  return LOOP_PHRASES[loopIndex];
+  const loopIndex = (sequenceIndex - storyPhrases.length) % loopPhrases.length;
+  return loopPhrases[loopIndex];
 }
 
 /**
@@ -37,6 +54,9 @@ function getPhraseAt(sequenceIndex) {
  * 문장 끝에 깜빡이는 커서(|) 표시.
  */
 function TypewriterLoader({ typeSpeed = 80, pauseAfterType = 1700 }) {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith("en");
+
   const [sequenceIndex, setSequenceIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
   const [displayText, setDisplayText] = useState("");
@@ -44,14 +64,14 @@ function TypewriterLoader({ typeSpeed = 80, pauseAfterType = 1700 }) {
   const timeoutRef = useRef(null);
   const charIndexRef = useRef(0);
 
-  const currentPhrase = getPhraseAt(sequenceIndex);
+  const currentPhrase = getPhraseAt(sequenceIndex, isEn);
   charIndexRef.current = charIndex;
 
   // 타이핑: 한 글자씩 추가, 문장이 끝나면 hold
   useEffect(() => {
     if (phase !== "typing") return;
     let cancelled = false;
-    const phrase = getPhraseAt(sequenceIndex);
+    const phrase = getPhraseAt(sequenceIndex, isEn);
     const tick = () => {
       if (cancelled) return;
       const idx = charIndexRef.current;
@@ -68,7 +88,7 @@ function TypewriterLoader({ typeSpeed = 80, pauseAfterType = 1700 }) {
       cancelled = true;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [phase, sequenceIndex, typeSpeed]);
+  }, [phase, sequenceIndex, typeSpeed, isEn]);
 
   // hold → 1.5~2초 후 fadeOut
   useEffect(() => {

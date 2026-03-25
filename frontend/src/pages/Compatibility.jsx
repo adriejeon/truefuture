@@ -31,7 +31,7 @@ import {
 } from "../utils/profileModalStorage";
 
 function Compatibility() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const {
     profiles,
@@ -379,6 +379,7 @@ function Compatibility() {
         profileId: profile1?.id ?? null,
         cost: FORTUNE_STAR_COSTS.compatibility,
         description: `${FORTUNE_TYPE_NAMES.compatibility} 조회`,
+        language: i18n.language?.startsWith("en") ? "en" : "ko",
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
