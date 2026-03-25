@@ -529,3 +529,21 @@ a {
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }
+
+/* react-datepicker: 모바일에서 부모 폭/뷰포트 넘침 방지 */
+.tf-datepicker-popper {
+  max-width: calc(100vw - 24px);
+}
+
+.tf-datepicker-popper .react-datepicker {
+  width: min(360px, calc(100vw - 24px));
+  max-width: 100%;
+}
+
+.tf-datepicker-popper .react-datepicker__month-container {
+  float: none;
+}
+
+.tf-datepicker-popper .react-datepicker__time-container {
+  float: none;
+}

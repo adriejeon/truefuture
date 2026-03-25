@@ -1,6 +1,17 @@
 import { useState, useCallback } from "react";
 import CityAutocompleteComponent from "./CityAutocomplete";
 import PrimaryButton from "./PrimaryButton";
+import DatePicker from "react-datepicker";
+import { ko as localeKo } from "date-fns/locale/ko";
+import { enUS } from "date-fns/locale/en-US";
+import "react-datepicker/dist/react-datepicker.css";
+
+function formatYYYYMMDD(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
   const [birthDate, setBirthDate] = useState("");
@@ -48,6 +59,15 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
     });
   };
 
+  const dateFnsLocale = (typeof navigator !== "undefined" && navigator.language?.startsWith("ko"))
+    ? localeKo
+    : enUS;
+
+  const selectedBirthDate =
+    birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)
+      ? new Date(`${birthDate}T00:00:00`)
+      : null;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -76,14 +96,25 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
               >
                 생년월일
               </label>
-              <input
-                type="date"
+              <DatePicker
                 id="birthDate"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-                required
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
-                style={{ backgroundColor: "#0F0F2B" }}
+                selected={selectedBirthDate}
+                onChange={(date) => {
+                  if (!date || Number.isNaN(date.getTime())) {
+                    setBirthDate("");
+                    return;
+                  }
+                  setBirthDate(formatYYYYMMDD(date));
+                }}
+                dateFormat="P"
+                locale={dateFnsLocale}
+                placeholderText="YYYY-MM-DD"
+                autoComplete="off"
+                wrapperClassName="w-full block"
+                popperClassName="tf-datepicker-popper z-[200]"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
+                calendarClassName="tf-datepicker-calendar"
+                showPopperArrow={false}
               />
             </div>
 
