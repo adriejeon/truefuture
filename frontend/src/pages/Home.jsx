@@ -181,8 +181,8 @@ function Home() {
       >
         {!interpretation && (
           <div className="w-full font-noto flex flex-col items-center text-center pt-4 sm:pt-6">
-            <section className="flex flex-col items-center gap-[clamp(16px,5vw,30px)] w-full px-4">
-              <div className="-mx-4 w-[calc(100%+2rem)]">
+            <section className="flex flex-col items-center gap-[clamp(16px,5vw,30px)] w-full">
+              <div className="w-full">
                 <img
                   src="/assets/divider1.png"
                   alt=""
@@ -219,8 +219,8 @@ function Home() {
               </div>
             </section>
 
-            <section className="relative w-full mx-auto px-4 py-6 sm:py-8 flex flex-col items-center">
-              <div className="-mx-4 w-[calc(100%+2rem)]">
+            <section className="relative w-full mx-auto py-6 sm:py-8 flex flex-col items-center">
+              <div className="w-full">
                 <div className="relative w-full">
                   <img
                     src="/assets/graphic.png"
@@ -236,7 +236,7 @@ function Home() {
               </div>
             </section>
 
-            <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full px-4">
+            <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full">
               <div className="flex flex-col items-center text-center">
                 <p className="text-[#FFFFFF] font-noto text-[clamp(15px,4.8vw,28px)] font-light leading-[1.48]">
                   {t("home.future_know")}
@@ -257,7 +257,7 @@ function Home() {
             </section>
 
             {/* 현직 전문가 소셜 프루프 섹션 */}
-            <section className="flex flex-col items-center w-full pt-[clamp(56px,12vw,96px)] pb-[clamp(28px,6vw,48px)] px-4">
+            <section className="flex flex-col items-center w-full pt-[clamp(56px,12vw,96px)] pb-[clamp(28px,6vw,48px)]">
               <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
                 <div
                   className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
@@ -310,7 +310,7 @@ function Home() {
             </section>
 
             {/* 실제 구매자들 리뷰 섹션 */}
-            <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)] px-4">
+            <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)]">
               <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
                 <div
                   className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
@@ -359,7 +359,7 @@ function Home() {
             </section>
 
             {/* JP Morgan 섹션 */}
-            <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full px-4">
+            <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full">
               <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0 my-[clamp(18px,4vw,32px)]">
                 <img
                   src="/assets/divider3.png"

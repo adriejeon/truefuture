@@ -823,7 +823,7 @@ function YearlyFortune() {
               <label className="block text-sm text-slate-300">
                 {t("yearly_fortune.date_select_label")}
               </label>
-              <div className="relative w-full min-w-0">
+              <div className="relative w-full min-w-0 overflow-hidden">
                 <input
                   type="date"
                   value={dailyTargetDate || getTodayDate()}
@@ -837,7 +837,7 @@ function YearlyFortune() {
                     setProcessStatus("idle");
                   }}
                   min={getTodayDate()}
-                  className="w-full min-w-0 box-border rounded-lg border border-slate-700 bg-[#0F0F2B] px-4 py-3 text-slate-100 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/40"
+                  className="w-full min-w-0 max-w-full box-border rounded-lg border border-slate-700 bg-[#0F0F2B] px-4 py-3 pr-10 text-slate-100 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/40"
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
                   <svg

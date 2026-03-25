@@ -144,6 +144,26 @@ body {
   }
 }
 
+/* iOS Safari: input[type="date"] 뷰포트 넘침 방지 */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* 네이티브 달력 아이콘 투명 처리 (커스텀 SVG 아이콘 사용 시 충돌 방지) */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
 /* 터치 이벤트 최적화 */
 button,
 a {
