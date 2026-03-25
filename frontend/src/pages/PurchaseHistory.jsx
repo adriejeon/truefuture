@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 
 function PurchaseHistory() {
+  const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -13,18 +15,15 @@ function PurchaseHistory() {
   const [consumedAmounts, setConsumedAmounts] = useState({});
 
   useEffect(() => {
-    // 로딩 중이면 대기
     if (loadingAuth) {
       return;
     }
 
-    // 로그인하지 않은 경우에만 리다이렉트 (현재 경로가 purchase/history일 때만)
     if (!user && location.pathname === "/purchase/history") {
       navigate("/login", { replace: true });
       return;
     }
 
-    // 사용자가 있으면 거래 내역 조회
     if (user) {
       fetchTransactions();
     }
@@ -50,7 +49,6 @@ function PurchaseHistory() {
 
       setTransactions(data || []);
 
-      // 모든 CONSUME 거래를 한 번에 가져오기
       if (data && data.length > 0) {
         const { data: allConsumed } = await supabase
           .from("star_transactions")
@@ -59,15 +57,11 @@ function PurchaseHistory() {
           .eq("type", "CONSUME")
           .order("created_at", { ascending: true });
 
-        // 각 CHARGE 거래별로 사용된 별 개수 계산 (FIFO 방식)
         const consumedMap = {};
-        let totalConsumed = 0;
         
-        // 시간순으로 정렬된 CHARGE 거래
         const sortedCharges = [...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
         
         for (const tx of sortedCharges) {
-          // 해당 거래 이후의 CONSUME 거래만 계산
           const consumedAfterTx = allConsumed
             ?.filter(consume => new Date(consume.created_at) >= new Date(tx.created_at))
             .reduce((sum, item) => sum + Math.abs(item.amount || 0), 0) || 0;
@@ -87,7 +81,8 @@ function PurchaseHistory() {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat("ko-KR", {
+    const locale = i18n.language?.startsWith("ko") ? "ko-KR" : "en-US";
+    return new Intl.DateTimeFormat(locale, {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -105,38 +100,34 @@ function PurchaseHistory() {
   };
 
   const getPackageName = (description) => {
-    if (!description) return "운세권 구매";
+    if (!description) return t("purchase_history.purchase_fallback");
     
-    // "운세권 구매:" 텍스트 제거
     let packageName = description.replace(/운세권\s*구매:/g, "").trim();
     
-    // 패키지 이름만 추출
-    const packageNames = ["망원경", "나침반", "종합 운세"];
+    const packageNames = ["망원경", "나침반", "종합 운세", "Telescope", "Compass", "Probe"];
     for (const name of packageNames) {
       if (packageName.includes(name)) {
         return packageName;
       }
     }
     
-    return packageName || "운세권 구매";
+    return packageName || t("purchase_history.purchase_fallback");
   };
 
   const getStarStatus = (tx) => {
     const consumed = consumedAmounts[tx.id] || 0;
     const totalAmount = tx.amount || 0;
     
-    // 만료된 경우
     if (tx.is_expired) {
-      return { text: "만료됨", className: "bg-red-500/20 text-red-400" };
+      return { text: t("purchase_history.status_expired"), className: "bg-red-500/20 text-red-400" };
     }
     
-    // 사용 여부 확인
     if (consumed >= totalAmount) {
-      return { text: "모두 사용", className: "bg-gray-500/20 text-gray-400" };
+      return { text: t("purchase_history.status_all_used"), className: "bg-gray-500/20 text-gray-400" };
     } else if (consumed > 0) {
-      return { text: "일부 사용", className: "bg-orange-500/20 text-orange-400" };
+      return { text: t("purchase_history.status_partial"), className: "bg-orange-500/20 text-orange-400" };
     } else {
-      return { text: "보유 중", className: "bg-green-500/20 text-green-400" };
+      return { text: t("purchase_history.status_holding"), className: "bg-green-500/20 text-green-400" };
     }
   };
 
@@ -147,7 +138,7 @@ function PurchaseHistory() {
 
   const getExpirationStatus = (tx) => {
     if (!tx.expires_at) {
-      return { text: "무제한", className: "text-blue-400", badge: "기존 정책" };
+      return { text: t("purchase_history.expire_unlimited"), className: "text-blue-400", badge: t("purchase_history.expire_badge_legacy") };
     }
     
     const expiresAt = new Date(tx.expires_at);
@@ -155,11 +146,11 @@ function PurchaseHistory() {
     const daysLeft = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
 
     if (tx.is_expired || daysLeft <= 0) {
-      return { text: "만료됨", className: "text-red-400", badge: "만료" };
+      return { text: t("purchase_history.status_expired"), className: "text-red-400", badge: t("purchase_history.expire_badge_expired") };
     } else if (daysLeft <= 30) {
-      return { text: `${daysLeft}일 남음`, className: "text-orange-400", badge: "곧 만료" };
+      return { text: t("purchase_history.expire_days_left", { days: daysLeft }), className: "text-orange-400", badge: t("purchase_history.expire_badge_soon") };
     } else {
-      return { text: formatDate(tx.expires_at), className: "text-green-400", badge: "유효" };
+      return { text: formatDate(tx.expires_at), className: "text-green-400", badge: t("purchase_history.expire_badge_valid") };
     }
   };
 
@@ -175,13 +166,13 @@ function PurchaseHistory() {
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            뒤로
+            {t("purchase_history.back")}
           </button>
           <h1 className="text-2xl font-bold text-white mb-2">
-            구매 내역
+            {t("purchase_history.title")}
           </h1>
           <p className="text-slate-300 text-sm">
-            운세권 구매 내역을 확인하세요
+            {t("purchase_history.subtitle")}
           </p>
         </div>
 
@@ -198,24 +189,21 @@ function PurchaseHistory() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
           </div>
         ) : transactions.length === 0 ? (
-          /* 내역 없음 */
           <div className="text-center py-20">
             <div className="text-6xl mb-4">📭</div>
             <p className="text-slate-400 text-lg mb-6">
-              아직 구매 내역이 없습니다
+              {t("purchase_history.empty")}
             </p>
             <button
               onClick={() => navigate("/purchase")}
               className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-200"
             >
-              운세권 구매하러 가기 →
+              {t("purchase_history.go_purchase")}
             </button>
           </div>
         ) : (
-          /* 내역 리스트 */
           <div className="space-y-4">
             {transactions.map((tx) => {
-              const expirationStatus = getExpirationStatus(tx);
               const packageName = getPackageName(tx.description);
               return (
                 <div
@@ -237,10 +225,10 @@ function PurchaseHistory() {
                   {/* 구매 일자, 거래 아이디 */}
                   <div className="space-y-1 mb-3">
                     <p className="text-xs text-slate-400">
-                      구매 일자: {formatDate(tx.created_at)}
+                      {t("purchase_history.date_label")} {formatDate(tx.created_at)}
                     </p>
                     <p className="text-xs text-slate-500 break-all">
-                      거래 ID: {tx.id}
+                      {t("purchase_history.tx_id_label")} {tx.id}
                     </p>
                   </div>
 
@@ -249,7 +237,7 @@ function PurchaseHistory() {
                     onClick={() => handleRefundRequest(tx)}
                     className="text-xs text-slate-400 hover:text-slate-300 underline transition-colors"
                   >
-                    환불 요청
+                    {t("purchase_history.refund_btn")}
                   </button>
                 </div>
               );

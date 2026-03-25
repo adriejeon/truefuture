@@ -1,36 +1,9 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { SITE_ORIGIN } from "../constants/seoMeta";
 import BottomNavigation from "../components/BottomNavigation";
-
-const FAQ_ITEMS = [
-  {
-    title: "썸남, 짝남과의 매일매일의 관계 변화나 연락운도 볼 수 있나요?",
-    content:
-      "물론입니다. '진짜미래' 페이지의 자유 질문 기능을 통해 매일 변하는 별의 위치를 정밀하게 계산하여 오늘은 먼저 연락하기 좋은 날인지, 데이트할 때 어떤 분위기가 전개될지 하루하루 다이나믹하게 변하는 디테일한 연애운을 확인할 수 있습니다.",
-  },
-  {
-    title: "고백받을 시기나 헤어진 연인과의 재회 타이밍처럼 구체적인 날짜도 알 수 있나요?",
-    content:
-      "네, 가능합니다. '진짜미래' 페이지에서 내 현재 상황과 궁금한 점을 자유롭게 텍스트로 질문해 보세요. 정해진 결과만 보여주는 것이 아니라, 정통 서양 고전 점성학의 정교한 연산을 통해 가장 확률이 높은 결정적 타이밍(연락, 고백, 재회 시기)을 명확하게 답변해 드립니다.",
-  },
-  {
-    title: "동성 연애나 비밀 사내 연애, 혹은 아이돌 짝사랑 궁합처럼 남에게 말하기 민망한 질문도 괜찮나요?",
-    content:
-      "진짜미래는 100% 비대면 자동화 시스템으로 완벽한 프라이버시를 보장합니다. 성별에 얽매이지 않는 퀴어 궁합, 최애 아이돌과의 궁합 등 대면 상담에서 사람에게 직접 묻기 부끄러운 어떤 은밀한 고민이라도 눈치 보지 않고 편안하게 분석해 드립니다.",
-  },
-  {
-    title: "일반 사주나 타로 앱(점신 등)과 비교했을 때 연애운 분석의 차이점이 뭔가요?",
-    content:
-      "단순히 미리 쓰인 운세 텍스트를 띄워주는 방식이 아닙니다. 진짜미래는 개인의 태어난 시간과 장소를 기반으로 한 '출생 차트'를 분석하며, 내 구체적인 상황에 맞춘 '자유 질문'이 가능합니다. 압도적인 단골 재방문율이 그 적중률과 전문성을 증명합니다.",
-  },
-  {
-    title: "자유롭게 질문하면 사람이 직접 답변해 주는 건가요?",
-    content:
-      "아닙니다. 수많은 실전 상담으로 검증된 점성술 전문가의 해독 로직을 100% 시스템화한 AI 운명 컨설팅입니다. 기다릴 필요 없이 즉각적으로, 사람의 주관이 섞이지 않은 객관적이고 예리한 점성학적 해답을 제공받을 수 있습니다.",
-  },
-];
 
 const FAQ_PAGE_TITLE =
   "자주 묻는 질문(FAQ) | 정통 점성술 컨설팅 진짜미래";
@@ -39,7 +12,16 @@ const FAQ_PAGE_DESCRIPTION =
 const FAQ_JSON_LD_SCRIPT_ID = "faq-page-ld-json";
 
 function FAQ() {
+  const { t } = useTranslation();
   const [openSections, setOpenSections] = useState(new Set());
+
+  const FAQ_ITEMS = useMemo(() => [
+    { title: t("faq.q1_title"), content: t("faq.q1_content") },
+    { title: t("faq.q2_title"), content: t("faq.q2_content") },
+    { title: t("faq.q3_title"), content: t("faq.q3_content") },
+    { title: t("faq.q4_title"), content: t("faq.q4_content") },
+    { title: t("faq.q5_title"), content: t("faq.q5_content") },
+  ], [t]);
 
   const faqPageJsonLd = useMemo(
     () => ({
@@ -54,7 +36,7 @@ function FAQ() {
         },
       })),
     }),
-    []
+    [FAQ_ITEMS]
   );
 
   useEffect(() => {
@@ -120,10 +102,10 @@ function FAQ() {
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            홈으로 돌아가기
+            {t("faq.back_home")}
           </Link>
           <h1 className="text-3xl sm:text-4xl font-bold mb-6 sm:mb-8 text-primary">
-            자주 묻는 질문
+            {t("faq.title")}
           </h1>
 
           <div className="space-y-3">

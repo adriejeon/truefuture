@@ -2,16 +2,17 @@ import SocialLoginButtons from "../components/SocialLoginButtons";
 import { useAuth } from "../hooks/useAuth";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabaseClient";
 import { setPendingReferralCode } from "../utils/referral";
 
 function Login() {
+  const { t } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [verifying, setVerifying] = useState(false);
 
-  // URL에 ref(초대 코드)가 있으면 localStorage에 저장 (OAuth 리다이렉트 후 콜백에서 사용)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const refCode = params.get("ref");
@@ -20,8 +21,6 @@ function Login() {
     }
   }, [location.search]);
 
-  // 이미 로그인한 경우: 세션 유효성 검증 후에만 이전 페이지(from) 또는 홈으로 리다이렉트
-  // 캐시된(만료된) 세션으로 인해 검증 없이 홈으로 가는 문제 방지
   useEffect(() => {
     if (!loadingAuth && user && !verifying) {
       let cancelled = false;
@@ -52,7 +51,7 @@ function Login() {
       <div className="w-full flex items-center justify-center py-20">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-slate-400 text-sm sm:text-base">로딩 중...</p>
+          <p className="text-slate-400 text-sm sm:text-base">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -63,10 +62,10 @@ function Login() {
       <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
         <div className="mb-8 sm:mb-12">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4">
-            로그인
+            {t("login.title")}
           </h1>
           <p className="text-center text-slate-300 text-sm sm:text-base">
-            로그인 후 생년월일시간을 입력하고 운세를 확인하실 수 있습니다
+            {t("login.subtitle")}
           </p>
         </div>
 
@@ -74,13 +73,12 @@ function Login() {
           <SocialLoginButtons />
         </div>
 
-        {/* 이벤트 안내 영역 */}
         <div className="mt-6 p-4 sm:p-5 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30">
           <p className="text-amber-200 font-medium text-center text-sm sm:text-base mb-1">
-            지금 회원 가입 하시면 망원경 1개를 무료로 지급합니다!
+            {t("login.event_banner")}
           </p>
           <p className="text-amber-100/90 text-center text-sm sm:text-base">
-            지금 바로 나의 진짜미래를 옅보세요!
+            {t("login.event_banner_sub")}
           </p>
         </div>
       </div>

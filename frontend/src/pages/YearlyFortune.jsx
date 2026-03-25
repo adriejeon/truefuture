@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
@@ -31,13 +32,8 @@ import {
   clearProfileModalDismissed,
 } from "../utils/profileModalStorage";
 
-// 운세 타입 탭
-const FORTUNE_TABS = [
-  { id: "daily", label: "데일리 운세", type: "daily" },
-  { id: "lifetime", label: "종합 운세", type: "lifetime" },
-];
-
 function YearlyFortune() {
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState("daily");
   const { user, loadingAuth } = useAuth();
   const { stars } = useStars();
@@ -108,11 +104,17 @@ function YearlyFortune() {
     return `${year}-${month}-${day}`;
   };
 
-  const formatMonthDayKo = (ymd) => {
+  const formatDateForLocale = (ymd) => {
     const match = String(ymd || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return "오늘";
-    const [, , mm, dd] = match;
-    return `${parseInt(mm, 10)}월 ${parseInt(dd, 10)}일`;
+    if (!match) return t("yearly_fortune.today_fallback");
+    const [, yyyy, mm, dd] = match;
+    const month = parseInt(mm, 10);
+    const day = parseInt(dd, 10);
+    if (i18n.language?.startsWith("en")) {
+      const date = new Date(parseInt(yyyy, 10), month - 1, day);
+      return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+    }
+    return `${month}월 ${day}일`;
   };
   const isWithinDailyFortuneTime = () => {
     const koreaTime = getKoreaTime();
@@ -316,7 +318,7 @@ function YearlyFortune() {
           setShareId(null);
         }
       } catch (err) {
-        if (!cancelled) setError(err.message || "복구 중 오류가 발생했습니다.");
+        if (!cancelled) setError(err.message || t("yearly_fortune.error_restore"));
       } finally {
         if (!cancelled) setRestoring(false);
       }
@@ -377,7 +379,7 @@ function YearlyFortune() {
       return;
     }
     if (!selectedProfile) {
-      setError("프로필을 선택해주세요.");
+      setError(t("yearly_fortune.error_profile"));
       setShowProfileModal(true);
       return;
     }
@@ -392,13 +394,13 @@ function YearlyFortune() {
     }
     const formData = convertProfileToApiFormat(selectedProfile);
     if (!formData) {
-      setError("프로필 정보가 올바르지 않습니다.");
+      setError(t("yearly_fortune.error_profile_invalid"));
       return;
     }
     const targetDate = dailyTargetDate || getTodayDate();
     // 오늘 날짜를 선택했을 때만 "00:01 이후" 제한 적용 (지정일은 제한 없음)
     if (targetDate === getTodayDate() && !isWithinDailyFortuneTime()) {
-      setError("오늘의 운세는 00시 1분부터 확인하실 수 있습니다.");
+      setError(t("yearly_fortune.error_time"));
       return;
     }
     const existingFortune = getDailyFortuneFromStorage(
@@ -406,9 +408,7 @@ function YearlyFortune() {
       targetDate
     );
     if (existingFortune) {
-      setError(
-        "선택한 날짜의 운세를 이미 확인하셨습니다. 날짜를 바꿔서 다시 확인해 보세요."
-      );
+      setError(t("yearly_fortune.error_already_viewed"));
       setInterpretation(existingFortune.interpretation);
       setFromCache(true);
       setFortuneDate(existingFortune.date);
@@ -438,7 +438,7 @@ function YearlyFortune() {
     });
     setShowStarModalDaily(true);
     } catch (err) {
-      setError(err?.message || "운세권 잔액 조회 중 오류가 발생했습니다.");
+      setError(err?.message || t("yearly_fortune.error_balance"));
     }
   };
 
@@ -509,18 +509,18 @@ function YearlyFortune() {
             setFromCache(false);
             setFortuneDate(targetDate);
           } else {
-            setInterpretation("결과를 불러올 수 없습니다.");
+            setInterpretation(t("yearly_fortune.no_result"));
           }
         },
         onError: async (err) => {
-          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setError(err?.message || t("yearly_fortune.error_request"));
           setLoading(false);
           setProcessStatus("idle");
-          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
+          alert(t("yearly_fortune.error_generate"));
         },
       });
     } catch (err) {
-      setError(err.message || "요청 중 오류가 발생했습니다.");
+      setError(err.message || t("yearly_fortune.error_request"));
       setLoading(false);
       setProcessStatus("idle");
     }
@@ -533,7 +533,7 @@ function YearlyFortune() {
       return;
     }
     if (!selectedProfile) {
-      setError("프로필을 선택해주세요.");
+      setError(t("yearly_fortune.error_profile"));
       setShowProfileModal(true);
       return;
     }
@@ -547,7 +547,7 @@ function YearlyFortune() {
     }
     const formData = convertProfileToApiFormat(selectedProfile);
     if (!formData) {
-      setError("프로필 정보가 올바르지 않습니다.");
+      setError(t("yearly_fortune.error_profile_invalid"));
       return;
     }
 
@@ -583,7 +583,7 @@ function YearlyFortune() {
 
     const formData = convertProfileToApiFormat(selectedProfile);
     if (!formData) {
-      setError("프로필 정보가 올바르지 않습니다.");
+      setError(t("yearly_fortune.error_profile_invalid"));
       return;
     }
 
@@ -622,22 +622,22 @@ function YearlyFortune() {
               resultContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             });
           } else {
-            setInterpretation("결과를 불러올 수 없습니다.");
+            setInterpretation(t("yearly_fortune.no_result"));
           }
         },
         onError: async (err) => {
-          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setError(err?.message || t("yearly_fortune.error_request"));
           setLoading(false);
           setProcessStatus("idle");
-          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
+          alert(t("yearly_fortune.error_generate"));
         },
       });
     } catch (err) {
-      setError(err.message || "요청 중 오류가 발생했습니다.");
+      setError(err.message || t("yearly_fortune.error_request"));
       setLoading(false);
       setProcessStatus("idle");
     }
-  }, [user?.id, selectedProfile, saveFortuneHistory]);
+  }, [user?.id, selectedProfile, saveFortuneHistory, t]);
 
   // 데일리: 이미 오늘 조회함(DB 또는 로컬캐시) 또는 조회 불가면 버튼 비활성화
   const canViewDaily =
@@ -656,7 +656,7 @@ function YearlyFortune() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
             <p className="text-slate-400 text-sm sm:text-base">
-              공유된 운세를 불러오는 중...
+              {t("yearly_fortune.loading_shared")}
             </p>
           </div>
         </div>
@@ -671,10 +671,16 @@ function YearlyFortune() {
         null;
       const sharedTitle =
         sharedFortuneType === "daily"
-          ? `${profileName ? `${profileName}님의 ` : ""}진짜 ${formatMonthDayKo(sharedTargetDate)}`
+          ? profileName
+            ? t("yearly_fortune.shared_title_daily", { name: profileName, date: formatDateForLocale(sharedTargetDate) })
+            : formatDateForLocale(sharedTargetDate)
           : sharedFortuneType === "lifetime"
-          ? `${profileName ? `${profileName}님의 ` : ""}진짜 인생이에요`
-          : profileName ? `${profileName}님의 운세` : "공유된 운세";
+          ? profileName
+            ? t("yearly_fortune.shared_title_lifetime", { name: profileName })
+            : t("yearly_fortune.result_title_lifetime")
+          : profileName
+          ? t("yearly_fortune.shared_title_default", { name: profileName })
+          : t("yearly_fortune.shared_title_no_name");
 
       return (
         <div
@@ -695,7 +701,7 @@ function YearlyFortune() {
             {!user && (
               <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
                 <p className="text-center text-slate-300 mb-4 text-base">
-                  나도 내 운세를 확인하고 싶다면?
+                  {t("yearly_fortune.shared_cta")}
                 </p>
                 <SocialLoginButtons />
               </div>
@@ -713,9 +719,9 @@ function YearlyFortune() {
   const getResultTitle = () => {
     if (fortuneTab === "daily") {
       const dateForTitle = dailyTargetDate || fortuneDate || getTodayDate();
-      return `진짜 ${formatMonthDayKo(dateForTitle)}`;
+      return formatDateForLocale(dateForTitle);
     }
-    return "내 인생 사용 설명서";
+    return t("yearly_fortune.result_title_lifetime");
   };
   const showRestoring = fortuneTab !== "daily" && restoring && !interpretation;
   const showLoadingCache = fortuneTab === "daily" && loadingCache;
@@ -729,7 +735,7 @@ function YearlyFortune() {
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}
-        description="진짜 운세는 로그인 후 이용하실 수 있습니다."
+        description={t("yearly_fortune.login_desc")}
       />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
@@ -738,15 +744,15 @@ function YearlyFortune() {
         {/* 페이지 타이틀 - 진짜 운세 */}
         <div className="mb-4">
           <p className="text-slate-300 text-sm sm:text-base">
-            데일리 운세와 종합 운세를 확인해 보세요.
+            {t("yearly_fortune.subtitle")}
           </p>
         </div>
 
         {/* 탭: 데일리 운세 | 종합 운세 */}
         <div className="flex gap-1 mb-6 p-1 rounded-lg" style={{ backgroundColor: '#121230' }}>
           {[
-            { id: "daily", label: "데일리 운세" },
-            { id: "lifetime", label: "종합 운세" },
+            { id: "daily", label: t("yearly_fortune.tab_daily") },
+            { id: "lifetime", label: t("yearly_fortune.tab_lifetime") },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -770,21 +776,20 @@ function YearlyFortune() {
         {fortuneTab === "daily" && (
           <div className="mb-6 sm:mb-8">
             <h3 className="text-lg font-semibold text-white mb-2">
-              오늘의 나침반
+              {t("yearly_fortune.daily_title")}
             </h3>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              낯선 여행지에서 지도가 필요하듯, 오늘이라는 하루에도 방향이 필요합니다. 행성들이 가리키는 길을 미리 확인하고, 헤매지 않는 하루를 보내세요.
+              {t("yearly_fortune.daily_desc")}
             </p>
           </div>
         )}
         {fortuneTab === "lifetime" && (
           <div className="mb-6 sm:mb-8">
             <h3 className="text-lg font-semibold text-white mb-2">
-              내 인생 사용 설명서
+              {t("yearly_fortune.lifetime_title")}
             </h3>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              태어난 순간, 별들이 그려낸 고유한 설계도입니다. 타고난 기질과
-              잠재력, 인생의 방향성을 확인하고 나를 잘 쓰는 방법을 알아보세요.
+              {t("yearly_fortune.lifetime_desc")}
             </p>
           </div>
         )}
@@ -814,7 +819,7 @@ function YearlyFortune() {
           {fortuneTab === "daily" && (
             <div className="space-y-2">
               <label className="block text-sm text-slate-300">
-                날짜 선택
+                {t("yearly_fortune.date_select_label")}
               </label>
               <div className="relative">
                 <input
@@ -857,15 +862,13 @@ function YearlyFortune() {
             }
             fullWidth
           >
-            {fortuneTab === "daily"
-              ? "진짜미래 확인"
-              : "진짜미래 확인"}
+            {t("yearly_fortune.submit_btn")}
           </PrimaryButton>
           <Link
             to="/faq"
             className="block mt-3 text-center text-sm text-slate-400 hover:text-white transition-colors duration-200"
           >
-            궁금한 점이 있으신가요?
+            {t("yearly_fortune.faq_link")}
           </Link>
         </form>
 
@@ -892,12 +895,12 @@ function YearlyFortune() {
         )}
         {showLoadingCache && (
           <div className="mb-6 py-8 text-center text-slate-400 text-sm">
-            오늘의 운세 확인 중...
+            {t("yearly_fortune.loading_cache")}
           </div>
         )}
         {showRestoring && (
           <div className="mb-6 py-8 text-center text-slate-400 text-sm">
-            이전 결과 불러오는 중...
+            {t("yearly_fortune.restoring")}
           </div>
         )}
         {/* 지정일 운세로 확장됨에 따라 "내일" 안내 배너 제거 */}
@@ -975,12 +978,12 @@ function YearlyFortune() {
                 />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                환영합니다!
+                {t("yearly_fortune.welcome_title")}
               </h2>
               <p className="text-slate-300">
-                운세를 확인하기 위해
-                <br />
-                생년월일시간을 입력해 주세요
+                {t("yearly_fortune.welcome_subtitle").split("\n").map((line, i) => (
+                  <span key={i}>{line}{i === 0 && <br />}</span>
+                ))}
               </p>
             </div>
             <button
@@ -997,7 +1000,7 @@ function YearlyFortune() {
                   "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
               }}
             >
-              프로필 등록하기
+              {t("yearly_fortune.register_profile")}
             </button>
             <button
               type="button"
@@ -1008,7 +1011,7 @@ function YearlyFortune() {
               }}
               className="w-full mt-3 py-2 px-4 text-slate-300 hover:text-white text-sm transition-colors"
             >
-              나중에 하기
+              {t("yearly_fortune.do_it_later")}
             </button>
           </div>
         </div>

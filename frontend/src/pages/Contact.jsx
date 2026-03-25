@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
@@ -7,6 +8,7 @@ import PrimaryButton from "../components/PrimaryButton";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function Contact() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [replyEmail, setReplyEmail] = useState("");
@@ -20,18 +22,18 @@ function Contact() {
     setEmailError("");
 
     if (!subject.trim()) {
-      alert("제목을 입력해주세요.");
+      alert(t("contact.subject_required"));
       return;
     }
 
     const trimmedReply = replyEmail.trim();
     if (!trimmedReply || !EMAIL_REGEX.test(trimmedReply)) {
-      setEmailError("정확한 이메일 주소를 입력해 주세요.");
+      setEmailError(t("contact.email_error"));
       return;
     }
 
     if (!message.trim()) {
-      alert("문의 내용을 입력해주세요.");
+      alert(t("contact.message_required"));
       return;
     }
 
@@ -57,14 +59,14 @@ function Contact() {
       if (error) throw error;
 
       if (!data?.success) {
-        throw new Error(data?.error || "이메일 전송에 실패했습니다.");
+        throw new Error(data?.error || t("contact.email_send_fail"));
       }
 
-      alert("문의 메일이 전송되었습니다. 빠른 시일 내에 답변드리겠습니다.");
+      alert(t("contact.send_success"));
       navigate("/mypage");
     } catch (err) {
       console.error("문의하기 오류:", err);
-      alert(err.message || "문의 메일 전송 중 오류가 발생했습니다.");
+      alert(err.message || t("contact.send_error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -73,7 +75,6 @@ function Contact() {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-md mx-auto">
-        {/* 헤더 */}
         <div className="mb-8">
           <button
             onClick={() => navigate(-1)}
@@ -82,19 +83,18 @@ function Contact() {
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            뒤로
+            {t("contact.back")}
           </button>
-          <h1 className="text-2xl font-bold text-white mb-2">문의하기</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">{t("contact.title")}</h1>
           <p className="text-slate-300 text-sm">
-            문의사항을 남겨주시면 빠르게 답변드리겠습니다.
+            {t("contact.subtitle")}
           </p>
         </div>
 
-        {/* 문의 폼 */}
         <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           <div>
             <label className="block text-white font-medium mb-2">
-              답변 받을 이메일 <span className="text-red-400">*</span>
+              {t("contact.email_label")} <span className="text-red-400">*</span>
             </label>
             <input
               type="email"
@@ -105,7 +105,7 @@ function Contact() {
                 setReplyEmail(e.target.value);
                 if (emailError) setEmailError("");
               }}
-              placeholder="example@email.com"
+              placeholder={t("contact.email_placeholder")}
               className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
               aria-invalid={!!emailError}
               aria-describedby={emailError ? "contact-email-error" : undefined}
@@ -122,23 +122,23 @@ function Contact() {
           </div>
 
           <div>
-            <label className="block text-white font-medium mb-2">제목</label>
+            <label className="block text-white font-medium mb-2">{t("contact.subject_label")}</label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="문의 제목을 입력해주세요"
+              placeholder={t("contact.subject_placeholder")}
               className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-white font-medium mb-2">문의 내용</label>
+            <label className="block text-white font-medium mb-2">{t("contact.message_label")}</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="문의 내용을 자세히 입력해주세요"
+              placeholder={t("contact.message_placeholder")}
               rows={8}
               className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
               required
@@ -151,7 +151,7 @@ function Contact() {
             fullWidth
             disabled={isSubmitting}
           >
-            {isSubmitting ? "전송 중..." : "보내기"}
+            {isSubmitting ? t("common.sending") : t("common.send")}
           </PrimaryButton>
         </form>
       </div>

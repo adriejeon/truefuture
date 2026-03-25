@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useParams, useNavigate, useLocation, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
@@ -23,72 +24,6 @@ import {
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 
-// 카테고리 옵션 (백엔드 consultationTopic과 일치)
-const TOPIC_OPTIONS = [
-  { id: "LOVE", label: "💘 연애/결혼", emoji: "💘" },
-  { id: "MONEY", label: "💰 재물/사업", emoji: "💰" },
-  { id: "WORK", label: "💼 직업/이직", emoji: "💼" },
-  { id: "HEALTH", label: "🏥 건강/체력", emoji: "🏥" },
-  { id: "EXAM", label: "📝 시험/합격", emoji: "📝" },
-  { id: "MOVE", label: "🏡 이사/이동", emoji: "🏡" },
-  { id: "WEEKLY", label: "📅 주간 운세", emoji: "📅" },
-  { id: "MONTHLY", label: "🗓️ 월간 운세", emoji: "🗓️" },
-  { id: "YEARLY", label: "📆 연간 운세", emoji: "📆" },
-  { id: "OTHER", label: "🔮 기타", emoji: "🔮" },
-];
-
-// 프리셋 질문 (카테고리별 자주 묻는 질문)
-const PRESET_QUESTIONS = {
-  LOVE: [
-    "짝사랑 중인데 연인이 될 수 있을까요?",
-    "저는 언제 결혼할까요?",
-    "헤어진 연인과 재회할 가능성이 있을까요?",
-    "자녀는 언제 낳을 수 있을까요?",
-  ],
-  MONEY: [
-    "지금 준비 중인 사업을 시작해도 될까요?",
-    "올해 금전운의 흐름이 언제 가장 좋나요?",
-    "지금 투자를 시작하기에 적절한 시기인가요?",
-    "묶여있는 돈이 언제쯤 풀릴까요?",
-  ],
-  WORK: [
-    "지금 회사를 그만두고 이직하는 게 좋을까요?",
-    "사업을 시작할까요?",
-    "언제쯤 승진하거나 인정받을 수 있을까요?",
-    "프리랜서로 전향해도 좋을까요?",
-  ],
-  EXAM: [
-    "이번 시험에 합격할 가능성이 몇 % 정도 될까요?",
-    "이번에 공부가 잘 될까요?",
-    "자격증 시험 합격운이 가장 좋은 시기는 언제인가요?",
-  ],
-  MOVE: [
-    "지금 사는 곳에서 이사하는 게 좋을까요, 머무는 게 좋을까요?",
-    "해외로 이동하거나 유학을 가도 될까요?",
-    "문서운(부동산 계약)이 들어오는 시기가 언제인가요?",
-  ],
-  WEEKLY: [
-    "이번 주 면접 발표가 긍정적일까요?",
-    "이번 주 데이트가 성공적일까요?",
-    "이번 주 있을 중요한 미팅이 성공적일까요?",
-  ],
-  MONTHLY: [
-    "이번 달에 진행되는 프로젝트가 긍정적일까요?",
-    "이번 달에 있을 소개팅이 괜찮을까요?",
-    "이번 달에 있을 중요한 미팅이 성공적일까요?",
-  ],
-  YEARLY: [
-    "1년 간 전체 운세 흐름이 어떻게 될까요?",
-    "1년 간 결혼·이직 같은 큰 일이 있을까요?",
-    "1년 간 금전운·사업운이 언제 가장 좋을까요?",
-  ],
-  HEALTH: [
-    "요즘 건강 상태가 좋지 않은데 언제쯤 회복될까요?",
-    "지금 겪고 있는 만성 질환의 원인이 뭔가요?",
-    "정신 건강(우울/불안)이 언제쯤 안정될까요?",
-    "수술이나 치료를 받기 좋은 시기는 언제인가요?",
-  ],
-};
 
 /**
  * Gemini 응답 텍스트를 JSON으로 파싱.
@@ -116,6 +51,7 @@ const isFollowUpData = (data) => data && typeof data.answer === "object";
 
 /** 후속 질문용 심플 컨설팅 카드 (header, answer, action_tip, critical_date) */
 function FollowUpConsultationCard({ parsedData }) {
+  const { t } = useTranslation();
   if (!parsedData?.answer) return null;
   const { header, answer, action_tip, critical_date } = parsedData;
   return (
@@ -134,7 +70,7 @@ function FollowUpConsultationCard({ parsedData }) {
       )}
       {answer?.conclusion != null && (
         <div>
-          <h3 className="text-lg font-semibold text-white mb-2">결론</h3>
+          <h3 className="text-lg font-semibold text-white mb-2">{t("consultation.conclusion")}</h3>
           <p className="text-slate-200 leading-relaxed text-[15px] whitespace-pre-wrap">
             {answer.conclusion}
           </p>
@@ -164,7 +100,7 @@ function FollowUpConsultationCard({ parsedData }) {
         (critical_date.date || critical_date.meaning) && (
           <div className="p-4 bg-slate-800/50 border border-slate-600/50 rounded-lg">
             <h3 className="text-sm font-semibold text-slate-400 mb-1">
-              📅 결정적 시기
+              {t("consultation.critical_date")}
             </h3>
             {critical_date.date && (
               <p className="text-white font-medium">{critical_date.date}</p>
@@ -181,7 +117,73 @@ function FollowUpConsultationCard({ parsedData }) {
 }
 
 function Consultation() {
+  const { t } = useTranslation();
   const { user, loadingAuth } = useAuth();
+
+  const TOPIC_OPTIONS = [
+    { id: "LOVE", label: t("consultation.topic_love") },
+    { id: "MONEY", label: t("consultation.topic_money") },
+    { id: "WORK", label: t("consultation.topic_work") },
+    { id: "HEALTH", label: t("consultation.topic_health") },
+    { id: "EXAM", label: t("consultation.topic_exam") },
+    { id: "MOVE", label: t("consultation.topic_move") },
+    { id: "WEEKLY", label: t("consultation.topic_weekly") },
+    { id: "MONTHLY", label: t("consultation.topic_monthly") },
+    { id: "YEARLY", label: t("consultation.topic_yearly") },
+    { id: "OTHER", label: t("consultation.topic_other") },
+  ];
+
+  const PRESET_QUESTIONS = {
+    LOVE: [
+      t("consultation.preset_love_1"),
+      t("consultation.preset_love_2"),
+      t("consultation.preset_love_3"),
+      t("consultation.preset_love_4"),
+    ],
+    MONEY: [
+      t("consultation.preset_money_1"),
+      t("consultation.preset_money_2"),
+      t("consultation.preset_money_3"),
+      t("consultation.preset_money_4"),
+    ],
+    WORK: [
+      t("consultation.preset_work_1"),
+      t("consultation.preset_work_2"),
+      t("consultation.preset_work_3"),
+      t("consultation.preset_work_4"),
+    ],
+    EXAM: [
+      t("consultation.preset_exam_1"),
+      t("consultation.preset_exam_2"),
+      t("consultation.preset_exam_3"),
+    ],
+    MOVE: [
+      t("consultation.preset_move_1"),
+      t("consultation.preset_move_2"),
+      t("consultation.preset_move_3"),
+    ],
+    WEEKLY: [
+      t("consultation.preset_weekly_1"),
+      t("consultation.preset_weekly_2"),
+      t("consultation.preset_weekly_3"),
+    ],
+    MONTHLY: [
+      t("consultation.preset_monthly_1"),
+      t("consultation.preset_monthly_2"),
+      t("consultation.preset_monthly_3"),
+    ],
+    YEARLY: [
+      t("consultation.preset_yearly_1"),
+      t("consultation.preset_yearly_2"),
+      t("consultation.preset_yearly_3"),
+    ],
+    HEALTH: [
+      t("consultation.preset_health_1"),
+      t("consultation.preset_health_2"),
+      t("consultation.preset_health_3"),
+      t("consultation.preset_health_4"),
+    ],
+  };
   const {
     profiles,
     selectedProfile,
@@ -568,8 +570,8 @@ function Consultation() {
   const handleCopyLink = (shareId) => {
     const shareUrl = getShareUrl(shareId);
     navigator.clipboard.writeText(shareUrl).then(
-      () => alert("링크가 복사되었어요. 친구에게 보내보세요!"),
-      () => alert("복사에 실패했어요. 주소창의 링크를 복사해 주세요.")
+      () => alert(t("consultation.copy_success")),
+      () => alert(t("consultation.copy_fail"))
     );
   };
 
@@ -587,7 +589,7 @@ function Consultation() {
 
   const handleKakaoShare = (shareId, shareSummary = null) => {
     if (!window.Kakao?.isInitialized()) {
-      alert("카카오톡 공유 기능을 사용할 수 없습니다.");
+      alert(t("consultation.kakao_unavailable"));
       return;
     }
     const shareUrl = getShareUrl(shareId);
@@ -597,10 +599,10 @@ function Consultation() {
       : `${window.location.origin}/assets/800x800.png`;
     const description =
       shareSummary?.trim() ||
-      "AI 점성술로 분석한 맞춤 상담 결과를 확인해보세요.";
+      t("consultation.kakao_share_desc");
     const title = shareSummary
-      ? "진짜미래 - 상담 결과 공유"
-      : "진짜미래 - 자유 질문 상담 결과를 공유했어요";
+      ? t("consultation.kakao_share_title_summary")
+      : t("consultation.kakao_share_title_no_summary");
     try {
       window.Kakao.Share.sendDefault({
         objectType: "feed",
@@ -612,20 +614,20 @@ function Consultation() {
         },
         buttons: [
           {
-            title: "결과 보기",
+            title: t("consultation.kakao_share_btn"),
             link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
           },
         ],
       });
     } catch (err) {
-      alert("카카오톡 공유 중 오류가 발생했습니다: " + err.message);
+      alert(t("consultation.kakao_share_error") + err.message);
     }
   };
 
   // FortuneProcess용: 스트리밍 API 호출 (onChunk/onDone은 handleConfirmStarUsage에서 처리)
   const buildFirstQuestionRequestBody = useCallback(() => {
     const formData = convertProfileToApiFormat(selectedProfile);
-    if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
+    if (!formData) throw new Error(t("consultation.error_profile"));
     return {
       ...formData,
       fortuneType: "consultation",
@@ -683,10 +685,10 @@ function Consultation() {
           setShowStarModal(true);
         }
       } catch (err) {
-        setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+        setError(err?.message || t("consultation.error_balance"));
       }
     },
-    [selectedProfile, userQuestion, user, requiredStars]
+    [selectedProfile, userQuestion, user, requiredStars, t]
   );
 
   // 별 차감 후 운세 조회 (SSE 스트리밍)
@@ -747,14 +749,14 @@ function Consultation() {
           setTimeout(() => setShowFollowUpButton(true), 500);
         },
         onError: async (err) => {
-          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setError(err?.message || t("consultation.error_request"));
           setLoadingConsultation(false);
           setProcessStatus("idle");
-          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
+          alert(t("consultation.error_generate"));
         },
       });
     } catch (err) {
-      setError(err?.message || "요청 중 오류가 발생했습니다.");
+      setError(err?.message || t("consultation.error_request"));
       setLoadingConsultation(false);
       setProcessStatus("idle");
     }
@@ -766,6 +768,7 @@ function Consultation() {
     selectedProfile,
     buildFirstQuestionRequestBody,
     saveFortuneHistory,
+    t,
   ]);
 
   // 새 상담 하기: 임시 저장 삭제 + 결과/후속 상태 초기화
@@ -850,7 +853,7 @@ function Consultation() {
       return;
     }
     if (!selectedProfile) {
-      setError("프로필을 선택해 주세요.");
+      setError(t("consultation.error_no_profile_select"));
       return;
     }
     setError("");
@@ -874,7 +877,7 @@ function Consultation() {
       setStarModalMode("historyFollowUp");
       setShowStarModal(true);
     } catch (err) {
-      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+      setError(err?.message || t("consultation.error_balance"));
     }
   };
 
@@ -894,11 +897,11 @@ function Consultation() {
         ...followUpAnswers.map((a) => ({ question: a.question, interpretation: a.interpretation })),
       ];
       const formData = convertProfileToApiFormat(selectedProfile);
-      if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
-      const requestBody = {
-        ...formData,
-        fortuneType: "consultation",
-        userQuestion: followUpQuestion.trim(),
+    if (!formData) throw new Error(t("consultation.error_profile"));
+    const requestBody = {
+      ...formData,
+      fortuneType: "consultation",
+      userQuestion: followUpQuestion.trim(),
         consultationTopic: selectedTopic,
         profileId: selectedProfile.id,
         profileName: selectedProfile.name || null,
@@ -948,14 +951,14 @@ function Consultation() {
           setStreamingFollowUpInterpretation("");
         },
         onError: async (err) => {
-          setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+          setError(err?.message || t("consultation.error_followup"));
           setLoadingFollowUp(false);
           setProcessStatus("idle");
-          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
+          alert(t("consultation.error_generate"));
         },
       });
     } catch (err) {
-      setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+      setError(err?.message || t("consultation.error_followup"));
       setLoadingFollowUp(false);
       setProcessStatus("idle");
     }
@@ -968,6 +971,7 @@ function Consultation() {
     selectedProfile,
     selectedTopic,
     saveFortuneHistory,
+    t,
   ]);
 
   // 히스토리 뷰에서 별 확정 후 후속 질문 API 호출
@@ -992,7 +996,7 @@ function Consultation() {
       ];
 
       const formData = convertProfileToApiFormat(selectedProfile);
-      if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
+      if (!formData) throw new Error(t("consultation.error_profile"));
 
       const requestBody = {
         ...formData,
@@ -1031,13 +1035,13 @@ function Consultation() {
           await loadHistoryItem();
         },
         onError: async (err) => {
-          setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+          setError(err?.message || t("consultation.error_followup"));
           setProcessStatus("idle");
-          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
+          alert(t("consultation.error_generate"));
         },
       });
     } catch (err) {
-      setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+      setError(err?.message || t("consultation.error_followup"));
       setProcessStatus("idle");
     } finally {
       setHistoryLoadingFollowUp(false);
@@ -1050,6 +1054,7 @@ function Consultation() {
     historyFollowUpQuestion,
     selectedProfile,
     loadHistoryItem,
+    t,
   ]);
 
   // 공유 페이지에서 후속 질문 제출 (별 확인 후 API 호출)
@@ -1061,7 +1066,7 @@ function Consultation() {
       return;
     }
     if (!selectedProfile) {
-      setError("프로필을 선택해 주세요.");
+      setError(t("consultation.error_no_profile_select"));
       return;
     }
     setError("");
@@ -1077,7 +1082,7 @@ function Consultation() {
       setStarModalMode("sharedFollowUp");
       setShowStarModal(true);
     } catch (err) {
-      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+      setError(err?.message || t("consultation.error_balance"));
     }
   };
 
@@ -1104,7 +1109,7 @@ function Consultation() {
       ];
 
       const formData = convertProfileToApiFormat(selectedProfile);
-      if (!formData) throw new Error("프로필 정보가 올바르지 않습니다.");
+      if (!formData) throw new Error(t("consultation.error_profile"));
 
       const requestBody = {
         ...formData,
@@ -1137,12 +1142,12 @@ function Consultation() {
           await loadSharedConsultation(sharedConsultation.shareId);
         },
         onError: async (err) => {
-          setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
-          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
+          setError(err?.message || t("consultation.error_followup"));
+          alert(t("consultation.error_generate"));
         },
       });
     } catch (err) {
-      setError(err?.message || "후속 질문 요청 중 오류가 발생했습니다.");
+      setError(err?.message || t("consultation.error_followup"));
     } finally {
       setSharedLoadingFollowUp(false);
     }
@@ -1153,6 +1158,7 @@ function Consultation() {
     sharedFollowUpQuestion,
     selectedProfile,
     loadSharedConsultation,
+    t,
   ]);
 
   // 인증 로딩 중에는 스피너만 보이고, 화면/SEO를 가리지 않도록 블록하지 않음 (아래 공유 로딩/공유 뷰/메인으로 진행)
@@ -1169,7 +1175,7 @@ function Consultation() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-slate-400">
-            {fromHistoryDrawer ? "이전 상담 내용을 불러오는 중..." : "공유된 상담을 불러오는 중..."}
+            {fromHistoryDrawer ? t("consultation.loading_history") : t("consultation.loading_shared")}
           </p>
         </div>
       </div>
@@ -1182,7 +1188,9 @@ function Consultation() {
     (searchParams.get("id") || (resultId && !(historyView && fromHistoryDrawer)));
   if (isSharedView) {
     const profileName = sharedConsultation.profileName?.trim() || "";
-    const sharedTitle = profileName ? `${profileName}님의 진짜 미래예요` : "진짜 미래예요";
+    const sharedTitle = profileName
+      ? t("consultation.shared_title_with_name", { name: profileName })
+      : t("consultation.shared_title_no_name");
     return (
       <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
         <div className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24">
@@ -1206,7 +1214,7 @@ function Consultation() {
               <div className="space-y-5 mb-8">
                 <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                   <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                    {sharedConsultation.parsedData.summary?.title || "결론"}
+                    {sharedConsultation.parsedData.summary?.title || t("consultation.conclusion")}
                   </h2>
                   {sharedConsultation.parsedData.summary?.score != null && (
                     <div className="mb-4">
@@ -1253,7 +1261,7 @@ function Consultation() {
                 </div>
                 {sharedConsultation.parsedData.timeline && sharedConsultation.parsedData.timeline.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">📅 타임라인</h3>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">{t("consultation.timeline_section")}</h3>
                     <div className="space-y-3">
                       {sharedConsultation.parsedData.timeline.map((item, idx) => {
                         const isGood = item.type === "good";
@@ -1276,7 +1284,7 @@ function Consultation() {
                 <div className="space-y-5">
                   {sharedConsultation.parsedData.analysis?.general && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.analysis_section")}</h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                         {sharedConsultation.parsedData.analysis.general}
                       </p>
@@ -1284,7 +1292,7 @@ function Consultation() {
                   )}
                   {sharedConsultation.parsedData.analysis?.timing && (
                     <div className="pt-5">
-                      <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.timing_section")}</h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                         {sharedConsultation.parsedData.analysis.timing}
                       </p>
@@ -1303,7 +1311,7 @@ function Consultation() {
               )
             ) : (
               <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
-                <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                  <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.answer_section")}</h3>
                 <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed break-words">
                   <ReactMarkdown>{sharedConsultation.interpretation}</ReactMarkdown>
                 </div>
@@ -1327,7 +1335,7 @@ function Consultation() {
                       ) : (
                       <div className="space-y-5">
                         <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
-                          <h2 className="text-xl font-bold text-white mb-4 leading-tight">{fu.parsedData.summary?.title || "결론"}</h2>
+                          <h2 className="text-xl font-bold text-white mb-4 leading-tight">{fu.parsedData.summary?.title || t("consultation.conclusion")}</h2>
                           {fu.parsedData.summary?.score != null && (
                             <div className="mb-4">
                               <span className="text-2xl font-bold text-white">{fu.parsedData.summary.score}%</span>
@@ -1346,7 +1354,7 @@ function Consultation() {
                         </div>
                         {fu.parsedData.timeline?.length > 0 && (
                           <div>
-                            <h3 className="text-lg font-semibold text-white mb-4">📅 타임라인</h3>
+                            <h3 className="text-lg font-semibold text-white mb-4">{t("consultation.timeline_section")}</h3>
                             <div className="space-y-3">
                               {fu.parsedData.timeline.map((item, idx) => {
                                 const isGood = item.type === "good";
@@ -1368,13 +1376,13 @@ function Consultation() {
                         )}
                         {fu.parsedData.analysis?.general && (
                           <div>
-                            <h3 className="text-lg font-semibold text-white mb-3">🔮 종합 분석</h3>
+                            <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.analysis_section")}</h3>
                             <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.general}</p>
                           </div>
                         )}
                         {fu.parsedData.analysis?.timing && (
                           <div className="pt-5">
-                            <h3 className="text-lg font-semibold text-white mb-3">⏰ 시기 분석</h3>
+                            <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.timing_section")}</h3>
                             <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.timing}</p>
                           </div>
                         )}
@@ -1388,7 +1396,7 @@ function Consultation() {
                       )
                     ) : (
                       <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
-                        <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                        <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.answer_section")}</h3>
                         <div className="prose prose-invert max-w-none text-slate-200">
                           <ReactMarkdown>{fu.interpretation}</ReactMarkdown>
                         </div>
@@ -1407,7 +1415,7 @@ function Consultation() {
                 fullWidth
                 onClick={() => navigate("/")}
               >
-                내 미래도 확인하기
+                {t("consultation.check_my_future")}
               </PrimaryButton>
             </div>
           </div>
@@ -1473,7 +1481,7 @@ function Consultation() {
                     d="M12 4v16m8-8H4"
                   />
                 </svg>
-                새로운 질문
+                {t("consultation.new_question_btn")}
               </button>
             </div>
 
@@ -1492,8 +1500,8 @@ function Consultation() {
             {/* 첫 질문에 대한 답변 (위: 첫 질문 → 첫 운세 결과) */}
             {!(historyView.interpretation?.trim()) ? (
               <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
-                <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
-                <p className="text-slate-400 text-sm">답변을 불러올 수 없습니다.</p>
+                <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.answer_section")}</h3>
+                <p className="text-slate-400 text-sm">{t("consultation.no_answer")}</p>
               </div>
             ) : historyView.parsedData ? (
               isFollowUpData(historyView.parsedData) ? (
@@ -1507,7 +1515,7 @@ function Consultation() {
                 {/* 요약 카드 */}
                 <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                   <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                    {historyView.parsedData.summary?.title || "결론"}
+                    {historyView.parsedData.summary?.title || t("consultation.conclusion")}
                   </h2>
                   {historyView.parsedData.summary?.score != null && (
                     <div className="mb-4">
@@ -1566,7 +1574,7 @@ function Consultation() {
                   historyView.parsedData.timeline.length > 0 && (
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        📅 타임라인
+                        {t("consultation.timeline_section")}
                       </h3>
                       <div className="space-y-3">
                         {historyView.parsedData.timeline.map((item, idx) => {
@@ -1612,7 +1620,7 @@ function Consultation() {
                   {historyView.parsedData.analysis?.general && (
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">
-                        🔮 종합 분석
+                        {t("consultation.analysis_section")}
                       </h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                         {historyView.parsedData.analysis.general}
@@ -1622,7 +1630,7 @@ function Consultation() {
                   {historyView.parsedData.analysis?.timing && (
                     <div className="pt-5">
                       <h3 className="text-lg font-semibold text-white mb-3">
-                        ⏰ 시기 분석
+                        {t("consultation.timing_section")}
                       </h3>
                       <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                         {historyView.parsedData.analysis.timing}
@@ -1647,7 +1655,7 @@ function Consultation() {
             ) : (
               <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl mb-8">
                 <h3 className="text-lg font-semibold text-white mb-3">
-                  🔮 답변
+                  {t("consultation.answer_section")}
                 </h3>
                 <div className="prose prose-invert prose-sm sm:prose-base max-w-none text-slate-200">
                   <ReactMarkdown>{historyView.interpretation}</ReactMarkdown>
@@ -1670,7 +1678,7 @@ function Consultation() {
                   </div>
                   {!(fu.interpretation?.trim()) ? (
                     <div className="p-6 bg-slate-800/40 border border-slate-600/50 rounded-xl">
-                      <h3 className="text-lg font-semibold text-white mb-3">🔮 답변</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.answer_section")}</h3>
                       <p className="text-slate-400 text-sm">
                         답변을 불러올 수 없습니다. (이전에 저장된 후속 질문은 DB에서 연결해 주어야 표시됩니다.)
                       </p>
@@ -1682,7 +1690,7 @@ function Consultation() {
                     <div className="space-y-5">
                       <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                         <h2 className="text-xl font-bold text-white mb-4 leading-tight">
-                          {fu.parsedData.summary?.title || "결론"}
+                          {fu.parsedData.summary?.title || t("consultation.conclusion")}
                         </h2>
                         {fu.parsedData.summary?.score != null && (
                           <div className="mb-4">
@@ -1718,7 +1726,7 @@ function Consultation() {
                       {fu.parsedData.timeline && fu.parsedData.timeline.length > 0 && (
                         <div>
                           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                            📅 타임라인
+                            {t("consultation.timeline_section")}
                           </h3>
                           <div className="space-y-3">
                             {fu.parsedData.timeline.map((item, idx) => {
@@ -1759,7 +1767,7 @@ function Consultation() {
                       {fu.parsedData.analysis?.general && (
                         <div>
                           <h3 className="text-lg font-semibold text-white mb-3">
-                            🔮 종합 분석
+                            {t("consultation.analysis_section")}
                           </h3>
                           <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                             {fu.parsedData.analysis.general}
@@ -1769,7 +1777,7 @@ function Consultation() {
                       {fu.parsedData.analysis?.timing && (
                         <div className="pt-5">
                           <h3 className="text-lg font-semibold text-white mb-3">
-                            ⏰ 시기 분석
+                            {t("consultation.timing_section")}
                           </h3>
                           <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                             {fu.parsedData.analysis.timing}
@@ -1832,18 +1840,18 @@ function Consultation() {
                         d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
                       />
                     </svg>
-                    이 답변에 대해 질문해 볼까요?
+                    {t("consultation.follow_up_floating")}
                   </button>
                 ) : (
                   <div className="animate-fade-in">
                     <form onSubmit={handleHistoryFollowUpSubmit}>
                       <label className="block text-sm font-medium text-slate-300 mb-3">
-                        후속 질문
+                        {t("consultation.follow_up_label")}
                       </label>
                       <textarea
                         value={historyFollowUpQuestion}
                         onChange={(e) => setHistoryFollowUpQuestion(e.target.value)}
-                        placeholder="답변에 대해 더 궁금한 점을 물어보세요."
+                        placeholder={t("consultation.follow_up_placeholder")}
                         maxLength={1000}
                         rows={4}
                         className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
@@ -1859,7 +1867,7 @@ function Consultation() {
                         fullWidth
                         className="mt-4"
                       >
-                        질문하기
+                        {t("consultation.follow_up_btn")}
                       </PrimaryButton>
                     </form>
                   </div>
@@ -1870,7 +1878,7 @@ function Consultation() {
             {/* 친구에게 공유 */}
             {historyView.shareId && (
               <div className="mt-6 pt-6 border-t border-slate-600/50">
-                <p className="text-sm text-slate-300 mb-3">친구에게 공유하기</p>
+                <p className="text-sm text-slate-300 mb-3">{t("consultation.share_with_friend")}</p>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -1927,7 +1935,7 @@ function Consultation() {
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}
-        description="진짜미래는 로그인 후 이용하실 수 있습니다."
+        description={t("consultation.login_desc")}
       />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
@@ -1937,13 +1945,7 @@ function Consultation() {
           {/* 페이지 소개 (SEO/GEO 본문 텍스트 동기화용 section id 유지) */}
           <section id="ai-comment-astrology" className="mb-6 sm:mb-8">
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              정통 고전 점성술로 내 운명의 진짜 흐름을 찾고 계신가요? 단순한
-              별자리 풀이를 넘어 서양 점성술의 깊이 있는 원리로 삶의 방향을
-              명확히 알고 싶을 때, 진짜미래는 수천 년간 검증된 천체 운행 데이터를
-              바탕으로 당신만의 정확한 인생 지도를 그려드립니다. 이미 수백 명의
-              내담자가 실제 상담을 통해 소름 돋는 정확도를 증명했으며, 태어난
-              시간과 장소에 맞춘 고전 점성술의 정교한 연산 알고리즘을 통해 가장
-              확실한 해답을 제공합니다.
+              {t("consultation.intro")}
             </p>
           </section>
 
@@ -1968,7 +1970,7 @@ function Consultation() {
           {/* 토픽 선택 */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-slate-300 mb-3">
-              먼저 카테고리를 선택해주세요
+              {t("consultation.select_category")}
             </label>
             <div className="grid grid-cols-3 gap-2">
               {TOPIC_OPTIONS.map((option) => (
@@ -2001,7 +2003,7 @@ function Consultation() {
               {PRESET_QUESTIONS[selectedTopic] && (
                 <div className="mb-6 -mx-4">
                   <p className="text-xs text-slate-400 mb-3 px-4">
-                    이런 질문은 어떠세요?
+                    {t("consultation.suggested_questions")}
                   </p>
                   <div
                     ref={chipScrollRef}
@@ -2042,16 +2044,15 @@ function Consultation() {
                 className="mb-6 sm:mb-8"
               >
                 <label className="block text-sm font-medium text-slate-300 mb-3">
-                  질문 입력
+                  {t("consultation.question_input_label")}
                 </label>
                 <textarea
                   value={userQuestion}
                   onChange={(e) => {
                     setUserQuestion(e.target.value);
-                    // 사용자가 직접 입력하면 선택 상태 해제
                     setSelectedChipIndex(null);
                   }}
-                  placeholder="구체적으로 질문할수록 더 정확한 답변을 받을 수 있어요. (예: 지금 만나는 사람과 내년에 결혼할 수 있을까요?)"
+                  placeholder={t("consultation.question_placeholder")}
                   maxLength={1000}
                   rows={5}
                   className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
@@ -2078,13 +2079,13 @@ function Consultation() {
                   fullWidth
                   className="mt-4"
                 >
-                  진짜미래 확인
+                  {t("consultation.submit_btn")}
                 </PrimaryButton>
                 <Link
                   to="/faq"
                   className="block mt-3 text-center text-sm text-slate-400 hover:text-white transition-colors duration-200"
                 >
-                  궁금한 점이 있으신가요?
+                  {t("consultation.faq_link")}
                 </Link>
               </form>
 
@@ -2120,7 +2121,7 @@ function Consultation() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
-                      새 상담 하기
+                      {t("consultation.new_consultation")}
                     </button>
                     {consultationAnswer.shareId && (
                     <div className="flex items-center gap-2">
@@ -2174,8 +2175,7 @@ function Consultation() {
                       {/* Header Card */}
                       <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                         <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                          {consultationAnswer.parsedData.summary?.title ||
-                            "결론"}
+                          {consultationAnswer.parsedData.summary?.title || t("consultation.conclusion")}
                         </h2>
                         {consultationAnswer.parsedData.summary?.score !=
                           null && (
@@ -2238,7 +2238,7 @@ function Consultation() {
                         consultationAnswer.parsedData.timeline.length > 0 && (
                           <div>
                             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                              📅 타임라인
+                              {t("consultation.timeline_section")}
                             </h3>
                             <div className="space-y-3">
                               {consultationAnswer.parsedData.timeline.map(
@@ -2290,7 +2290,7 @@ function Consultation() {
                       <div className="space-y-5">
                         <div>
                           <h3 className="text-lg font-semibold text-white mb-3">
-                            🔮 종합 분석
+                            {t("consultation.analysis_section")}
                           </h3>
                           <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                             {consultationAnswer.parsedData.analysis
@@ -2300,7 +2300,7 @@ function Consultation() {
 
                         <div className="pt-5">
                           <h3 className="text-lg font-semibold text-white mb-3">
-                            ⏰ 시기 분석
+                            {t("consultation.timing_section")}
                           </h3>
                           <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                             {consultationAnswer.parsedData.analysis?.timing ||
@@ -2365,8 +2365,7 @@ function Consultation() {
                           <div className="space-y-5">
                             <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl">
                               <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 leading-tight">
-                                {followUpAnswer.parsedData.summary?.title ||
-                                  "결론"}
+                                {followUpAnswer.parsedData.summary?.title || t("consultation.conclusion")}
                               </h2>
                               {followUpAnswer.parsedData.summary?.score !=
                                 null && (
@@ -2426,7 +2425,7 @@ function Consultation() {
                               followUpAnswer.parsedData.timeline.length > 0 && (
                                 <div>
                                   <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                    📅 타임라인
+                                    {t("consultation.timeline_section")}
                                   </h3>
                                   <div className="space-y-3">
                                     {followUpAnswer.parsedData.timeline.map(
@@ -2477,7 +2476,7 @@ function Consultation() {
                             <div className="space-y-5">
                               <div>
                                 <h3 className="text-lg font-semibold text-white mb-3">
-                                  🔮 종합 분석
+                                  {t("consultation.analysis_section")}
                                 </h3>
                                 <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                                   {followUpAnswer.parsedData.analysis?.general ||
@@ -2487,7 +2486,7 @@ function Consultation() {
 
                               <div className="pt-5">
                                 <h3 className="text-lg font-semibold text-white mb-3">
-                                  ⏰ 시기 분석
+                                  {t("consultation.timing_section")}
                                 </h3>
                                 <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
                                   {followUpAnswer.parsedData.analysis?.timing ||
@@ -2531,12 +2530,12 @@ function Consultation() {
                     <div ref={followUpInputRef} className="mt-6 animate-fade-in">
                       <form onSubmit={handleFollowUpSubmit}>
                         <label className="block text-sm font-medium text-slate-300 mb-3">
-                          후속 질문
+                          {t("consultation.follow_up_label")}
                         </label>
                         <textarea
                           value={followUpQuestion}
                           onChange={(e) => setFollowUpQuestion(e.target.value)}
-                          placeholder="답변에 대해 더 궁금한 점을 물어보세요."
+                          placeholder={t("consultation.follow_up_placeholder")}
                           maxLength={1000}
                           rows={4}
                           className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
@@ -2552,7 +2551,7 @@ function Consultation() {
                           fullWidth
                           className="mt-4"
                         >
-                          질문하기
+                          {t("consultation.follow_up_btn")}
                         </PrimaryButton>
                       </form>
                     </div>
@@ -2592,7 +2591,7 @@ function Consultation() {
                     d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
                   />
                 </svg>
-                이 답변에 대해 질문해 볼까요?
+                {t("consultation.follow_up_floating")}
               </button>
             </div>
           </div>

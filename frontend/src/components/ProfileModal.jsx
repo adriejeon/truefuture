@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { IMaskInput } from "react-imask";
+import { useTranslation } from "react-i18next";
 import CityAutocompleteComponent from "./CityAutocomplete";
 import { colors } from "../constants/colors";
 
@@ -7,6 +8,7 @@ import { colors } from "../constants/colors";
  * 프로필 생성/편집 모달
  */
 function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: "",
     birthDate: "",
@@ -61,19 +63,19 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
     const newErrors = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = "이름을 입력해주세요";
+      newErrors.name = t("profile_modal.error_name");
     }
 
     if (!formData.birthDate || formData.birthDate.length < 10) {
-      newErrors.birthDate = "올바른 생년월일을 입력해주세요";
+      newErrors.birthDate = t("profile_modal.error_birthdate");
     }
 
     if (!birthTimeUnknown && (!formData.birthTime || formData.birthTime.length < 5)) {
-      newErrors.birthTime = "올바른 시간을 입력해주세요";
+      newErrors.birthTime = t("profile_modal.error_birthtime");
     }
 
     if (!formData.cityName) {
-      newErrors.city = "태어난 도시를 선택해주세요";
+      newErrors.city = t("profile_modal.error_city");
     }
 
     setErrors(newErrors);
@@ -97,7 +99,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
       onClose();
     } catch (err) {
       console.error("프로필 저장 실패:", err);
-      alert("프로필 저장에 실패했습니다. 다시 시도해주세요.");
+      alert(t("profile_modal.save_fail"));
     }
   };
 
@@ -137,7 +139,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
         <div className="sticky top-0 bg-[#0F0F2B] border-b border-slate-700 z-10">
           <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
             <h2 className="text-lg sm:text-xl font-semibold text-white">
-              {initialData ? "프로필 수정" : "새로운 프로필 등록"}
+              {initialData ? t("profile_modal.title_edit") : t("profile_modal.title_create")}
             </h2>
             <button
               onClick={onClose}
@@ -173,7 +175,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder="이름"
+              placeholder={t("profile_modal.name_placeholder")}
               className="w-full px-4 py-3 text-base border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent"
               style={{ backgroundColor: "#0F0F2B" }}
               onFocus={(e) => {
@@ -196,7 +198,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
               onAccept={(value) =>
                 setFormData({ ...formData, birthDate: value })
               }
-              placeholder="생년월일 (YYYY.MM.DD)"
+              placeholder={t("profile_modal.birthdate_placeholder")}
               inputMode="numeric"
               className="w-full px-4 py-3 text-base border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent"
               style={{ backgroundColor: "#0F0F2B" }}
@@ -215,7 +217,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
           {/* 태어난 시간 */}
           <div>
             <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
-              <span className="text-base font-medium text-slate-300">태어난 시간</span>
+              <span className="text-base font-medium text-slate-300">{t("profile_modal.birthtime_label")}</span>
               <label className="flex items-center gap-1.5 cursor-pointer group">
                 <input
                   type="checkbox"
@@ -225,7 +227,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                   style={{ accentColor: colors.primary }}
                 />
                 <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">
-                  태어난 시간을 몰라요
+                  {t("profile_modal.birthtime_unknown")}
                 </span>
               </label>
               <span
@@ -257,7 +259,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                       maxWidth: "min(13rem, calc(100vw - 2rem))",
                     }}
                   >
-                    태어난 시간을 모르시면 임의의 시간(낮 12시)으로 계산할 수 있어요. 다만, 이때는 정확성이 떨어질 수 있어요.
+                    {t("profile_modal.birthtime_tooltip")}
                   </span>
                 )}
               </span>
@@ -268,7 +270,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
               onAccept={(value) =>
                 setFormData({ ...formData, birthTime: value })
               }
-              placeholder="태어난 시간 (HH:mm)"
+              placeholder={t("profile_modal.birthtime_placeholder")}
               inputMode="numeric"
               disabled={birthTimeUnknown}
               className={`w-full px-4 py-3 text-base border rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent ${
@@ -288,7 +290,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
             />
             {birthTimeUnknown && (
               <p className="mt-1.5 text-xs text-slate-500">
-                낮 12시로 계산됩니다.
+                {t("profile_modal.birthtime_default_note")}
               </p>
             )}
             {errors.birthTime && (
@@ -319,7 +321,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
-                <span className="text-base text-slate-300">남자</span>
+                <span className="text-base text-slate-300">{t("profile_modal.gender_male")}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -341,7 +343,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
-                <span className="text-base text-slate-300">여자</span>
+                <span className="text-base text-slate-300">{t("profile_modal.gender_female")}</span>
               </label>
             </div>
           </div>
@@ -354,7 +356,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
             />
             {formData.cityName && (
               <p className="mt-2 text-xs text-slate-400">
-                선택된 도시: {formData.cityName}
+                {t("profile_modal.city_selected", { city: formData.cityName })}
                 {formData.timezone && ` (${formData.timezone})`}
               </p>
             )}
@@ -370,7 +372,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
               onClick={onClose}
               className="flex-1 py-2.5 sm:py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition-colors"
             >
-              취소
+              {t("profile_modal.btn_cancel")}
             </button>
             <button
               type="submit"
@@ -379,7 +381,7 @@ function ProfileModal({ isOpen, onClose, onSubmit, initialData = null }) {
                 backgroundColor: "#E1AC3F",
               }}
             >
-              {initialData ? "수정" : "등록"}
+              {initialData ? t("profile_modal.btn_edit") : t("profile_modal.btn_register")}
             </button>
           </div>
         </form>

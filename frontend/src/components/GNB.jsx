@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import ConversationDrawer from "./ConversationDrawer";
 import { colors } from "../constants/colors";
 
 function GNB() {
+  const { t, i18n } = useTranslation();
+  const logoSrc = i18n.language?.startsWith("en")
+    ? "/assets/logo-en.png"
+    : "/assets/logo.png";
   const { user, logout } = useAuth();
   const { stars } = useStars();
   const navigate = useNavigate();
@@ -15,13 +20,11 @@ function GNB() {
   const dropdownRef = useRef(null);
 
   const handleAuthClick = () => {
-    // 로그인 상태가 아니면 로그인 페이지로 이동
     if (!user) {
       navigate("/login");
     }
   };
 
-  // 프로필 이미지 또는 기본 아바타 가져오기
   const getProfileImage = () => {
     if (user?.user_metadata?.avatar_url) {
       return user.user_metadata.avatar_url;
@@ -29,7 +32,6 @@ function GNB() {
     return null;
   };
 
-  // 사용자 이름 또는 이니셜 가져오기
   const getUserInitial = () => {
     if (user?.user_metadata?.full_name) {
       return user.user_metadata.full_name.charAt(0).toUpperCase();
@@ -43,7 +45,6 @@ function GNB() {
     return "U";
   };
 
-  // 스크롤 감지
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop;
@@ -51,7 +52,6 @@ function GNB() {
     };
 
     window.addEventListener("scroll", handleScroll);
-    // 초기 상태 확인
     handleScroll();
 
     return () => {
@@ -59,17 +59,14 @@ function GNB() {
     };
   }, []);
 
-  // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // 드롭다운 내부 요소 클릭은 무시
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
     };
 
     if (isDropdownOpen) {
-      // 약간의 지연을 두어 버튼 클릭 이벤트가 먼저 처리되도록 함
       const timeoutId = setTimeout(() => {
         document.addEventListener("mousedown", handleClickOutside);
       }, 100);
@@ -117,13 +114,13 @@ function GNB() {
       >
         <div className="max-w-[600px] mx-auto px-4 relative z-10">
           <div className="flex items-center justify-between relative">
-            {/* 좌측: 대화 목록 버튼 (로그인 시) 또는 빈 공간 */}
+            {/* 좌측: 대화 목록 버튼 */}
             <div className="flex-1 flex items-center justify-start min-w-0">
               {user ? (
                 <button
                   onClick={() => setIsDrawerOpen(true)}
                   className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
-                  aria-label="대화 목록 열기"
+                  aria-label={t("nav.open_chat_list")}
                 >
                   <svg
                     className="w-6 h-6 flex-shrink-0"
@@ -147,14 +144,14 @@ function GNB() {
             <div className="absolute left-1/2 -translate-x-1/2">
               <Link to="/" className="flex-shrink-0 block">
                 <img
-                  src="/assets/logo.png"
-                  alt="진짜미래"
-                  className="h-5 sm:h-6 w-auto object-contain"
+                  src={logoSrc}
+                  alt={i18n.language?.startsWith("en") ? "True Future" : "진짜미래"}
+                  className="h-4 sm:h-5 w-auto object-contain"
                 />
               </Link>
             </div>
 
-            {/* 우측: 로그인 버튼 또는 별 잔액 + 프로필 이미지 */}
+            {/* 우측: 로그인 버튼 또는 별 잔액 + 프로필 */}
             <div className="flex-1 flex items-center justify-end min-w-0 gap-2 sm:gap-3">
               {!user ? (
                 <div className="flex items-center gap-[0.5rem]">
@@ -168,16 +165,15 @@ function GNB() {
                     onClick={handleAuthClick}
                     className="px-4 py-2 text-sm sm:text-base bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20 transition-all duration-200 font-medium"
                   >
-                    로그인
+                    {t("nav.login")}
                   </button>
                 </div>
               ) : (
                 <>
-                  {/* 별 잔액 버튼 */}
                   <button
                     onClick={() => navigate("/purchase")}
                     className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
-                    aria-label="별 충전하기"
+                    aria-label={t("nav.charge_stars")}
                   >
                     <span className="text-yellow-400 text-sm">⭐</span>
                   </button>
@@ -199,9 +195,8 @@ function GNB() {
                     </div>
                   )}
 
-                  {/* 드롭다운 메뉴 */}
                   {isDropdownOpen && (
-                    <div 
+                    <div
                       className="absolute right-0 mt-2 w-36 bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden z-50"
                       onMouseDown={(e) => e.stopPropagation()}
                     >
@@ -210,7 +205,7 @@ function GNB() {
                         onClick={handleMyPageClick}
                         className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left"
                       >
-                        마이페이지
+                        {t("nav.mypage")}
                       </button>
                       <button
                         type="button"
@@ -226,7 +221,7 @@ function GNB() {
                         }}
                         className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left border-t border-slate-700"
                       >
-                        로그아웃
+                        {t("nav.logout")}
                       </button>
                     </div>
                   )}

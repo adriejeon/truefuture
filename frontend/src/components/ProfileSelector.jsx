@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { colors } from "../constants/colors";
 
 /**
@@ -12,6 +13,7 @@ function ProfileSelector({
   onDeleteProfile,
   loading = false,
 }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -46,7 +48,7 @@ function ProfileSelector({
     if (!onDeleteProfile) return;
     if (
       !window.confirm(
-        `"${profile.name}" 프로필을 삭제할까요? 삭제된 프로필의 운세 이력도 함께 삭제됩니다.`
+        t("profile_selector.delete_confirm", { name: profile.name })
       )
     ) {
       return;
@@ -56,7 +58,7 @@ function ProfileSelector({
       setIsOpen(false);
     } catch (err) {
       console.error("프로필 삭제 실패:", err);
-      alert("프로필 삭제에 실패했습니다. 다시 시도해주세요.");
+      alert(t("profile_selector.delete_fail"));
     }
   };
 
@@ -124,7 +126,7 @@ function ProfileSelector({
               </div>
               <div className="flex-1 text-left min-w-0">
                 <p className="font-medium truncate text-slate-400">
-                  프로필 불러오는 중...
+                  {t("profile_selector.loading")}
                 </p>
               </div>
             </>
@@ -146,7 +148,7 @@ function ProfileSelector({
               </div>
               <div className="flex-1 text-left min-w-0">
                 <p className="font-medium truncate">
-                  {selectedProfile?.name || "프로필을 선택하세요"}
+                  {selectedProfile?.name || t("profile_selector.placeholder")}
                 </p>
                 {selectedProfile && (
                   <p className="text-xs text-slate-400 truncate">
@@ -291,7 +293,7 @@ function ProfileSelector({
               />
             </svg>
           </div>
-          <span>새로운 프로필 등록하기</span>
+          <span>{t("profile_selector.add_profile")}</span>
         </button>
       </div>
     </div>

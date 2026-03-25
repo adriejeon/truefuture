@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import FortuneResult from "../components/FortuneResult";
 import BottomNavigation from "../components/BottomNavigation";
@@ -40,6 +41,7 @@ function FavoriteStarIcon() {
 }
 
 function Home() {
+  const { t } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const {
     profiles,
@@ -61,7 +63,6 @@ function Home() {
   const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
     useState(getProfileModalDismissed);
 
-  // 프로필이 없을 때 모달 표시 (사용자가 "나중에 하기"로 닫은 적 없을 때만, 로드 완료 후에만)
   useEffect(() => {
     if (
       user &&
@@ -88,12 +89,11 @@ function Home() {
     if (profiles.length > 0) {
       setShowNoProfileModal(false);
       setShowProfileModal(false);
-      setUserDismissedNoProfileModal(false); // 프로필 생기면 다음에 다시 보여줄 수 있도록
+      setUserDismissedNoProfileModal(false);
       clearProfileModalDismissed();
     }
   }, [profiles]);
 
-  // 인앱 브라우저 감지 및 처리
   useEffect(() => {
     const { isInApp, appName } = detectInAppBrowser();
 
@@ -117,7 +117,6 @@ function Home() {
     }
   }, []);
 
-  // URL에 공유 ID가 있는 경우 운세 조회
   useEffect(() => {
     const sharedId = searchParams.get("id");
 
@@ -140,7 +139,7 @@ function Home() {
         },
       );
 
-      if (!response.ok) throw new Error("운세를 불러올 수 없습니다.");
+      if (!response.ok) throw new Error(t("home.loading_fortune_error"));
 
       const data = await response.json();
       if (data.error) throw new Error(data.error);
@@ -152,7 +151,7 @@ function Home() {
       setSharedFortuneType(data.fortuneType ?? null);
     } catch (err) {
       console.error("❌ 공유된 운세 조회 실패:", err);
-      setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
+      setError(err.message || t("home.loading_fortune_error_generic"));
       setSearchParams({});
     } finally {
       setLoading(false);
@@ -163,13 +162,12 @@ function Home() {
     await createProfile(profileData);
   };
 
-  // 인증 로딩 중
   if (loadingAuth) {
     return (
       <div className="w-full flex items-center justify-center py-20">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-slate-400 text-sm sm:text-base">로딩 중...</p>
+          <p className="text-slate-400 text-sm sm:text-base">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -181,12 +179,9 @@ function Home() {
         className={`w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24`}
         style={{ position: "relative", zIndex: 1 }}
       >
-        {/* 메인 히어로: 피그마 원본 디자인 스펙 (반응형 비율 적용) */}
         {!interpretation && (
           <div className="w-full font-noto flex flex-col items-center text-center pt-4 sm:pt-6">
-            {/* [1] 상단 텍스트 영역 (Top Section) - 1200px 기준 clamp */}
             <section className="flex flex-col items-center gap-[clamp(16px,5vw,30px)] w-full px-4">
-              {/* 메인 컨테이너와 동일한 좌우 16px만 적용되도록 섹션 패딩만큼 넓게 */}
               <div className="-mx-4 w-[calc(100%+2rem)]">
                 <img
                   src="/assets/divider1.png"
@@ -196,9 +191,9 @@ function Home() {
               </div>
 
               <p className="text-[#D8D8ED] text-center font-noto text-[clamp(16px,5vw,30px)] font-light leading-[1.48] tracking-[-2.4px]">
-                틀린 운세에 돈 쓰기엔,
+                {t("home.tagline1")}
                 <br />
-                당신의 운이 아깝습니다.
+                {t("home.tagline2")}
               </p>
 
               <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0">
@@ -211,20 +206,19 @@ function Home() {
               </div>
 
               <p className="text-[#D8D8ED] text-center font-noto text-[clamp(15.47px,4.833vw,29px)] font-light leading-[1.68] tracking-[-2.32px]">
-                진짜가 나타났습니다. 100% 리얼 점성술.
+                {t("home.tagline3")}
               </p>
 
               <div className="flex flex-col items-center gap-[clamp(2px,0.5vw,6px)]">
                 <p className="text-[#FFFFFF] text-center font-noto text-[clamp(18.13px,5.667vw,34px)] font-light leading-[1.68] tracking-[-2.72px]">
-                  20년 경력의 진짜 점성술사가 만든
+                  {t("home.made_by")}
                 </p>
                 <h1 className="font-gmarket text-[clamp(36.85px,11.51vw,69.09px)] font-bold leading-normal text-primary">
-                  진짜 미래
+                  {t("home.brand")}
                 </h1>
               </div>
             </section>
 
-            {/* [2] 중앙 그래픽 영역 (Graphic Section) - 메인 컨테이너와 동일 좌우 16px만 */}
             <section className="relative w-full mx-auto px-4 py-6 sm:py-8 flex flex-col items-center">
               <div className="-mx-4 w-[calc(100%+2rem)]">
                 <div className="relative w-full">
@@ -242,52 +236,45 @@ function Home() {
               </div>
             </section>
 
-            {/* [3] 하단 텍스트 영역 (Bottom Section) - 1200px 기준 clamp */}
             <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full px-4">
               <div className="flex flex-col items-center text-center">
                 <p className="text-[#FFFFFF] font-noto text-[clamp(15px,4.8vw,28px)] font-light leading-[1.48]">
-                  미래를 미리 알면,
+                  {t("home.future_know")}
                 </p>
                 <p className="text-primary font-noto text-[clamp(15px,4.8vw,28px)] font-medium leading-[1.48]">
-                  더 좋은 미래로 바꿀 수 있습니다.
+                  {t("home.future_change")}
                 </p>
               </div>
 
               <div className="flex flex-col items-center text-center">
                 <p className="text-primary font-noto text-[clamp(18px,5.8vw,34px)] font-medium leading-[1.58]">
-                  단돈 1,000원,
+                  {t("home.price_highlight")}
                 </p>
                 <p className="text-[#FFFFFF] font-noto text-[clamp(15px,4.8vw,28px)] font-medium leading-[1.58]">
-                  진짜 미래를 확인하고 내일을 바꾸세요.
+                  {t("home.price_cta")}
                 </p>
               </div>
             </section>
 
-            {/* 현직 전문가 소셜 프루프 섹션 - 상위 1겹만 감싸서 padding 1번만 적용 */}
+            {/* 현직 전문가 소셜 프루프 섹션 */}
             <section className="flex flex-col items-center w-full pt-[clamp(56px,12vw,96px)] pb-[clamp(28px,6vw,48px)] px-4">
               <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
                 <div
                   className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
                   aria-hidden="true"
                 >
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
-                    ✦
-                  </span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
-                    ✦
-                  </span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
-                    ✦
-                  </span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
                 </div>
                 <h2 className="text-center font-noto text-[clamp(17px,4.5vw,24px)] font-medium leading-[1.5] tracking-[-0.02em] text-[#FFFFFF]">
-                  현직 점성술사들도 놀란{" "}
-                  <span className="text-primary">압도적 정확도</span>
+                  {t("home.expert_title")}{" "}
+                  <span className="text-primary">{t("home.expert_title_accent")}</span>
                 </h2>
                 <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
-                  점성술, 타로, 명리학 등 운명학 및 영성 분야의 전문가들이
-                  <br />
-                  이제는 '진짜미래'로 미래를 설계하고 있습니다.
+                  {t("home.expert_subtitle").split("\n").map((line, i) => (
+                    <span key={i}>{line}{i === 0 && <br />}</span>
+                  ))}
                 </p>
                 <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
                   <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
@@ -295,19 +282,13 @@ function Home() {
                       className="flex gap-0.5 mb-3 text-primary"
                       aria-label="별점 5점"
                     >
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
+                      <FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon />
                     </p>
                     <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                      &ldquo;기존 대형 앱들보다 디테일과 정확도가 훨씬
-                      뛰어납니다. 아주 사소한 질문도 상세히 알 수 있어서 너무
-                      좋아요. 매일 매일 사용하게 됩니다.&rdquo;
+                      &ldquo;{t("home.expert_review1")}&rdquo;
                     </p>
                     <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                      10년 차 타로·점성술 마스터
+                      {t("home.expert_review1_author")}
                     </footer>
                   </blockquote>
                   <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
@@ -315,133 +296,69 @@ function Home() {
                       className="flex gap-0.5 mb-3 text-primary"
                       aria-label="별점 5점"
                     >
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
-                      <FavoriteStarIcon />
+                      <FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon />
                     </p>
                     <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                      &ldquo;단순한 키워드 조합이 아니라, 진짜 전문가가 옆에서
-                      짚어주는 듯한 소름 돋는 통찰력이에요.&rdquo;
+                      &ldquo;{t("home.expert_review2")}&rdquo;
                     </p>
                     <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                      현업 명리학·사주 상담가
+                      {t("home.expert_review2_author")}
                     </footer>
                   </blockquote>
                 </div>
               </div>
             </section>
 
-            {/* 실제 구매자들 리뷰 섹션 - 상위 1겹만 감싸서 padding 1번만 적용 */}
+            {/* 실제 구매자들 리뷰 섹션 */}
             <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)] px-4">
               <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
                 <div
                   className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
                   aria-hidden="true"
                 >
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
-                    ✦
-                  </span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
-                    ✦
-                  </span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">
-                    ✦
-                  </span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
                 </div>
                 <h2 className="text-center font-noto text-[clamp(17px,4.5vw,24px)] font-medium leading-[1.5] tracking-[-0.02em] text-[#FFFFFF]">
-                  한 번 보면 반드시 다시 찾는{" "}
-                  <span className="text-primary">압도적 적중률</span>
+                  {t("home.buyer_title")}{" "}
+                  <span className="text-primary">{t("home.buyer_title_accent")}</span>
                 </h2>
                 <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
                   <br />
-                  국내 대형 상담 플랫폼에서 수많은 고객의 미래를 적중시키며
-                  <br />
-                  높은 재구매율을 달성한 노하우를 100% 동일하게 구현했습니다.{" "}
-                  <br />
-                  아래는 실제 고객들에게 받은 생생한 후기입니다.
+                  {t("home.buyer_subtitle").split("\n").map((line, i, arr) => (
+                    <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+                  ))}
                 </p>
                 <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
-                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
-                    <p
-                      className="flex items-center gap-1.5 mb-3 text-primary"
-                      aria-label="별점 5점"
-                    >
-                      <span className="flex gap-0.5">
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                      </span>
-                      <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">
-                        5.0
-                      </span>
-                    </p>
-                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                      &ldquo;작년에 운세 봤는데 올해 알려준 대로 다
-                      일어났습니다... 소름 끼쳐서 다시 신청했네요. 시기까지 잘
-                      맞추는 곳은 여기가 유일해요.&rdquo;
-                    </p>
-                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                      재구매 고객 (달리***)
-                    </footer>
-                  </blockquote>
-                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
-                    <p
-                      className="flex items-center gap-1.5 mb-3 text-primary"
-                      aria-label="별점 5점"
-                    >
-                      <span className="flex gap-0.5">
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                      </span>
-                      <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">
-                        5.0
-                      </span>
-                    </p>
-                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                      &ldquo;적중률도 높고 다른 데와 달리 디테일하게 나와서 너무
-                      만족스러워요.&rdquo;
-                    </p>
-                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                      재구매 고객 (전통***)
-                    </footer>
-                  </blockquote>
-                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
-                    <p
-                      className="flex items-center gap-1.5 mb-3 text-primary"
-                      aria-label="별점 5점"
-                    >
-                      <span className="flex gap-0.5">
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                        <FavoriteStarIcon />
-                      </span>
-                      <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">
-                        5.0
-                      </span>
-                    </p>
-                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                      &ldquo;항상 너무너무 잘 맞습니다. 전에 받았던 상담 파일
-                      보면 다 말씀해 주신 내용입니다. 다음에 또
-                      찾아뵙겠습니다.&rdquo;
-                    </p>
-                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                      재구매 고객(진지***)
-                    </footer>
-                  </blockquote>
+                  {[
+                    { review: "buyer_review1", author: "buyer_review1_author" },
+                    { review: "buyer_review2", author: "buyer_review2_author" },
+                    { review: "buyer_review3", author: "buyer_review3_author" },
+                  ].map(({ review, author }) => (
+                    <blockquote key={review} className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
+                      <p
+                        className="flex items-center gap-1.5 mb-3 text-primary"
+                        aria-label="별점 5점"
+                      >
+                        <span className="flex gap-0.5">
+                          <FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon />
+                        </span>
+                        <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">5.0</span>
+                      </p>
+                      <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
+                        &ldquo;{t(`home.${review}`)}&rdquo;
+                      </p>
+                      <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
+                        {t(`home.${author}`)}
+                      </footer>
+                    </blockquote>
+                  ))}
                 </div>
               </div>
             </section>
 
-            {/* [3] 하단 텍스트 영역 이어짐 - divider & J.P 모건 */}
+            {/* JP Morgan 섹션 */}
             <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full px-4">
               <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0 my-[clamp(18px,4vw,32px)]">
                 <img
@@ -454,25 +371,25 @@ function Home() {
 
               <div className="flex flex-col items-center gap-[clamp(4px,1vw,10px)]">
                 <p className="text-[#D8D8ED] text-center font-noto text-[clamp(17.07px,5.333vw,32px)] font-light leading-[1.48]">
-                  &ldquo;백만장자는 점성술을 안 믿지만,
-                  <br />
-                  억만장자는 믿는다.&rdquo;
+                  {t("home.jp_quote").split("\n").map((line, i, arr) => (
+                    <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+                  ))}
                 </p>
                 <p className="text-[#D8D8ED] text-center font-noto text-[clamp(10px,3vw,18px)] font-light leading-[1.68]">
-                  JP 모건
+                  {t("home.jp_name")}
                 </p>
               </div>
 
               <p className="text-[#D8D8ED] text-center font-noto text-[clamp(13.87px,4.333vw,26px)] font-light leading-[1.68]">
-                미국 금융의 아버지 JP 모건,
+                {t("home.jp_text1")}
                 <br />
-                그는 이미 알고 있었습니다.
+                {t("home.jp_text2")}
               </p>
 
               <p className="text-[#D8D8ED] text-center font-noto text-[clamp(13.87px,4.333vw,26px)] font-light leading-[1.68]">
-                더 높이 오르려면
+                {t("home.jp_text3")}
                 <br />
-                &lsquo;운의 흐름&rsquo;을 읽어야 한다는 것을.
+                &lsquo;{t("home.jp_text4")}&rsquo;
               </p>
 
               <div className="w-[5%] min-w-[20px] max-w-[40px] shrink-0">
@@ -494,7 +411,7 @@ function Home() {
                 fullWidth
                 aria-label="100% 리얼 정통 고전 점성술 컨설팅, 진짜미래 보러가기"
               >
-                진짜미래 보러가기
+                {t("home.cta_button")}
               </PrimaryButton>
             </div>
           </div>
@@ -520,7 +437,7 @@ function Home() {
               </div>
               <div className="flex-1">
                 <h3 className="text-sm sm:text-base font-semibold text-yellow-200 mb-2">
-                  {inAppBrowserWarning.appName} 인앱 브라우저 감지
+                  {t("home.inapp_detected", { appName: inAppBrowserWarning.appName })}
                 </h3>
                 <p className="text-xs sm:text-sm text-yellow-100 leading-relaxed mb-3">
                   {inAppBrowserWarning.message}
@@ -529,7 +446,7 @@ function Home() {
                   onClick={() => setInAppBrowserWarning(null)}
                   className="text-xs sm:text-sm text-yellow-300 hover:text-yellow-200 underline"
                 >
-                  닫기
+                  {t("common.close")}
                 </button>
               </div>
             </div>
@@ -544,19 +461,19 @@ function Home() {
             const sharedTitle =
               sharedFortuneType === "consultation"
                 ? profileName
-                  ? `${profileName}님의 진짜 미래예요`
-                  : "진짜 미래예요"
+                  ? `${profileName}${t("home.shared_fortune_consultation")}`
+                  : t("home.true_future_label")
                 : sharedFortuneType === "daily"
                   ? profileName
-                    ? `${profileName}님의 진짜 오늘이에요`
-                    : "진짜 오늘이에요"
+                    ? `${profileName}${t("home.shared_fortune_daily")}`
+                    : t("home.true_today_label")
                   : sharedFortuneType === "lifetime"
                     ? profileName
-                      ? `${profileName}님의 진짜 인생이에요`
-                      : "진짜 인생이에요"
+                      ? `${profileName}${t("home.shared_fortune_lifetime")}`
+                      : t("home.true_life_label")
                     : profileName
-                      ? `${profileName}님의 운세`
-                      : "공유된 운세";
+                      ? `${profileName}${t("home.shared_fortune_default")}`
+                      : t("home.shared_fortune_fallback");
 
             return (
               <div className="mb-6 sm:mb-8">
@@ -570,7 +487,7 @@ function Home() {
                 {!user && (
                   <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
                     <p className="text-center text-slate-300 mb-4 text-base">
-                      나도 내 운세를 확인하고 싶다면?
+                      {t("home.shared_fortune_cta")}
                     </p>
                     <SocialLoginButtons />
                   </div>
@@ -607,12 +524,12 @@ function Home() {
                 />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                환영합니다!
+                {t("home.welcome_title")}
               </h2>
               <p className="text-slate-300">
-                운세를 확인하기 위해
-                <br />
-                생년월일시간을 입력해 주세요
+                {t("home.welcome_subtitle").split("\n").map((line, i, arr) => (
+                  <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+                ))}
               </p>
             </div>
             <button
@@ -626,7 +543,7 @@ function Home() {
                   "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
               }}
             >
-              프로필 등록하기
+              {t("home.register_profile")}
             </button>
             <button
               type="button"
@@ -637,7 +554,7 @@ function Home() {
               }}
               className="w-full mt-3 py-2 px-4 text-slate-300 hover:text-white text-sm transition-colors"
             >
-              나중에 하기
+              {t("home.do_it_later")}
             </button>
           </div>
         </div>

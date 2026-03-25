@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { colors } from "../constants/colors";
 
 function Footer() {
+  const { t } = useTranslation();
+
   return (
     <footer
       className="mt-auto py-6 sm:py-8 pb-24 sm:pb-28 border-t border-white/10"
@@ -13,12 +16,12 @@ function Footer() {
           className="text-left mb-6 text-sm space-y-1"
           style={{ color: colors.subText }}
         >
-          <p className="font-semibold">주피터</p>
-          <p>대표 전명희</p>
-          <p>서울시 관악구 인헌 16길 9-202 (08800)</p>
-          <p>사업자등록번호 344-30-02017</p>
-          <p>통신판매번호 2026-서울관악-0149</p>
-          <p>0507-1348-1257</p>
+          <p className="font-semibold">{t("footer.company")}</p>
+          <p>{t("footer.ceo")}</p>
+          <p>{t("footer.address")}</p>
+          <p>{t("footer.business_number")}</p>
+          <p>{t("footer.mail_order_number")}</p>
+          <p>{t("footer.phone")}</p>
           <p>
             <a
               href="mailto:jupiteradrie@gmail.com"
@@ -38,27 +41,27 @@ function Footer() {
             to="/faq"
             className="hover:text-white transition-colors duration-200 underline"
           >
-            자주 묻는 질문
+            {t("footer.faq")}
           </Link>
           <span className="hidden sm:inline text-slate-600">|</span>
           <Link
             to="/privacy-policy"
             className="hover:text-white transition-colors duration-200 underline"
           >
-            개인정보처리방침
+            {t("footer.privacy")}
           </Link>
           <span className="hidden sm:inline text-slate-600">|</span>
           <Link
             to="/terms"
             className="hover:text-white transition-colors duration-200 underline"
           >
-            이용약관
+            {t("footer.terms")}
           </Link>
         </div>
 
         {/* 저작권 */}
         <p className="text-center text-xs" style={{ color: colors.subText }}>
-          © 2026 주피터. All rights reserved.
+          {t("footer.copyright")}
         </p>
       </div>
     </footer>

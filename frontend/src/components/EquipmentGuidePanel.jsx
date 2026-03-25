@@ -1,27 +1,28 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { colors } from "../constants/colors";
 
-// 기존 상점 페이지와 동일한 아이콘
-const GUIDE_ITEMS = [
-  {
-    id: "telescope",
-    name: "망원경",
-    description: "진짜미래, 진짜궁합 열람권",
-  },
-  {
-    id: "compass",
-    name: "나침반",
-    description: "오늘의 운세 열람권",
-  },
-  {
-    id: "probe",
-    name: "탐사선",
-    description: "종합 운세 열람권",
-  },
-];
-
 export default function EquipmentGuidePanel() {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(true);
+
+  const GUIDE_ITEMS = [
+    {
+      id: "telescope",
+      name: t("equipment_guide.telescope_name"),
+      description: t("equipment_guide.telescope_desc"),
+    },
+    {
+      id: "compass",
+      name: t("equipment_guide.compass_name"),
+      description: t("equipment_guide.compass_desc"),
+    },
+    {
+      id: "probe",
+      name: t("equipment_guide.probe_name"),
+      description: t("equipment_guide.probe_desc"),
+    },
+  ];
 
   return (
     <div className="mb-6 rounded-xl border border-slate-600/80 bg-slate-800/20 backdrop-blur-sm">
@@ -32,10 +33,10 @@ export default function EquipmentGuidePanel() {
         aria-expanded={isOpen}
       >
         <span className="text-xs text-white min-[380px]:text-sm">
-          장비 사용 가이드
+          {t("equipment_guide.title")}
         </span>
         <span className="text-slate-500 text-sm tabular-nums">
-          {isOpen ? "접기 ▲" : "펼치기 ▼"}
+          {isOpen ? t("equipment_guide.collapse") : t("equipment_guide.expand")}
         </span>
       </button>
 

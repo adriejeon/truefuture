@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import PrimaryButton from "./PrimaryButton";
 
 /**
@@ -20,22 +21,21 @@ function StarModal({
   currentBalance: currentBalanceProp = 0,
   onConfirm,
   fortuneType = "운세",
-  // 하위 호환: required/current 로 넘어온 경우
   required,
   current,
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const requiredAmount = Number(requiredAmountProp ?? required ?? 0);
   const currentBalance = Number(currentBalanceProp ?? current ?? 0);
 
-  // fortuneType에 따라 장비 이름 결정
   const equipmentName =
     fortuneType === "오늘 운세"
-      ? "나침반"
+      ? t("equipment_guide.compass_name")
       : fortuneType === "종합 운세"
-        ? "탐사선"
-        : "망원경";
+        ? t("equipment_guide.probe_name")
+        : t("equipment_guide.telescope_name");
 
   if (!isOpen) return null;
 
@@ -57,7 +57,6 @@ function StarModal({
     onClose();
   };
 
-  // Confirm 타입: 운세권 차감 확인
   if (type === "confirm") {
     return (
       <div
@@ -65,47 +64,36 @@ function StarModal({
         onClick={handleBackdropClick}
       >
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full px-4 py-6 border border-slate-700 animate-[scale-in_0.2s_ease-out]">
-          {/* 헤더 */}
           <div className="text-left mb-6">
             <h2 className="text-2xl font-bold text-white mb-2">
-              {equipmentName}을 사용하시겠습니까?
+              {t("star_modal.confirm_title", { equipment: equipmentName })}
             </h2>
             <p className="text-slate-300 text-sm">
-              {fortuneType}를 확인하려면 {equipmentName}이 필요합니다
+              {t("star_modal.confirm_subtitle", { fortuneType, equipment: equipmentName })}
             </p>
           </div>
 
-          {/* 정보 */}
           <div className="bg-slate-900/50 rounded-xl p-4 mb-6 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 text-sm">필요한 {equipmentName}</span>
-              <span className="text-white font-semibold text-lg">
-                {requiredAmount}개
-              </span>
+              <span className="text-slate-400 text-sm">{t("star_modal.required", { equipment: equipmentName })}</span>
+              <span className="text-white font-semibold text-lg">{requiredAmount}{t("common.count_unit")}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 text-sm">
-                보유 중인 {equipmentName}
-              </span>
-              <span className="text-white font-semibold text-lg">
-                {currentBalance}개
-              </span>
+              <span className="text-slate-400 text-sm">{t("star_modal.current", { equipment: equipmentName })}</span>
+              <span className="text-white font-semibold text-lg">{currentBalance}{t("common.count_unit")}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400 text-sm">사용 후 {equipmentName}</span>
-              <span className="text-white font-semibold text-lg">
-                {currentBalance - requiredAmount}개
-              </span>
+              <span className="text-slate-400 text-sm">{t("star_modal.after", { equipment: equipmentName })}</span>
+              <span className="text-white font-semibold text-lg">{currentBalance - requiredAmount}{t("common.count_unit")}</span>
             </div>
           </div>
 
-          {/* 버튼 */}
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-semibold transition-all duration-200"
             >
-              취소
+              {t("common.cancel")}
             </button>
             <PrimaryButton
               variant="gold"
@@ -114,7 +102,7 @@ function StarModal({
               className="flex-1"
               data-testid="star-modal-confirm"
             >
-              사용
+              {t("star_modal.use_btn")}
             </PrimaryButton>
           </div>
         </div>
@@ -122,48 +110,42 @@ function StarModal({
     );
   }
 
-  // Alert 타입: 잔액 부족
   return (
     <div
       className="fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] p-4 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
       <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full px-4 py-6 border border-red-500/30 animate-[scale-in_0.2s_ease-out]">
-        {/* 헤더 */}
         <div className="text-left mb-6">
-          <h2 className="text-2xl font-bold text-white mb-2">{equipmentName}이 부족합니다</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {t("star_modal.alert_title", { equipment: equipmentName })}
+          </h2>
           <p className="text-slate-300 text-sm">
-            {fortuneType}를 보려면 {equipmentName}을 구매해주세요
+            {t("star_modal.alert_subtitle", { fortuneType, equipment: equipmentName })}
           </p>
         </div>
 
-        {/* 정보 */}
         <div className="bg-slate-900/50 rounded-xl p-4 mb-6 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-slate-400 text-sm">필요한 {equipmentName}</span>
-            <span className="text-white font-semibold text-lg">{requiredAmount}개</span>
+            <span className="text-slate-400 text-sm">{t("star_modal.required", { equipment: equipmentName })}</span>
+            <span className="text-white font-semibold text-lg">{requiredAmount}{t("common.count_unit")}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-slate-400 text-sm">
-              현재 보유 {equipmentName}
-            </span>
-            <span className="text-red-400 font-semibold text-lg">{currentBalance}개</span>
+            <span className="text-slate-400 text-sm">{t("star_modal.current_alert", { equipment: equipmentName })}</span>
+            <span className="text-red-400 font-semibold text-lg">{currentBalance}{t("common.count_unit")}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-slate-400 text-sm">부족한 {equipmentName}</span>
-            <span className="text-red-400 font-semibold text-lg">
-              {requiredAmount - currentBalance}개
-            </span>
+            <span className="text-slate-400 text-sm">{t("star_modal.shortage", { equipment: equipmentName })}</span>
+            <span className="text-red-400 font-semibold text-lg">{requiredAmount - currentBalance}{t("common.count_unit")}</span>
           </div>
         </div>
 
-        {/* 버튼 */}
         <div className="flex gap-3">
           <button
             onClick={onClose}
             className="flex-1 py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-semibold transition-all duration-200"
           >
-            취소
+            {t("common.cancel")}
           </button>
           <PrimaryButton
             variant="gold"
@@ -171,7 +153,7 @@ function StarModal({
             onClick={handleCharge}
             className="flex-1"
           >
-            구매
+            {t("star_modal.buy_btn")}
           </PrimaryButton>
         </div>
       </div>

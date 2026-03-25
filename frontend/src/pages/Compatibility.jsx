@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
@@ -30,6 +31,7 @@ import {
 } from "../utils/profileModalStorage";
 
 function Compatibility() {
+  const { t } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const {
     profiles,
@@ -66,7 +68,7 @@ function Compatibility() {
   const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
     useState(getProfileModalDismissed);
   const [restoring, setRestoring] = useState(false);
-  const [relationshipType, setRelationshipType] = useState("연인"); // 관계 유형
+  const [relationshipType, setRelationshipType] = useState("romantic"); // 관계 유형
   const [showStarModal, setShowStarModal] = useState(false);
   const [starModalData, setStarModalData] = useState({
     type: "confirm",
@@ -79,14 +81,14 @@ function Compatibility() {
   const compatibilityShareSummary = useMemo(() => {
     if (synastryResult?.overallScore == null) return null;
     const score = Number(synastryResult.overallScore);
-    const name1 = profile1?.name || "첫 번째 사람";
-    const name2 = profile2?.name || "두 번째 사람";
-    let phrase = "서로 이해하려는 노력이 필요해요!";
-    if (score >= 80) phrase = "크게 거슬리는 게 없는 관계에요!";
-    else if (score >= 60) phrase = "잘 맞는 편이에요!";
-    else if (score >= 40) phrase = "서로 맞춰 나가면 좋아요!";
-    return `${name1}님과 ${name2}님의 궁합 점수 ${score}점! ${phrase}`;
-  }, [synastryResult, profile1?.name, profile2?.name]);
+    const name1 = profile1?.name || t("compatibility.person1_label");
+    const name2 = profile2?.name || t("compatibility.person2_label");
+    let phrase = t("compatibility.score_phrase_try");
+    if (score >= 80) phrase = t("compatibility.score_phrase_great");
+    else if (score >= 60) phrase = t("compatibility.score_phrase_good");
+    else if (score >= 40) phrase = t("compatibility.score_phrase_okay");
+    return `${name1} & ${name2} — ${score}pts! ${phrase}`;
+  }, [synastryResult, profile1?.name, profile2?.name, t]);
 
   const COMPAT_PROFILE2_KEY = "compatibility_profile2_id";
 
@@ -302,17 +304,17 @@ function Compatibility() {
 
     // 두 프로필이 선택되었는지 확인
     if (!profile1) {
-      setError("첫 번째 프로필을 선택해주세요.");
+      setError(t("compatibility.error_profile1"));
       return;
     }
 
     if (!profile2) {
-      setError("두 번째 프로필을 선택해주세요.");
+      setError(t("compatibility.error_profile2"));
       return;
     }
 
     if (profile1.id === profile2.id) {
-      setError("서로 다른 프로필을 선택해주세요.");
+      setError(t("compatibility.error_same_profile"));
       return;
     }
 
@@ -321,7 +323,7 @@ function Compatibility() {
     const user2 = convertProfileToApiFormat(profile2);
 
     if (!user1 || !user2) {
-      setError("프로필 정보가 올바르지 않습니다.");
+      setError(t("compatibility.error_profile_invalid"));
       return;
     }
 
@@ -345,7 +347,7 @@ function Compatibility() {
       });
       setShowStarModal(true);
     } catch (err) {
-      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+      setError(err?.message || t("compatibility.error_balance"));
     }
   };
 
@@ -355,7 +357,7 @@ function Compatibility() {
     const user1 = convertProfileToApiFormat(profile1);
     const user2 = convertProfileToApiFormat(profile2);
     if (!user1 || !user2) {
-      setError("프로필 정보가 올바르지 않습니다.");
+      setError(t("compatibility.error_profile_invalid"));
       return;
     }
 
@@ -413,18 +415,18 @@ function Compatibility() {
           if (text) {
             setInterpretation(text);
           } else {
-            setInterpretation("결과를 불러올 수 없습니다.");
+            setInterpretation(t("compatibility.no_result"));
           }
         },
         onError: async (err) => {
-          setError(err?.message || "요청 중 오류가 발생했습니다.");
+          setError(err?.message || t("compatibility.error_request"));
           setLoading(false);
           setProcessStatus("idle");
-          alert("운세 생성에 실패했습니다. 소모된 운세권은 서버에서 자동으로 복구됩니다.");
+          alert(t("compatibility.error_generate"));
         },
       });
     } catch (err) {
-      setError(err.message || "요청 중 오류가 발생했습니다.");
+      setError(err.message || t("compatibility.error_request"));
       setLoading(false);
       setProcessStatus("idle");
     }
@@ -441,7 +443,7 @@ function Compatibility() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
             <p className="text-slate-400 text-sm sm:text-base">
-              공유된 운세를 불러오는 중...
+              {t("compatibility.loading_shared")}
             </p>
           </div>
         </div>
@@ -458,7 +460,7 @@ function Compatibility() {
             style={{ position: "relative", zIndex: 1 }}
           >
             <FortuneResult
-              title="관계의 화학작용 분석"
+              title={t("compatibility.shared_title")}
               interpretation={interpretation}
               shareId={shareId}
               isShared={true}
@@ -468,7 +470,7 @@ function Compatibility() {
             {!user && (
               <div className="mt-6 bg-slate-800/50 backdrop-blur-sm rounded-lg p-4 sm:p-6 shadow-xl border border-slate-700">
                 <p className="text-center text-slate-300 mb-4 text-base">
-                  나도 내 궁합을 확인하고 싶다면?
+                  {t("compatibility.shared_cta")}
                 </p>
                 <SocialLoginButtons />
               </div>
@@ -488,7 +490,7 @@ function Compatibility() {
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}
-        description="진짜 궁합은 로그인 후 이용하실 수 있습니다."
+        description={t("compatibility.login_desc")}
       />
       <div
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
@@ -497,7 +499,7 @@ function Compatibility() {
         {/* 페이지 소개 - 진짜 궁합 (Synastry) */}
         <div className="mb-6 sm:mb-8">
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-            단순히 관계가 좋고 나쁨을 따지는 것이 아닙니다. 각자 선호하는 부분과 거슬리고 불편하게 여기는 부분을 상대가 가지고 있는지 면밀히 판단하여 '이 사람에게 얼마나 끌리는지', '이 사람의 어떤 부분 떄문에 거슬리는지' 판단합니다. 이를 통해 둘의 인연 깊이를 알 수 있습니다.  
+            {t("compatibility.intro")}
           </p>
         </div>
 
@@ -506,7 +508,7 @@ function Compatibility() {
           {/* 첫 번째 프로필 선택 */}
           <div>
             <h3 className="font-semibold text-white mb-3 text-lg">
-              💙 첫 번째 사람
+              {t("compatibility.person1_label")}
             </h3>
             <ProfileSelector
               profiles={profiles}
@@ -538,7 +540,7 @@ function Compatibility() {
           {/* 두 번째 프로필 선택 */}
           <div>
             <h3 className="font-semibold text-white mb-3 text-lg">
-              💗 두 번째 사람
+              {t("compatibility.person2_label")}
             </h3>
             <ProfileSelector
               profiles={profiles}
@@ -560,16 +562,16 @@ function Compatibility() {
         {/* 관계 유형 선택 */}
         <div className="mb-6 sm:mb-8">
           <h3 className="font-semibold text-white mb-3 text-lg">
-            🤝 어떤 관계인가요?
+            {t("compatibility.relationship_type_label")}
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             {[
-              { value: "연인", label: "연인" },
-              { value: "친구", label: "친구" },
-              { value: "가족", label: "가족" },
-              { value: "직장 동료", label: "직장 동료" },
-              { value: "동업자", label: "동업자" },
-              { value: "기타", label: "기타" },
+              { value: "romantic", label: t("compatibility.rel_lover") },
+              { value: "friend", label: t("compatibility.rel_friend") },
+              { value: "family", label: t("compatibility.rel_family") },
+              { value: "coworker", label: t("compatibility.rel_coworker") },
+              { value: "partner", label: t("compatibility.rel_partner") },
+              { value: "other", label: t("compatibility.rel_other") },
             ].map((type) => (
               <button
                 key={type.value}
@@ -603,13 +605,13 @@ function Compatibility() {
                 "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
             }}
           >
-            <span>진짜궁합 확인</span>
+            <span>{t("compatibility.submit_btn")}</span>
           </button>
           <Link
             to="/faq"
             className="block mt-3 text-center text-sm text-slate-400 hover:text-white transition-colors duration-200"
           >
-            궁금한 점이 있으신가요?
+            {t("compatibility.faq_link")}
           </Link>
         </form>
 
@@ -636,7 +638,7 @@ function Compatibility() {
         )}
         {restoring && !interpretation && (
           <div className="mb-6 py-8 text-center text-slate-400 text-sm">
-            이전 결과 불러오는 중...
+            {t("compatibility.restoring")}
           </div>
         )}
         {!restoring && (processStatus === "done" || processStatus === "streaming" || interpretation) && (
@@ -645,7 +647,7 @@ function Compatibility() {
             className="transition-colors duration-300 rounded-xl"
           >
             <FortuneResult
-              title="진짜 궁합"
+              title={t("compatibility.result_title")}
               interpretation={interpretation || streamingInterpretation}
               shareId={shareId}
               shareSummary={compatibilityShareSummary}
@@ -694,12 +696,12 @@ function Compatibility() {
                 />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                환영합니다!
+                {t("compatibility.welcome_title")}
               </h2>
               <p className="text-slate-300">
-                궁합을 확인하기 위해
-                <br />
-                최소 2개의 프로필이 필요합니다
+                {t("compatibility.welcome_subtitle").split("\n").map((line, i) => (
+                  <span key={i}>{line}{i === 0 && <br />}</span>
+                ))}
               </p>
             </div>
             <button
@@ -716,7 +718,7 @@ function Compatibility() {
                   "linear-gradient(to right, #6148EB 0%, #6148EB 40%, #FF5252 70%, #F56265 100%)",
               }}
             >
-              프로필 등록하기
+              {t("compatibility.register_profile")}
             </button>
             <button
               type="button"
@@ -727,7 +729,7 @@ function Compatibility() {
               }}
               className="w-full mt-3 py-2 px-4 text-slate-300 hover:text-white text-sm transition-colors"
             >
-              나중에 하기
+              {t("compatibility.do_it_later")}
             </button>
           </div>
         </div>

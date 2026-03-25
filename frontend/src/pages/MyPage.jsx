@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
@@ -8,6 +10,7 @@ import BottomNavigation from "../components/BottomNavigation";
 import Toast from "../components/Toast";
 
 function MyPage() {
+  const { t } = useTranslation();
   const { user, logout, loadingAuth } = useAuth();
   const { stars } = useStars();
   const navigate = useNavigate();
@@ -16,7 +19,6 @@ function MyPage() {
   const [deleteAgreeChecked, setDeleteAgreeChecked] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 추천: 나의 코드, 추천인 정보, 토스트
   const [myReferralCode, setMyReferralCode] = useState(null);
   const [myReferral, setMyReferral] = useState(null);
   const [referralLoading, setReferralLoading] = useState(true);
@@ -24,9 +26,10 @@ function MyPage() {
   const [referrerCodeInput, setReferrerCodeInput] = useState("");
   const [isRegisteringReferral, setIsRegisteringReferral] = useState(false);
 
+  const currentLang = i18n.language?.startsWith("ko") ? "ko" : "en";
+
   const hasReferrer = myReferral?.referral_code != null && myReferral.referral_code !== "";
 
-  // 추천 코드·추천인 정보 조회
   useEffect(() => {
     if (!user?.id || !supabase) return;
     let cancelled = false;
@@ -52,18 +55,18 @@ function MyPage() {
   const handleCopyMyCode = () => {
     if (!myReferralCode) return;
     navigator.clipboard.writeText(myReferralCode).then(
-      () => setToastMessage("코드가 복사되었습니다"),
-      () => setToastMessage("복사에 실패했습니다.")
+      () => setToastMessage(t("mypage.referral_copy_success")),
+      () => setToastMessage(t("mypage.referral_copy_fail"))
     );
   };
 
   const handleKakaoShareReferral = () => {
     if (!window.Kakao?.isInitialized()) {
-      setToastMessage("카카오톡 공유 기능을 사용할 수 없습니다.");
+      setToastMessage(t("mypage.referral_kakao_unavailable"));
       return;
     }
     if (!myReferralCode) {
-      setToastMessage("추천 코드를 불러오는 중입니다.");
+      setToastMessage(t("mypage.referral_loading"));
       return;
     }
     const shareUrl = `${window.location.origin}/login?ref=${encodeURIComponent(myReferralCode)}`;
@@ -93,7 +96,7 @@ function MyPage() {
       window.Kakao.Share.sendDefault(kakaoShareConfig);
     } catch (err) {
       console.error("카카오톡 공유 실패:", err);
-      setToastMessage("카카오톡 공유 중 오류가 발생했습니다.");
+      setToastMessage(t("mypage.referral_kakao_error"));
     }
   };
 
@@ -111,18 +114,17 @@ function MyPage() {
       if (result.success) {
         setMyReferral({ referral_code: code });
         setReferrerCodeInput("");
-        setToastMessage("추천인 코드가 등록되었습니다.");
+        setToastMessage(t("mypage.referral_registered"));
       } else {
-        setToastMessage(result.message || "등록에 실패했습니다.");
+        setToastMessage(result.message || t("mypage.referral_register_fail"));
       }
     } catch (err) {
-      setToastMessage(err?.message || "등록 중 오류가 발생했습니다.");
+      setToastMessage(err?.message || t("mypage.referral_register_error"));
     } finally {
       setIsRegisteringReferral(false);
     }
   };
 
-  // 로그인하지 않은 경우 로그인 페이지로 리다이렉트 (로딩 완료 후에만, 마이페이지에 있을 때만)
   useEffect(() => {
     if (!loadingAuth && !user && location.pathname === "/mypage") {
       navigate("/login", { replace: true });
@@ -143,7 +145,7 @@ function MyPage() {
   const menuItems = [
     {
       id: "usage",
-      title: "사용내역",
+      title: t("mypage.menu_usage"),
       onClick: handleUsageHistory,
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,7 +155,7 @@ function MyPage() {
     },
     {
       id: "contact",
-      title: "문의하기",
+      title: t("mypage.menu_contact"),
       onClick: (e) => {
         e?.preventDefault();
         e?.stopPropagation();
@@ -167,7 +169,7 @@ function MyPage() {
     },
     {
       id: "refund",
-      title: "환불 문의",
+      title: t("mypage.menu_refund"),
       onClick: (e) => {
         e?.preventDefault();
         e?.stopPropagation();
@@ -181,7 +183,7 @@ function MyPage() {
     },
     {
       id: "logout",
-      title: "로그아웃",
+      title: t("mypage.menu_logout"),
       onClick: handleLogout,
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +193,7 @@ function MyPage() {
     },
     {
       id: "delete",
-      title: "회원탈퇴",
+      title: t("mypage.menu_delete"),
       onClick: () => setShowDeleteModal(true),
       danger: true,
       icon: (
@@ -217,18 +219,17 @@ function MyPage() {
       }
 
       if (!data?.success) {
-        throw new Error(data?.error || "회원 탈퇴 처리 중 오류가 발생했습니다.");
+        throw new Error(data?.error || t("mypage.delete_error"));
       }
 
-      alert("회원 탈퇴가 완료되었습니다.");
-      // 이미 삭제된 유저 토큰으로 signOut 시 403 발생할 수 있음 → 에러 무시
+      alert(t("mypage.delete_success"));
       await supabase.auth.signOut().catch(() => {});
       localStorage.clear();
       sessionStorage.clear();
       window.location.href = "/";
     } catch (err) {
       console.error("회원 탈퇴 오류:", err);
-      alert(err.message || "회원 탈퇴 처리 중 오류가 발생했습니다.");
+      alert(err.message || t("mypage.delete_error"));
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);
@@ -236,19 +237,17 @@ function MyPage() {
     }
   }
 
-  // 로딩 중이거나 로그인하지 않은 경우 로딩 화면 표시
   if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-slate-400 text-sm">로딩 중...</p>
+          <p className="text-slate-400 text-sm">{t("common.loading")}</p>
         </div>
       </div>
     );
   }
 
-  // 로그인하지 않은 경우 아무것도 렌더링하지 않음 (useEffect에서 리다이렉트 처리)
   if (!user) {
     return null;
   }
@@ -258,25 +257,27 @@ function MyPage() {
       <div className="max-w-md mx-auto">
         {/* 헤더 */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white mb-2">마이페이지</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">{t("mypage.title")}</h1>
           <p className="text-slate-300 text-sm">
-            {user?.user_metadata?.full_name || user?.email || "사용자"}님의 정보
+            {t("mypage.user_info", {
+              name: user?.user_metadata?.full_name || user?.email || "사용자",
+            })}
           </p>
         </div>
 
         {/* 보유 운세권 카드 */}
         <div className="p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl shadow-xl mb-6">
           <div className="text-center">
-            <p className="text-slate-300 text-sm mb-3">보유 운세권</p>
+            <p className="text-slate-300 text-sm mb-3">{t("mypage.stars_owned")}</p>
             <div className="flex items-center justify-center gap-2 mb-4">
               <span className="text-3xl font-bold text-white">
                 {stars.total.toLocaleString()}
               </span>
             </div>
             <div className="flex gap-4 justify-center text-xs text-slate-400 mb-4 flex-wrap">
-              <span>망원경: {stars.paid}개</span>
-              <span>나침반: {stars.bonus}개</span>
-              <span>탐사선: {stars.probe}대</span>
+              <span>{t("mypage.telescope")}: {stars.paid}개</span>
+              <span>{t("mypage.compass")}: {stars.bonus}개</span>
+              <span>{t("mypage.probe")}: {stars.probe}대</span>
             </div>
             <PrimaryButton
               type="button"
@@ -284,15 +285,44 @@ function MyPage() {
               fullWidth
               onClick={() => navigate("/purchase")}
             >
-              운세권 구매하기
+              {t("mypage.buy_stars")}
             </PrimaryButton>
+          </div>
+        </div>
+
+        {/* 언어 설정 카드 */}
+        <div className="p-6 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 mb-6">
+          <p className="text-slate-300 text-sm mb-3">{t("mypage.language_settings")}</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage("ko")}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 border ${
+                currentLang === "ko"
+                  ? "bg-primary text-black border-primary"
+                  : "bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+              }`}
+            >
+              {t("mypage.language_korean")}
+            </button>
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage("en")}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 border ${
+                currentLang === "en"
+                  ? "bg-primary text-black border-primary"
+                  : "bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+              }`}
+            >
+              {t("mypage.language_english")}
+            </button>
           </div>
         </div>
 
         {/* 나의 추천 코드 */}
         {!referralLoading && (
           <div className="p-6 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 mb-6">
-            <p className="text-slate-300 text-sm mb-3">나의 추천 코드</p>
+            <p className="text-slate-300 text-sm mb-3">{t("mypage.my_referral_code")}</p>
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0 font-mono text-lg font-semibold text-white bg-slate-900/50 rounded-lg px-3 py-2 truncate">
                 {myReferralCode ?? "—"}
@@ -302,32 +332,32 @@ function MyPage() {
                 onClick={handleCopyMyCode}
                 disabled={!myReferralCode}
                 className="shrink-0 p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors disabled:opacity-50"
-                title="복사"
+                title={t("common.copy")}
               >
-                <img src="/assets/copy.svg" alt="복사" className="w-5 h-5" />
+                <img src="/assets/copy.svg" alt={t("common.copy")} className="w-5 h-5" />
               </button>
               <button
                 type="button"
                 onClick={handleKakaoShareReferral}
                 disabled={!myReferralCode}
                 className="shrink-0 p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors disabled:opacity-50"
-                title="카카오톡 공유하기"
+                title={t("common.share")}
               >
-                <img src="/assets/share.svg" alt="공유" className="w-5 h-5" />
+                <img src="/assets/share.svg" alt={t("common.share")} className="w-5 h-5" />
               </button>
             </div>
             <div className="mt-4 p-4 sm:p-5 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30">
               <p className="text-amber-200 font-medium text-center text-sm sm:text-base">
-                내 추천으로 들어온 친구가 첫 결제를 하면 망원경 1개가 무료로 지급됩니다.
+                {t("mypage.referral_benefit")}
               </p>
             </div>
           </div>
         )}
 
-        {/* 추천인 코드 (친구의 코드) */}
+        {/* 추천인 코드 */}
         {!referralLoading && (
           <div className="p-6 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700 mb-6">
-            <p className="text-slate-300 text-sm mb-3">추천인 코드</p>
+            <p className="text-slate-300 text-sm mb-3">{t("mypage.referral_code_label")}</p>
             {hasReferrer ? (
               <input
                 type="text"
@@ -335,7 +365,7 @@ function MyPage() {
                 disabled
                 value={myReferral.referral_code}
                 className="w-full font-mono text-base text-slate-400 bg-slate-900/70 rounded-lg px-3 py-2.5 border border-slate-600 cursor-not-allowed"
-                aria-label="등록된 추천인 코드"
+                aria-label={t("mypage.referral_code_label")}
               />
             ) : (
               <div className="flex items-center gap-2">
@@ -343,9 +373,9 @@ function MyPage() {
                   type="text"
                   value={referrerCodeInput}
                   onChange={(e) => setReferrerCodeInput(e.target.value)}
-                  placeholder="친구의 추천 코드 입력"
+                  placeholder={t("mypage.referral_friend_placeholder")}
                   className="flex-1 min-w-0 font-mono text-base text-white bg-slate-900/50 rounded-lg px-3 py-2.5 border border-slate-600 placeholder-slate-500 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30"
-                  aria-label="추천인 코드 입력"
+                  aria-label={t("mypage.referral_code_label")}
                 />
                 <button
                   type="button"
@@ -353,7 +383,7 @@ function MyPage() {
                   disabled={isRegisteringReferral || !referrerCodeInput?.trim()}
                   className="shrink-0 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-black font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isRegisteringReferral ? "등록 중..." : "등록"}
+                  {isRegisteringReferral ? t("common.registering") : t("common.register")}
                 </button>
               </div>
             )}
@@ -408,28 +438,36 @@ function MyPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-white mb-4">
-              정말 진짜미래를 떠나시겠습니까?
+              {t("mypage.delete_confirm_title")}
             </h2>
             <ul className="text-slate-300 text-sm mb-4 space-y-2 leading-relaxed list-disc list-inside">
-              <li>
-                사주 및 운세 조회 기록, 보유 중인 쿠폰(망원경/나침반)은 즉시 삭제되며 복구할 수 없습니다.
-              </li>
-              <li>
-                단, 신규 가입 혜택 악용을 막기 위해 암호화된 가입 식별값은 1년간 안전하게 보관 후 파기됩니다.
-              </li>
+              <li>{t("mypage.delete_warn1")}</li>
+              <li>{t("mypage.delete_warn2")}</li>
             </ul>
             <p className="text-slate-300 text-sm mb-4">
-              👉 자세한 내용은{" "}
-              <a
-                href="/privacy-policy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-amber-400 hover:text-amber-300 underline font-medium"
-                onClick={(e) => e.stopPropagation()}
-              >
-                개인정보 처리방침
-              </a>
-              을 확인해 주세요.
+              👉 {t("mypage.delete_privacy_link") === "개인정보 처리방침"
+                ? <>자세한 내용은{" "}
+                    <a
+                      href="/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-400 hover:text-amber-300 underline font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {t("mypage.delete_privacy_link")}
+                    </a>
+                    을 확인해 주세요.</>
+                : <>For full details, please review our{" "}
+                    <a
+                      href="/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-400 hover:text-amber-300 underline font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {t("mypage.delete_privacy_link")}
+                    </a>.</>
+              }
             </p>
             <label className="flex items-start gap-3 cursor-pointer mb-5 group">
               <input
@@ -439,7 +477,7 @@ function MyPage() {
                 className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-900 text-red-500 focus:ring-red-500/50"
               />
               <span className="text-slate-300 text-sm select-none group-hover:text-slate-200">
-                안내 사항을 모두 확인했으며, 탈퇴에 동의합니다.
+                {t("mypage.delete_agree_label")}
               </span>
             </label>
             <div className="flex gap-3">
@@ -451,14 +489,14 @@ function MyPage() {
                 disabled={isDeleting}
                 className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
               >
-                취소
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={isDeleting || !deleteAgreeChecked}
                 className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isDeleting ? "처리 중..." : "탈퇴하기"}
+                {isDeleting ? t("mypage.deleting") : t("mypage.delete_btn")}
               </button>
             </div>
           </div>

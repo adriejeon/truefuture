@@ -1,11 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { colors } from "../constants/colors";
 
 function BottomNavigation({ activeTab }) {
+  const { t } = useTranslation();
   const location = useLocation();
 
-  // 현재 경로에 따라 activeTab 결정 (하단 3개: 진짜미래, 진짜궁합, 진짜운세)
-  // 메인 페이지(/)는 하단 네비게이션에 속하지 않으므로 선택 상태 없음
   const currentTab =
     location.pathname === "/"
       ? null
@@ -16,11 +16,12 @@ function BottomNavigation({ activeTab }) {
       : location.pathname.includes("/yearly")
       ? "yearly"
       : activeTab;
+
   const tabs = [
     {
       id: "consultation",
       path: "/consultation",
-      label: "진짜미래",
+      labelKey: "bottom_nav.consultation",
       icon: (
         <svg
           className="w-6 h-6"
@@ -40,7 +41,7 @@ function BottomNavigation({ activeTab }) {
     {
       id: "compatibility",
       path: "/compatibility",
-      label: "진짜궁합",
+      labelKey: "bottom_nav.compatibility",
       icon: (
         <svg
           className="w-6 h-6"
@@ -60,7 +61,7 @@ function BottomNavigation({ activeTab }) {
     {
       id: "yearly",
       path: "/yearly",
-      label: "진짜운세",
+      labelKey: "bottom_nav.yearly",
       icon: (
         <svg
           className="w-6 h-6"
@@ -110,7 +111,7 @@ function BottomNavigation({ activeTab }) {
               >
                 <div className="mb-1">{tab.icon}</div>
                 <span className="text-xs sm:text-sm font-medium text-center">
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </span>
               </Link>
             );
