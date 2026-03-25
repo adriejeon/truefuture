@@ -24,6 +24,12 @@ i18n
     },
     fallbackLng: 'en',
     supportedLngs: ['ko', 'en'],
+    // navigator(브라우저 언어)만 사용, localStorage 캐시 없음
+    // → 디바이스 언어가 ko면 한국어, 나머지는 영어
+    detection: {
+      order: ['navigator'],
+      caches: [],
+    },
     interpolation: {
       escapeValue: false,
     },
