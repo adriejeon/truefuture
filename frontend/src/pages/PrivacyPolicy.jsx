@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useTranslation } from "react-i18next";
+import { fetchTermsContent } from "../services/termsService";
 
 function PrivacyPolicy() {
+  const { i18n } = useTranslation();
   const [privacyContent, setPrivacyContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -55,33 +57,12 @@ function PrivacyPolicy() {
 
   useEffect(() => {
     const fetchPrivacy = async () => {
-      if (!supabase) {
-        setError("Supabase 클라이언트가 초기화되지 않았습니다.");
-        setLoading(false);
-        return;
-      }
-
+      setLoading(true);
+      setError(null);
+      setOpenSections(new Set());
       try {
-        // 가장 최신 버전의 개인정보처리방침 가져오기
-        const { data, error: fetchError } = await supabase
-          .from("terms_definitions")
-          .select("*")
-          .eq("type", "privacy")
-          .lte("effective_at", new Date().toISOString())
-          .order("version", { ascending: false })
-          .order("effective_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        if (fetchError) {
-          throw fetchError;
-        }
-
-        if (data) {
-          setPrivacyContent(data.content);
-        } else {
-          setError("개인정보처리방침 데이터를 찾을 수 없습니다.");
-        }
+        const data = await fetchTermsContent("privacy", i18n.language);
+        setPrivacyContent(data.content);
       } catch (err) {
         console.error("개인정보처리방침 조회 오류:", err);
         setError("개인정보처리방침을 불러오는 중 오류가 발생했습니다.");
@@ -91,7 +72,7 @@ function PrivacyPolicy() {
     };
 
     fetchPrivacy();
-  }, []);
+  }, [i18n.language]);
 
   const toggleSection = (index) => {
     setOpenSections((prev) => {
