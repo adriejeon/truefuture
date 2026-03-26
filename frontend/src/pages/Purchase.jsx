@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -45,6 +45,8 @@ function Purchase() {
   const [error, setError] = useState(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState(null);
+  const [paypalReady, setPaypalReady] = useState(false);
+  const paypalUIRef = useRef(null);
 
   const handlePackageClick = (pkg) => {
     if (!user) {
@@ -55,75 +57,13 @@ function Purchase() {
 
     setSelectedPackage(pkg);
     setShowOrderModal(true);
+    setPaypalReady(false);
     setError(null);
   };
 
-  const handleConfirmPurchase = async () => {
-    if (!selectedPackage) return;
-
-    setLoading(true);
-    setError(null);
-
+  // 결제 성공 후 공통 처리 로직
+  const handlePaymentSuccess = useCallback(async (merchantUid, paymentAmount, trackCurrency, pkg, paymentId) => {
     try {
-      const merchantUid = `order_${Date.now()}_${user.id.slice(0, 8)}`;
-
-      // 언어에 따라 결제 수단 분기: 영문 → PayPal(USD), 한국어 → KG이니시스(KRW)
-      const paymentAmount = isEnglish ? selectedPackage.priceUsd : selectedPackage.price;
-      const paymentCurrency = isEnglish ? "CURRENCY_USD" : "CURRENCY_KRW";
-      const channelKey = isEnglish
-        ? import.meta.env.VITE_PORTONE_PAYPAL_CHANNEL_KEY
-        : import.meta.env.VITE_PORTONE_CHANNEL_KEY;
-      const payMethod = isEnglish ? "PAYPAL" : "CARD";
-      const trackCurrency = isEnglish ? "USD" : "KRW";
-
-      const redirectBase = `${window.location.origin}/payment/complete`;
-      // 모바일 리다이렉트 시 package_id를 URL 파라미터로 전달 (PaymentComplete에서 활용)
-      const redirectUrl = `${redirectBase}?merchant_uid=${encodeURIComponent(merchantUid)}&package_id=${encodeURIComponent(selectedPackage.id)}`;
-      try {
-        sessionStorage.setItem("payment_merchant_uid", merchantUid);
-        sessionStorage.setItem(
-          "payment_checkout_items",
-          JSON.stringify({
-            merchantUid,
-            id: selectedPackage.id,
-            name: selectedPackage.name,
-            price: paymentAmount,
-            currency: trackCurrency,
-            iconType: selectedPackage.iconType,
-          })
-        );
-      } catch (_) {}
-
-      const response = await PortOne.requestPayment({
-        storeId: import.meta.env.VITE_PORTONE_STORE_ID,
-        channelKey,
-        paymentId: merchantUid,
-        orderName: isEnglish
-          ? `${selectedPackage.nameEn} Package`
-          : `${selectedPackage.nameKo} (${selectedPackage.nameEn}) 패키지`,
-        // PortOne은 소수점 불허 → USD는 센트(cents) 단위 정수로 변환 ($2.99 → 299)
-        totalAmount: isEnglish ? Math.round(paymentAmount * 100) : paymentAmount,
-        currency: paymentCurrency,
-        payMethod,
-        // PayPal: email만 지원 (customerId·fullName·phoneNumber 비지원)
-        // KG이니시스: 전체 필드 전달
-        customer: isEnglish
-          ? {
-              email: prepareBuyerEmail(user),
-            }
-          : {
-              customerId: user.id,
-              fullName: "우주탐험가",
-              phoneNumber: "010-0000-0000",
-              email: prepareBuyerEmail(user),
-            },
-        redirectUrl: redirectUrl,
-      });
-
-      if (response?.code != null) {
-        throw new Error(response.message || t("purchase.payment_failed"));
-      }
-
       const { data, error: purchaseError } = await supabase.functions.invoke(
         "purchase-stars",
         {
@@ -131,9 +71,9 @@ function Purchase() {
             user_id: user.id,
             amount: paymentAmount,
             merchant_uid: merchantUid,
-            imp_uid: response?.paymentId || merchantUid,
+            imp_uid: paymentId || merchantUid,
             currency: trackCurrency,
-            package_id: selectedPackage.id,
+            package_id: pkg.id,
           },
         },
       );
@@ -145,10 +85,7 @@ function Purchase() {
       }
 
       setShowOrderModal(false);
-      const totalBought =
-        (selectedPackage.paid ?? 0) +
-        (selectedPackage.bonus ?? 0) +
-        (selectedPackage.probe ?? 0);
+      const totalBought = (pkg.paid ?? 0) + (pkg.bonus ?? 0) + (pkg.probe ?? 0);
       const newTotal =
         (data.data.new_balance?.paid_stars ?? 0) +
         (data.data.new_balance?.bonus_stars ?? 0) +
@@ -156,7 +93,6 @@ function Purchase() {
       alert(t("purchase.purchase_success", { count: totalBought, balance: newTotal }));
       await refetchStars();
 
-      const itemCategory = selectedPackage.iconType;
       setTimeout(() => {
         trackPurchase({
           transaction_id: merchantUid,
@@ -164,23 +100,142 @@ function Purchase() {
           currency: trackCurrency,
           items: [
             {
-              item_id: selectedPackage.id,
-              item_name: selectedPackage.name,
+              item_id: pkg.id,
+              item_name: pkg.name,
               price: paymentAmount,
               quantity: 1,
-              item_category: itemCategory,
+              item_category: pkg.iconType,
             },
           ],
         });
-        try {
-          sessionStorage.removeItem("payment_checkout_items");
-        } catch (_) {}
+        try { sessionStorage.removeItem("payment_checkout_items"); } catch (_) {}
       }, 0);
+    } catch (err) {
+      console.error("결제 처리 오류:", err);
+      setError(err.message || t("purchase.payment_error"));
+      setShowOrderModal(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, t, refetchStars]);
+
+  // ── PayPal: 모달이 열릴 때 loadPaymentUI로 SPB 버튼 렌더링 ──
+  useEffect(() => {
+    if (!isEnglish || !showOrderModal || !selectedPackage || !user) return;
+
+    const pkg = selectedPackage;
+    const paymentAmount = pkg.priceUsd;
+    const merchantUid = `order_${Date.now()}_${user.id.slice(0, 8)}`;
+
+    try {
+      sessionStorage.setItem("payment_merchant_uid", merchantUid);
+      sessionStorage.setItem(
+        "payment_checkout_items",
+        JSON.stringify({
+          merchantUid,
+          id: pkg.id,
+          name: pkg.name,
+          price: paymentAmount,
+          currency: "USD",
+          iconType: pkg.iconType,
+        })
+      );
+    } catch (_) {}
+
+    // DOM이 렌더링된 후 loadPaymentUI 호출
+    const timer = setTimeout(() => {
+      const container = document.querySelector(".portone-ui-container");
+      if (!container) return;
+
+      const requestData = {
+        uiType: "PAYPAL_SPB",
+        storeId: import.meta.env.VITE_PORTONE_STORE_ID,
+        channelKey: import.meta.env.VITE_PORTONE_PAYPAL_CHANNEL_KEY,
+        paymentId: merchantUid,
+        orderName: `${pkg.nameEn} Package`,
+        totalAmount: Math.round(paymentAmount * 100),
+        currency: "CURRENCY_USD",
+      };
+
+      paypalUIRef.current = PortOne.loadPaymentUI(requestData, {
+        onPaymentSuccess: async (response) => {
+          setLoading(true);
+          await handlePaymentSuccess(merchantUid, paymentAmount, "USD", pkg, response?.paymentId || merchantUid);
+        },
+        onPaymentFail: (err) => {
+          console.error("PayPal 결제 실패:", err);
+          setError(err?.message || t("purchase.payment_failed"));
+          setShowOrderModal(false);
+        },
+      });
+
+      setPaypalReady(true);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      // 모달 닫힐 때 PayPal UI 정리
+      if (paypalUIRef.current?.destroy) {
+        paypalUIRef.current.destroy();
+        paypalUIRef.current = null;
+      }
+    };
+  }, [isEnglish, showOrderModal, selectedPackage, user, handlePaymentSuccess, t]);
+
+  // ── KG이니시스: 기존 requestPayment 플로우 ──
+  const handleConfirmPurchase = async () => {
+    if (!selectedPackage || isEnglish) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const merchantUid = `order_${Date.now()}_${user.id.slice(0, 8)}`;
+      const paymentAmount = selectedPackage.price;
+
+      const redirectBase = `${window.location.origin}/payment/complete`;
+      const redirectUrl = `${redirectBase}?merchant_uid=${encodeURIComponent(merchantUid)}&package_id=${encodeURIComponent(selectedPackage.id)}`;
+      try {
+        sessionStorage.setItem("payment_merchant_uid", merchantUid);
+        sessionStorage.setItem(
+          "payment_checkout_items",
+          JSON.stringify({
+            merchantUid,
+            id: selectedPackage.id,
+            name: selectedPackage.name,
+            price: paymentAmount,
+            currency: "KRW",
+            iconType: selectedPackage.iconType,
+          })
+        );
+      } catch (_) {}
+
+      const response = await PortOne.requestPayment({
+        storeId: import.meta.env.VITE_PORTONE_STORE_ID,
+        channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
+        paymentId: merchantUid,
+        orderName: `${selectedPackage.nameKo} (${selectedPackage.nameEn}) 패키지`,
+        totalAmount: paymentAmount,
+        currency: "CURRENCY_KRW",
+        payMethod: "CARD",
+        customer: {
+          customerId: user.id,
+          fullName: "우주탐험가",
+          phoneNumber: "010-0000-0000",
+          email: prepareBuyerEmail(user),
+        },
+        redirectUrl: redirectUrl,
+      });
+
+      if (response?.code != null) {
+        throw new Error(response.message || t("purchase.payment_failed"));
+      }
+
+      await handlePaymentSuccess(merchantUid, paymentAmount, "KRW", selectedPackage, response?.paymentId || merchantUid);
     } catch (err) {
       console.error("결제 오류:", err);
       setError(err.message || t("purchase.payment_error"));
       setShowOrderModal(false);
-    } finally {
       setLoading(false);
     }
   };
@@ -312,10 +367,18 @@ function Purchase() {
 
       <OrderCheckModal
         isOpen={showOrderModal}
-        onClose={() => setShowOrderModal(false)}
+        onClose={() => {
+          setShowOrderModal(false);
+          if (paypalUIRef.current?.destroy) {
+            paypalUIRef.current.destroy();
+            paypalUIRef.current = null;
+          }
+        }}
         packageInfo={selectedPackage}
         onConfirm={handleConfirmPurchase}
         loading={loading}
+        isPaypal={isEnglish}
+        paypalReady={paypalReady}
       />
       {user && <BottomNavigation />}
     </div>

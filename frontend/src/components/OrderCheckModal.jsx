@@ -12,9 +12,11 @@ import { TelescopeIcon, CompassIcon, ProbeIcon } from "./EquipmentIcons";
  * @param {function} props.onConfirm - 결제 진행 콜백
  * @param {boolean} props.loading - 로딩 상태
  * @param {boolean} props.isLifetimeFortune - 종합 운세 여부
+ * @param {boolean} props.isPaypal - PayPal 결제 모드 여부
+ * @param {boolean} props.paypalReady - PayPal 버튼 로딩 완료 여부
  */
-function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = false, isLifetimeFortune = false }) {
-  const { t } = useTranslation();
+function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = false, isLifetimeFortune = false, isPaypal = false, paypalReady = false }) {
+  const { t, i18n } = useTranslation();
   const [agreed, setAgreed] = useState(false);
 
   if (!isOpen) return null;
@@ -111,8 +113,9 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-300">{t("order_modal.final_price")}</h3>
               <span className="text-xl font-bold text-white">
-                {displayInfo.price.toLocaleString()}
-                <span className="text-slate-400 text-sm ml-1">{t("common.unit_won")}</span>
+                {isPaypal
+                  ? `$${displayInfo.priceUsd ?? displayInfo.price}`
+                  : `${displayInfo.price.toLocaleString()}${t("common.unit_won")}`}
               </span>
             </div>
 
@@ -163,23 +166,55 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
 
         {/* 하단 버튼 */}
         <div className="flex-shrink-0 border-t border-slate-700 px-4 py-4 bg-slate-900/80 backdrop-blur-sm">
-          <div className="max-w-lg mx-auto flex gap-3">
-            <button
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {t("common.cancel")}
-            </button>
-            <PrimaryButton
-              variant="gold"
-              fullWidth
-              onClick={handleConfirm}
-              disabled={!agreed || loading}
-              className="flex-1"
-            >
-              {loading ? t("order_modal.processing") : t("order_modal.pay_btn")}
-            </PrimaryButton>
+          <div className="max-w-lg mx-auto">
+            {isPaypal ? (
+              <div className="space-y-3">
+                {/* PayPal SPB 버튼 렌더 컨테이너 — PortOne SDK가 여기에 버튼을 주입 */}
+                <div
+                  className="portone-ui-container"
+                  style={{ minHeight: 45, display: agreed ? "block" : "none" }}
+                />
+                {!agreed && (
+                  <p className="text-center text-slate-400 text-sm">
+                    {t("order_modal.terms_required_hint", { defaultValue: i18n.language === "en" ? "Please agree to the terms above to proceed." : "위 약관에 동의하시면 결제 버튼이 표시됩니다." })}
+                  </p>
+                )}
+                {agreed && !paypalReady && (
+                  <div className="flex items-center justify-center py-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent mr-2" />
+                    <span className="text-slate-400 text-sm">
+                      {i18n.language === "en" ? "Loading PayPal..." : "PayPal 로딩 중..."}
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={onClose}
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {t("common.cancel")}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  onClick={onClose}
+                  disabled={loading}
+                  className="flex-1 py-3 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {t("common.cancel")}
+                </button>
+                <PrimaryButton
+                  variant="gold"
+                  fullWidth
+                  onClick={handleConfirm}
+                  disabled={!agreed || loading}
+                  className="flex-1"
+                >
+                  {loading ? t("order_modal.processing") : t("order_modal.pay_btn")}
+                </PrimaryButton>
+              </div>
+            )}
           </div>
         </div>
       </div>
