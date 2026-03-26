@@ -105,13 +105,18 @@ function Purchase() {
         totalAmount: isEnglish ? Math.round(paymentAmount * 100) : paymentAmount,
         currency: paymentCurrency,
         payMethod,
-        customer: {
-          customerId: user.id,
-          fullName: isEnglish ? "Explorer" : "우주탐험가",
-          // PayPal은 phoneNumber 파라미터 미지원 → 영문일 때 제외
-          ...(isEnglish ? {} : { phoneNumber: "010-0000-0000" }),
-          email: prepareBuyerEmail(user),
-        },
+        // PayPal: email만 지원 (customerId·fullName·phoneNumber 비지원)
+        // KG이니시스: 전체 필드 전달
+        customer: isEnglish
+          ? {
+              email: prepareBuyerEmail(user),
+            }
+          : {
+              customerId: user.id,
+              fullName: "우주탐험가",
+              phoneNumber: "010-0000-0000",
+              email: prepareBuyerEmail(user),
+            },
         redirectUrl: redirectUrl,
       });
 
