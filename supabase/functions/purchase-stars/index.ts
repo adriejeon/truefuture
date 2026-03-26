@@ -77,9 +77,18 @@ serve(async (req) => {
       );
     }
 
+    // [보안] JWT에서 인증된 user_id 추출 — body.user_id를 무조건 신뢰하지 않음
+    const authHeader = req.headers.get("Authorization");
+    let authenticatedUserId: string | null = null;
+    if (authHeader) {
+      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey);
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user: jwtUser } } = await supabaseAuth.auth.getUser(token);
+      authenticatedUserId = jwtUser?.id ?? null;
+    }
+
     const body = await req.json().catch(() => ({}));
     let { imp_uid, merchant_uid, amount, user_id, currency, package_id } = body;
-    // currency 정규화: "KRW" / "USD" 기준 (프론트에서 trackCurrency 값으로 전달)
     currency = (currency || "KRW").toUpperCase();
 
     if (!user_id || typeof user_id !== "string" || user_id.trim() === "") {
@@ -93,8 +102,21 @@ serve(async (req) => {
       );
     }
 
-    // amount가 없는 경우 (모바일 리다이렉트 등) PortOne V2 API로 결제 정보 조회
-    if (!amount || typeof amount !== "number" || amount <= 0) {
+    // [보안] JWT user_id와 body.user_id 불일치 시 거부
+    if (authenticatedUserId && authenticatedUserId !== user_id) {
+      console.error(`❌ user_id 불일치: JWT=${authenticatedUserId}, body=${user_id}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "인증된 사용자 정보가 일치하지 않습니다." }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // [보안] 항상 PortOne V2 API로 실제 결제 금액을 검증
+    // (프론트에서 보낸 amount를 신뢰하지 않고 서버 사이드 검증)
+    {
       const portoneApiSecret = Deno.env.get("PORTONE_API_SECRET");
 
       if (!portoneApiSecret) {
@@ -111,7 +133,6 @@ serve(async (req) => {
         );
       }
 
-      // 1. imp_uid(또는 txId)가 없어도 merchant_uid가 있으면 진행 허용
       if (!imp_uid && !merchant_uid) {
         console.error("❌ imp_uid와 merchant_uid 모두 없음");
         return new Response(
@@ -126,7 +147,6 @@ serve(async (req) => {
         );
       }
 
-      // imp_uid(txId) 형식: imp_ 접두사, order_ 접두사(PortOne V2 paymentId), 또는 UUID 허용
       const isUuid = (id: string) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       if (
@@ -149,11 +169,8 @@ serve(async (req) => {
       }
 
       try {
-        // 2. PortOne V2 API로 결제 정보 조회 (txId 우선, 없으면 merchant_uid는 V2에서 직접 조회 불가이므로 에러)
-        const paymentId = imp_uid || merchant_uid;
-
-        // V2 API: 결제 정보 조회 (Authorization: PortOne {API_SECRET})
-        const paymentEndpoint = `https://api.portone.io/payments/${encodeURIComponent(paymentId)}`;
+        const verifyPaymentId = imp_uid || merchant_uid;
+        const paymentEndpoint = `https://api.portone.io/payments/${encodeURIComponent(verifyPaymentId)}`;
 
         const paymentResponse = await fetch(paymentEndpoint, {
           method: "GET",
@@ -170,7 +187,6 @@ serve(async (req) => {
 
         const payment = await paymentResponse.json();
 
-        // 결제 상태 확인 (V2: status가 "PAID"이어야 함)
         if (payment.status !== "PAID") {
           console.error(`결제 미완료 상태: ${payment.status}`);
           return new Response(
@@ -185,30 +201,35 @@ serve(async (req) => {
           );
         }
 
-        // V2에서 imp_uid가 없었다면 응답의 id를 사용
         if (!imp_uid && payment.id) {
           imp_uid = payment.id;
         }
 
-        // 결제 금액 추출 (V2: amount.total)
-        amount = payment.amount?.total;
+        // [보안] PortOne API 응답의 실제 결제 금액을 사용 (프론트 전송값 무시)
+        const verifiedAmount = payment.amount?.total;
 
-        if (!amount || amount <= 0) {
+        if (!verifiedAmount || verifiedAmount <= 0) {
           console.error("유효하지 않은 금액:", payment.amount);
           throw new Error("유효한 결제 금액을 찾을 수 없습니다.");
         }
 
-        // PortOne V2 API 응답에서 통화 확인 (KRW / USD)
-        const apiCurrency = (payment.amount?.currency || "KRW").toUpperCase();
-        if (apiCurrency !== currency) {
-          // API 응답 통화를 우선 신뢰
-          currency = apiCurrency;
+        // PortOne API 응답 통화를 최종 기준으로 사용
+        currency = (payment.amount?.currency || currency).toUpperCase();
+
+        // USD는 센트 단위로 반환되므로 달러로 역변환
+        if (currency === "USD" && Number.isInteger(verifiedAmount) && verifiedAmount >= 100) {
+          amount = verifiedAmount / 100;
+        } else {
+          amount = verifiedAmount;
         }
 
-        // USD는 PortOne V2 API가 센트(cents) 단위로 반환하므로 달러로 역변환
-        // (프론트에서 $2.99 → 299센트로 전송 → API 응답도 299 → 2.99로 환원)
-        if (currency === "USD" && Number.isInteger(amount) && amount >= 100) {
-          amount = amount / 100;
+        // [보안] 프론트에서 보낸 amount와 실제 결제 금액이 다르면 경고 로그
+        const clientAmount = body.amount;
+        if (clientAmount && typeof clientAmount === "number" && clientAmount > 0) {
+          const expectedAmount = currency === "USD" ? clientAmount : clientAmount;
+          if (Math.abs(amount - expectedAmount) > 0.01) {
+            console.warn(`⚠️ 금액 불일치 감지: 클라이언트=${clientAmount}, 실제=${amount} (${currency})`);
+          }
         }
       } catch (error) {
         console.error("❌ PortOne V2 API 조회 실패:", error);
@@ -226,7 +247,6 @@ serve(async (req) => {
           }
         );
       }
-    } else {
     }
 
     // Admin 클라이언트 생성 (Service Role Key로 RLS 우회)

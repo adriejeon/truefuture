@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
@@ -50,14 +51,15 @@ function sendPurchaseEventFromStorage() {
 }
 
 function PaymentComplete() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { refetchStars } = useStars();
-  const [status, setStatus] = useState("processing"); // processing, success, error
-  const [message, setMessage] = useState("결제 결과를 확인하는 중입니다...");
-  const [sessionLoading, setSessionLoading] = useState(true); // 세션 로딩 상태
-  const isProcessing = useRef(false); // 중복 호출 방지
+  const [status, setStatus] = useState("processing");
+  const [message, setMessage] = useState("");
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const isProcessing = useRef(false);
 
   // 1. 세션 로딩 보장: getSession을 직접 호출하여 세션 복구 대기
   useEffect(() => {
@@ -418,13 +420,12 @@ function PaymentComplete() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 border border-slate-700 text-center">
-          {/* 로딩 상태 */}
           {status === "processing" && (
             <div className="space-y-6">
               <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mx-auto"></div>
               <div>
                 <h2 className="text-2xl font-bold text-white mb-2">
-                  결제 처리중
+                  {t("payment_complete.processing_title", { defaultValue: "결제 처리중" })}
                 </h2>
                 <p className="text-slate-300 text-sm whitespace-pre-line">
                   {message}
@@ -433,31 +434,29 @@ function PaymentComplete() {
             </div>
           )}
 
-          {/* 성공 상태 */}
           {status === "success" && (
             <div className="space-y-6">
               <div className="text-6xl">✅</div>
               <div>
                 <h2 className="text-2xl font-bold text-green-400 mb-2">
-                  결제 완료
+                  {t("payment_complete.success_title", { defaultValue: "결제 완료" })}
                 </h2>
                 <p className="text-slate-300 text-sm whitespace-pre-line">
                   {message}
                 </p>
                 <p className="text-slate-400 text-xs mt-4">
-                  잠시 후 자동으로 이동합니다...
+                  {t("payment_complete.redirecting", { defaultValue: "잠시 후 자동으로 이동합니다..." })}
                 </p>
               </div>
             </div>
           )}
 
-          {/* 오류 상태 */}
           {status === "error" && (
             <div className="space-y-6">
               <div className="text-6xl">❌</div>
               <div>
                 <h2 className="text-2xl font-bold text-red-400 mb-2">
-                  결제 실패
+                  {t("payment_complete.error_title", { defaultValue: "결제 실패" })}
                 </h2>
                 <p className="text-slate-300 text-sm whitespace-pre-line">
                   {message}
@@ -467,7 +466,7 @@ function PaymentComplete() {
                 onClick={() => navigate("/purchase", { replace: true })}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
               >
-                구매 페이지로 돌아가기
+                {t("payment_complete.back_to_purchase", { defaultValue: "구매 페이지로 돌아가기" })}
               </button>
             </div>
           )}

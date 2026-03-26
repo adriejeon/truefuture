@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import PrimaryButton from "./PrimaryButton";
-import { TelescopeIcon, CompassIcon, ProbeIcon } from "./EquipmentIcons";
 
 /**
  * 주문 확인 모달 (PG사 심사 기준 충족)
@@ -52,22 +51,6 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
       : packageInfo.paid > 0 && packageInfo.bonus > 0
         ? `${packageInfo.name} ${t("order_modal.bonus_suffix", { count: packageInfo.bonus })}`
         : packageInfo.name;
-
-  const renderIcon = () => {
-    if (isLifetimeFortune) {
-      return <span className="text-3xl">{displayInfo.icon}</span>;
-    }
-    if (packageInfo.iconType === "telescope") {
-      return <TelescopeIcon className="w-8 h-8 text-white" />;
-    }
-    if (packageInfo.iconType === "probe") {
-      return <ProbeIcon className="w-8 h-8 text-white" />;
-    }
-    if (packageInfo.iconType === "compass") {
-      return <CompassIcon className="w-8 h-8 text-white" />;
-    }
-    return <span className="text-3xl">{displayInfo.icon}</span>;
-  };
 
   return (
     <div className="fixed inset-0 z-[10000] bg-gradient-to-b from-slate-900 to-slate-800">
