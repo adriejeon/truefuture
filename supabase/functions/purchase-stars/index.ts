@@ -204,6 +204,12 @@ serve(async (req) => {
           // API 응답 통화를 우선 신뢰
           currency = apiCurrency;
         }
+
+        // USD는 PortOne V2 API가 센트(cents) 단위로 반환하므로 달러로 역변환
+        // (프론트에서 $2.99 → 299센트로 전송 → API 응답도 299 → 2.99로 환원)
+        if (currency === "USD" && Number.isInteger(amount) && amount >= 100) {
+          amount = amount / 100;
+        }
       } catch (error) {
         console.error("❌ PortOne V2 API 조회 실패:", error);
         console.error("에러 상세:", error instanceof Error ? error.stack : error);

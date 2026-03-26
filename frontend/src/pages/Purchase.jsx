@@ -101,7 +101,8 @@ function Purchase() {
         orderName: isEnglish
           ? `${selectedPackage.nameEn} Package`
           : `${selectedPackage.nameKo} (${selectedPackage.nameEn}) 패키지`,
-        totalAmount: paymentAmount,
+        // PortOne은 소수점 불허 → USD는 센트(cents) 단위 정수로 변환 ($2.99 → 299)
+        totalAmount: isEnglish ? Math.round(paymentAmount * 100) : paymentAmount,
         currency: paymentCurrency,
         payMethod,
         customer: {
