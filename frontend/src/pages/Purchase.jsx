@@ -108,7 +108,8 @@ function Purchase() {
         customer: {
           customerId: user.id,
           fullName: isEnglish ? "Explorer" : "우주탐험가",
-          phoneNumber: "010-0000-0000",
+          // PayPal은 phoneNumber 파라미터 미지원 → 영문일 때 제외
+          ...(isEnglish ? {} : { phoneNumber: "010-0000-0000" }),
           email: prepareBuyerEmail(user),
         },
         redirectUrl: redirectUrl,
