@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "./useAuth";
-import { saveFortuneHistory as saveFortuneHistoryToDb } from "../services/fortuneService";
+import { saveFortuneHistory as saveFortuneHistoryToDb, getLocalTodayDate } from "../services/fortuneService";
 
 export function useProfiles() {
   const { user } = useAuth();
@@ -230,15 +230,7 @@ export function useProfiles() {
 
         if (historyError) throw historyError;
 
-        const getTodayDateKst = () => {
-          const now = new Date();
-          const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-          const year = kst.getUTCFullYear();
-          const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
-          const day = String(kst.getUTCDate()).padStart(2, "0");
-          return `${year}-${month}-${day}`;
-        };
-        const todayDateKst = getTodayDateKst();
+        const todayDateKst = getLocalTodayDate();
 
         switch (fortuneType) {
           case "lifetime":

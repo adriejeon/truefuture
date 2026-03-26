@@ -99,17 +99,19 @@ function assertValidDate(d: Date, context: string): void {
 
 /**
  * YYYY-MM-DD 형식의 targetDate를 파싱/검증.
- * 값이 없으면 현재 KST 기준 날짜(YYYY-MM-DD)를 반환.
+ * 값이 없으면 클라이언트 로컬 타임존 기준 오늘 날짜(YYYY-MM-DD)를 반환.
+ * @param timezoneOffset - JS getTimezoneOffset() 값(분). KST = -540, EST = +300
  */
-function resolveTargetDateYmdKst(input: unknown): string {
-  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+function resolveTargetDateYmd(input: unknown, timezoneOffset: number): string {
+  // local = UTC - timezoneOffset * 60000
+  // (timezoneOffset은 UTC-local 분 단위이므로, UTC에서 빼면 로컬이 됨)
+  const localOffsetMs = timezoneOffset * 60 * 1000;
 
   const toYmd = (d: Date): string => {
-    // KST 날짜를 얻기 위해 UTC에 +9h 쉬프트 후 UTC getters 사용
-    const kst = new Date(d.getTime() + KST_OFFSET_MS);
-    const y = kst.getUTCFullYear();
-    const m = kst.getUTCMonth() + 1;
-    const day = kst.getUTCDate();
+    const local = new Date(d.getTime() - localOffsetMs);
+    const y = local.getUTCFullYear();
+    const m = local.getUTCMonth() + 1;
+    const day = local.getUTCDate();
     return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   };
 
@@ -139,13 +141,19 @@ function resolveTargetDateYmdKst(input: unknown): string {
 }
 
 /**
- * targetDate(YYYY-MM-DD, KST)를 기준으로 06:00/18:00 KST를 UTC Date로 변환해 반환.
+ * targetDate(YYYY-MM-DD, 로컬 날짜)를 기준으로
+ * 클라이언트 현지 시각 06:00 / 18:00 을 UTC Date로 변환해 반환.
+ * @param timezoneOffset - JS getTimezoneOffset() 값(분). KST = -540, EST = +300
+ *   UTC = Local + timezoneOffset * 60000
  */
-function getDailyTransitDatesUtcFromTargetDateKst(targetDateYmdKst: string): {
+function getDailyTransitDatesUtc(
+  targetDateYmd: string,
+  timezoneOffset: number,
+): {
   amDateUtc: Date;
   pmDateUtc: Date;
 } {
-  const match = targetDateYmdKst.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const match = targetDateYmd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) {
     throw new Error("Invalid targetDate format. Expected YYYY-MM-DD");
   }
@@ -153,10 +161,12 @@ function getDailyTransitDatesUtcFromTargetDateKst(targetDateYmdKst: string): {
   const y = Number(yy);
   const m = Number(mm) - 1;
   const d = Number(dd);
-  // 06:00 KST = 21:00 UTC (전날) → Date.UTC(y,m,d, -3,0,0)과 동일
-  const amDateUtc = new Date(Date.UTC(y, m, d, 6 - 9, 0, 0));
-  // 18:00 KST = 09:00 UTC (당일)
-  const pmDateUtc = new Date(Date.UTC(y, m, d, 18 - 9, 0, 0));
+  // 로컬 06:00 → UTC: 로컬 타임스탬프 + timezoneOffset(ms)
+  // 예: KST(-540분) 06:00 → UTC = 06:00 + (-540min) = 21:00 전날
+  // 예: EST(+300분) 06:00 → UTC = 06:00 + 300min = 11:00 당일
+  const offsetMs = timezoneOffset * 60 * 1000;
+  const amDateUtc = new Date(Date.UTC(y, m, d, 6, 0, 0) + offsetMs);
+  const pmDateUtc = new Date(Date.UTC(y, m, d, 18, 0, 0) + offsetMs);
   return { amDateUtc, pmDateUtc };
 }
 
@@ -1630,10 +1640,24 @@ serve(async (req) => {
     // 요청 본문 파싱
     const requestData = await req.json();
 
-    // DAILY(지정일 운세)용 targetDate 파싱 (없으면 오늘 KST)
+    // language 파라미터 추출 ('ko' 기본값, 'en' 지원)
+    const requestLanguage: string =
+      typeof requestData.language === "string" && requestData.language.toLowerCase().startsWith("en")
+        ? "en"
+        : "ko";
+
+    // 클라이언트 디바이스 타임존 오프셋 (분 단위, JS getTimezoneOffset() 값)
+    // 양수 = UTC 서쪽 (예: EST +300), 음수 = UTC 동쪽 (예: KST -540)
+    // 기본값 -540 (KST 하위 호환)
+    const timezoneOffset: number =
+      typeof (requestData as any).timezoneOffset === "number"
+        ? (requestData as any).timezoneOffset
+        : -540;
+
+    // DAILY(지정일 운세)용 targetDate 파싱 (없으면 클라이언트 로컬 오늘)
     let targetDateYmdKst: string;
     try {
-      targetDateYmdKst = resolveTargetDateYmdKst((requestData as any)?.targetDate);
+      targetDateYmdKst = resolveTargetDateYmd((requestData as any)?.targetDate, timezoneOffset);
     } catch (e: any) {
       return new Response(
         JSON.stringify({
@@ -1645,12 +1669,6 @@ serve(async (req) => {
         },
       );
     }
-
-    // language 파라미터 추출 ('ko' 기본값, 'en' 지원)
-    const requestLanguage: string =
-      typeof requestData.language === "string" && requestData.language.toLowerCase().startsWith("en")
-        ? "en"
-        : "ko";
 
     // reportType을 fortuneType으로 매핑 (하위 호환성 유지)
     let fortuneType: FortuneType;
@@ -1774,7 +1792,12 @@ serve(async (req) => {
         );
       }
 
-      // 생년월일 Date 변환 (KST→UTC)
+      // 생년월일 Date 변환 (출생지 로컬 시각 → UTC)
+      const consultTzOpts = {
+        lat: lat as number,
+        lng: lng as number,
+        timezone: (requestData as { timezone?: string }).timezone,
+      };
       let birthDateTime: Date;
       try {
         const dateMatch = birthDate.match(
@@ -1784,7 +1807,13 @@ serve(async (req) => {
           throw new Error("Invalid date format");
         }
         const [_, year, month, day, hour, minute, second] = dateMatch;
-        const tempUtcTimestamp = Date.UTC(
+        // 출생일 정오를 기준으로 출생지 타임존 오프셋 조회 (DST 안전)
+        const noonApprox = new Date(Date.UTC(
+          parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0,
+        ));
+        const birthCityOffsetHours = await resolveTimezoneOffsetHours(consultTzOpts, noonApprox);
+        // UTC = Local - offsetHours * 3600000
+        const localAsUtcTimestamp = Date.UTC(
           parseInt(year),
           parseInt(month) - 1,
           parseInt(day),
@@ -1792,7 +1821,7 @@ serve(async (req) => {
           parseInt(minute),
           parseInt(second),
         );
-        birthDateTime = new Date(tempUtcTimestamp - 9 * 60 * 60 * 1000);
+        birthDateTime = new Date(localAsUtcTimestamp - birthCityOffsetHours * 60 * 60 * 1000);
         if (isNaN(birthDateTime.getTime()) || !Number.isFinite(birthDateTime.getTime())) {
           throw new Error("Invalid date");
         }
@@ -2543,11 +2572,11 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         );
       }
 
-      // 두 명의 생년월일을 Date 객체로 변환 (KST -> UTC)
+      // 두 명의 생년월일을 Date 객체로 변환 (각자의 출생지 로컬 시각 → UTC)
       let birthDateTime1: Date;
       let birthDateTime2: Date;
       try {
-        // 사용자1: KST를 UTC로 변환 (Date.UTC 사용)
+        // 사용자1: 출생지 타임존 기준 UTC 변환
         const dateMatch1 = user1.birthDate.match(
           /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
         );
@@ -2556,19 +2585,22 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         }
         const [_, year1, month1, day1, hour1, minute1, second1] = dateMatch1;
 
-        // Date.UTC로 타임스탬프 생성 후 9시간 차감
-        const tempUtcTimestamp1 = Date.UTC(
-          parseInt(year1),
-          parseInt(month1) - 1,
-          parseInt(day1),
-          parseInt(hour1),
-          parseInt(minute1),
-          parseInt(second1),
+        const tzOpts1 = {
+          lat: user1.lat as number,
+          lng: user1.lng as number,
+          timezone: (user1 as { timezone?: string }).timezone,
+        };
+        const noonApprox1 = new Date(Date.UTC(
+          parseInt(year1), parseInt(month1) - 1, parseInt(day1), 12, 0, 0,
+        ));
+        const birthCityOffset1 = await resolveTimezoneOffsetHours(tzOpts1, noonApprox1);
+        const localAsUtcTimestamp1 = Date.UTC(
+          parseInt(year1), parseInt(month1) - 1, parseInt(day1),
+          parseInt(hour1), parseInt(minute1), parseInt(second1),
         );
-        const kstToUtcTimestamp1 = tempUtcTimestamp1 - 9 * 60 * 60 * 1000;
-        birthDateTime1 = new Date(kstToUtcTimestamp1);
+        birthDateTime1 = new Date(localAsUtcTimestamp1 - birthCityOffset1 * 60 * 60 * 1000);
 
-        // 사용자2: KST를 UTC로 변환 (Date.UTC 사용)
+        // 사용자2: 출생지 타임존 기준 UTC 변환
         const dateMatch2 = user2.birthDate.match(
           /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/,
         );
@@ -2577,17 +2609,20 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         }
         const [__, year2, month2, day2, hour2, minute2, second2] = dateMatch2;
 
-        // Date.UTC로 타임스탬프 생성 후 9시간 차감
-        const tempUtcTimestamp2 = Date.UTC(
-          parseInt(year2),
-          parseInt(month2) - 1,
-          parseInt(day2),
-          parseInt(hour2),
-          parseInt(minute2),
-          parseInt(second2),
+        const tzOpts2 = {
+          lat: user2.lat as number,
+          lng: user2.lng as number,
+          timezone: (user2 as { timezone?: string }).timezone,
+        };
+        const noonApprox2 = new Date(Date.UTC(
+          parseInt(year2), parseInt(month2) - 1, parseInt(day2), 12, 0, 0,
+        ));
+        const birthCityOffset2 = await resolveTimezoneOffsetHours(tzOpts2, noonApprox2);
+        const localAsUtcTimestamp2 = Date.UTC(
+          parseInt(year2), parseInt(month2) - 1, parseInt(day2),
+          parseInt(hour2), parseInt(minute2), parseInt(second2),
         );
-        const kstToUtcTimestamp2 = tempUtcTimestamp2 - 9 * 60 * 60 * 1000;
-        birthDateTime2 = new Date(kstToUtcTimestamp2);
+        birthDateTime2 = new Date(localAsUtcTimestamp2 - birthCityOffset2 * 60 * 60 * 1000);
 
         if (
           isNaN(birthDateTime1.getTime()) ||
@@ -2866,11 +2901,18 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       );
     }
 
-    // 생년월일을 Date 객체로 변환
+    // 타임존 옵션 (출생지 기준 — DST 역사 반영)
+    const tzOpts = {
+      lat,
+      lng,
+      timezone: (requestData as { timezone?: string }).timezone,
+    };
+
+    // 생년월일을 Date 객체로 변환 (출생지 로컬 시각 → UTC)
     let birthDateTime: Date;
     try {
-      // 사용자 입력을 KST(한국 시간, GMT+9)로 간주하고 UTC로 변환
-      // 예: 1991-10-23T09:20:00 (KST) -> 1991-10-23T00:20:00Z (UTC)
+      // 사용자 입력은 출생지의 현지 시각 (예: 뉴욕에서 태어난 경우 EST 기준)
+      // 출생지의 IANA 타임존(tzOpts)으로 정확한 UTC를 계산
 
       // ISO 형식 문자열 파싱: YYYY-MM-DDTHH:mm:ss
       const dateMatch = birthDate.match(
@@ -2882,23 +2924,25 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
       const [_, year, month, day, hour, minute, second] = dateMatch;
 
-      // [핵심 수정] Date.UTC()를 사용하여 로컬 타임존 영향 제거
-      // 1. 입력된 숫자를 일단 "UTC 기준 시간"으로 만듦 (예: UTC 09:20)
-      const tempUtcTimestamp = Date.UTC(
+      // 1. 출생일 정오(noon UTC)를 기준점으로 삼아 그날의 타임존 오프셋 조회
+      //    (DST 경계선에서도 정오는 안전한 기준 — 출생 시각과 오프셋이 달라지는 경우 극히 드묾)
+      const noonApprox = new Date(Date.UTC(
+        parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0,
+      ));
+      const birthCityOffsetHours = await resolveTimezoneOffsetHours(tzOpts, noonApprox);
+
+      // 2. 로컬 시각 숫자를 UTC 기준으로 일시 취급한 뒤 출생지 오프셋 차감
+      //    UTC = Local - offsetHours * 3600000
+      //    (KST +9h: 09:20 - 9h = 00:20Z / EST -5h: 09:20 - (-5h) = 14:20Z)
+      const localAsUtcTimestamp = Date.UTC(
         parseInt(year),
-        parseInt(month) - 1, // JavaScript month는 0-based
+        parseInt(month) - 1,
         parseInt(day),
         parseInt(hour),
         parseInt(minute),
         parseInt(second),
       );
-
-      // 2. 거기서 9시간(KST Offset)을 뺌
-      // 원리: "UTC 09:20" - 9시간 = "UTC 00:20" (이게 바로 KST 09:20과 같은 절대 시간)
-      const kstToUtcTimestamp = tempUtcTimestamp - 9 * 60 * 60 * 1000;
-
-      // 3. 최종 Date 객체 생성
-      birthDateTime = new Date(kstToUtcTimestamp);
+      birthDateTime = new Date(localAsUtcTimestamp - birthCityOffsetHours * 60 * 60 * 1000);
 
       if (isNaN(birthDateTime.getTime()) || !Number.isFinite(birthDateTime.getTime())) {
         throw new Error("Invalid date format");
@@ -2918,13 +2962,6 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     }
 
     assertValidDate(birthDateTime, "Natal");
-
-    // 타임존 옵션 (각 차트 시점별로 오프셋을 따로 구함 — DST 역사 반영)
-    const tzOpts = {
-      lat,
-      lng,
-      timezone: (requestData as { timezone?: string }).timezone,
-    };
 
     // 1단계: Natal 차트 계산 (출생 시점 기준 오프셋)
     const natalTzOffset = await resolveTimezoneOffsetHours(tzOpts, birthDateTime);
@@ -2946,7 +2983,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       );
     }
 
-    // DAILY 운세: 오전 06:00(KST) / 오후 18:00(KST) 기준 트랜짓 차트 (활동 시간 반영, KST→UTC 정확 변환)
+    // DAILY 운세: 클라이언트 현지 시각 06:00 / 18:00 기준 트랜짓 차트
     let transitChartData: ChartData | undefined;
     let transitChartDataAM: ChartData | undefined;
     let transitChartDataPM: ChartData | undefined;
@@ -2957,7 +2994,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     if (fortuneType === FortuneType.DAILY) {
       try {
         const { amDateUtc, pmDateUtc } =
-          getDailyTransitDatesUtcFromTargetDateKst(targetDateYmdKst);
+          getDailyTransitDatesUtc(targetDateYmdKst, timezoneOffset);
         const tzOffsetAM = await resolveTimezoneOffsetHours(tzOpts, amDateUtc);
         const tzOffsetPM = await resolveTimezoneOffsetHours(tzOpts, pmDateUtc);
         transitChartDataAM = await calculateChart(
@@ -3079,9 +3116,9 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
     if (fortuneType === FortuneType.DAILY && transitChartData) {
       try {
-        // DAILY 지정일 운세는 targetDate(KST)의 오후(18:00 KST) 시점을 기준 시각으로 사용
+        // DAILY 지정일 운세는 targetDate 로컬 18:00 시점을 기준 시각으로 사용
         const { pmDateUtc: now } =
-          getDailyTransitDatesUtcFromTargetDateKst(targetDateYmdKst);
+          getDailyTransitDatesUtc(targetDateYmdKst, timezoneOffset);
         const natalAscSign = getSignFromLongitude(
           chartData.houses.angles.ascendant,
         ).sign;

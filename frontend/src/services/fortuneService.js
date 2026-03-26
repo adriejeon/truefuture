@@ -24,21 +24,13 @@ async function fetchFortuneFromEdgeById(resultId) {
 }
 
 /**
- * 한국 시간대 기준 현재 시간 (UTC+9)
+ * 오늘 날짜 YYYY-MM-DD (사용자 디바이스 로컬 타임존 기준)
  */
-function getKoreaTime() {
+export function getLocalTodayDate() {
   const now = new Date();
-  return new Date(now.getTime() + 9 * 60 * 60 * 1000);
-}
-
-/**
- * 오늘 날짜 YYYY-MM-DD (한국 시간대)
- */
-function getTodayDate() {
-  const koreaTime = getKoreaTime();
-  const year = koreaTime.getUTCFullYear();
-  const month = String(koreaTime.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(koreaTime.getUTCDate()).padStart(2, "0");
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -73,7 +65,7 @@ export async function saveFortuneHistory(
       fortune_date:
         fortuneType === "daily" && typeof targetDate === "string" && targetDate
           ? targetDate
-          : getTodayDate(),
+          : getLocalTodayDate(),
       ...(resultId && { result_id: resultId }),
       ...(userQuestion &&
         fortuneType === "consultation" && { user_question: userQuestion }),
@@ -292,7 +284,7 @@ export async function deleteExpiredDailyFortunes(userId) {
   if (!userId) return;
 
   try {
-    const todayDate = getTodayDate();
+    const todayDate = getLocalTodayDate();
     const today = new Date(todayDate);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -429,7 +421,7 @@ export async function restoreFortuneIfExists(
   if (!profileId) return null;
 
   try {
-    const todayDate = getTodayDate();
+    const todayDate = getLocalTodayDate();
 
     // result_id가 있는 기록만 대상 (공통)
     let historyQuery = supabase

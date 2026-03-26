@@ -380,6 +380,7 @@ function Compatibility() {
         cost: FORTUNE_STAR_COSTS.compatibility,
         description: `${FORTUNE_TYPE_NAMES.compatibility} 조회`,
         language: i18n.language?.startsWith("en") ? "en" : "ko",
+        timezoneOffset: new Date().getTimezoneOffset(),
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {

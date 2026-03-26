@@ -94,12 +94,7 @@ function formatBirthDate(birthDate: string): string {
 }
 
 function formatCurrentDate(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return new Date().toISOString().slice(0, 10);
 }
 
 function formatTargetDateToEn(targetDateYmd: string): string {
@@ -385,7 +380,7 @@ ${lordStarConjunctionsText ? "\n" + lordStarConjunctionsText : ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [2. Morning Astrological Flow]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-(${targetDateEn} at 06:00 KST)
+(${targetDateEn} at 06:00 Local Time)
 Time Lord Retrograde: ${flowAM.lordRetrograde ? "Retrograde" : "Direct"}
 Time Lord Transit Aspects (Transit-to-Transit, applying/separating orb filter passed):
 ${formatLordAspects(flowAM.lordAspects)}
@@ -395,7 +390,7 @@ ${formatLordAspects(flowAM.lordAspects)}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [3. Afternoon Astrological Flow]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-(${targetDateEn} at 18:00 KST)
+(${targetDateEn} at 18:00 Local Time)
 Time Lord Retrograde: ${flowPM.lordRetrograde ? "Retrograde" : "Direct"}
 Time Lord Transit Aspects (Transit-to-Transit, applying/separating orb filter passed):
 ${formatLordAspects(flowPM.lordAspects)}

@@ -15,7 +15,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
-import { restoreFortuneIfExists } from "../services/fortuneService";
+import { restoreFortuneIfExists, getLocalTodayDate } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
@@ -91,19 +91,6 @@ function YearlyFortune() {
   });
   const [showLoginRequiredModal, setShowLoginRequiredModal] = useState(false);
 
-  // 데일리 운세용: 한국 시간 기준 오늘 날짜
-  const getKoreaTime = () => {
-    const now = new Date();
-    return new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  };
-  const getTodayDate = () => {
-    const koreaTime = getKoreaTime();
-    const year = koreaTime.getUTCFullYear();
-    const month = String(koreaTime.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(koreaTime.getUTCDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
   const formatDateForLocale = (ymd) => {
     const match = String(ymd || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return t("yearly_fortune.today_fallback");
@@ -117,16 +104,14 @@ function YearlyFortune() {
     return `${month}월 ${day}일`;
   };
   const isWithinDailyFortuneTime = () => {
-    const koreaTime = getKoreaTime();
-    const hour = koreaTime.getUTCHours();
-    const minute = koreaTime.getUTCMinutes();
-    if (hour === 0 && minute < 1) return false;
+    const now = new Date();
+    if (now.getHours() === 0 && now.getMinutes() < 1) return false;
     return true;
   };
   useEffect(() => {
     // 최초 1회: 오늘 날짜로 default 세팅
     if (!dailyTargetDate) {
-      setDailyTargetDate(getTodayDate());
+      setDailyTargetDate(getLocalTodayDate());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -253,7 +238,7 @@ function YearlyFortune() {
       setLoadingCache(true);
       const stored = getDailyFortuneFromStorage(
         selectedProfile.id,
-        dailyTargetDate || getTodayDate()
+        dailyTargetDate || getLocalTodayDate()
       );
       if (stored) {
         setInterpretation(stored.interpretation);
@@ -266,16 +251,16 @@ function YearlyFortune() {
             const restored = await restoreFortuneIfExists(
               selectedProfile.id,
               "daily",
-              dailyTargetDate || getTodayDate()
+              dailyTargetDate || getLocalTodayDate()
             );
             if (restored) {
               setInterpretation(restored.interpretation);
               setFromCache(true);
-              setFortuneDate(dailyTargetDate || getTodayDate());
+              setFortuneDate(dailyTargetDate || getLocalTodayDate());
               setShareId(restored.shareId || null);
               saveDailyFortuneToStorage(
                 selectedProfile.id,
-                dailyTargetDate || getTodayDate(),
+                dailyTargetDate || getLocalTodayDate(),
                 {
                   interpretation: restored.interpretation,
                   chart: restored.chart,
@@ -348,7 +333,7 @@ function YearlyFortune() {
         checkFortuneAvailability(
           selectedProfile.id,
           "daily",
-          dailyTargetDate || getTodayDate()
+          dailyTargetDate || getLocalTodayDate()
         ),
         checkFortuneAvailability(selectedProfile.id, "lifetime"),
       ]);
@@ -386,7 +371,7 @@ function YearlyFortune() {
     const availability = await checkFortuneAvailability(
       selectedProfile.id,
       "daily",
-      dailyTargetDate || getTodayDate()
+      dailyTargetDate || getLocalTodayDate()
     );
     if (!availability.available) {
       setError(availability.reason);
@@ -397,9 +382,9 @@ function YearlyFortune() {
       setError(t("yearly_fortune.error_profile_invalid"));
       return;
     }
-    const targetDate = dailyTargetDate || getTodayDate();
+    const targetDate = dailyTargetDate || getLocalTodayDate();
     // 오늘 날짜를 선택했을 때만 "00:01 이후" 제한 적용 (지정일은 제한 없음)
-    if (targetDate === getTodayDate() && !isWithinDailyFortuneTime()) {
+    if (targetDate === getLocalTodayDate() && !isWithinDailyFortuneTime()) {
       setError(t("yearly_fortune.error_time"));
       return;
     }
@@ -459,7 +444,7 @@ function YearlyFortune() {
     firstChunkReceivedRef.current = false;
 
     try {
-      const targetDate = dailyTargetDate || getTodayDate();
+      const targetDate = dailyTargetDate || getLocalTodayDate();
       const requestBody = {
         ...formData,
         fortuneType: "daily",
@@ -470,6 +455,7 @@ function YearlyFortune() {
         cost: FORTUNE_STAR_COSTS.daily,
         description: `${FORTUNE_TYPE_NAMES.daily} 조회`,
         language: i18n.language?.startsWith("en") ? "en" : "ko",
+        timezoneOffset: new Date().getTimezoneOffset(),
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: (text) => {
@@ -604,6 +590,7 @@ function YearlyFortune() {
         cost: 1,
         description: "종합운세 조회",
         language: i18n.language?.startsWith("en") ? "en" : "ko",
+        timezoneOffset: new Date().getTimezoneOffset(),
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
@@ -645,7 +632,7 @@ function YearlyFortune() {
   const canViewDaily =
     !getDailyFortuneFromStorage(
       selectedProfile?.id,
-      dailyTargetDate || getTodayDate()
+      dailyTargetDate || getLocalTodayDate()
     );
   const canViewLifetime = fortuneAvailability.lifetime === true;
 
@@ -720,7 +707,7 @@ function YearlyFortune() {
   };
   const getResultTitle = () => {
     if (fortuneTab === "daily") {
-      const dateForTitle = dailyTargetDate || fortuneDate || getTodayDate();
+      const dateForTitle = dailyTargetDate || fortuneDate || getLocalTodayDate();
       return formatDateForLocale(dateForTitle);
     }
     return t("yearly_fortune.result_title_lifetime");
@@ -826,7 +813,7 @@ function YearlyFortune() {
               <div className="relative w-full min-w-0 overflow-hidden">
                 <input
                   type="date"
-                  value={dailyTargetDate || getTodayDate()}
+                  value={dailyTargetDate || getLocalTodayDate()}
                   onChange={(e) => {
                     setDailyTargetDate(e.target.value);
                     setError("");
@@ -836,7 +823,7 @@ function YearlyFortune() {
                     setStreamingInterpretation("");
                     setProcessStatus("idle");
                   }}
-                  min={getTodayDate()}
+                  min={getLocalTodayDate()}
                   className="w-full min-w-0 max-w-full box-border rounded-lg border border-slate-700 bg-[#0F0F2B] px-4 py-3 pr-10 text-slate-100 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/40"
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">

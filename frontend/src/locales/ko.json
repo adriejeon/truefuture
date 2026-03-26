@@ -486,6 +486,14 @@
     "preset_health_3": "정신 건강(우울/불안)이 언제쯤 안정될까요?",
     "preset_health_4": "수술이나 치료를 받기 좋은 시기는 언제인가요?"
   },
+  "fortune_form": {
+    "birth_date_label": "생년월일",
+    "birth_time_label": "태어난 시간",
+    "birth_city_label": "태어난 도시",
+    "city_selected": "선택된 도시: {{city}}",
+    "time_error": "태어난 시간을 입력해주세요.",
+    "submit_btn": "진짜미래 확인"
+  },
   "contact": {
     "back": "뒤로",
     "title": "문의하기",

@@ -638,6 +638,7 @@ function Consultation() {
       cost: requiredStars,
       description: `자유 질문: ${userQuestion.trim().slice(0, 50)}...`,
       language: i18n.language?.startsWith("en") ? "en" : "ko",
+      timezoneOffset: new Date().getTimezoneOffset(),
     };
   }, [selectedProfile, selectedTopic, userQuestion, requiredStars, i18n.language]);
 
@@ -911,6 +912,7 @@ function Consultation() {
         cost: requiredStars,
         description: `후속 질문: ${followUpQuestion.trim().slice(0, 50)}...`,
         language: i18n.language?.startsWith("en") ? "en" : "ko",
+        timezoneOffset: new Date().getTimezoneOffset(),
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
@@ -1012,6 +1014,7 @@ function Consultation() {
         cost: requiredStars,
         description: `후속 질문: ${historyFollowUpQuestion.trim().slice(0, 50)}...`,
         language: i18n.language?.startsWith("en") ? "en" : "ko",
+        timezoneOffset: new Date().getTimezoneOffset(),
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {
@@ -1126,6 +1129,7 @@ function Consultation() {
         cost: requiredStars,
         description: `후속 질문: ${sharedFollowUpQuestion.trim().slice(0, 50)}...`,
         language: i18n.language?.startsWith("en") ? "en" : "ko",
+        timezoneOffset: new Date().getTimezoneOffset(),
       };
 
       await invokeGetFortuneStream(supabase, requestBody, {

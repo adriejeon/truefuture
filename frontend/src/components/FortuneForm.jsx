@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import CityAutocompleteComponent from "./CityAutocomplete";
 import PrimaryButton from "./PrimaryButton";
 import DatePicker from "react-datepicker";
@@ -14,6 +15,7 @@ function formatYYYYMMDD(d) {
 }
 
 function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
+  const { t, i18n } = useTranslation();
   const [birthDate, setBirthDate] = useState("");
   const [birthTime, setBirthTime] = useState("");
   const [timeError, setTimeError] = useState("");
@@ -44,7 +46,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
     // 시간 미입력 시 00:00으로 서버에 보내지 않음 (RAMC 등 새벽 시간으로 잘못 계산되는 것 방지)
     const timeToSend = birthTime.trim() || null;
     if (!timeToSend) {
-      setTimeError("태어난 시간을 입력해주세요.");
+      setTimeError(t("fortune_form.time_error"));
       return;
     }
     setTimeError("");
@@ -59,9 +61,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
     });
   };
 
-  const dateFnsLocale = (typeof navigator !== "undefined" && navigator.language?.startsWith("ko"))
-    ? localeKo
-    : enUS;
+  const dateFnsLocale = i18n.language?.startsWith("ko") ? localeKo : enUS;
 
   const selectedBirthDate =
     birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)
@@ -94,7 +94,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
                 htmlFor="birthDate"
                 className="block text-base font-medium text-slate-300 mb-1.5 sm:mb-2"
               >
-                생년월일
+                {t("fortune_form.birth_date_label")}
               </label>
               <DatePicker
                 id="birthDate"
@@ -123,7 +123,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
                 htmlFor="birthTime"
                 className="block text-base font-medium text-slate-300 mb-1.5 sm:mb-2"
               >
-                태어난 시간
+                {t("fortune_form.birth_time_label")}
               </label>
               <input
                 type="time"
@@ -147,13 +147,13 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
             <label
               htmlFor="cityInput"
               className="block text-base font-medium text-slate-300 mb-1.5 sm:mb-2"
-            >
-              태어난 도시
+              >
+              {t("fortune_form.birth_city_label")}
             </label>
             <CityAutocompleteComponent onCitySelect={handleCitySelect} />
             {cityData.name && (
               <p className="mt-2 text-xs text-slate-400 break-words">
-                선택된 도시: {cityData.name}
+                {t("fortune_form.city_selected", { city: cityData.name })}
                 {cityData.timezone && ` (${cityData.timezone})`}
               </p>
             )}
@@ -166,7 +166,7 @@ function FortuneForm({ onSubmit, loading, reportType = "daily" }) {
         loading={loading}
         fullWidth
       >
-        진짜미래 확인
+        {t("fortune_form.submit_btn")}
       </PrimaryButton>
     </form>
   );

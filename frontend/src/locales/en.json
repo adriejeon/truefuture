@@ -486,6 +486,14 @@
     "preset_health_3": "When will my mental health (anxiety/depression) start to stabilize?",
     "preset_health_4": "What's the best timing for surgery or treatment?"
   },
+  "fortune_form": {
+    "birth_date_label": "Date of Birth",
+    "birth_time_label": "Birth Time",
+    "birth_city_label": "Birth City",
+    "city_selected": "Selected: {{city}}",
+    "time_error": "Please enter your birth time.",
+    "submit_btn": "See My True Future"
+  },
   "contact": {
     "back": "Back",
     "title": "Contact Us",
