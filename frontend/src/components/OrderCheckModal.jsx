@@ -54,8 +54,9 @@ function OrderCheckModal({ isOpen, onClose, packageInfo, onConfirm, loading = fa
 
   return (
     <div className="fixed inset-0 z-[10000] bg-gradient-to-b from-slate-900 to-slate-800">
-      <div className="w-full h-full flex flex-col overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
+      {/* PayPal iframe이 자체 팝업/오버레이를 띄우므로 overflow-hidden 제거 */}
+      <div className={`w-full h-full flex flex-col ${isPaypal ? "overflow-visible" : "overflow-hidden"}`}>
+        <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${isPaypal ? "" : "overscroll-contain"}`}>
           {/* 헤더 */}
           <div className="px-4 py-4 pb-0 max-w-lg mx-auto">
             <button
