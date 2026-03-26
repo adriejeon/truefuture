@@ -155,7 +155,6 @@ function Purchase() {
         orderName: `${pkg.nameEn} Package`,
         totalAmount: Math.round(paymentAmount * 100),
         currency: "CURRENCY_USD",
-        locale: "en_US",
         country: "US",
       };
 
