@@ -494,6 +494,11 @@
     "time_error": "Please enter your birth time.",
     "submit_btn": "See My True Future"
   },
+  "terms_pages": {
+    "back_home": "Back to Home",
+    "terms_title": "Terms of Service",
+    "privacy_title": "Privacy Policy"
+  },
   "contact": {
     "back": "Back",
     "title": "Contact Us",

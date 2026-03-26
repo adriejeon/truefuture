@@ -494,6 +494,11 @@
     "time_error": "태어난 시간을 입력해주세요.",
     "submit_btn": "진짜미래 확인"
   },
+  "terms_pages": {
+    "back_home": "홈으로 돌아가기",
+    "terms_title": "이용약관",
+    "privacy_title": "개인정보처리방침"
+  },
   "contact": {
     "back": "뒤로",
     "title": "문의하기",

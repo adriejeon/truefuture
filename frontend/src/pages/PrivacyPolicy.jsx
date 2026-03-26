@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { fetchTermsContent } from "../services/termsService";
 
 function PrivacyPolicy() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [privacyContent, setPrivacyContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -108,10 +108,10 @@ function PrivacyPolicy() {
               d="M10 19l-7-7m0 0l7-7m-7 7h18"
             />
           </svg>
-          홈으로 돌아가기
+          {t("terms_pages.back_home")}
         </Link>
         <h1 className="text-3xl sm:text-4xl font-bold mb-6 sm:mb-8 text-primary">
-          개인정보처리방침
+          {t("terms_pages.privacy_title")}
         </h1>
 
         {loading && (
