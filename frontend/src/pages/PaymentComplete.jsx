@@ -12,12 +12,14 @@ function sendPurchaseEventFromStorage() {
     const raw = sessionStorage.getItem("payment_checkout_items");
     let transactionId = uid || "";
     let value = 0;
+    let currency = "KRW";
     let items = [];
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
         transactionId = parsed.merchantUid || transactionId;
         value = Number(parsed.price) || 0;
+        currency = parsed.currency || "KRW";
         const cat =
           parsed.iconType === "telescope"
             ? "망원경"
@@ -39,7 +41,7 @@ function sendPurchaseEventFromStorage() {
       trackPurchase({
         transaction_id: transactionId,
         value,
-        currency: "KRW",
+        currency,
         items,
       });
     }
@@ -258,6 +260,20 @@ function PaymentComplete() {
         if (finalMerchantUid) {
           requestBody.merchant_uid = finalMerchantUid;
         }
+
+        // sessionStorage에서 currency, package_id 복구 (PayPal USD 결제 검증용)
+        try {
+          const raw = sessionStorage.getItem("payment_checkout_items");
+          if (raw) {
+            const stored = JSON.parse(raw);
+            if (stored.currency) requestBody.currency = stored.currency;
+            if (stored.id) requestBody.package_id = stored.id;
+          }
+        } catch (_) {}
+
+        // URL 파라미터에 package_id가 있으면 우선 사용 (sessionStorage보다 신뢰성 높음)
+        const urlPackageId = searchParams.get("package_id");
+        if (urlPackageId) requestBody.package_id = urlPackageId;
 
         const { data, error: purchaseError } = await supabase.functions.invoke(
           "purchase-stars",

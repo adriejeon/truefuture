@@ -15,23 +15,29 @@ import { TelescopeIcon, CompassIcon, ProbeIcon } from "../components/EquipmentIc
 import { trackPurchase } from "../utils/analytics";
 
 const PACKAGE_BASE = [
-  { id: "ticket_1", nameKey: "purchase_items.telescope_1_name", descKey: "purchase_items.telescope_1_desc", nameKo: "망원경 1개", nameEn: "Ticket_1", price: 1000, paid: 1, bonus: 0, color: "from-blue-400 to-cyan-500", iconType: "telescope" },
-  { id: "ticket_3", nameKey: "purchase_items.telescope_3_name", descKey: "purchase_items.telescope_3_desc", nameKo: "망원경 3개", nameEn: "Ticket_3", price: 2900, paid: 3, bonus: 1, color: "from-purple-400 to-pink-500", iconType: "telescope" },
-  { id: "ticket_5", nameKey: "purchase_items.telescope_5_name", descKey: "purchase_items.telescope_5_desc", nameKo: "망원경 5개", nameEn: "Ticket_5", price: 4950, paid: 5, bonus: 3, color: "from-yellow-400 to-orange-500", iconType: "telescope", badge: "BEST" },
-  { id: "daily_7",  nameKey: "purchase_items.compass_7_name",   descKey: "purchase_items.compass_7_desc",   nameKo: "나침반 7개",  nameEn: "Daily_7",  price: 1900, paid: 0, bonus: 7,  color: "from-green-400 to-emerald-500", iconType: "compass" },
-  { id: "daily_14", nameKey: "purchase_items.compass_14_name",  descKey: "purchase_items.compass_14_desc",  nameKo: "나침반 14개", nameEn: "Daily_14", price: 3500, paid: 0, bonus: 14, color: "from-indigo-400 to-purple-600",  iconType: "compass", badgeKey: "purchase_items.badge_discount_14" },
-  { id: "probe_1",  nameKey: "purchase_items.probe_1_name",     descKey: "purchase_items.probe_1_desc",     nameKo: "탐사선 1대",  nameEn: "Probe_1",  price: 2990, paid: 0, bonus: 0, probe: 1, color: "from-amber-400 to-rose-500", iconType: "probe" },
+  // priceUsd: null → 영문(PayPal) 노출 제외 (페이팔 고정 수수료 $0.30 방어)
+  { id: "ticket_1", nameKey: "purchase_items.telescope_1_name", descKey: "purchase_items.telescope_1_desc", nameKo: "망원경 1개", nameEn: "Ticket_1", price: 1000, priceUsd: null, paid: 1, bonus: 0, color: "from-blue-400 to-cyan-500", iconType: "telescope" },
+  { id: "ticket_3", nameKey: "purchase_items.telescope_3_name", descKey: "purchase_items.telescope_3_desc", nameKo: "망원경 3개", nameEn: "Ticket_3", price: 2900, priceUsd: 2.99, paid: 3, bonus: 1, color: "from-purple-400 to-pink-500", iconType: "telescope" },
+  { id: "ticket_5", nameKey: "purchase_items.telescope_5_name", descKey: "purchase_items.telescope_5_desc", nameKo: "망원경 5개", nameEn: "Ticket_5", price: 4950, priceUsd: 4.99, paid: 5, bonus: 3, color: "from-yellow-400 to-orange-500", iconType: "telescope", badge: "BEST" },
+  { id: "daily_7",  nameKey: "purchase_items.compass_7_name",   descKey: "purchase_items.compass_7_desc",   nameKo: "나침반 7개",  nameEn: "Daily_7",  price: 1900, priceUsd: null, paid: 0, bonus: 7,  color: "from-green-400 to-emerald-500", iconType: "compass" },
+  { id: "daily_14", nameKey: "purchase_items.compass_14_name",  descKey: "purchase_items.compass_14_desc",  nameKo: "나침반 14개", nameEn: "Daily_14", price: 3500, priceUsd: 3.99, paid: 0, bonus: 14, color: "from-indigo-400 to-purple-600",  iconType: "compass", badgeKey: "purchase_items.badge_discount_14" },
+  { id: "probe_1",  nameKey: "purchase_items.probe_1_name",     descKey: "purchase_items.probe_1_desc",     nameKo: "탐사선 1대",  nameEn: "Probe_1",  price: 2990, priceUsd: 2.99, paid: 0, bonus: 0, probe: 1, color: "from-amber-400 to-rose-500", iconType: "probe" },
 ];
 
 function Purchase() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
-  const PACKAGES = PACKAGE_BASE.map((pkg) => ({
-    ...pkg,
-    name: t(pkg.nameKey),
-    description: t(pkg.descKey),
-    badge: pkg.badge === "BEST" ? "BEST" : pkg.badgeKey ? t(pkg.badgeKey) : undefined,
-  }));
+  const isEnglish = i18n.language === "en";
+
+  const PACKAGES = PACKAGE_BASE
+    // 영문(PayPal)일 때 priceUsd가 없는 소액 패키지 숨김 (페이팔 고정 수수료 방어)
+    .filter((pkg) => !isEnglish || pkg.priceUsd !== null)
+    .map((pkg) => ({
+      ...pkg,
+      name: t(pkg.nameKey),
+      description: t(pkg.descKey),
+      badge: pkg.badge === "BEST" ? "BEST" : pkg.badgeKey ? t(pkg.badgeKey) : undefined,
+    }));
   const { user } = useAuth();
   const { stars, refetchStars } = useStars();
   const navigate = useNavigate();
@@ -61,8 +67,18 @@ function Purchase() {
     try {
       const merchantUid = `order_${Date.now()}_${user.id.slice(0, 8)}`;
 
+      // 언어에 따라 결제 수단 분기: 영문 → PayPal(USD), 한국어 → KG이니시스(KRW)
+      const paymentAmount = isEnglish ? selectedPackage.priceUsd : selectedPackage.price;
+      const paymentCurrency = isEnglish ? "CURRENCY_USD" : "CURRENCY_KRW";
+      const channelKey = isEnglish
+        ? import.meta.env.VITE_PORTONE_PAYPAL_CHANNEL_KEY
+        : import.meta.env.VITE_PORTONE_CHANNEL_KEY;
+      const payMethod = isEnglish ? "PAYPAL" : "CARD";
+      const trackCurrency = isEnglish ? "USD" : "KRW";
+
       const redirectBase = `${window.location.origin}/payment/complete`;
-      const redirectUrl = `${redirectBase}?merchant_uid=${encodeURIComponent(merchantUid)}`;
+      // 모바일 리다이렉트 시 package_id를 URL 파라미터로 전달 (PaymentComplete에서 활용)
+      const redirectUrl = `${redirectBase}?merchant_uid=${encodeURIComponent(merchantUid)}&package_id=${encodeURIComponent(selectedPackage.id)}`;
       try {
         sessionStorage.setItem("payment_merchant_uid", merchantUid);
         sessionStorage.setItem(
@@ -71,7 +87,8 @@ function Purchase() {
             merchantUid,
             id: selectedPackage.id,
             name: selectedPackage.name,
-            price: selectedPackage.price,
+            price: paymentAmount,
+            currency: trackCurrency,
             iconType: selectedPackage.iconType,
           })
         );
@@ -79,15 +96,17 @@ function Purchase() {
 
       const response = await PortOne.requestPayment({
         storeId: import.meta.env.VITE_PORTONE_STORE_ID,
-        channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
+        channelKey,
         paymentId: merchantUid,
-        orderName: `${selectedPackage.nameKo} (${selectedPackage.nameEn}) 패키지`,
-        totalAmount: selectedPackage.price,
-        currency: "CURRENCY_KRW",
-        payMethod: "CARD",
+        orderName: isEnglish
+          ? `${selectedPackage.nameEn} Package`
+          : `${selectedPackage.nameKo} (${selectedPackage.nameEn}) 패키지`,
+        totalAmount: paymentAmount,
+        currency: paymentCurrency,
+        payMethod,
         customer: {
           customerId: user.id,
-          fullName: "우주탐험가",
+          fullName: isEnglish ? "Explorer" : "우주탐험가",
           phoneNumber: "010-0000-0000",
           email: prepareBuyerEmail(user),
         },
@@ -103,9 +122,11 @@ function Purchase() {
         {
           body: {
             user_id: user.id,
-            amount: selectedPackage.price,
+            amount: paymentAmount,
             merchant_uid: merchantUid,
             imp_uid: response?.paymentId || merchantUid,
+            currency: trackCurrency,
+            package_id: selectedPackage.id,
           },
         },
       );
@@ -132,13 +153,13 @@ function Purchase() {
       setTimeout(() => {
         trackPurchase({
           transaction_id: merchantUid,
-          value: selectedPackage.price,
-          currency: "KRW",
+          value: paymentAmount,
+          currency: trackCurrency,
           items: [
             {
               item_id: selectedPackage.id,
               item_name: selectedPackage.name,
-              price: selectedPackage.price,
+              price: paymentAmount,
               quantity: 1,
               item_category: itemCategory,
             },
@@ -262,8 +283,9 @@ function Purchase() {
 
                 <div className="text-right ml-4">
                   <div className="text-xl font-bold text-white">
-                    {pkg.price.toLocaleString()}
-                    <span className="text-slate-400 text-sm ml-0.5">{t("common.unit_won")}</span>
+                    {isEnglish
+                      ? `$${pkg.priceUsd}`
+                      : `${pkg.price.toLocaleString()}${t("common.unit_won")}`}
                   </div>
                 </div>
               </div>

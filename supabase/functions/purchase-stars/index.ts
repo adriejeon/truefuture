@@ -18,7 +18,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// 패키지 정의 (가격 → 이름, 망원경/나침반/탐사선)
+// KRW 패키지 정의 (가격 → 이름, 망원경/나침반/탐사선)
 // paid = 망원경, bonus = 나침반, probe = 탐사선(종합운세 1회권)
 const PACKAGES: Record<
   number,
@@ -30,6 +30,29 @@ const PACKAGES: Record<
   1900: { name: "나침반 7개 (Daily_7)", paid: 0, bonus: 7, probe: 0 },
   3500: { name: "나침반 14개 (Daily_14)", paid: 0, bonus: 14, probe: 0 },
   2990: { name: "탐사선 종합운세 1회권 (Grand_Fortune)", paid: 0, bonus: 0, probe: 1 },
+};
+
+// USD 패키지 정의 (달러 금액 키)
+// ⚠️ ticket_3($2.99)와 probe_1($2.99)이 동일 금액이므로
+//    PACKAGES_USD_BY_ID를 primary 조회에 사용하고 금액은 검증용으로 활용
+const PACKAGES_USD: Record<
+  number,
+  { name: string; paid: number; bonus: number; probe: number }
+> = {
+  2.99: { name: "망원경 3개 (Ticket_3)", paid: 3, bonus: 1, probe: 0 },
+  4.99: { name: "망원경 5개 (Ticket_5)", paid: 5, bonus: 3, probe: 0 },
+  3.99: { name: "나침반 14개 (Daily_14)", paid: 0, bonus: 14, probe: 0 },
+};
+
+// USD 패키지 정의 (package_id 키) — 동일 금액 충돌 해소용, 최종 조회 기준
+const PACKAGES_USD_BY_ID: Record<
+  string,
+  { name: string; priceUsd: number; paid: number; bonus: number; probe: number }
+> = {
+  ticket_3: { name: "망원경 3개 (Ticket_3)", priceUsd: 2.99, paid: 3, bonus: 1, probe: 0 },
+  ticket_5: { name: "망원경 5개 (Ticket_5)", priceUsd: 4.99, paid: 5, bonus: 3, probe: 0 },
+  daily_14: { name: "나침반 14개 (Daily_14)", priceUsd: 3.99, paid: 0, bonus: 14, probe: 0 },
+  probe_1:  { name: "탐사선 종합운세 1회권 (Grand_Fortune)", priceUsd: 2.99, paid: 0, bonus: 0, probe: 1 },
 };
 
 serve(async (req) => {
@@ -55,7 +78,9 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    let { imp_uid, merchant_uid, amount, user_id } = body;
+    let { imp_uid, merchant_uid, amount, user_id, currency, package_id } = body;
+    // currency 정규화: "KRW" / "USD" 기준 (프론트에서 trackCurrency 값으로 전달)
+    currency = (currency || "KRW").toUpperCase();
 
     if (!user_id || typeof user_id !== "string" || user_id.trim() === "") {
       console.error("❌ user_id 누락");
@@ -172,6 +197,13 @@ serve(async (req) => {
           console.error("유효하지 않은 금액:", payment.amount);
           throw new Error("유효한 결제 금액을 찾을 수 없습니다.");
         }
+
+        // PortOne V2 API 응답에서 통화 확인 (KRW / USD)
+        const apiCurrency = (payment.amount?.currency || "KRW").toUpperCase();
+        if (apiCurrency !== currency) {
+          // API 응답 통화를 우선 신뢰
+          currency = apiCurrency;
+        }
       } catch (error) {
         console.error("❌ PortOne V2 API 조회 실패:", error);
         console.error("에러 상세:", error instanceof Error ? error.stack : error);
@@ -222,16 +254,37 @@ serve(async (req) => {
       }
     }
 
-    // 2. 패키지 검증
-    const packageInfo = PACKAGES[amount];
-    
+    // 2. 패키지 검증 (통화에 따라 KRW / USD 조회 분기)
+    let packageInfo: { name: string; paid: number; bonus: number; probe: number } | undefined;
+
+    if (currency === "USD") {
+      if (package_id && PACKAGES_USD_BY_ID[package_id]) {
+        // package_id 기반 조회 (ticket_3/probe_1 $2.99 충돌 해소)
+        const candidate = PACKAGES_USD_BY_ID[package_id];
+        if (Math.abs(candidate.priceUsd - amount) > 0.01) {
+          console.error(`❌ USD 금액 불일치: package_id=${package_id}, 기대=${candidate.priceUsd}, 실제=${amount}`);
+          return new Response(
+            JSON.stringify({ success: false, error: "결제 금액이 패키지 가격과 일치하지 않습니다." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        packageInfo = candidate;
+      } else {
+        // fallback: 금액 키로 조회 (package_id 미전달 시)
+        packageInfo = PACKAGES_USD[amount];
+      }
+    } else {
+      packageInfo = PACKAGES[amount];
+    }
+
     if (!packageInfo) {
-      console.error(`❌ 유효하지 않은 금액: ${amount}원`);
-      console.error("사용 가능한 패키지:", Object.keys(PACKAGES));
+      const unit = currency === "USD" ? "$" : "₩";
+      console.error(`❌ 유효하지 않은 금액: ${unit}${amount} (currency: ${currency})`);
+      console.error("사용 가능한 패키지:", currency === "USD" ? Object.keys(PACKAGES_USD_BY_ID) : Object.keys(PACKAGES));
       return new Response(
         JSON.stringify({
           success: false,
-          error: `유효하지 않은 결제 금액입니다. (${amount}원)`,
+          error: `유효하지 않은 결제 금액입니다. (${unit}${amount})`,
         }),
         {
           status: 400,
