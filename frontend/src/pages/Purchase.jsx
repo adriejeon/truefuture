@@ -156,6 +156,13 @@ function Purchase() {
         totalAmount: Math.round(paymentAmount * 100),
         currency: "CURRENCY_USD",
         country: "US",
+        bypass: {
+          paypal_v2: {
+            application_context: {
+              shipping_preference: "NO_SHIPPING",
+            },
+          },
+        },
       };
 
       paypalUIRef.current = PortOne.loadPaymentUI(requestData, {
