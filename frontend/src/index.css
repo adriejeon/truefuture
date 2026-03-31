@@ -2,6 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    /* Language-aware typography tokens (default: ko) */
+    --tf-font-body-ko: "Noto Serif KR", serif;
+    --tf-font-brand-ko: "GmarketSansBold", "GmarketSansMedium", sans-serif;
+
+    --tf-font-body-en: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+      "Segoe UI Emoji", sans-serif;
+    --tf-font-brand-en: "Playfair Display", "Times New Roman", Times, serif;
+
+    /* Active mapping (switched by html[lang]) */
+    --tf-font-body: var(--tf-font-body-ko);
+    --tf-font-brand: var(--tf-font-brand-ko);
+    --tf-letter-spacing: normal;
+  }
+
+  html[lang="ko"] {
+    --tf-font-body: var(--tf-font-body-ko);
+    --tf-font-brand: var(--tf-font-brand-ko);
+    --tf-letter-spacing: normal;
+  }
+
+  html[lang="en"] {
+    --tf-font-body: var(--tf-font-body-en);
+    --tf-font-brand: var(--tf-font-brand-en);
+    --tf-letter-spacing: 0;
+  }
+}
+
+/* English: override negative tracking used in Home hero copy */
+html[lang="en"] .tracking-\[-2\.4px\],
+html[lang="en"] .tracking-\[-2\.32px\],
+html[lang="en"] .tracking-\[-2\.72px\] {
+  letter-spacing: 0 !important;
+}
+
+/* English: slightly reduce Home hero copy sizes */
+html[lang="en"] .text-\[clamp\(16px\,5vw\,30px\)\] {
+  font-size: clamp(14px, 4.4vw, 26px) !important;
+}
+html[lang="en"] .text-\[clamp\(15\.47px\,4\.833vw\,29px\)\] {
+  font-size: clamp(13.5px, 4.1vw, 24px) !important;
+}
+html[lang="en"] .text-\[clamp\(18\.13px\,5\.667vw\,34px\)\] {
+  font-size: clamp(15px, 4.6vw, 28px) !important;
+}
+
+/* English: reduce Home mid-copy sizes */
+html[lang="en"] .text-\[clamp\(15px\,4\.8vw\,28px\)\] {
+  font-size: clamp(13.5px, 4.1vw, 24px) !important;
+}
+html[lang="en"] .text-\[clamp\(18px\,5\.8vw\,34px\)\] {
+  font-size: clamp(16px, 5.1vw, 30px) !important;
+}
+
+/* English: reduce Home J.P. Morgan section sizes */
+html[lang="en"] .text-\[clamp\(17\.07px\,5\.333vw\,32px\)\] {
+  font-size: clamp(15px, 4.6vw, 28px) !important;
+}
+html[lang="en"] .text-\[clamp\(10px\,3vw\,18px\)\] {
+  font-size: clamp(9px, 2.6vw, 16px) !important;
+}
+html[lang="en"] .text-\[clamp\(13\.87px\,4\.333vw\,26px\)\] {
+  font-size: clamp(12px, 3.7vw, 22px) !important;
+}
+
+/* English: reduce Home section titles (expert/buyer) */
+html[lang="en"] .text-\[clamp\(17px\,4\.5vw\,24px\)\] {
+  font-size: clamp(15px, 4vw, 21px) !important;
+}
+
 /* Gmarket Sans (메인 홈 브랜드 타이틀 전용) */
 @font-face {
   font-family: "GmarketSansMedium";
@@ -108,6 +180,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
     "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
+  letter-spacing: var(--tf-letter-spacing);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;

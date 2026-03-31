@@ -10,8 +10,9 @@ export default {
         subText: colors.subText,
       },
       fontFamily: {
-        noto: ['"Noto Serif KR"', "serif"],
-        gmarket: ["GmarketSansBold", "GmarketSansMedium", "sans-serif"],
+        // Language-aware mapping via CSS variables (html[lang])
+        noto: ["var(--tf-font-body)"],
+        gmarket: ["var(--tf-font-brand)"],
       },
       keyframes: {
         "article-cross-fade-1": {

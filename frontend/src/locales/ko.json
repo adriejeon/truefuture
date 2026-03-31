@@ -248,6 +248,7 @@
     "birthtime_default_note": "낮 12시로 계산됩니다.",
     "gender_male": "남자",
     "gender_female": "여자",
+    "city_placeholder": "태어난 도시 (예: New York)",
     "city_selected": "선택된 도시: {{city}}",
     "btn_cancel": "취소",
     "btn_edit": "수정",

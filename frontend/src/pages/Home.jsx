@@ -206,12 +206,22 @@ function Home() {
               </div>
 
               <p className="text-[#D8D8ED] text-center font-noto text-[clamp(15.47px,4.833vw,29px)] font-light leading-[1.68] tracking-[-2.32px]">
-                {t("home.tagline3")}
+                {t("home.tagline3").split("\n").map((line, i, arr) => (
+                  <span key={i}>
+                    {line}
+                    {i < arr.length - 1 && <br />}
+                  </span>
+                ))}
               </p>
 
               <div className="flex flex-col items-center gap-[clamp(2px,0.5vw,6px)]">
                 <p className="text-[#FFFFFF] text-center font-noto text-[clamp(18.13px,5.667vw,34px)] font-light leading-[1.68] tracking-[-2.72px]">
-                  {t("home.made_by")}
+                  {t("home.made_by").split("\n").map((line, i, arr) => (
+                    <span key={i}>
+                      {line}
+                      {i < arr.length - 1 && <br />}
+                    </span>
+                  ))}
                 </p>
                 <h1 className="font-gmarket text-[clamp(36.85px,11.51vw,69.09px)] font-bold leading-normal text-primary">
                   {t("home.brand")}
@@ -272,9 +282,7 @@ function Home() {
                   <span className="text-primary">{t("home.expert_title_accent")}</span>
                 </h2>
                 <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
-                  {t("home.expert_subtitle").split("\n").map((line, i) => (
-                    <span key={i}>{line}{i === 0 && <br />}</span>
-                  ))}
+                  {t("home.expert_subtitle").replace(/\n+/g, " ")}
                 </p>
                 <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
                   <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
@@ -325,10 +333,7 @@ function Home() {
                   <span className="text-primary">{t("home.buyer_title_accent")}</span>
                 </h2>
                 <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
-                  <br />
-                  {t("home.buyer_subtitle").split("\n").map((line, i, arr) => (
-                    <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
-                  ))}
+                  {t("home.buyer_subtitle").replace(/\n+/g, " ")}
                 </p>
                 <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
                   {[

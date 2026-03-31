@@ -1,4 +1,5 @@
 import { useEffect, useRef, memo } from "react";
+import { useTranslation } from "react-i18next";
 import CityAutocomplete from "../utils/cityAutocomplete";
 import "./CityAutocomplete.css";
 
@@ -10,7 +11,9 @@ const CityAutocompleteComponent = memo(function CityAutocompleteComponent({
   onCitySelect,
   initialValue = "",
   className = "",
+  placeholder,
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const latInputRef = useRef(null);
@@ -79,7 +82,7 @@ const CityAutocompleteComponent = memo(function CityAutocompleteComponent({
         ref={inputRef}
         type="text"
         id="cityInput"
-        placeholder="태어난 도시 (예: Seoul)"
+        placeholder={placeholder ?? t("profile_modal.city_placeholder")}
         className="city-autocomplete-input"
       />
 

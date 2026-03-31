@@ -366,6 +366,13 @@ class CityAutocomplete {
   showLoadingIndicator() {
     if (!this.dropdownElement) return;
 
+    const htmlLang =
+      typeof document !== "undefined" && document.documentElement?.lang
+        ? document.documentElement.lang
+        : "ko";
+    const isEn = String(htmlLang).toLowerCase().startsWith("en");
+    const loadingText = isEn ? "Searching..." : "검색 중...";
+
     // 기존 드롭다운 내용 숨기기
     this.dropdownElement.classList.remove("city-autocomplete-dropdown-hidden");
     this.dropdownElement.innerHTML = "";
@@ -376,7 +383,7 @@ class CityAutocomplete {
     loadingItem.innerHTML = `
       <div style="display: flex; align-items: center; gap: 0.5rem; color: rgb(148, 163, 184);">
         <div style="width: 16px; height: 16px; border: 2px solid rgb(148, 163, 184); border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
-        <span>검색 중...</span>
+        <span>${loadingText}</span>
       </div>
     `;
 
