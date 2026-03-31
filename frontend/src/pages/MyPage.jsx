@@ -71,10 +71,9 @@ function MyPage() {
     }
     const shareUrl = `${window.location.origin}/login?ref=${encodeURIComponent(myReferralCode)}`;
     const isLocalhost = window.location.hostname === "localhost";
-    const isEn = i18n.language?.startsWith("en");
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
-      : `${window.location.origin}/assets/${isEn ? "800x800-en.png" : "800x800.png"}`;
+      : `${window.location.origin}/assets/800x800.png`;
     const kakaoShareConfig = {
       objectType: "feed",
       content: {

@@ -123,10 +123,9 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
 
     // 이미지 URL (로컬 개발 시 외부 이미지 사용)
     const isLocalhost = window.location.hostname === "localhost";
-    const isEn = typeof document !== "undefined" && document.documentElement?.lang === "en";
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
-      : `${window.location.origin}/assets/${isEn ? "800x800-en.png" : "800x800.png"}`;
+      : `${window.location.origin}/assets/800x800.png`;
 
     // 카카오 공유 설정 객체 (요약이 있으면 한 줄 요약으로 노출)
     const description = shareSummary || "AI가 분석한 서양 점성술 결과입니다.";

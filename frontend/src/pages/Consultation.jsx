@@ -594,10 +594,9 @@ function Consultation() {
     }
     const shareUrl = getShareUrl(shareId);
     const isLocalhost = window.location.hostname === "localhost";
-    const isEn = i18n.language?.startsWith("en");
     const imageUrl = isLocalhost
       ? "https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png"
-      : `${window.location.origin}/assets/${isEn ? "800x800-en.png" : "800x800.png"}`;
+      : `${window.location.origin}/assets/800x800.png`;
     const description =
       shareSummary?.trim() ||
       t("consultation.kakao_share_desc");
