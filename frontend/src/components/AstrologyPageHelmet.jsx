@@ -1,59 +1,61 @@
 import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useLocation } from "react-router-dom";
-import { ASTROLOGY_PAGE_META, SITE_ORIGIN } from "../constants/seoMeta";
+import { useTranslation } from "react-i18next";
+import { ASTROLOGY_PAGE_META, SITE_ORIGIN, getDefaultOgImage } from "../constants/seoMeta";
 
-/** 점성술 페이지용 JSON-LD Product 스키마 (GEO/리치 결과용) */
-const ASTROLOGY_PRODUCT_JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "Product",
-  name: "정통 점성술 컨설팅: 진짜미래",
-  image: ["https://truefuture.kr/assets/1200x630.png"],
-  description:
-    "정통 고전 점성술로 내 운명의 진짜 흐름을 찾고 계신가요? 단순한 별자리 풀이를 넘어 서양 점성술의 깊이 있는 원리로 삶의 방향을 명확히 알고 싶을 때, 진짜미래는 수천 년간 검증된 천체 운행 데이터를 바탕으로 당신만의 정확한 인생 지도를 그려드립니다. 이미 수백 명의 내담자가 실제 상담을 통해 소름 돋는 정확도를 증명했으며, 태어난 시간과 장소에 맞춘 고전 점성술의 정교한 연산 알고리즘을 통해 가장 확실한 해답을 제공합니다.",
-  category: "운세 > 서양 점성술",
-  brand: {
-    "@type": "Brand",
-    name: "진짜미래",
-  },
-  offers: [
-    {
-      "@type": "Offer",
-      name: "망원경 1개",
-      priceCurrency: "KRW",
-      price: "1000",
-      availability: "https://schema.org/InStock",
+function buildAstrologyProductJsonLd(ogImage) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: "정통 점성술 컨설팅: 진짜미래",
+    image: [ogImage],
+    description:
+      "정통 고전 점성술로 내 운명의 진짜 흐름을 찾고 계신가요? 단순한 별자리 풀이를 넘어 서양 점성술의 깊이 있는 원리로 삶의 방향을 명확히 알고 싶을 때, 진짜미래는 수천 년간 검증된 천체 운행 데이터를 바탕으로 당신만의 정확한 인생 지도를 그려드립니다. 이미 수백 명의 내담자가 실제 상담을 통해 소름 돋는 정확도를 증명했으며, 태어난 시간과 장소에 맞춘 고전 점성술의 정교한 연산 알고리즘을 통해 가장 확실한 해답을 제공합니다.",
+    category: "운세 > 서양 점성술",
+    brand: {
+      "@type": "Brand",
+      name: "진짜미래",
     },
-    {
-      "@type": "Offer",
-      name: "망원경 3개",
-      priceCurrency: "KRW",
-      price: "2900",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "망원경 5개",
-      priceCurrency: "KRW",
-      price: "4950",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "나침반 7개",
-      priceCurrency: "KRW",
-      price: "1900",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "나침반 14개",
-      priceCurrency: "KRW",
-      price: "3500",
-      availability: "https://schema.org/InStock",
-    },
-  ],
-};
+    offers: [
+      {
+        "@type": "Offer",
+        name: "망원경 1개",
+        priceCurrency: "KRW",
+        price: "1000",
+        availability: "https://schema.org/InStock",
+      },
+      {
+        "@type": "Offer",
+        name: "망원경 3개",
+        priceCurrency: "KRW",
+        price: "2900",
+        availability: "https://schema.org/InStock",
+      },
+      {
+        "@type": "Offer",
+        name: "망원경 5개",
+        priceCurrency: "KRW",
+        price: "4950",
+        availability: "https://schema.org/InStock",
+      },
+      {
+        "@type": "Offer",
+        name: "나침반 7개",
+        priceCurrency: "KRW",
+        price: "1900",
+        availability: "https://schema.org/InStock",
+      },
+      {
+        "@type": "Offer",
+        name: "나침반 14개",
+        priceCurrency: "KRW",
+        price: "3500",
+        availability: "https://schema.org/InStock",
+      },
+    ],
+  };
+}
 
 const JSON_LD_SCRIPT_ID = "astrology-product-ld-json";
 
@@ -65,8 +67,10 @@ const JSON_LD_SCRIPT_ID = "astrology-product-ld-json";
  */
 function AstrologyPageHelmet() {
   const location = useLocation();
+  const { i18n } = useTranslation();
   const canonicalUrl = `${SITE_ORIGIN}${location.pathname}`;
   const { title, description, keywords, ogImage } = ASTROLOGY_PAGE_META;
+  const resolvedOgImage = getDefaultOgImage(i18n.language) || ogImage;
 
   useEffect(() => {
     const existing = document.getElementById(JSON_LD_SCRIPT_ID);
@@ -75,14 +79,14 @@ function AstrologyPageHelmet() {
     const script = document.createElement("script");
     script.id = JSON_LD_SCRIPT_ID;
     script.type = "application/ld+json";
-    script.textContent = JSON.stringify(ASTROLOGY_PRODUCT_JSON_LD);
+    script.textContent = JSON.stringify(buildAstrologyProductJsonLd(resolvedOgImage));
     document.head.appendChild(script);
 
     return () => {
       const el = document.getElementById(JSON_LD_SCRIPT_ID);
       if (el) el.remove();
     };
-  }, [location.pathname]);
+  }, [location.pathname, resolvedOgImage]);
 
   return (
     <Helmet>
@@ -93,12 +97,12 @@ function AstrologyPageHelmet() {
       <meta property="og:url" content={canonicalUrl} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
-      <meta property="og:image" content={ogImage} />
+      <meta property="og:image" content={resolvedOgImage} />
       <meta property="og:image:alt" content={title} />
       <meta name="twitter:url" content={canonicalUrl} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      <meta name="twitter:image" content={ogImage} />
+      <meta name="twitter:image" content={resolvedOgImage} />
       <meta name="twitter:image:alt" content={title} />
     </Helmet>
   );

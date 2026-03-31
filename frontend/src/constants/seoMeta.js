@@ -2,6 +2,16 @@
 
 const SITE_ORIGIN = "https://truefuture.kr";
 const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/assets/1200x630.png`;
+const DEFAULT_OG_IMAGE_EN = `${SITE_ORIGIN}/assets/1200x630-en.png`;
+
+function normalizeLng(lng) {
+  const base = String(lng || "").split("-")[0].toLowerCase();
+  return base === "ko" ? "ko" : "en";
+}
+
+export function getDefaultOgImage(lng) {
+  return normalizeLng(lng) === "en" ? DEFAULT_OG_IMAGE_EN : DEFAULT_OG_IMAGE;
+}
 
 /** 앱 기본(폴백) 메타 - index.html과 동기화용 */
 export const DEFAULT_META = {
@@ -23,4 +33,4 @@ export const ASTROLOGY_PAGE_META = {
   ogImage: DEFAULT_OG_IMAGE,
 };
 
-export { SITE_ORIGIN, DEFAULT_OG_IMAGE };
+export { SITE_ORIGIN, DEFAULT_OG_IMAGE, DEFAULT_OG_IMAGE_EN };
