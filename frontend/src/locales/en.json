@@ -230,9 +230,9 @@
     "q2_title": "Can I get specific dates for things like a confession or reuniting with an ex?",
     "q2_content": "Yes, you can. On the 'True Future' page, freely describe your current situation and what you're curious about. Rather than showing preset results, we apply the precise calculations of classical Western astrology to clearly identify the most probable decisive moments — the right time to reach out, confess, or reconnect.",
     "q3_title": "Is it okay to ask sensitive questions — like same-sex relationships, secret office romances, or compatibility with a favorite idol?",
-    "q3_content": "True Future is a contactless automated flow with no in-person session. You can ask about queer compatibility, celebrity crush charts, and similar topics in text; requests are processed automatically inside the product.",
+    "q3_content": "True Future is a contactless automated flow with no in-person session. Questions and inputs are handled through system-based automated processing. You can ask about queer compatibility, celebrity crush charts, and similar topics in text.",
     "q4_title": "How is this different from regular BaZi or tarot apps like Jeomshin?",
-    "q4_content": "We don't only show fixed horoscope blurbs. True Future computes a natal chart from birth time and place and supports free-form text questions. Published reviews and in-app feedback are available for reference.",
+    "q4_content": "We don't only show fixed horoscope blurbs. True Future computes a natal chart from birth time and place and supports free-form text questions. Published reviews and user feedback are available for reference; repeat-visit and reuse metrics are tracked as operational data.",
     "q5_title": "When I ask a free question, does a real person answer?",
     "q5_content": "No. Responses are generated automatically from interpretation logic derived from professional consulting practice. There is no human consultant in the loop for the same question; answers are produced immediately."
   },

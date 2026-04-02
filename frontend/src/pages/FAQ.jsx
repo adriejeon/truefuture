@@ -141,6 +141,7 @@ function FAQ() {
                   </svg>
                 </button>
 
+                {/* 답변은 항상 DOM에 유지(Tailwind hidden = display:none). {isOpen && ...} 조건부 렌더링 사용 안 함(GEO). */}
                 <div
                   id={`faq-panel-${index}`}
                   className={
