@@ -277,7 +277,34 @@ export async function fetchFortuneByResultId(resultId) {
 }
 
 /**
- * 만료된 데일리 운세 삭제 (하루 지난 것)
+ * 오늘 이후(오늘 포함) 뽑아둔 데일리 운세 날짜 목록 조회 (기기 변경 시 복구용)
+ * @param {string} profileId
+ * @returns {Promise<string[]>} YYYY-MM-DD 배열 (오름차순)
+ */
+export async function fetchDrawnDailyDates(profileId) {
+  if (!profileId) return [];
+
+  try {
+    const todayDate = getLocalTodayDate();
+    const { data, error } = await supabase
+      .from("fortune_history")
+      .select("fortune_date")
+      .eq("profile_id", profileId)
+      .eq("fortune_type", "daily")
+      .gte("fortune_date", todayDate)
+      .not("result_id", "is", null)
+      .order("fortune_date", { ascending: true });
+
+    if (error || !data) return [];
+    return data.map((row) => row.fortune_date).filter(Boolean);
+  } catch (err) {
+    console.error("❌ 뽑아둔 데일리 날짜 조회 실패:", err);
+    return [];
+  }
+}
+
+/**
+ * 만료된 데일리 운세 삭제 (하루 지난 것) — fortune_results + fortune_history 모두 삭제
  * @param {string} userId
  */
 export async function deleteExpiredDailyFortunes(userId) {
@@ -285,19 +312,14 @@ export async function deleteExpiredDailyFortunes(userId) {
 
   try {
     const todayDate = getLocalTodayDate();
-    const today = new Date(todayDate);
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayDate = yesterday.toISOString().split("T")[0];
 
     // 어제 이전의 데일리 운세 이력 조회
     const { data: expiredHistory, error: historyError } = await supabase
       .from("fortune_history")
-      .select("result_id")
+      .select("id, result_id")
       .eq("user_id", userId)
       .eq("fortune_type", "daily")
-      .lt("fortune_date", todayDate)
-      .not("result_id", "is", null);
+      .lt("fortune_date", todayDate);
 
     if (historyError) {
       console.error("만료된 데일리 운세 이력 조회 실패:", historyError);
@@ -306,21 +328,34 @@ export async function deleteExpiredDailyFortunes(userId) {
 
     if (!expiredHistory || expiredHistory.length === 0) return;
 
+    const historyIds = expiredHistory.map((h) => h.id).filter(Boolean);
     const resultIds = expiredHistory
       .map((h) => h.result_id)
       .filter((id) => id !== null);
 
-    if (resultIds.length === 0) return;
-
     // fortune_results에서 삭제
-    const { error: deleteError } = await supabase
-      .from("fortune_results")
-      .delete()
-      .in("id", resultIds)
-      .eq("fortune_type", "daily");
+    if (resultIds.length > 0) {
+      const { error: deleteResultsError } = await supabase
+        .from("fortune_results")
+        .delete()
+        .in("id", resultIds)
+        .eq("fortune_type", "daily");
 
-    if (deleteError) {
-      console.error("만료된 데일리 운세 삭제 실패:", deleteError);
+      if (deleteResultsError) {
+        console.error("만료된 데일리 운세 결과 삭제 실패:", deleteResultsError);
+      }
+    }
+
+    // fortune_history에서도 삭제 (데이터 불일치 방지)
+    if (historyIds.length > 0) {
+      const { error: deleteHistoryError } = await supabase
+        .from("fortune_history")
+        .delete()
+        .in("id", historyIds);
+
+      if (deleteHistoryError) {
+        console.error("만료된 데일리 운세 이력 삭제 실패:", deleteHistoryError);
+      }
     }
   } catch (err) {
     console.error("만료된 데일리 운세 삭제 중 오류:", err);

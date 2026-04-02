@@ -15,7 +15,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
-import { restoreFortuneIfExists, getLocalTodayDate } from "../services/fortuneService";
+import { restoreFortuneIfExists, getLocalTodayDate, fetchDrawnDailyDates } from "../services/fortuneService";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
@@ -72,6 +72,8 @@ function YearlyFortune() {
   const [loadingCache, setLoadingCache] = useState(false);
   // 지정일 데일리 운세: 선택 날짜 (YYYY-MM-DD, 기본값=오늘 KST)
   const [dailyTargetDate, setDailyTargetDate] = useState("");
+  // 오늘 이후 뽑아둔 날짜 목록 (기기 변경 시 캘린더 복구용)
+  const [drawnDailyDates, setDrawnDailyDates] = useState([]);
   // 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
   const [fortuneAvailability, setFortuneAvailability] = useState({
     daily: null,
@@ -108,13 +110,39 @@ function YearlyFortune() {
     if (now.getHours() === 0 && now.getMinutes() < 1) return false;
     return true;
   };
+  // 프로필이 확정되면 뽑아둔 날짜 목록을 가져와 dailyTargetDate를 스마트하게 초기화
   useEffect(() => {
-    // 최초 1회: 오늘 날짜로 default 세팅
-    if (!dailyTargetDate) {
-      setDailyTargetDate(getLocalTodayDate());
+    if (!selectedProfile?.id || !user) {
+      // 로그인 전이거나 프로필이 없으면 오늘 날짜로만 초기화
+      if (!dailyTargetDate) setDailyTargetDate(getLocalTodayDate());
+      return;
     }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const dates = await fetchDrawnDailyDates(selectedProfile.id);
+        if (cancelled) return;
+        setDrawnDailyDates(dates);
+
+        // dailyTargetDate가 아직 설정되지 않은 경우(페이지 최초 로드 / 기기 변경)에만 초기화
+        if (!dailyTargetDate) {
+          const today = getLocalTodayDate();
+          // 오늘 포함 미래에 뽑아둔 날짜 중 가장 가까운 날짜를 우선 선택
+          const firstDrawn = dates.find((d) => d >= today);
+          setDailyTargetDate(firstDrawn || today);
+        }
+      } catch (_) {
+        if (!cancelled && !dailyTargetDate) {
+          setDailyTargetDate(getLocalTodayDate());
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // selectedProfile.id가 바뀔 때(프로필 전환 포함) 재실행
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedProfile?.id, user]);
 
   const getDailyFortuneFromStorage = (profileId, targetDate) => {
     if (!profileId || !targetDate) return null;
@@ -235,11 +263,20 @@ function YearlyFortune() {
     if (searchParams.get("payment_completed") === "true") return;
 
     if (fortuneTab === "daily") {
+      const today = getLocalTodayDate();
+      const targetDate = dailyTargetDate || today;
+
+      // 과거 날짜는 표시하지 않음
+      if (targetDate < today) {
+        setInterpretation("");
+        setFromCache(false);
+        setFortuneDate("");
+        setShareId(null);
+        return;
+      }
+
       setLoadingCache(true);
-      const stored = getDailyFortuneFromStorage(
-        selectedProfile.id,
-        dailyTargetDate || getLocalTodayDate()
-      );
+      const stored = getDailyFortuneFromStorage(selectedProfile.id, targetDate);
       if (stored) {
         setInterpretation(stored.interpretation);
         setFromCache(true);
@@ -251,25 +288,21 @@ function YearlyFortune() {
             const restored = await restoreFortuneIfExists(
               selectedProfile.id,
               "daily",
-              dailyTargetDate || getLocalTodayDate()
+              targetDate
             );
             if (restored) {
               setInterpretation(restored.interpretation);
               setFromCache(true);
-              setFortuneDate(dailyTargetDate || getLocalTodayDate());
+              setFortuneDate(targetDate);
               setShareId(restored.shareId || null);
-              saveDailyFortuneToStorage(
-                selectedProfile.id,
-                dailyTargetDate || getLocalTodayDate(),
-                {
-                  interpretation: restored.interpretation,
-                  chart: restored.chart,
-                  transitChart: restored.transitChart,
-                  aspects: restored.aspects,
-                  transitMoonHouse: restored.transitMoonHouse,
-                  shareId: restored.shareId,
-                }
-              );
+              saveDailyFortuneToStorage(selectedProfile.id, targetDate, {
+                interpretation: restored.interpretation,
+                chart: restored.chart,
+                transitChart: restored.transitChart,
+                aspects: restored.aspects,
+                transitMoonHouse: restored.transitMoonHouse,
+                shareId: restored.shareId,
+              });
             } else {
               setInterpretation("");
               setFromCache(false);
@@ -495,6 +528,12 @@ function YearlyFortune() {
             setInterpretation(text);
             setFromCache(false);
             setFortuneDate(targetDate);
+            // 뽑아둔 날짜 목록에 새 날짜 추가 (오늘보다 미래인 경우)
+            if (targetDate > getLocalTodayDate()) {
+              setDrawnDailyDates((prev) =>
+                [...new Set([...prev, targetDate])].sort()
+              );
+            }
           } else {
             setInterpretation(t("yearly_fortune.no_result"));
           }
@@ -815,7 +854,11 @@ function YearlyFortune() {
                   type="date"
                   value={dailyTargetDate || getLocalTodayDate()}
                   onChange={(e) => {
-                    setDailyTargetDate(e.target.value);
+                    const selected = e.target.value;
+                    const today = getLocalTodayDate();
+                    // 과거 날짜 입력 시 강제로 오늘로 교정
+                    const safeDate = selected < today ? today : selected;
+                    setDailyTargetDate(safeDate);
                     setError("");
                     setFromCache(false);
                     setShareId(null);
@@ -838,6 +881,35 @@ function YearlyFortune() {
                   </svg>
                 </div>
               </div>
+              {/* 뽑아둔 미래 날짜 안내 */}
+              {drawnDailyDates.filter((d) => d > getLocalTodayDate()).length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {drawnDailyDates
+                    .filter((d) => d > getLocalTodayDate())
+                    .map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          setDailyTargetDate(d);
+                          setError("");
+                          setFromCache(false);
+                          setShareId(null);
+                          setInterpretation("");
+                          setStreamingInterpretation("");
+                          setProcessStatus("idle");
+                        }}
+                        className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                          dailyTargetDate === d
+                            ? "border-primary bg-primary/20 text-primary"
+                            : "border-slate-600 bg-slate-800 text-slate-400 hover:border-primary/60 hover:text-slate-200"
+                        }`}
+                      >
+                        {formatDateForLocale(d)} {t("yearly_fortune.drawn_badge", "뽑아둠")}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
           )}
           <PrimaryButton
