@@ -5,7 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import ConversationDrawer from "./ConversationDrawer";
 import { colors } from "../constants/colors";
-import { getBrandImageAlt } from "../constants/seoMeta";
+import { getBrandLogoAlt } from "../constants/seoMeta";
 
 function GNB() {
   const { t, i18n } = useTranslation();
@@ -146,7 +146,7 @@ function GNB() {
               <Link to="/" className="flex-shrink-0 block">
                 <img
                   src={logoSrc}
-                  alt={getBrandImageAlt(i18n.language)}
+                  alt={getBrandLogoAlt(i18n.language)}
                   className="h-4 sm:h-5 w-auto object-contain"
                 />
               </Link>

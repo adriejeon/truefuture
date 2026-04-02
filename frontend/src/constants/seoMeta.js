@@ -23,21 +23,46 @@ export const ASTROLOGY_PAGE_META = {
   ogImage: DEFAULT_OG_IMAGE,
 };
 
+/** GNB 로고 등 소형 브랜드 마크용 — 짧은 팩트 문구(키워드 스터핑 완화) */
+export const BRAND_LOGO_ALT_KO =
+  "진짜미래 로고: 정통 고전 점성술 AI 서비스";
+
+export const BRAND_LOGO_ALT_EN =
+  "True Future logo: classical Western astrology AI service";
+
 /**
- * 브랜드·히어로 이미지 공통 alt — meta description·Organization/WebSite JSON-LD와 키워드 정합(GEO 3-Way).
- * 정통 고전 점성술, AI 맞춤형 출생 차트, 천체 운행 데이터, 300회 이상 리뷰, 자유 질문·궁합·연간 운세.
+ * 히어로 그래픽·환영 모달·og:image 대체 텍스트용 — meta·JSON-LD와 키워드 정합(GEO 3-Way).
+ * 로고에는 BRAND_LOGO_ALT_* / getBrandLogoAlt 사용.
  */
-export const BRAND_IMAGE_ALT_KO =
+export const BRAND_HERO_IMAGE_ALT_KO =
   "진짜미래: 정통 고전 점성술·AI 맞춤형 출생 차트(Natal Chart) 분석, 수천 년 검증 천체 운행 데이터, 300회 이상 리뷰, 자유 질문·궁합·연간 운세 지원";
 
-export const BRAND_IMAGE_ALT_EN =
+export const BRAND_HERO_IMAGE_ALT_EN =
   "True Future: classical Western astrology, AI-assisted natal chart analysis, verified ephemeris data, 300+ published reviews, free-form questions, compatibility, yearly fortune";
+
+/** @deprecated 히어로용 상수명 — BRAND_HERO_IMAGE_ALT_KO 사용 권장 */
+export const BRAND_IMAGE_ALT_KO = BRAND_HERO_IMAGE_ALT_KO;
+
+/** @deprecated 히어로용 상수명 — BRAND_HERO_IMAGE_ALT_EN 사용 권장 */
+export const BRAND_IMAGE_ALT_EN = BRAND_HERO_IMAGE_ALT_EN;
+
+/** 히어로·환영 모달·공유 이미지 메타 alt */
+export function getBrandHeroImageAlt(language) {
+  return typeof language === "string" && language.toLowerCase().startsWith("en")
+    ? BRAND_HERO_IMAGE_ALT_EN
+    : BRAND_HERO_IMAGE_ALT_KO;
+}
 
 /** @param {string | undefined} language i18n.language */
 export function getBrandImageAlt(language) {
+  return getBrandHeroImageAlt(language);
+}
+
+/** GNB 로고 alt */
+export function getBrandLogoAlt(language) {
   return typeof language === "string" && language.toLowerCase().startsWith("en")
-    ? BRAND_IMAGE_ALT_EN
-    : BRAND_IMAGE_ALT_KO;
+    ? BRAND_LOGO_ALT_EN
+    : BRAND_LOGO_ALT_KO;
 }
 
 export { SITE_ORIGIN, DEFAULT_OG_IMAGE };
