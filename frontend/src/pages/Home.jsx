@@ -414,7 +414,7 @@ function Home() {
                 to={user ? "/consultation" : "/login"}
                 variant="gold"
                 fullWidth
-                aria-label="100% 리얼 정통 고전 점성술 컨설팅, 진짜미래 보러가기"
+                aria-label="정통 고전 점성술 출생 차트 분석 서비스 진짜미래 보러가기"
               >
                 {t("home.cta_button")}
               </PrimaryButton>

@@ -237,7 +237,10 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
               >
                 {/* 아코디언 헤더 (버튼) - 타이틀만 포함 */}
                 <button
+                  type="button"
                   onClick={() => toggleSection(index)}
+                  aria-expanded={isOpen}
+                  aria-controls={`fortune-section-${index}`}
                   className="w-full flex items-center justify-between p-4 sm:p-5 text-left focus:outline-none transition-colors duration-200"
                   style={{
                     boxShadow: "none",
@@ -285,11 +288,11 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
                   </div>
                 )}
 
-                {/* 아코디언 본문 (내용) */}
+                {/* 아코디언 본문: DOM에 항상 유지, 표시만 hidden 토글 (GEO) */}
                 <div
-                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                    isOpen ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0"
-                  }`}
+                  id={`fortune-section-${index}`}
+                  className={isOpen ? "block" : "hidden"}
+                  aria-hidden={!isOpen}
                 >
                   <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0">
                     <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">

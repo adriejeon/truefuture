@@ -8,7 +8,7 @@ import BottomNavigation from "../components/BottomNavigation";
 const FAQ_PAGE_TITLE =
   "자주 묻는 질문(FAQ) | 정통 점성술 컨설팅 진짜미래";
 const FAQ_PAGE_DESCRIPTION =
-  "정통 점성술과 일반 별자리 운세의 차이점, 진짜미래 서비스 이용 방법 등 궁금해하시는 질문들에 대한 상세한 답변을 확인하세요. 20년 경력의 전문성이 담긴 정밀 컨설팅을 제공합니다.";
+  "정통 고전 점성술, 출생 차트 분석, 자유 질문 이용 방법 등 자주 묻는 질문과 답변입니다. 20년 경력 점성술 전문가 해석 로직을 시스템화한 AI 분석 서비스 진짜미래를 안내합니다.";
 const FAQ_JSON_LD_SCRIPT_ID = "faq-page-ld-json";
 
 function FAQ() {
@@ -115,7 +115,10 @@ function FAQ() {
                 className="bg-slate-800/50 backdrop-blur-sm rounded-lg shadow-xl border border-slate-700 overflow-hidden transition-all duration-200"
               >
                 <button
+                  type="button"
                   onClick={() => toggleSection(index)}
+                  aria-expanded={openSections.has(index)}
+                  aria-controls={`faq-panel-${index}`}
                   className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-slate-700/50 transition-colors duration-200"
                 >
                   <span className="text-lg font-semibold text-white pr-4">
@@ -138,19 +141,25 @@ function FAQ() {
                   </svg>
                 </button>
 
-                {openSections.has(index) && (
-                  <div className="px-6 pb-6 pt-2 border-t border-slate-700">
-                    <div
-                      className="terms-content-section prose prose-invert max-w-none text-slate-300 leading-relaxed"
-                      style={{
-                        fontSize: "0.95rem",
-                        lineHeight: "1.7",
-                      }}
-                    >
-                      <p>{item.content}</p>
-                    </div>
+                <div
+                  id={`faq-panel-${index}`}
+                  className={
+                    openSections.has(index)
+                      ? "px-6 pb-6 pt-2 border-t border-slate-700 block"
+                      : "hidden"
+                  }
+                  aria-hidden={!openSections.has(index)}
+                >
+                  <div
+                    className="terms-content-section prose prose-invert max-w-none text-slate-300 leading-relaxed"
+                    style={{
+                      fontSize: "0.95rem",
+                      lineHeight: "1.7",
+                    }}
+                  >
+                    <p>{item.content}</p>
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>

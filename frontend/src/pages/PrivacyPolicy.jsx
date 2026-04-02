@@ -142,7 +142,10 @@ function PrivacyPolicy() {
               >
                 {/* 아코디언 헤더 */}
                 <button
+                  type="button"
                   onClick={() => toggleSection(index)}
+                  aria-expanded={openSections.has(index)}
+                  aria-controls={`privacy-panel-${index}`}
                   className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-slate-700/50 transition-colors duration-200"
                 >
                   <span className="text-lg font-semibold text-white pr-4">
@@ -166,18 +169,24 @@ function PrivacyPolicy() {
                 </button>
 
                 {/* 아코디언 내용 */}
-                {openSections.has(index) && (
-                  <div className="px-6 pb-6 pt-2 border-t border-slate-700">
-                    <div
-                      className="terms-content-section prose prose-invert max-w-none text-slate-300 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: section.content }}
-                      style={{
-                        fontSize: "0.95rem",
-                        lineHeight: "1.7",
-                      }}
-                    />
-                  </div>
-                )}
+                <div
+                  id={`privacy-panel-${index}`}
+                  className={
+                    openSections.has(index)
+                      ? "px-6 pb-6 pt-2 border-t border-slate-700 block"
+                      : "hidden"
+                  }
+                  aria-hidden={!openSections.has(index)}
+                >
+                  <div
+                    className="terms-content-section prose prose-invert max-w-none text-slate-300 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: section.content }}
+                    style={{
+                      fontSize: "0.95rem",
+                      lineHeight: "1.7",
+                    }}
+                  />
+                </div>
               </div>
             ))}
           </div>

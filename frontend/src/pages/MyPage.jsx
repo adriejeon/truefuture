@@ -77,8 +77,8 @@ function MyPage() {
     const kakaoShareConfig = {
       objectType: "feed",
       content: {
-        title: "진짜미래 - 더 나은 미래를 위한 운명 컨설팅",
-        description: "점성학 정밀 분석으로 미래의 흐름을 읽고, 더 나은 내일을 위한 전략을 제시합니다. 지금 가입하면 망원경 1개를 무료로 드려요.",
+        title: "진짜미래 | 정통 고전 점성술 · 출생 차트 분석",
+        description: "출생 차트 자동 계산과 자유 질문을 지원하는 점성술 분석 서비스입니다. 회원 가입 시 망원경 1개가 제공됩니다.",
         imageUrl,
         link: {
           mobileWebUrl: shareUrl,

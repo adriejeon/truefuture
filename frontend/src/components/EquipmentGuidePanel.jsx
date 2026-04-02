@@ -40,22 +40,27 @@ export default function EquipmentGuidePanel() {
         </span>
       </button>
 
-      {isOpen && (
-        <div className="border-t border-slate-600/60 px-4 pb-4 pt-3 min-[380px]:px-5 min-[380px]:pb-5 min-[380px]:pt-4">
-          <ul className="flex flex-col gap-3 min-[380px]:gap-4">
-            {GUIDE_ITEMS.map((item) => (
-              <li key={item.id}>
-                <div className="min-w-0">
-                  <span className="font-semibold text-white">{item.name}</span>
-                  <span style={{ color: colors.subText }}>
-                    : {item.description}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div
+        className={
+          isOpen
+            ? "border-t border-slate-600/60 px-4 pb-4 pt-3 min-[380px]:px-5 min-[380px]:pb-5 min-[380px]:pt-4 block"
+            : "hidden"
+        }
+        aria-hidden={!isOpen}
+      >
+        <ul className="flex flex-col gap-3 min-[380px]:gap-4">
+          {GUIDE_ITEMS.map((item) => (
+            <li key={item.id}>
+              <div className="min-w-0">
+                <span className="font-semibold text-white">{item.name}</span>
+                <span style={{ color: colors.subText }}>
+                  : {item.description}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

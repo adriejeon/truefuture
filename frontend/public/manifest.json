@@ -1,7 +1,7 @@
 {
-  "name": "진짜미래 | 더 나은 미래를 위한 운명 컨설팅",
+  "name": "진짜미래 | 정통 고전 점성술 · 출생 차트 분석",
   "short_name": "진짜미래",
-  "description": "미래를 알면 더 나은 미래로 바꿀 수 있습니다.",
+  "description": "정통 고전 점성술과 출생 차트(Natal Chart) 자동 계산, 자유 질문·궁합·연간 운세를 지원하는 웹 서비스입니다.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
