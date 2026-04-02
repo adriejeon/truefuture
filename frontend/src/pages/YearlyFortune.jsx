@@ -72,8 +72,9 @@ function YearlyFortune() {
   const [loadingCache, setLoadingCache] = useState(false);
   // 지정일 데일리 운세: 선택 날짜 (YYYY-MM-DD, 기본값=오늘 KST)
   const [dailyTargetDate, setDailyTargetDate] = useState("");
-  // 오늘 이후 뽑아둔 날짜 목록 (기기 변경 시 캘린더 복구용)
-  const [drawnDailyDates, setDrawnDailyDates] = useState([]);
+  // 어느 profileId에 대해 이미 날짜 초기화를 완료했는지 추적 (중복 초기화 방지)
+  const dateInitProfileRef = useRef(null);
+
   // 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
   const [fortuneAvailability, setFortuneAvailability] = useState({
     daily: null,
@@ -110,37 +111,37 @@ function YearlyFortune() {
     if (now.getHours() === 0 && now.getMinutes() < 1) return false;
     return true;
   };
-  // 프로필이 확정되면 뽑아둔 날짜 목록을 가져와 dailyTargetDate를 스마트하게 초기화
+  // 프로필이 확정되면 뽑아둔 날짜를 조회해 dailyTargetDate를 초기화
+  // 같은 프로필에 대해서는 최초 1회만 실행 (사용자가 직접 바꾼 날짜를 덮어쓰지 않기 위해)
   useEffect(() => {
     if (!selectedProfile?.id || !user) {
-      // 로그인 전이거나 프로필이 없으면 오늘 날짜로만 초기화
       if (!dailyTargetDate) setDailyTargetDate(getLocalTodayDate());
       return;
     }
+
+    // 이미 이 프로필로 초기화 완료했으면 재실행 안 함
+    if (dateInitProfileRef.current === selectedProfile.id) return;
 
     let cancelled = false;
     (async () => {
       try {
         const dates = await fetchDrawnDailyDates(selectedProfile.id);
         if (cancelled) return;
-        setDrawnDailyDates(dates);
+        dateInitProfileRef.current = selectedProfile.id;
 
-        // dailyTargetDate가 아직 설정되지 않은 경우(페이지 최초 로드 / 기기 변경)에만 초기화
-        if (!dailyTargetDate) {
-          const today = getLocalTodayDate();
-          // 오늘 포함 미래에 뽑아둔 날짜 중 가장 가까운 날짜를 우선 선택
-          const firstDrawn = dates.find((d) => d >= today);
-          setDailyTargetDate(firstDrawn || today);
-        }
+        const today = getLocalTodayDate();
+        // 오늘 이후 뽑아둔 날짜 중 가장 가까운 것을 우선, 없으면 오늘
+        const firstDrawn = dates.find((d) => d >= today);
+        setDailyTargetDate(firstDrawn || today);
       } catch (_) {
-        if (!cancelled && !dailyTargetDate) {
+        if (!cancelled) {
+          dateInitProfileRef.current = selectedProfile.id;
           setDailyTargetDate(getLocalTodayDate());
         }
       }
     })();
 
     return () => { cancelled = true; };
-    // selectedProfile.id가 바뀔 때(프로필 전환 포함) 재실행
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProfile?.id, user]);
 
@@ -528,12 +529,6 @@ function YearlyFortune() {
             setInterpretation(text);
             setFromCache(false);
             setFortuneDate(targetDate);
-            // 뽑아둔 날짜 목록에 새 날짜 추가 (오늘보다 미래인 경우)
-            if (targetDate > getLocalTodayDate()) {
-              setDrawnDailyDates((prev) =>
-                [...new Set([...prev, targetDate])].sort()
-              );
-            }
           } else {
             setInterpretation(t("yearly_fortune.no_result"));
           }
@@ -881,35 +876,6 @@ function YearlyFortune() {
                   </svg>
                 </div>
               </div>
-              {/* 뽑아둔 미래 날짜 안내 */}
-              {drawnDailyDates.filter((d) => d > getLocalTodayDate()).length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {drawnDailyDates
-                    .filter((d) => d > getLocalTodayDate())
-                    .map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => {
-                          setDailyTargetDate(d);
-                          setError("");
-                          setFromCache(false);
-                          setShareId(null);
-                          setInterpretation("");
-                          setStreamingInterpretation("");
-                          setProcessStatus("idle");
-                        }}
-                        className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-                          dailyTargetDate === d
-                            ? "border-primary bg-primary/20 text-primary"
-                            : "border-slate-600 bg-slate-800 text-slate-400 hover:border-primary/60 hover:text-slate-200"
-                        }`}
-                      >
-                        {formatDateForLocale(d)} {t("yearly_fortune.drawn_badge", "뽑아둠")}
-                      </button>
-                    ))}
-                </div>
-              )}
             </div>
           )}
           <PrimaryButton

@@ -296,7 +296,8 @@ export async function fetchDrawnDailyDates(profileId) {
       .order("fortune_date", { ascending: true });
 
     if (error || !data) return [];
-    return data.map((row) => row.fortune_date).filter(Boolean);
+    // 중복 날짜 제거 후 오름차순 반환
+    return [...new Set(data.map((row) => row.fortune_date).filter(Boolean))].sort();
   } catch (err) {
     console.error("❌ 뽑아둔 데일리 날짜 조회 실패:", err);
     return [];
