@@ -277,47 +277,53 @@ function YearlyFortune() {
       }
 
       setLoadingCache(true);
-      const stored = getDailyFortuneFromStorage(selectedProfile.id, targetDate);
-      if (stored) {
-        setInterpretation(stored.interpretation);
-        setFromCache(true);
-        setFortuneDate(stored.date);
-        setShareId(stored.shareId || null);
-      } else {
-        (async () => {
-          try {
-            const restored = await restoreFortuneIfExists(
-              selectedProfile.id,
-              "daily",
-              targetDate
-            );
-            if (restored) {
-              setInterpretation(restored.interpretation);
+      let cancelledInner = false;
+
+      (async () => {
+        try {
+          // 항상 Supabase를 먼저 조회 — 기기 변경·캐시 불일치 방지
+          const restored = await restoreFortuneIfExists(
+            selectedProfile.id,
+            "daily",
+            targetDate
+          );
+          if (cancelledInner) return;
+
+          if (restored) {
+            setInterpretation(restored.interpretation);
+            setFromCache(true);
+            setFortuneDate(targetDate);
+            setShareId(restored.shareId || null);
+            // 로컬스토리지에 캐시 갱신
+            saveDailyFortuneToStorage(selectedProfile.id, targetDate, {
+              interpretation: restored.interpretation,
+              chart: restored.chart,
+              transitChart: restored.transitChart,
+              aspects: restored.aspects,
+              transitMoonHouse: restored.transitMoonHouse,
+              shareId: restored.shareId,
+            });
+          } else {
+            // DB에 없으면 로컬 캐시 fallback
+            const stored = getDailyFortuneFromStorage(selectedProfile.id, targetDate);
+            if (stored && !cancelledInner) {
+              setInterpretation(stored.interpretation);
               setFromCache(true);
-              setFortuneDate(targetDate);
-              setShareId(restored.shareId || null);
-              saveDailyFortuneToStorage(selectedProfile.id, targetDate, {
-                interpretation: restored.interpretation,
-                chart: restored.chart,
-                transitChart: restored.transitChart,
-                aspects: restored.aspects,
-                transitMoonHouse: restored.transitMoonHouse,
-                shareId: restored.shareId,
-              });
-            } else {
+              setFortuneDate(stored.date);
+              setShareId(stored.shareId || null);
+            } else if (!cancelledInner) {
               setInterpretation("");
               setFromCache(false);
               setFortuneDate("");
               setShareId(null);
             }
-          } finally {
-            setLoadingCache(false);
           }
-        })();
-        return;
-      }
-      setLoadingCache(false);
-      return;
+        } finally {
+          if (!cancelledInner) setLoadingCache(false);
+        }
+      })();
+
+      return () => { cancelledInner = true; };
     }
 
     setRestoring(true);

@@ -469,9 +469,14 @@ export async function restoreFortuneIfExists(
 
     if (fortuneType === "daily") {
       // Case A: daily — 지정일 운세는 targetDate(YYYY-MM-DD)를 우선 사용
+      // 중복 행 대비 항상 .order().limit(1)로 최신 1건만 가져옴
       const dateToUse =
         typeof targetDate === "string" && targetDate ? targetDate : todayDate;
-      historyQuery = historyQuery.eq("fortune_date", dateToUse).maybeSingle();
+      historyQuery = historyQuery
+        .eq("fortune_date", dateToUse)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
     } else {
       // Case B: lifetime / yearly — 날짜 조건 없이 최신 1건
       historyQuery = historyQuery
