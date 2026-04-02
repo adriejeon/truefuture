@@ -20,6 +20,7 @@ import {
   clearProfileModalDismissed,
 } from "../utils/profileModalStorage";
 import { colors } from "../constants/colors";
+import { getBrandImageAlt } from "../constants/seoMeta";
 
 function FavoriteStarIcon() {
   return (
@@ -41,7 +42,7 @@ function FavoriteStarIcon() {
 }
 
 function Home() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const {
     profiles,
@@ -234,7 +235,7 @@ function Home() {
                 <div className="relative w-full">
                   <img
                     src="/assets/graphic.png"
-                    alt="진짜미래 고전 점성술"
+                    alt={getBrandImageAlt(i18n.language)}
                     className="w-full h-auto block"
                   />
                   <img
@@ -524,7 +525,7 @@ function Home() {
               <div className="w-full flex justify-center mb-4">
                 <img
                   src="/assets/welcome.png"
-                  alt="진짜미래 고전 점성술 천체 운행 데이터 기반 인생 지도"
+                  alt={getBrandImageAlt(i18n.language)}
                   className="max-w-[100px] h-auto"
                 />
               </div>

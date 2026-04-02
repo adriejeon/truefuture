@@ -24,7 +24,8 @@ import RefundInquiry from "./pages/RefundInquiry";
 import Footer from "./components/Footer";
 import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
-import { DEFAULT_META, SITE_ORIGIN } from "./constants/seoMeta";
+import { useTranslation } from "react-i18next";
+import { DEFAULT_META, SITE_ORIGIN, getBrandImageAlt } from "./constants/seoMeta";
 
 /** 로그인 여부와 관계없이 / → 메인(Home)으로 보냄 */
 function RootRoute() {
@@ -44,9 +45,11 @@ function RootRoute() {
 
 function AppContent() {
   const location = useLocation();
+  const { i18n } = useTranslation();
   // 메인 페이지(/)에서만 Footer 표시
   const showFooter = location.pathname === "/";
   const canonicalUrl = `${SITE_ORIGIN}${location.pathname}`;
+  const shareImageAlt = getBrandImageAlt(i18n.language);
 
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ colorScheme: "dark light" }}>
@@ -59,11 +62,11 @@ function AppContent() {
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:title" content={DEFAULT_META.title} />
         <meta property="og:description" content={DEFAULT_META.description} />
-        <meta property="og:image:alt" content={DEFAULT_META.title} />
+        <meta property="og:image:alt" content={shareImageAlt} />
         <meta name="twitter:url" content={canonicalUrl} />
         <meta name="twitter:title" content={DEFAULT_META.title} />
         <meta name="twitter:description" content={DEFAULT_META.description} />
-        <meta name="twitter:image:alt" content={DEFAULT_META.title} />
+        <meta name="twitter:image:alt" content={shareImageAlt} />
       </Helmet>
       <GNB />
       <main

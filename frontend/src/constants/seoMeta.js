@@ -23,4 +23,21 @@ export const ASTROLOGY_PAGE_META = {
   ogImage: DEFAULT_OG_IMAGE,
 };
 
+/**
+ * 브랜드·히어로 이미지 공통 alt — meta description·Organization/WebSite JSON-LD와 키워드 정합(GEO 3-Way).
+ * 정통 고전 점성술, AI 맞춤형 출생 차트, 천체 운행 데이터, 300회 이상 리뷰, 자유 질문·궁합·연간 운세.
+ */
+export const BRAND_IMAGE_ALT_KO =
+  "진짜미래: 정통 고전 점성술·AI 맞춤형 출생 차트(Natal Chart) 분석, 수천 년 검증 천체 운행 데이터, 300회 이상 리뷰, 자유 질문·궁합·연간 운세 지원";
+
+export const BRAND_IMAGE_ALT_EN =
+  "True Future: classical Western astrology, AI-assisted natal chart analysis, verified ephemeris data, 300+ published reviews, free-form questions, compatibility, yearly fortune";
+
+/** @param {string | undefined} language i18n.language */
+export function getBrandImageAlt(language) {
+  return typeof language === "string" && language.toLowerCase().startsWith("en")
+    ? BRAND_IMAGE_ALT_EN
+    : BRAND_IMAGE_ALT_KO;
+}
+
 export { SITE_ORIGIN, DEFAULT_OG_IMAGE };

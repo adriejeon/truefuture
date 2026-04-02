@@ -25,6 +25,7 @@ import {
   checkStarBalance,
 } from "../utils/starConsumption";
 import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
+import { getBrandImageAlt } from "../constants/seoMeta";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import {
   getProfileModalDismissed,
@@ -1006,7 +1007,7 @@ function YearlyFortune() {
               <div className="w-full flex justify-center mb-4">
                 <img
                   src="/assets/welcome.png"
-                  alt="진짜미래 고전 점성술 천체 운행 데이터 기반 인생 지도"
+                  alt={getBrandImageAlt(i18n.language)}
                   className="max-w-[100px] h-auto"
                 />
               </div>

@@ -1,7 +1,12 @@
 import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useLocation } from "react-router-dom";
-import { ASTROLOGY_PAGE_META, SITE_ORIGIN } from "../constants/seoMeta";
+import i18n from "../i18n";
+import {
+  ASTROLOGY_PAGE_META,
+  SITE_ORIGIN,
+  getBrandImageAlt,
+} from "../constants/seoMeta";
 
 /** 점성술 페이지용 JSON-LD Product 스키마 (GEO/리치 결과용) */
 const ASTROLOGY_PRODUCT_JSON_LD = {
@@ -67,6 +72,7 @@ function AstrologyPageHelmet() {
   const location = useLocation();
   const canonicalUrl = `${SITE_ORIGIN}${location.pathname}`;
   const { title, description, keywords, ogImage } = ASTROLOGY_PAGE_META;
+  const shareImageAlt = getBrandImageAlt(i18n.language);
 
   useEffect(() => {
     const existing = document.getElementById(JSON_LD_SCRIPT_ID);
@@ -94,12 +100,12 @@ function AstrologyPageHelmet() {
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={ogImage} />
-      <meta property="og:image:alt" content={title} />
+      <meta property="og:image:alt" content={shareImageAlt} />
       <meta name="twitter:url" content={canonicalUrl} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
-      <meta name="twitter:image:alt" content={title} />
+      <meta name="twitter:image:alt" content={shareImageAlt} />
     </Helmet>
   );
 }
