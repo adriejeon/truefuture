@@ -54,6 +54,7 @@ function Compatibility() {
   const resultContainerRef = useRef(null);
   const firstChunkReceivedRef = useRef(false);
   const hasRestoredProfile2Ref = useRef(false);
+  const justLoadedFromHistoryRef = useRef(false);
 
   // 두 사람의 프로필 선택
   const [profile1, setProfile1] = useState(null);
@@ -205,11 +206,15 @@ function Compatibility() {
       setInterpretation(data.interpretation);
       setShareId(data.shareId);
       setIsSharedFortune(false); // 내역에서 불러온 것이므로 공유 링크 아님
+      setProcessStatus("done");
       setError("");
       // user_info가 있으면 profile1/profile2 복원용으로 저장 (위 useEffect에서 매칭)
       if (data.userInfo?.user1?.birthDate && data.userInfo?.user2?.birthDate) {
         setPendingHistoryUserInfo(data.userInfo);
       }
+      // URL을 지우되, 이 직후 한 번만 cleanup effect가 스킵되도록 플래그 설정
+      justLoadedFromHistoryRef.current = true;
+      setSearchParams({});
     } catch (err) {
       console.error("❌ 궁합 내역 조회 실패:", err);
       setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
@@ -274,10 +279,16 @@ function Compatibility() {
     }
   }, [profiles]);
 
-  // 과거 내역이 아닌 일반 진입 시: 하단 결과 영역 비우기 (이전에 본 궁합 결과 노출 방지)
+  // 프로필이 바뀌면 결과 영역 초기화 (내역 로드 직후 URL 클리어 시에는 스킵)
   useEffect(() => {
     if (!profile1 || isSharedFortune || !user) return;
-    if (searchParams.get("id")) return; // URL에 id 있으면 내역에서 진입 → loadFromHistory에서 처리
+    if (searchParams.get("id")) return; // URL에 id 있으면 아직 loadFromHistory 진행 중
+
+    // 내역 로드 완료 직후 setSearchParams({}) 로 인한 effect 실행은 스킵
+    if (justLoadedFromHistoryRef.current) {
+      justLoadedFromHistoryRef.current = false;
+      return;
+    }
 
     setInterpretation("");
     setStreamingInterpretation("");
