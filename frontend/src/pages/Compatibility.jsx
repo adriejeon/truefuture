@@ -280,9 +280,12 @@ function Compatibility() {
     if (searchParams.get("id")) return; // URL에 id 있으면 내역에서 진입 → loadFromHistory에서 처리
 
     setInterpretation("");
+    setStreamingInterpretation("");
+    setSynastryResult(null);
+    setProcessStatus("idle");
     setShareId(null);
     setRestoring(false);
-  }, [profile1?.id, isSharedFortune, user, searchParams]);
+  }, [profile1?.id, profile2?.id, isSharedFortune, user, searchParams]);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
