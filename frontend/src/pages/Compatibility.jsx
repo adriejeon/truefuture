@@ -54,7 +54,8 @@ function Compatibility() {
   const resultContainerRef = useRef(null);
   const firstChunkReceivedRef = useRef(false);
   const hasRestoredProfile2Ref = useRef(false);
-  const justLoadedFromHistoryRef = useRef(false);
+  // 내역 결과를 표시 중인 동안 프로필 복원으로 인한 cleanup을 막는 플래그
+  const isViewingHistoryRef = useRef(false);
 
   // 두 사람의 프로필 선택
   const [profile1, setProfile1] = useState(null);
@@ -212,8 +213,8 @@ function Compatibility() {
       if (data.userInfo?.user1?.birthDate && data.userInfo?.user2?.birthDate) {
         setPendingHistoryUserInfo(data.userInfo);
       }
-      // URL을 지우되, 이 직후 한 번만 cleanup effect가 스킵되도록 플래그 설정
-      justLoadedFromHistoryRef.current = true;
+      // 내역 결과 표시 중 플래그 세팅 → 프로필 복원으로 인한 cleanup effect를 모두 막음
+      isViewingHistoryRef.current = true;
       setSearchParams({});
     } catch (err) {
       console.error("❌ 궁합 내역 조회 실패:", err);
@@ -279,16 +280,13 @@ function Compatibility() {
     }
   }, [profiles]);
 
-  // 프로필이 바뀌면 결과 영역 초기화 (내역 로드 직후 URL 클리어 시에는 스킵)
+  // 프로필이 바뀌면 결과 영역 초기화 (내역 로드 중이거나 복원 중이면 스킵)
   useEffect(() => {
     if (!profile1 || isSharedFortune || !user) return;
     if (searchParams.get("id")) return; // URL에 id 있으면 아직 loadFromHistory 진행 중
 
-    // 내역 로드 완료 직후 setSearchParams({}) 로 인한 effect 실행은 스킵
-    if (justLoadedFromHistoryRef.current) {
-      justLoadedFromHistoryRef.current = false;
-      return;
-    }
+    // 내역 로드 후 프로필 복원 과정에서 발동된 effect는 스킵
+    if (isViewingHistoryRef.current) return;
 
     setInterpretation("");
     setStreamingInterpretation("");
@@ -297,6 +295,17 @@ function Compatibility() {
     setShareId(null);
     setRestoring(false);
   }, [profile1?.id, profile2?.id, isSharedFortune, user, searchParams]);
+
+  // 사용자가 직접 프로필을 선택할 때: 내역 뷰 모드 해제 후 프로필 변경
+  const handleSelectProfile1 = useCallback((profile) => {
+    isViewingHistoryRef.current = false;
+    setProfile1(profile);
+  }, []);
+
+  const handleSelectProfile2 = useCallback((profile) => {
+    isViewingHistoryRef.current = false;
+    setProfile2(profile);
+  }, []);
 
   // 프로필 생성 핸들러
   const handleCreateProfile = useCallback(
@@ -530,7 +539,7 @@ function Compatibility() {
             <ProfileSelector
               profiles={profiles}
               selectedProfile={profile1}
-              onSelectProfile={setProfile1}
+              onSelectProfile={handleSelectProfile1}
               onCreateProfile={() => {
                 if (!user) {
                   setShowLoginRequiredModal(true);
@@ -562,7 +571,7 @@ function Compatibility() {
             <ProfileSelector
               profiles={profiles}
               selectedProfile={profile2}
-              onSelectProfile={setProfile2}
+              onSelectProfile={handleSelectProfile2}
               onCreateProfile={() => {
                 if (!user) {
                   setShowLoginRequiredModal(true);
