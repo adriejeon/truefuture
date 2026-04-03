@@ -19,6 +19,7 @@ import {
   UserData,
   CompatibilityData,
   ChartData,
+  TransitNatalPlacement,
 } from "./types.ts";
 
 // promptFactory: language 파라미터로 KO/EN 모듈을 동적 선택
@@ -56,6 +57,7 @@ import {
   getLordOfYearProfectionAngleEntry,
   calculateLordAspectsWithPhase,
   calculateDailyAngleStrikes,
+  getTransitPointNatalWsQs,
 } from "./utils/astrologyCalculator.ts";
 import { calculateSynastry } from "./utils/synastryCalculator.ts";
 import {
@@ -354,6 +356,8 @@ function buildUserPrompt(
   lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
   neo4jContextForDaily?: string | null,
   targetDateYmdKst?: string,
+  transitMoonNatalPlacement?: TransitNatalPlacement | null,
+  transitLordNatalPlacement?: TransitNatalPlacement | null,
   language?: string,
 ): string {
   const { formatter } = getModules(language ?? "ko");
@@ -378,6 +382,8 @@ function buildUserPrompt(
       lordTransitStatus ?? null,
       lordStarConjunctionsText ?? null,
       transitMoonHouse,
+      transitMoonNatalPlacement ?? null,
+      transitLordNatalPlacement ?? null,
     );
   }
 
@@ -901,6 +907,8 @@ async function getInterpretation(
   dailyAngleStrikes?: import("./types.ts").DailyAngleStrike[],
   lordProfectionAngleEntry?: import("./types.ts").LordProfectionAngleEntry | null,
   targetDateYmdKst?: string,
+  transitMoonNatalPlacement?: TransitNatalPlacement | null,
+  transitLordNatalPlacement?: TransitNatalPlacement | null,
   category?: string, // CONSULTATION 카테고리 추가
   language?: string, // 언어 파라미터 ('ko' | 'en')
   streamOptions?: {
@@ -1026,6 +1034,8 @@ async function getInterpretation(
       lordProfectionAngleEntry,
       neo4jContext || null,
       targetDateYmdKst,
+      transitMoonNatalPlacement,
+      transitLordNatalPlacement,
       language,
     );
 
@@ -1227,6 +1237,8 @@ async function generateLifetimeFortune(
       undefined, undefined, undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, undefined,
       undefined, // targetDateYmdKst
+      undefined, // transitMoonNatalPlacement
+      undefined, // transitLordNatalPlacement
       language,
     );
 
@@ -2773,6 +2785,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         undefined,
         undefined,
         undefined, // targetDateYmdKst (DAILY 전용)
+        undefined, // transitMoonNatalPlacement
+        undefined, // transitLordNatalPlacement
         undefined, // category (COMPATIBILITY 케이스에서는 사용하지 않음)
         requestLanguage, // language
         {
@@ -2990,6 +3004,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     let aspects: any[] | undefined;
     let transitToTransitAspects: any[] | undefined;
     let transitMoonHouse: number | undefined;
+    let transitMoonNatalPlacement: TransitNatalPlacement | undefined;
+    let transitLordNatalPlacement: TransitNatalPlacement | undefined;
 
     if (fortuneType === FortuneType.DAILY) {
       try {
@@ -3015,6 +3031,10 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         transitMoonHouse = getTransitMoonHouseInNatalChart(
           chartData,
           transitChartData,
+        );
+        transitMoonNatalPlacement = getTransitPointNatalWsQs(
+          chartData,
+          transitChartData.planets.moon.degree,
         );
       } catch (transitError: any) {
         console.error(
@@ -3144,10 +3164,16 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           ? (
               transitChartData.planets as Record<
                 string,
-                { isRetrograde?: boolean }
+                { isRetrograde?: boolean; degree?: number }
               >
             )?.[lordKey]
           : undefined;
+        if (lordKey && transitLord && typeof transitLord.degree === "number") {
+          transitLordNatalPlacement = getTransitPointNatalWsQs(
+            chartData,
+            transitLord.degree,
+          );
+        }
         const isRetrograde = transitLord?.isRetrograde === true;
         timeLordRetrogradeAlert = {
           planet: lordName,
@@ -3339,6 +3365,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       dailyAngleStrikes,
       lordProfectionAngleEntry ?? undefined,
       fortuneType === FortuneType.DAILY ? targetDateYmdKst : undefined,
+      fortuneType === FortuneType.DAILY ? transitMoonNatalPlacement : undefined,
+      fortuneType === FortuneType.DAILY ? transitLordNatalPlacement : undefined,
       undefined, // category (일반 운세 케이스에서는 사용하지 않음)
       requestLanguage, // language
       streamOptions,

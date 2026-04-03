@@ -20,6 +20,8 @@ import type {
   ChartData,
   Location,
   PlanetPosition,
+  QuadrantStrength,
+  TransitNatalPlacement,
   Aspect,
   ProfectionData,
   SolarReturnOverlay,
@@ -362,6 +364,14 @@ export async function calculateChart(
     const { ascendant, ramc } = calculateAscendant(date, lat, lng, time);
     const ascendantSignInfo = getSignFromLongitude(ascendant);
 
+    const midheaven = ramcToEclipticLongitude(ramc);
+    const alcabitiusCusps = calculateAlcabitiusCusps(
+      ascendant,
+      midheaven,
+      lat,
+      ramc,
+    );
+
     // 행성 위치 계산 (역행·속도 포함)
     const planetsData: any = {};
     const luminaries = new Set(["sun", "moon"]);
@@ -371,6 +381,7 @@ export async function calculateChart(
         const longitude = getPlanetLongitude(body, time);
         const signInfo = getSignFromLongitude(longitude);
         const house = getWholeSignHouse(longitude, ascendant);
+        const qsHouse = alcabitiusHouseForLongitude(longitude, alcabitiusCusps);
 
         let isRetrograde = false;
         let speed: number | undefined;
@@ -390,6 +401,8 @@ export async function calculateChart(
           degree: longitude,
           degreeInSign: signInfo.degreeInSign,
           house: house,
+          qsHouse,
+          qsStrength: quadrantStrengthFromHouse(qsHouse),
           isRetrograde,
           ...(speed !== undefined && { speed }),
         };
@@ -409,14 +422,17 @@ export async function calculateChart(
     const fortunaLon = calculateFortuna(ascendant, moonLon, sunLon, isDayChart);
     const fortunaSignInfo = getSignFromLongitude(fortunaLon);
     const fortunaHouse = getWholeSignHouse(fortunaLon, ascendant);
-
-    const midheaven = ramcToEclipticLongitude(ramc);
+    const fortunaQsHouse = alcabitiusHouseForLongitude(
+      fortunaLon,
+      alcabitiusCusps,
+    );
 
     const result: ChartData = {
       date: date.toISOString(),
       location: { lat, lng },
       houses: {
         system: "Whole Sign",
+        ramcDegrees: ramc,
         angles: {
           ascendant: ascendant,
           midheaven: midheaven,
@@ -428,6 +444,8 @@ export async function calculateChart(
         degree: fortunaLon,
         degreeInSign: fortunaSignInfo.degreeInSign,
         house: fortunaHouse,
+        qsHouse: fortunaQsHouse,
+        qsStrength: quadrantStrengthFromHouse(fortunaQsHouse),
         isRetrograde: false,
       },
     };
@@ -517,6 +535,147 @@ export function toObliqueAscension(
   const adDeg = toDeg(adRad);
   let oa = ra - adDeg;
   return normalizeDegrees(oa);
+}
+
+// ========== Alcabitius (Quadrant Strength) ==========
+
+/** ramcToEclipticLongitude / calculateAscendant와 동일 황도경사각 */
+const ALCABITIUS_OBLIQUITY_DEG = 23.4392911;
+
+/**
+ * 적경상 최단 방향 각차(도, -180 초과 ~ 180 이하). MC→ASC, ASC→IC 적경 3등분에 사용.
+ */
+function directedShortestRaDeltaDeg(fromRa: number, toRa: number): number {
+  let d = normalizeDegrees(toRa - fromRa);
+  if (d > 180) d -= 360;
+  return d;
+}
+
+/**
+ * 황경 lon이 [start, end) 황도 순방향(0→360) 반개구간에 있는지. 경계: 시작 커스프는 해당 하우스에 포함.
+ */
+function longitudeInForwardHalfOpenArc(
+  lon: number,
+  start: number,
+  end: number,
+): boolean {
+  const p = normalizeDegrees(lon);
+  const a = normalizeDegrees(start);
+  const b = normalizeDegrees(end);
+  const arcLen = normalizeDegrees(b - a);
+  if (arcLen < 1e-8) return false;
+  const t = normalizeDegrees(p - a);
+  return t + 1e-9 < arcLen;
+}
+
+/**
+ * 알카비티우스 12 커스프 황경(도). 인덱스 0=1하우스 … 11=12하우스.
+ * 적경 구간은 `toRightAscension`(β=0)과 RAMC(선택)를 사용하고, 적경→황경은 `ramcToEclipticLongitude`와 동일한 구면식(atan2)으로 복원합니다.
+ *
+ * @param ascLongitude 상승점 황경
+ * @param mcLongitude MC 황경
+ * @param _lat 출생지 위도(표준 알카비티우스 적경 3등분에는 불필요하나 API·향후 극지 확장용)
+ * @param ramcDegrees RAMC(도). 네이탈과 일치시키려면 `calculateAscendant`의 `ramc` 전달. 생략 시 MC 황경에서 역산한 적경 사용.
+ */
+export function calculateAlcabitiusCusps(
+  ascLongitude: number,
+  mcLongitude: number,
+  _lat: number,
+  ramcDegrees?: number,
+): number[] {
+  const eps = ALCABITIUS_OBLIQUITY_DEG;
+  const raMc =
+    ramcDegrees !== undefined
+      ? normalizeDegrees(ramcDegrees)
+      : toRightAscension(mcLongitude, 0, eps);
+  const raAsc = toRightAscension(ascLongitude, 0, eps);
+  const icLon = normalizeDegrees(mcLongitude + 180);
+  const raIc = toRightAscension(icLon, 0, eps);
+
+  const dMcAsc = directedShortestRaDeltaDeg(raMc, raAsc);
+  const thirdTop = dMcAsc / 3;
+  const ra11 = normalizeDegrees(raMc + thirdTop);
+  const ra12 = normalizeDegrees(raMc + 2 * thirdTop);
+
+  const dAscIc = directedShortestRaDeltaDeg(raAsc, raIc);
+  const thirdBot = dAscIc / 3;
+  const ra2 = normalizeDegrees(raAsc + thirdBot);
+  const ra3 = normalizeDegrees(raAsc + 2 * thirdBot);
+
+  const cusp1 = normalizeDegrees(ascLongitude);
+  const cusp2 = ramcToEclipticLongitude(ra2);
+  const cusp3 = ramcToEclipticLongitude(ra3);
+  const cusp4 = icLon;
+  const cusp11 = ramcToEclipticLongitude(ra11);
+  const cusp12 = ramcToEclipticLongitude(ra12);
+  const cusp5 = normalizeDegrees(cusp11 + 180);
+  const cusp6 = normalizeDegrees(cusp12 + 180);
+  const cusp7 = normalizeDegrees(ascLongitude + 180);
+  const cusp8 = normalizeDegrees(cusp2 + 180);
+  const cusp9 = normalizeDegrees(cusp3 + 180);
+  const cusp10 = normalizeDegrees(mcLongitude);
+
+  return [
+    cusp1,
+    cusp2,
+    cusp3,
+    cusp4,
+    cusp5,
+    cusp6,
+    cusp7,
+    cusp8,
+    cusp9,
+    cusp10,
+    cusp11,
+    cusp12,
+  ];
+}
+
+/**
+ * 행성 황경이 알카비티우스 커스프 순서상 몇 하우스에 속하는지 (1–12).
+ */
+export function alcabitiusHouseForLongitude(
+  longitude: number,
+  cusps12: readonly number[],
+): number {
+  if (cusps12.length !== 12) {
+    throw new Error("alcabitiusHouseForLongitude: expected 12 cusps");
+  }
+  const p = normalizeDegrees(longitude);
+  for (let h = 1; h <= 12; h++) {
+    const start = normalizeDegrees(cusps12[h - 1]);
+    const end = normalizeDegrees(cusps12[h % 12]);
+    if (longitudeInForwardHalfOpenArc(p, start, end)) return h;
+  }
+  return 12;
+}
+
+/** 알카비티우스 하우스 번호 → Quadrant Strength (앵글/서시던트/케이던트) */
+export function quadrantStrengthFromHouse(house: number): QuadrantStrength {
+  const h = ((((Math.floor(house) - 1) % 12) + 12) % 12) + 1;
+  if (h === 1 || h === 4 || h === 7 || h === 10) return "Angle";
+  if (h === 2 || h === 5 || h === 8 || h === 11) return "Succedent";
+  return "Cadent";
+}
+
+/**
+ * 트랜짓 황경이 네이탈 차트 기준 Whole Sign 하우스·알카비티우스 QS 하우스에 어디에 해당하는지.
+ */
+export function getTransitPointNatalWsQs(
+  natalChart: ChartData,
+  transitLongitude: number,
+): TransitNatalPlacement {
+  const asc = natalChart.houses.angles.ascendant;
+  const mc = natalChart.houses.angles.midheaven;
+  const lat = natalChart.location?.lat ?? 0;
+  const ramcOpt = natalChart.houses.ramcDegrees;
+  const cusps = calculateAlcabitiusCusps(asc, mc, lat, ramcOpt);
+  const qsHouse = alcabitiusHouseForLongitude(transitLongitude, cusps);
+  return {
+    wsHouse: getWholeSignHouse(transitLongitude, asc),
+    qsHouse,
+    qsStrength: quadrantStrengthFromHouse(qsHouse),
+  };
 }
 
 export interface PrimaryDirectionHit {
@@ -722,10 +881,10 @@ export function getTransitMoonHouseInNatalChart(
   natalChart: ChartData,
   transitChart: ChartData,
 ): number {
-  const transitMoonLongitude = transitChart.planets.moon.degree;
-  const natalAscendant = natalChart.houses.angles.ascendant;
-
-  return getWholeSignHouse(transitMoonLongitude, natalAscendant);
+  return getTransitPointNatalWsQs(
+    natalChart,
+    transitChart.planets.moon.degree,
+  ).wsHouse;
 }
 
 /** 행성 표기명 → 차트 키 (연주/트랜짓 계산용) */

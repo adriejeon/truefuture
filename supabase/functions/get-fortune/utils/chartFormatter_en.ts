@@ -15,6 +15,7 @@ import type {
   DailyFlowSummary,
   DailyAngleStrike,
   LordProfectionAngleEntry,
+  TransitNatalPlacement,
 } from "../types.ts";
 import {
   getSignFromLongitude,
@@ -34,8 +35,13 @@ import {
   analyzeNatalFixedStars,
   formatNatalFixedStarsForPrompt,
 } from "./advancedAstrology.ts";
+import {
+  getSignDisplay,
+  formatPlanetHouseWsQs,
+  buildSynastryMoonDispositorSection,
+} from "./chartFormatter.ts";
 
-// ─── Re-export language-neutral types ───────────────────────────────────────
+// ─── Re-export language-neutral types & shared formatters ────────────────────
 
 export type { LoveAnalysisData } from "./chartFormatter.ts";
 export type {
@@ -43,7 +49,7 @@ export type {
   LordOfYearTransitStatus,
   CategorySignificatorsResult,
 } from "./chartFormatter.ts";
-export { getSignDisplay } from "./chartFormatter.ts";
+export { getSignDisplay, formatPlanetHouseWsQs, buildSynastryMoonDispositorSection };
 
 // ─── Private helpers (English labels) ───────────────────────────────────────
 
@@ -141,13 +147,12 @@ function formatNatalPlanets(
   for (const key of order) {
     const p = planets[key];
     if (!p) continue;
-    const houseOrd = ordinalHouse(p.house);
     const name = key.charAt(0).toUpperCase() + key.slice(1);
     const charSuffix =
       getSignChar && (key === "sun" || key === "moon")
         ? ` (Character: ${getSignChar(p.sign)})`
         : "";
-    lines.push(`- ${name}: ${p.sign} (${houseOrd} House)${charSuffix}`);
+    lines.push(`- ${name}: ${p.sign} (${formatPlanetHouseWsQs(p)})${charSuffix}`);
   }
   return lines.join("\n");
 }
@@ -229,7 +234,7 @@ function analyzeOuterPlanetAspectsEn(
 
     if (natalAspects.length > 0 || transitAspects.length > 0) {
       let section = `\n${outerName} (${keyword}):\n`;
-      section += `  Position: ${outerPlanetData.sign} ${outerPlanetData.degreeInSign.toFixed(1)}° (House ${outerPlanetData.house})\n`;
+      section += `  Position: ${outerPlanetData.sign} ${outerPlanetData.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(outerPlanetData)})\n`;
       if (natalAspects.length > 0) {
         section += `  Natal Aspects:\n`;
         natalAspects.forEach((a) => (section += `    - ${a}\n`));
@@ -252,6 +257,60 @@ function analyzeOuterPlanetAspectsEn(
 Outer planets generally carry challenging energy: sudden disruption, clouded judgment, and macro-scale upheaval.
 ${sections.join("\n")}
 💡 Interpretation Hint: When outer planets aspect natal planets or transit the time-lord planet, their keyword energy intensifies. Square and Opposition amplify the malefic influence.`;
+}
+
+function formatNatalQsReferenceBlockEn(natalData: ChartData): string {
+  const sun = natalData.planets?.sun;
+  const moon = natalData.planets?.moon;
+  const fo = natalData.fortuna;
+  const lines: string[] = [];
+  if (sun) {
+    lines.push(
+      `  - SUN: ${sun.sign} ${sun.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(sun)})`,
+    );
+  }
+  if (moon) {
+    lines.push(
+      `  - MOON: ${moon.sign} ${moon.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(moon)})`,
+    );
+  }
+  if (fo) {
+    lines.push(
+      `  - Part of Fortune: ${fo.sign} ${fo.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(fo)})`,
+    );
+  }
+  if (lines.length === 0) return "";
+  return `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Natal reference — Luminaries & Part of Fortune (WS / Alcabitius QS)]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${lines.join("\n")}
+Weight interpretations using the Quadrant Strength (QS) rules in the system prompt.
+`.trim();
+}
+
+function formatDailyTransitNatalOverlayEn(
+  moonPl: TransitNatalPlacement | null | undefined,
+  lordName: string | null | undefined,
+  lordPl: TransitNatalPlacement | null | undefined,
+  fallbackWsMoon: number | undefined,
+): string {
+  const lines: string[] = [];
+  if (moonPl) {
+    lines.push(
+      `Transit Moon is passing through your natal WS ${moonPl.wsHouse}H / QS ${moonPl.qsHouse}H (${moonPl.qsStrength}).`,
+    );
+  } else if (fallbackWsMoon != null) {
+    lines.push(
+      `Transit Moon: use Natal Whole Sign ${ordinalHouse(fallbackWsMoon)} House as reference (QS detail unavailable without full placement).`,
+    );
+  }
+  if (lordName && lordPl) {
+    lines.push(
+      `Transit ${lordName} (Lord of the Year) in your natal chart: WS ${lordPl.wsHouse}H / QS ${lordPl.qsHouse}H (${lordPl.qsStrength}).`,
+    );
+  }
+  return lines.join("\n");
 }
 
 // ─── Public API (English output) ─────────────────────────────────────────────
@@ -308,7 +367,7 @@ export function formatSolarReturnBlockForPrompt(
   lines.push("Planets:");
   const srPlanets = Object.entries(srChartData.planets)
     .map(([name, planet]) =>
-      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (SR House ${planet.house})`,
+      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet, { sr: true })})`,
     )
     .join("\n");
   lines.push(srPlanets);
@@ -351,6 +410,8 @@ export function generateDailyUserPrompt(
   lordTransitStatus: LordOfYearTransitStatusLocal | null,
   lordStarConjunctionsText: string | null,
   transitMoonHouse: number | undefined,
+  transitMoonNatalPlacement?: TransitNatalPlacement | null,
+  transitLordNatalPlacement?: TransitNatalPlacement | null,
 ): string {
   const targetDateEn = formatTargetDateToEn(targetDateYmdKst);
   const natalAscSign = getSignDisplayLocal(natalData.houses.angles.ascendant);
@@ -364,7 +425,12 @@ Birth Time: ${natalData.date}
 Birth Location: Lat ${natalData.location.lat}, Lon ${natalData.location.lng}
 Ascendant: ${natalAscSign}
 ${profectionData ? `Age: ${profectionData.age} | Profection House: ${profectionData.profectionHouse} | Profection Sign: ${profectionData.profectionSign} | Lord of the Year: ${profectionData.lordOfTheYear}` : ""}
-${transitMoonHouse != null ? `Transit Moon on ${targetDateEn} is in Natal House ${transitMoonHouse} (day's main stage/theme).` : ""}
+${formatDailyTransitNatalOverlayEn(
+    transitMoonNatalPlacement,
+    profectionData?.lordOfTheYear,
+    transitLordNatalPlacement,
+    transitMoonHouse,
+  )}
 ${lordProfectionAngleEntry ? `⚠️ ${lordProfectionAngleEntry.message} (Time Lord entering Profection Angle House ${lordProfectionAngleEntry.house})` : ""}
 ${timeLordRetrogradeAlert?.isRetrograde ? `[CRITICAL WARNING] Time Lord ${timeLordRetrogradeAlert.planet} is Retrograde — Critical Inflection Point` : ""}
 ${lordTransitStatus ? `Time Lord Transit Status: ${lordTransitStatus.isRetrograde ? "Retrograde" : "Direct"} | Sect: ${lordTransitStatus.sectStatus} | In Sect: ${lordTransitStatus.isInSect}` : ""}
@@ -413,9 +479,12 @@ ${hasReceptionRejection ? angleStrikes.filter((s) => s.neo4jMetaTag).map((s) => 
 ${neo4jContext ? "\n\n[Natal Chart Dignity / Sect / Hayz Context]\n" + neo4jContext : ""}
 `.trim();
 
+  const natalQsRef = formatNatalQsReferenceBlockEn(natalData);
+
   return [
     `Data for Selected-Date Fortune Analysis. (Classical Astrology: AM/PM split, applying/separating orbs, sensitive point strikes, reception/rejection.)\nTarget Date: ${targetDateEn}`,
     section1,
+    ...(natalQsRef ? [natalQsRef] : []),
     section2,
     section3,
     section4,
@@ -433,7 +502,7 @@ export function generateYearlyUserPrompt(
 ): string {
   const natalPlanets = Object.entries(natalData.planets)
     .map(([name, planet]) =>
-      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`,
+      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet)})`,
     )
     .join("\n");
 
@@ -444,7 +513,7 @@ export function generateYearlyUserPrompt(
 
   const solarReturnPlanets = Object.entries(solarReturnData.planets)
     .map(([name, planet]) =>
-      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (SR House ${planet.house})`,
+      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet, { sr: true })})`,
     )
     .join("\n");
 
@@ -490,7 +559,7 @@ Angles:
 Planets:
 ${natalPlanets}
 
-Part of Fortune: ${natalData.fortuna.sign} ${natalData.fortuna.degreeInSign.toFixed(1)}° (House ${natalData.fortuna.house})
+Part of Fortune: ${natalData.fortuna.sign} ${natalData.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(natalData.fortuna)})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [Solar Return Chart]
@@ -538,7 +607,7 @@ export function generateLifetimeUserPrompt(natalData: ChartData): string {
 
   const natalPlanets = Object.entries(natalData.planets)
     .map(([name, planet]) =>
-      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`,
+      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet)})`,
     )
     .join("\n");
 
@@ -572,7 +641,7 @@ Angles:
 Planets:
 ${natalPlanets}
 
-Part of Fortune: ${natalData.fortuna.sign} ${natalData.fortuna.degreeInSign.toFixed(1)}° (House ${natalData.fortuna.house})
+Part of Fortune: ${natalData.fortuna.sign} ${natalData.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(natalData.fortuna)})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -593,12 +662,12 @@ export function generateCompatibilityUserPrompt(
 
   const natalPlanets1 = Object.entries(natalData1.planets)
     .map(([name, planet]) =>
-      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`,
+      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet)})`,
     )
     .join("\n");
   const natalPlanets2 = Object.entries(natalData2.planets)
     .map(([name, planet]) =>
-      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (House ${planet.house})`,
+      `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet)})`,
     )
     .join("\n");
 
@@ -628,6 +697,12 @@ Interpretation Guide: Do their stellar temperaments harmonize, or do both carry 
 `
       : "";
 
+  const moonDispositorSection = buildSynastryMoonDispositorSection(
+    natalData1,
+    natalData2,
+    "en",
+  );
+
   return `
 Compatibility Analysis Data
 
@@ -646,7 +721,7 @@ Angles: ASC ${getSignDisplayLocal(asc1)} | MC ${getSignDisplayLocal(mc1)} | IC $
 Planets:
 ${natalPlanets1}
 
-Part of Fortune: ${natalData1.fortuna.sign} ${natalData1.fortuna.degreeInSign.toFixed(1)}° (House ${natalData1.fortuna.house})
+Part of Fortune: ${natalData1.fortuna.sign} ${natalData1.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(natalData1.fortuna)})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [📋 User 2 (Them) Info]
@@ -663,12 +738,14 @@ Angles: ASC ${getSignDisplayLocal(asc2)} | MC ${getSignDisplayLocal(mc2)} | IC $
 Planets:
 ${natalPlanets2}
 
-Part of Fortune: ${natalData2.fortuna.sign} ${natalData2.fortuna.degreeInSign.toFixed(1)}° (House ${natalData2.fortuna.house})
+Part of Fortune: ${natalData2.fortuna.sign} ${natalData2.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(natalData2.fortuna)})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [📅 Analysis Date]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Current Date: ${currentYear}-${String(currentMonth).padStart(2, "0")}
+${moonDispositorSection}
+
 ${deepSoulSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -924,10 +1001,27 @@ export function generatePredictionPrompt(
   const ascCharacter = getSignCharacter(ascParts[0] ?? getSignDisplayLocal(ascLong));
   const planetLines = formatNatalPlanets(chartData, { getSignCharacter });
   const seventhRuler = getSeventhHouseRuler(ascLong);
+  const fortunaLine = chartData.fortuna
+    ? `- Part of Fortune: ${chartData.fortuna.sign} ${chartData.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(chartData.fortuna)})`
+    : "";
   sections.push(`[🌌 Natal Chart]
 - Angles: Ascendant: ${ascDisplay} | MC: ${getSignDisplayLocal(mcLong)} | IC: ${getSignDisplayLocal(icLong)} | Descendant: ${getSignDisplayLocal(dscLong)}${ascCharacter ? ` (Asc Character: ${ascCharacter})` : ""}
 ${planetLines}
+${fortunaLine ? `\n${fortunaLine}` : ""}
 - 7th House Ruler: ${seventhRuler}`);
+
+  if (consultationTransitChart?.planets) {
+    const transitPlanetLines = Object.entries(consultationTransitChart.planets)
+      .map(
+        ([name, planet]) =>
+          `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet)})`,
+      )
+      .join("\n");
+    sections.push(`[🌍 Transit Chart — sky at consultation time (WS / Alcabitius QS)]
+${transitPlanetLines}
+Weight each planet's QS using the Quadrant Strength rules in the system prompt.`);
+
+  }
 
   // [NATAL CHART HIGHLIGHTS]
   const natalStars = analyzeNatalFixedStars(chartData, birthDate);
@@ -1035,7 +1129,7 @@ ${natalStarBlock}
     const srAscDisplay = getSignDisplayLocal(solarReturnChartData.houses.angles.ascendant);
     const srPlanets = Object.entries(solarReturnChartData.planets)
       .map(([name, planet]) =>
-        `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (SR House ${planet.house})`,
+        `  - ${name.toUpperCase()}: ${planet.sign} ${planet.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(planet, { sr: true })})`,
       )
       .join("\n");
 

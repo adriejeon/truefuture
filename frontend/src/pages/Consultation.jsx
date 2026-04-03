@@ -71,9 +71,9 @@ function FollowUpConsultationCard({ parsedData }) {
       {answer?.conclusion != null && (
         <div>
           <h3 className="text-lg font-semibold text-white mb-2">{t("consultation.conclusion")}</h3>
-          <p className="text-slate-200 leading-relaxed text-[15px] whitespace-pre-wrap">
-            {answer.conclusion}
-          </p>
+          <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+            <ReactMarkdown>{answer.conclusion}</ReactMarkdown>
+          </div>
         </div>
       )}
       {answer?.detail != null && (
@@ -1293,25 +1293,25 @@ function Consultation() {
                   {sharedConsultation.parsedData.analysis?.general && (
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.analysis_section")}</h3>
-                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {sharedConsultation.parsedData.analysis.general}
-                      </p>
+                      <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                        <ReactMarkdown>{sharedConsultation.parsedData.analysis.general}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
                   {sharedConsultation.parsedData.analysis?.timing && (
                     <div className="pt-5">
                       <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.timing_section")}</h3>
-                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {sharedConsultation.parsedData.analysis.timing}
-                      </p>
+                      <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                        <ReactMarkdown>{sharedConsultation.parsedData.analysis.timing}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
                   {sharedConsultation.parsedData.analysis?.advice && (
                     <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
                       <h3 className="text-lg font-semibold text-[#F9A302] mb-3">💡 Action Tip</h3>
-                      <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {sharedConsultation.parsedData.analysis.advice}
-                      </p>
+                      <div className="prose prose-invert max-w-none text-slate-100 leading-relaxed text-[15px]">
+                        <ReactMarkdown>{sharedConsultation.parsedData.analysis.advice}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1385,19 +1385,25 @@ function Consultation() {
                         {fu.parsedData.analysis?.general && (
                           <div>
                             <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.analysis_section")}</h3>
-                            <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.general}</p>
+                            <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                              <ReactMarkdown>{fu.parsedData.analysis.general}</ReactMarkdown>
+                            </div>
                           </div>
                         )}
                         {fu.parsedData.analysis?.timing && (
                           <div className="pt-5">
                             <h3 className="text-lg font-semibold text-white mb-3">{t("consultation.timing_section")}</h3>
-                            <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.timing}</p>
+                            <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                              <ReactMarkdown>{fu.parsedData.analysis.timing}</ReactMarkdown>
+                            </div>
                           </div>
                         )}
                         {fu.parsedData.analysis?.advice && (
                           <div className="p-4 bg-[rgba(249,163,2,0.1)] border-2 border-[#F9A302] rounded-xl">
                             <h3 className="text-lg font-semibold text-[#F9A302] mb-3">💡 Action Tip</h3>
-                            <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">{fu.parsedData.analysis.advice}</p>
+                            <div className="prose prose-invert max-w-none text-slate-100 leading-relaxed text-[15px]">
+                              <ReactMarkdown>{fu.parsedData.analysis.advice}</ReactMarkdown>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1630,9 +1636,9 @@ function Consultation() {
                       <h3 className="text-lg font-semibold text-white mb-3">
                         {t("consultation.analysis_section")}
                       </h3>
-                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {historyView.parsedData.analysis.general}
-                      </p>
+                      <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                        <ReactMarkdown>{historyView.parsedData.analysis.general}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
                   {historyView.parsedData.analysis?.timing && (
@@ -1640,9 +1646,9 @@ function Consultation() {
                       <h3 className="text-lg font-semibold text-white mb-3">
                         {t("consultation.timing_section")}
                       </h3>
-                      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                        {historyView.parsedData.analysis.timing}
-                      </p>
+                      <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                        <ReactMarkdown>{historyView.parsedData.analysis.timing}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
                   {historyView.parsedData.analysis?.advice && (
@@ -1651,9 +1657,9 @@ function Consultation() {
                         <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
                           💡 Action Tip
                         </h3>
-                        <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                          {historyView.parsedData.analysis.advice}
-                        </p>
+                        <div className="prose prose-invert max-w-none text-slate-100 leading-relaxed text-[15px]">
+                          <ReactMarkdown>{historyView.parsedData.analysis.advice}</ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1777,9 +1783,9 @@ function Consultation() {
                           <h3 className="text-lg font-semibold text-white mb-3">
                             {t("consultation.analysis_section")}
                           </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {fu.parsedData.analysis.general}
-                          </p>
+                          <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                            <ReactMarkdown>{fu.parsedData.analysis.general}</ReactMarkdown>
+                          </div>
                         </div>
                       )}
                       {fu.parsedData.analysis?.timing && (
@@ -1787,9 +1793,9 @@ function Consultation() {
                           <h3 className="text-lg font-semibold text-white mb-3">
                             {t("consultation.timing_section")}
                           </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {fu.parsedData.analysis.timing}
-                          </p>
+                          <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                            <ReactMarkdown>{fu.parsedData.analysis.timing}</ReactMarkdown>
+                          </div>
                         </div>
                       )}
                       {fu.parsedData.analysis?.advice && (
@@ -1797,9 +1803,9 @@ function Consultation() {
                           <h3 className="text-lg font-semibold text-[#F9A302] mb-3">
                             💡 Action Tip
                           </h3>
-                          <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {fu.parsedData.analysis.advice}
-                          </p>
+                          <div className="prose prose-invert max-w-none text-slate-100 leading-relaxed text-[15px]">
+                            <ReactMarkdown>{fu.parsedData.analysis.advice}</ReactMarkdown>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2300,20 +2306,18 @@ function Consultation() {
                           <h3 className="text-lg font-semibold text-white mb-3">
                             {t("consultation.analysis_section")}
                           </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {consultationAnswer.parsedData.analysis
-                              ?.general || ""}
-                          </p>
+                          <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                            <ReactMarkdown>{consultationAnswer.parsedData.analysis?.general || ""}</ReactMarkdown>
+                          </div>
                         </div>
 
                         <div className="pt-5">
                           <h3 className="text-lg font-semibold text-white mb-3">
                             {t("consultation.timing_section")}
                           </h3>
-                          <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                            {consultationAnswer.parsedData.analysis?.timing ||
-                              ""}
-                          </p>
+                          <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                            <ReactMarkdown>{consultationAnswer.parsedData.analysis?.timing || ""}</ReactMarkdown>
+                          </div>
                         </div>
 
                         <div className="pt-5">
@@ -2321,10 +2325,9 @@ function Consultation() {
                             <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
                               💡 Action Tip
                             </h3>
-                            <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                              {consultationAnswer.parsedData.analysis
-                                ?.advice || ""}
-                            </p>
+                            <div className="prose prose-invert max-w-none text-slate-100 leading-relaxed text-[15px]">
+                              <ReactMarkdown>{consultationAnswer.parsedData.analysis?.advice || ""}</ReactMarkdown>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -2486,20 +2489,18 @@ function Consultation() {
                                 <h3 className="text-lg font-semibold text-white mb-3">
                                   {t("consultation.analysis_section")}
                                 </h3>
-                                <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                                  {followUpAnswer.parsedData.analysis?.general ||
-                                    ""}
-                                </p>
+                                <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                                  <ReactMarkdown>{followUpAnswer.parsedData.analysis?.general || ""}</ReactMarkdown>
+                                </div>
                               </div>
 
                               <div className="pt-5">
                                 <h3 className="text-lg font-semibold text-white mb-3">
                                   {t("consultation.timing_section")}
                                 </h3>
-                                <p className="text-slate-200 leading-relaxed whitespace-pre-wrap text-[15px]">
-                                  {followUpAnswer.parsedData.analysis?.timing ||
-                                    ""}
-                                </p>
+                                <div className="prose prose-invert max-w-none text-slate-200 leading-relaxed text-[15px]">
+                                  <ReactMarkdown>{followUpAnswer.parsedData.analysis?.timing || ""}</ReactMarkdown>
+                                </div>
                               </div>
 
                               <div className="pt-5">
@@ -2507,10 +2508,9 @@ function Consultation() {
                                   <h3 className="text-lg font-semibold text-[#F9A302] mb-3 flex items-center gap-2">
                                     💡 Action Tip
                                   </h3>
-                                  <p className="text-slate-100 leading-relaxed whitespace-pre-wrap text-[15px]">
-                                    {followUpAnswer.parsedData.analysis
-                                      ?.advice || ""}
-                                  </p>
+                                  <div className="prose prose-invert max-w-none text-slate-100 leading-relaxed text-[15px]">
+                                    <ReactMarkdown>{followUpAnswer.parsedData.analysis?.advice || ""}</ReactMarkdown>
+                                  </div>
                                 </div>
                               </div>
                             </div>

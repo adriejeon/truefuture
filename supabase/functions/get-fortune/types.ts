@@ -33,12 +33,26 @@ export interface Location {
   lng: number;
 }
 
+/** 알카비티우스(Quadrant Strength) 하우스 힘의 세기 */
+export type QuadrantStrength = "Angle" | "Succedent" | "Cadent";
+
+/** 트랜짓 천체가 네이탈 차트 기준으로 놓인 WS·QS (데일리 등) */
+export interface TransitNatalPlacement {
+  wsHouse: number;
+  qsHouse: number;
+  qsStrength: QuadrantStrength;
+}
+
 // 행성 위치 정보 타입
 export interface PlanetPosition {
   sign: string;
   degree: number;
   degreeInSign: number;
   house: number;
+  /** 알카비티우스 하우스 (1–12) */
+  qsHouse: number;
+  /** 알카비티우스 기준 사분면 힘 (앵글/서시던트/케이던트) */
+  qsStrength: QuadrantStrength;
   /** 역행 여부 (태양·달은 항상 false) */
   isRetrograde: boolean;
   /** 황경 속도 (deg/일, 정지/Station 구간 판별용, 선택) */
@@ -51,6 +65,8 @@ export interface ChartData {
   location: Location;
   houses: {
     system: string;
+    /** 출생 시 RAMC(도). 알카비티우스 커스프와 트랜짓 오버레이 일치용(선택, 구차트 없을 수 있음) */
+    ramcDegrees?: number;
     angles: {
       ascendant: number;
       midheaven: number;
