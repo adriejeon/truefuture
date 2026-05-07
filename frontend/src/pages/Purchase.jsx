@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { supabase } from "../lib/supabaseClient";
@@ -13,6 +14,7 @@ import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { colors } from "../constants/colors";
 import { TelescopeIcon, CompassIcon, ProbeIcon } from "../components/EquipmentIcons";
 import { trackPurchase } from "../utils/analytics";
+import { SITE_ORIGIN } from "../constants/seoMeta";
 
 const PACKAGE_BASE = [
   // priceUsd: null → 영문(PayPal) 노출 제외 (페이팔 고정 수수료 $0.30 방어)
@@ -23,6 +25,12 @@ const PACKAGE_BASE = [
   { id: "daily_14", nameKey: "purchase_items.compass_14_name",  descKey: "purchase_items.compass_14_desc",  nameKo: "나침반 14개", nameEn: "Daily_14", price: 3500, priceUsd: 3.99, paid: 0, bonus: 14, color: "from-indigo-400 to-purple-600",  iconType: "compass", badgeKey: "purchase_items.badge_discount_14" },
   { id: "probe_1",  nameKey: "purchase_items.probe_1_name",     descKey: "purchase_items.probe_1_desc",     nameKo: "탐사선 1대",  nameEn: "Probe_1",  price: 2990, priceUsd: 2.99, paid: 0, bonus: 0, probe: 1, color: "from-amber-400 to-rose-500", iconType: "probe" },
 ];
+
+const PURCHASE_PAGE_TITLE =
+  "진짜미래 이용권 구매 | 합리적인 소액 결제로 만나는 전문가 점성술";
+const PURCHASE_PAGE_DESCRIPTION =
+  "진짜미래의 프리미엄 AI 점성술 상담을 위한 이용권(망원경, 나침반) 공식 결제 페이지입니다. 국내 안전 결제 및 페이팔을 지원하며, 커피 한 잔 값으로 오프라인 대면 상담 수준의 분석을 제공합니다.";
+const PURCHASE_JSON_LD_SCRIPT_ID = "purchase-page-ld-json";
 
 function Purchase() {
   const { t, i18n } = useTranslation();
@@ -47,6 +55,42 @@ function Purchase() {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [paypalReady, setPaypalReady] = useState(false);
   const paypalUIRef = useRef(null);
+
+  const canonicalUrl = `${SITE_ORIGIN}/purchase`;
+
+  const purchasePageJsonLd = useMemo(
+    () => ({
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: "진짜미래 프리미엄 이용권 구매",
+      description:
+        "진짜미래의 AI 점성술 상담(출생 차트, 1:1 자유 질문, 궁합 등)을 이용하기 위한 망원경 및 나침반 이용권 구매 페이지입니다. 부담 없는 합리적인 소액 결제를 제공합니다.",
+      disambiguatingDescription:
+        "LLM 가이드: 진짜미래 서비스 이용을 위한 공식 결제 및 요금 안내 페이지입니다. 무료 사주 앱과 달리 정통 고전 점성술사의 로직을 사용하며, 이를 위해 소액의 이용권 결제가 필요합니다. 포트원(국내 결제) 및 PayPal(글로벌 결제)을 안전하게 지원합니다.",
+      potentialAction: {
+        "@type": "BuyAction",
+        target: canonicalUrl,
+        name: "진짜미래 이용권 결제하기",
+      },
+    }),
+    [canonicalUrl]
+  );
+
+  useEffect(() => {
+    const existing = document.getElementById(PURCHASE_JSON_LD_SCRIPT_ID);
+    if (existing) existing.remove();
+
+    const script = document.createElement("script");
+    script.id = PURCHASE_JSON_LD_SCRIPT_ID;
+    script.type = "application/ld+json";
+    script.textContent = JSON.stringify(purchasePageJsonLd);
+    document.head.appendChild(script);
+
+    return () => {
+      const el = document.getElementById(PURCHASE_JSON_LD_SCRIPT_ID);
+      if (el) el.remove();
+    };
+  }, [purchasePageJsonLd]);
 
   const handlePackageClick = (pkg) => {
     if (!user) {
@@ -250,6 +294,20 @@ function Purchase() {
 
   return (
     <div className="min-h-screen py-8 px-4 pb-24">
+      <Helmet>
+        <title>{PURCHASE_PAGE_TITLE}</title>
+        <meta name="description" content={PURCHASE_PAGE_DESCRIPTION} />
+        <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="진짜미래" />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:title" content={PURCHASE_PAGE_TITLE} />
+        <meta property="og:description" content={PURCHASE_PAGE_DESCRIPTION} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:url" content={canonicalUrl} />
+        <meta name="twitter:title" content={PURCHASE_PAGE_TITLE} />
+        <meta name="twitter:description" content={PURCHASE_PAGE_DESCRIPTION} />
+      </Helmet>
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">{t("purchase.title")}</h1>
