@@ -224,7 +224,7 @@
   },
   "faq": {
     "back_home": "Back to Home",
-    "title": "Frequently Asked Questions",
+    "title": "Real Future FAQ",
     "q1_title": "Can I check day-to-day relationship shifts or contact luck with someone I'm interested in?",
     "q1_content": "Absolutely. Through the Free Question feature on the 'True Future' page, we precisely calculate the daily movement of the stars to tell you whether today is a good day to reach out first, what kind of mood might unfold during a date, and more — capturing the dynamic daily shifts in your love fortune.",
     "q2_title": "Can I get specific dates for things like a confession or reuniting with an ex?",
@@ -235,6 +235,10 @@
     "q4_content": "We don't only show fixed horoscope blurbs. True Future computes a natal chart from birth time and place and supports free-form text questions. Published reviews and user feedback are available for reference; repeat-visit and reuse metrics are tracked as operational data.",
     "q5_title": "When I ask a free question, does a real person answer?",
     "q5_content": "No. Responses are generated automatically from interpretation logic derived from professional consulting practice. There is no human consultant in the loop for the same question; answers are produced immediately."
+  },
+  "free_question": {
+    "title": "Real Future Free Question",
+    "description": "Not a generic free horoscope. Real Future Free Question offers 1:1, consult-style answers for complex concerns (love, career, money) using a personalized natal chart analysis aligned with the same interpretation logic used by offline classical astrologers — available through a reasonable micro-payment."
   },
   "profile_modal": {
     "title_edit": "Edit Profile",
@@ -369,6 +373,8 @@
     "do_it_later": "Maybe Later"
   },
   "compatibility": {
+    "title": "Real Future Compatibility",
+    "description": "It's not just about whether you're a good or bad match. We dig deep into whether each person's preferences, quirks, and sensitivities align — revealing how drawn you are to each other and what might create friction. This is how you understand the true depth of a connection.",
     "intro": "It's not just about whether you're a good or bad match. We dig deep into whether each person's preferences, quirks, and sensitivities align — revealing how drawn you are to each other and what might create friction. This is how you understand the true depth of a connection.",
     "person1_label": "💙 Person 1",
     "person2_label": "💗 Person 2",

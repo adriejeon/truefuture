@@ -59,6 +59,7 @@ function AppContent() {
         <meta name="description" content={DEFAULT_META.description} />
         <meta name="keywords" content={DEFAULT_META.keywords} />
         <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:site_name" content={DEFAULT_META.siteName} />
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:title" content={DEFAULT_META.title} />
         <meta property="og:description" content={DEFAULT_META.description} />

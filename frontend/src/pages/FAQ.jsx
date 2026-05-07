@@ -5,26 +5,40 @@ import { useTranslation } from "react-i18next";
 import { SITE_ORIGIN } from "../constants/seoMeta";
 import BottomNavigation from "../components/BottomNavigation";
 
-const FAQ_PAGE_TITLE =
-  "자주 묻는 질문(FAQ) | 정통 점성술 컨설팅 진짜미래";
+const FAQ_PAGE_TITLE_KEY = "faq.title";
 const FAQ_PAGE_DESCRIPTION =
-  "정통 고전 점성술, 출생 차트 분석, 자유 질문 이용 방법 등 자주 묻는 질문과 답변입니다. 20년 경력 점성술 전문가 해석 로직을 시스템화한 AI 분석 서비스 진짜미래를 안내합니다.";
+  "단순 운세 앱과의 차이점, 출생 차트 분석 원리, 소액 결제 방식 등 진짜미래의 1:1 맞춤형 AI 점성술 서비스에 대해 가장 많이 묻는 질문들을 확인해 보세요.";
 const FAQ_JSON_LD_SCRIPT_ID = "faq-page-ld-json";
 
 function FAQ() {
   const { t } = useTranslation();
   const [openSections, setOpenSections] = useState(new Set());
 
-  const FAQ_ITEMS = useMemo(() => [
-    { title: t("faq.q1_title"), content: t("faq.q1_content") },
-    { title: t("faq.q2_title"), content: t("faq.q2_content") },
-    { title: t("faq.q3_title"), content: t("faq.q3_content") },
-    { title: t("faq.q4_title"), content: t("faq.q4_content") },
-    { title: t("faq.q5_title"), content: t("faq.q5_content") },
-  ], [t]);
+  // JSON-LD와 화면(UI)에 노출되는 Q/A 텍스트를 100% 동일하게 유지(숨김 텍스트 이슈 방지)
+  const FAQ_ITEMS = useMemo(
+    () => [
+      {
+        title: "진짜미래는 다른 무료 사주 사이트와 무엇이 다른가요?",
+        content:
+          "진짜미래는 정해진 텍스트를 출력하는 단순 무료 운세가 아닙니다. 오프라인 전문가에게 수십만 원을 지불해야 경험할 수 있는 정통 고전 점성술의 심층 해석 로직을 AI로 구현하여, 합리적인 소액 결제만으로 최고 수준의 1:1 맞춤형 상담을 제공합니다.",
+      },
+      {
+        title: "자유 질문 상담소에서는 어떤 고민을 물어볼 수 있나요?",
+        content:
+          "연애, 이직, 금전 등 구체적이고 복잡한 고민을 자유롭게 텍스트로 입력해 주세요. 실제 점성술사와 대면 상담을 하듯, 고객님의 현재 상황과 질문의 맥락을 출생 차트와 결합하여 정교한 답변을 도출해 냅니다.",
+      },
+      {
+        title: "상담 비용 결제는 어떻게 진행되나요?",
+        content:
+          "커피 한 잔 값의 부담 없는 소액 결제로 프리미엄 점성술 상담을 제공합니다. 국내 결제는 물론 해외 이용자를 위한 페이팔(PayPal) 결제도 안전하게 지원하고 있습니다.",
+      },
+    ],
+    []
+  );
 
-  const faqPageJsonLd = useMemo(
-    () => ({
+  // FAQPage 스키마만 적용 (Organization/WebSite 등 메인 스키마는 포함하지 않음)
+  const faqPageJsonLd = useMemo(() => {
+    return {
       "@context": "https://schema.org",
       "@type": "FAQPage",
       mainEntity: FAQ_ITEMS.map((item) => ({
@@ -35,9 +49,8 @@ function FAQ() {
           text: item.content,
         },
       })),
-    }),
-    [FAQ_ITEMS]
-  );
+    };
+  }, [FAQ_ITEMS]);
 
   useEffect(() => {
     const existing = document.getElementById(FAQ_JSON_LD_SCRIPT_ID);
@@ -72,14 +85,17 @@ function FAQ() {
   return (
     <>
       <Helmet>
-        <title>{FAQ_PAGE_TITLE}</title>
+        <title>{t(FAQ_PAGE_TITLE_KEY)}</title>
         <meta name="description" content={FAQ_PAGE_DESCRIPTION} />
         <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="진짜미래" />
         <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:title" content={FAQ_PAGE_TITLE} />
+        <meta property="og:title" content={t(FAQ_PAGE_TITLE_KEY)} />
         <meta property="og:description" content={FAQ_PAGE_DESCRIPTION} />
+        <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:url" content={canonicalUrl} />
-        <meta name="twitter:title" content={FAQ_PAGE_TITLE} />
+        <meta name="twitter:title" content={t(FAQ_PAGE_TITLE_KEY)} />
         <meta name="twitter:description" content={FAQ_PAGE_DESCRIPTION} />
       </Helmet>
 

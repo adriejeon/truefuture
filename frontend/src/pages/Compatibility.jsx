@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Helmet } from "react-helmet-async";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
@@ -22,14 +23,17 @@ import {
   fetchUserStars,
   checkStarBalance,
 } from "../utils/starConsumption";
-import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
-import { getBrandImageAlt } from "../constants/seoMeta";
+import { DEFAULT_OG_IMAGE, SITE_ORIGIN, getBrandImageAlt } from "../constants/seoMeta";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import {
   getProfileModalDismissed,
   setProfileModalDismissed,
   clearProfileModalDismissed,
 } from "../utils/profileModalStorage";
+
+const COMPATIBILITY_TITLE_KEY = "compatibility.title";
+const COMPATIBILITY_DESCRIPTION_KEY = "compatibility.description";
+const COMPATIBILITY_JSON_LD_SCRIPT_ID = "compatibility-ld-json";
 
 function Compatibility() {
   const { t, i18n } = useTranslation();
@@ -94,6 +98,41 @@ function Compatibility() {
   }, [synastryResult, profile1?.name, profile2?.name, t]);
 
   const COMPAT_PROFILE2_KEY = "compatibility_profile2_id";
+
+  const canonicalUrl = `${SITE_ORIGIN}/compatibility`;
+  const shareImageAlt = getBrandImageAlt(i18n.language);
+
+  // SEO/GEO: 화면 상단 안내문(About)과 메타/JSON-LD의 title/description을 1:1로 동기화
+  const pageTitle = t(COMPATIBILITY_TITLE_KEY);
+  const pageDescription = t(COMPATIBILITY_DESCRIPTION_KEY);
+
+  const compatibilityJsonLd = useMemo(() => {
+    return {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "@id": `${canonicalUrl}#webpage`,
+      url: canonicalUrl,
+      name: pageTitle,
+      description: pageDescription,
+      inLanguage: (i18n.language || "ko").toLowerCase().startsWith("en") ? "en" : "ko",
+    };
+  }, [canonicalUrl, i18n.language, pageDescription, pageTitle]);
+
+  useEffect(() => {
+    const existing = document.getElementById(COMPATIBILITY_JSON_LD_SCRIPT_ID);
+    if (existing) existing.remove();
+
+    const script = document.createElement("script");
+    script.id = COMPATIBILITY_JSON_LD_SCRIPT_ID;
+    script.type = "application/ld+json";
+    script.textContent = JSON.stringify(compatibilityJsonLd);
+    document.head.appendChild(script);
+
+    return () => {
+      const el = document.getElementById(COMPATIBILITY_JSON_LD_SCRIPT_ID);
+      if (el) el.remove();
+    };
+  }, [compatibilityJsonLd]);
 
   // 프로필이 변경되면 첫 번째 프로필 자동 선택
   useEffect(() => {
@@ -512,7 +551,26 @@ function Compatibility() {
       className="w-full py-8 sm:py-12"
       style={{ position: "relative", zIndex: 1 }}
     >
-      <AstrologyPageHelmet />
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+        <link rel="canonical" href={canonicalUrl} />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="진짜미래" />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDescription} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:image:alt" content={shareImageAlt} />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:url" content={canonicalUrl} />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDescription} />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+        <meta name="twitter:image:alt" content={shareImageAlt} />
+      </Helmet>
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}
@@ -522,10 +580,14 @@ function Compatibility() {
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
+        <h1 className="text-3xl sm:text-4xl font-bold mb-4 sm:mb-6 text-primary">
+          {t(COMPATIBILITY_TITLE_KEY)}
+        </h1>
+
         {/* 페이지 소개 - 진짜 궁합 (Synastry) */}
         <div className="mb-6 sm:mb-8">
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-            {t("compatibility.intro")}
+            {pageDescription}
           </p>
         </div>
 

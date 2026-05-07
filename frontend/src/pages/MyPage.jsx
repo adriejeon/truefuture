@@ -77,8 +77,9 @@ function MyPage() {
     const kakaoShareConfig = {
       objectType: "feed",
       content: {
-        title: "진짜미래 | 정통 고전 점성술 · 출생 차트 분석",
-        description: "출생 차트 자동 계산과 자유 질문을 지원하는 점성술 분석 서비스입니다. 회원 가입 시 망원경 1개가 제공됩니다.",
+        title: "진짜미래 | 1:1 맞춤형 정통 고전 점성술 AI 상담소",
+        description:
+          "단순 무료 운세가 아닙니다. 합리적인 소액 결제로 오프라인 고전 점성술사와 동일한 로직의 출생 차트 분석과 상담을 제공하는 프리미엄 AI 서비스입니다.",
         imageUrl,
         link: {
           mobileWebUrl: shareUrl,

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
+import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -21,8 +22,8 @@ import {
   fetchUserStars,
   checkStarBalance,
 } from "../utils/starConsumption";
-import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
 import LoginRequiredModal from "../components/LoginRequiredModal";
+import { DEFAULT_OG_IMAGE, SITE_ORIGIN, getBrandImageAlt } from "../constants/seoMeta";
 
 
 /**
@@ -48,6 +49,10 @@ const parseFortuneResult = (text) => {
 
 /** 후속 질문 응답 여부: answer 객체가 있으면 후속 질문용 스키마(header/answer/action_tip/critical_date) */
 const isFollowUpData = (data) => data && typeof data.answer === "object";
+
+const FREE_QUESTION_TITLE_KEY = "free_question.title";
+const FREE_QUESTION_DESCRIPTION_KEY = "free_question.description";
+const FREE_QUESTION_JSON_LD_SCRIPT_ID = "free-question-ld-json";
 
 /** 후속 질문용 심플 컨설팅 카드 (header, answer, action_tip, critical_date) */
 function FollowUpConsultationCard({ parsedData }) {
@@ -119,6 +124,40 @@ function FollowUpConsultationCard({ parsedData }) {
 function Consultation() {
   const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
+  const canonicalUrl = `${SITE_ORIGIN}/consultation`;
+  const shareImageAlt = getBrandImageAlt(i18n.language);
+
+  // SEO/GEO: 화면 상단 안내문(About)과 메타/JSON-LD의 title/description을 1:1로 동기화
+  const pageTitle = t(FREE_QUESTION_TITLE_KEY);
+  const pageDescription = t(FREE_QUESTION_DESCRIPTION_KEY);
+
+  const freeQuestionJsonLd = useMemo(() => {
+    return {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "@id": `${canonicalUrl}#webpage`,
+      url: canonicalUrl,
+      name: pageTitle,
+      description: pageDescription,
+      inLanguage: (i18n.language || "ko").toLowerCase().startsWith("en") ? "en" : "ko",
+    };
+  }, [canonicalUrl, i18n.language, pageDescription, pageTitle]);
+
+  useEffect(() => {
+    const existing = document.getElementById(FREE_QUESTION_JSON_LD_SCRIPT_ID);
+    if (existing) existing.remove();
+
+    const script = document.createElement("script");
+    script.id = FREE_QUESTION_JSON_LD_SCRIPT_ID;
+    script.type = "application/ld+json";
+    script.textContent = JSON.stringify(freeQuestionJsonLd);
+    document.head.appendChild(script);
+
+    return () => {
+      const el = document.getElementById(FREE_QUESTION_JSON_LD_SCRIPT_ID);
+      if (el) el.remove();
+    };
+  }, [freeQuestionJsonLd]);
 
   const TOPIC_OPTIONS = [
     { id: "LOVE", label: t("consultation.topic_love") },
@@ -1945,7 +1984,26 @@ function Consultation() {
 
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
-      <AstrologyPageHelmet />
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+        <link rel="canonical" href={canonicalUrl} />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="진짜미래" />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDescription} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:image:alt" content={shareImageAlt} />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:url" content={canonicalUrl} />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDescription} />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+        <meta name="twitter:image:alt" content={shareImageAlt} />
+      </Helmet>
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}
@@ -1956,10 +2014,14 @@ function Consultation() {
         style={{ position: "relative", zIndex: 1 }}
       >
         <div className="py-8 sm:py-12">
+          <h1 className="text-3xl sm:text-4xl font-bold mb-4 sm:mb-6 text-primary">
+            {t(FREE_QUESTION_TITLE_KEY)}
+          </h1>
+
           {/* 페이지 소개 (SEO/GEO 본문 텍스트 동기화용 section id 유지) */}
           <section id="ai-comment-astrology" className="mb-6 sm:mb-8">
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              {t("consultation.intro")}
+              {pageDescription}
             </p>
           </section>
 
