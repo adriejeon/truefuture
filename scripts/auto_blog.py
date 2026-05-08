@@ -124,7 +124,7 @@ def _timeout(seconds: int):
         yield
 
 
-def generate_post(gemini_api_key: str, *, timeout_seconds: int = 90) -> dict:
+def generate_post(gemini_api_key: str, *, timeout_seconds: int = 300) -> dict:
     topic = random.choice(TOPICS)
     prompt = _build_prompt(topic)
 
@@ -225,6 +225,11 @@ def main() -> int:
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     cloudflare_hook_url = os.getenv("CLOUDFLARE_DEPLOY_HOOK_URL")
+    timeout_seconds_raw = os.getenv("AUTO_BLOG_TIMEOUT_SECONDS", "").strip()
+    try:
+        timeout_seconds = int(timeout_seconds_raw) if timeout_seconds_raw else 300
+    except Exception:
+        timeout_seconds = 300
 
     missing = [
         k
@@ -240,7 +245,7 @@ def main() -> int:
         return 1
 
     try:
-        post = generate_post(gemini_api_key, timeout_seconds=90)
+        post = generate_post(gemini_api_key, timeout_seconds=timeout_seconds)
         print(f"[auto_blog] generated slug={post.get('slug')} tags={post.get('tags')}")
     except Exception as e:
         print(f"[auto_blog] Gemini 호출/파싱 실패: {e}", file=sys.stderr)
