@@ -3,10 +3,11 @@ import os
 import random
 import re
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
-import google.generativeai as genai
 import requests
+from google import genai
 from supabase import create_client
 
 
@@ -29,12 +30,12 @@ def _slugify(value: str) -> str:
     value = re.sub(r"[^a-z0-9가-힣\s-]", "", value)
     value = re.sub(r"\s+", "-", value).strip("-")
     value = re.sub(r"-{2,}", "-", value)
-    return value[:80] or f"post-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    return value[:80] or "post"
+
 
 def _slug_suffix() -> str:
-    # 예: 20260508-1842-3812 (짧고 충돌 확률 낮게)
     now = datetime.now(timezone.utc)
-    return f"{now.strftime('%Y%m%d')}-{now.strftime('%H%M')}-{random.randint(1000, 9999)}"
+    return f"{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}-{random.randint(1000, 9999)}"
 
 
 def _build_prompt(topic: str) -> str:
@@ -64,13 +65,11 @@ def _safe_json_loads(text: str):
     if not isinstance(text, str):
         return None
     t = text.strip()
-    # 혹시라도 코드펜스가 섞이면 제거 시도
     t = re.sub(r"^```(?:json)?\s*", "", t, flags=re.IGNORECASE)
     t = re.sub(r"\s*```$", "", t)
     try:
         return json.loads(t)
     except Exception:
-        # 마지막 방어: 텍스트 내 첫 JSON 객체만 추출 시도
         m = re.search(r"\{[\s\S]*\}\s*$", t)
         if not m:
             return None
@@ -80,24 +79,83 @@ def _safe_json_loads(text: str):
             return None
 
 
-def generate_post(gemini_api_key: str) -> dict:
-    genai.configure(api_key=gemini_api_key)
+def _extract_text_from_genai_response(resp) -> str:
+    text = getattr(resp, "text", None)
+    if isinstance(text, str) and text.strip():
+        return text
 
+    candidates = getattr(resp, "candidates", None) or []
+    if candidates:
+        content = getattr(candidates[0], "content", None)
+        parts = getattr(content, "parts", None) or []
+        if parts:
+            t = getattr(parts[0], "text", None)
+            if isinstance(t, str) and t.strip():
+                return t
+
+    return ""
+
+
+class _TimeoutError(Exception):
+    pass
+
+
+@contextmanager
+def _timeout(seconds: int):
+    if seconds <= 0:
+        yield
+        return
+
+    try:
+        import signal
+
+        def _handle_alarm(_signum, _frame):
+            raise _TimeoutError(f"timeout after {seconds}s")
+
+        old_handler = signal.getsignal(signal.SIGALRM)
+        signal.signal(signal.SIGALRM, _handle_alarm)
+        signal.setitimer(signal.ITIMER_REAL, float(seconds))
+        try:
+            yield
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0.0)
+            signal.signal(signal.SIGALRM, old_handler)
+    except Exception:
+        yield
+
+
+def generate_post(gemini_api_key: str, *, timeout_seconds: int = 90) -> dict:
     topic = random.choice(TOPICS)
     prompt = _build_prompt(topic)
 
-    model = genai.GenerativeModel("gemini-3.1-pro-preview")
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["title", "content", "slug", "excerpt", "tags"],
+        "properties": {
+            "title": {"type": "string"},
+            "content": {"type": "string"},
+            "slug": {"type": "string"},
+            "excerpt": {"type": "string"},
+            "tags": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        },
+    }
 
-    resp = model.generate_content(
-        prompt,
-        generation_config=genai.GenerationConfig(
-            response_mime_type="application/json",
-            temperature=0.9,
-            max_output_tokens=10000,
-        ),
-    )
+    client = genai.Client(api_key=gemini_api_key)
 
-    text = getattr(resp, "text", None) or ""
+    with _timeout(timeout_seconds):
+        resp = client.models.generate_content(
+            model="gemini-3.1-pro-preview",
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": schema,
+                "temperature": 0.9,
+                "max_output_tokens": 12000,
+            },
+        )
+
+    text = _extract_text_from_genai_response(resp)
     data = _safe_json_loads(text)
     if not isinstance(data, dict):
         raise ValueError(f"Gemini JSON 파싱 실패. raw={text[:500]}")
@@ -111,10 +169,8 @@ def generate_post(gemini_api_key: str) -> dict:
     if not title or not content:
         raise ValueError("Gemini 응답에 title/content가 비어 있습니다.")
 
-    if not slug:
-        slug = _slugify(title)
-    else:
-        slug = _slugify(slug)
+    base_slug = _slugify(slug) if slug else _slugify(title)
+    final_slug = f"{base_slug}-{_slug_suffix()}"
 
     if not excerpt:
         excerpt = (re.sub(r"\s+", " ", re.sub(r"[#*_>`-]+", " ", content)).strip())[:160]
@@ -124,23 +180,22 @@ def generate_post(gemini_api_key: str) -> dict:
     else:
         tags = []
 
-    # 3~5개 권장. 부족하면 최소 보정.
-    base = ["점성술", "사주", "운세", "별자리", "궁합", "행성", "타로"]
-    if len(tags) < 3:
-        for t in base:
-            if t not in tags:
-                tags.append(t)
-            if len(tags) >= 3:
-                break
+    base_tags = ["점성술", "사주", "운세", "별자리", "궁합", "행성", "타로"]
+    for t in base_tags:
+        if len(tags) >= 3:
+            break
+        if t not in tags:
+            tags.append(t)
     tags = tags[:5]
 
     return {
         "title": title,
         "content": content,
-        "slug": slug,
+        "slug": final_slug,
         "excerpt": excerpt,
         "tags": tags,
     }
+
 
 def _trigger_cloudflare_hook(hook_url: str | None) -> None:
     if not hook_url:
@@ -148,40 +203,21 @@ def _trigger_cloudflare_hook(hook_url: str | None) -> None:
     try:
         requests.post(hook_url, timeout=15)
     except Exception:
-        pass
+        return
 
 
 def insert_post_to_supabase(supabase_url: str, service_role_key: str, post: dict) -> dict:
     sb = create_client(supabase_url, service_role_key)
-
-    base_payload = {
+    payload = {
         "title": post["title"],
         "content": post["content"],
         "excerpt": post["excerpt"],
         "tags": post.get("tags", []),
+        "slug": post["slug"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
-
-    # slug 중복 대응: insert 실패(중복 등) 시 suffix 붙여 재시도 → 항상 "새 글"로 누적
-    desired_slug = post.get("slug") or _slugify(post.get("title", ""))
-    desired_slug = _slugify(desired_slug)
-
-    last_err = None
-    for attempt in range(6):
-        slug = desired_slug if attempt == 0 else f"{desired_slug}-{_slug_suffix()}"
-        payload = {
-            **base_payload,
-            "slug": slug,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        try:
-            res = sb.table("posts").insert(payload).execute()
-            return {"inserted": True, "data": getattr(res, "data", None), "slug": slug}
-        except Exception as e:
-            last_err = e
-            # 다음 시도로 넘어감
-            continue
-
-    raise RuntimeError(f"Supabase insert 재시도 실패: {last_err}")
+    res = sb.table("posts").insert(payload).execute()
+    return {"inserted": True, "data": getattr(res, "data", None), "slug": post["slug"]}
 
 
 def main() -> int:
@@ -200,29 +236,25 @@ def main() -> int:
         if not v
     ]
     if missing:
-        msg = f"[auto_blog] 환경변수 누락: {', '.join(missing)}"
-        print(msg, file=sys.stderr)
-        return 0  # 워크플로우에서 실패로 간주하지 않도록 0 리턴
+        print(f"[auto_blog] 환경변수 누락: {', '.join(missing)}", file=sys.stderr)
+        return 1
 
     try:
-        post = generate_post(gemini_api_key)
+        post = generate_post(gemini_api_key, timeout_seconds=90)
         print(f"[auto_blog] generated slug={post.get('slug')} tags={post.get('tags')}")
     except Exception as e:
-        msg = f"[auto_blog] Gemini 호출/파싱 실패: {e}"
-        print(msg, file=sys.stderr)
-        return 0
+        print(f"[auto_blog] Gemini 호출/파싱 실패: {e}", file=sys.stderr)
+        return 1
 
     try:
         result = insert_post_to_supabase(supabase_url, supabase_service_role_key, post)
-        print(
-            f"[auto_blog] inserted={result.get('inserted')} slug={result.get('slug')} rows={len(result.get('data') or [])}"
-        )
+        rows = len(result.get("data") or [])
+        print(f"[auto_blog] inserted={result.get('inserted')} slug={result.get('slug')} rows={rows}")
         _trigger_cloudflare_hook(cloudflare_hook_url)
         return 0
     except Exception as e:
-        msg = f"[auto_blog] Supabase insert 실패: {e}"
-        print(msg, file=sys.stderr)
-        return 0
+        print(f"[auto_blog] Supabase insert 실패: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
