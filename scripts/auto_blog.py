@@ -3,7 +3,6 @@ import os
 import random
 import re
 import sys
-from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import requests
@@ -96,35 +95,7 @@ def _extract_text_from_genai_response(resp) -> str:
     return ""
 
 
-class _TimeoutError(Exception):
-    pass
-
-
-@contextmanager
-def _timeout(seconds: int):
-    if seconds <= 0:
-        yield
-        return
-
-    try:
-        import signal
-
-        def _handle_alarm(_signum, _frame):
-            raise _TimeoutError(f"timeout after {seconds}s")
-
-        old_handler = signal.getsignal(signal.SIGALRM)
-        signal.signal(signal.SIGALRM, _handle_alarm)
-        signal.setitimer(signal.ITIMER_REAL, float(seconds))
-        try:
-            yield
-        finally:
-            signal.setitimer(signal.ITIMER_REAL, 0.0)
-            signal.signal(signal.SIGALRM, old_handler)
-    except Exception:
-        yield
-
-
-def generate_post(gemini_api_key: str, *, timeout_seconds: int = 300) -> dict:
+def generate_post(gemini_api_key: str) -> dict:
     topic = random.choice(TOPICS)
     prompt = _build_prompt(topic)
 
@@ -143,17 +114,16 @@ def generate_post(gemini_api_key: str, *, timeout_seconds: int = 300) -> dict:
 
     client = genai.Client(api_key=gemini_api_key)
 
-    with _timeout(timeout_seconds):
-        resp = client.models.generate_content(
-            model="gemini-3.1-pro-preview",
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": schema,
-                "temperature": 0.9,
-                "max_output_tokens": 12000,
-            },
-        )
+    resp = client.models.generate_content(
+        model="gemini-3.1-pro-preview",
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": schema,
+            "temperature": 0.9,
+            "max_output_tokens": 12000,
+        },
+    )
 
     text = _extract_text_from_genai_response(resp)
     data = _safe_json_loads(text)
@@ -221,46 +191,33 @@ def insert_post_to_supabase(supabase_url: str, service_role_key: str, post: dict
 
 
 def main() -> int:
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    cloudflare_hook_url = os.getenv("CLOUDFLARE_DEPLOY_HOOK_URL")
-    timeout_seconds_raw = os.getenv("AUTO_BLOG_TIMEOUT_SECONDS", "").strip()
     try:
-        timeout_seconds = int(timeout_seconds_raw) if timeout_seconds_raw else 300
-    except Exception:
-        timeout_seconds = 300
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        cloudflare_hook_url = os.getenv("CLOUDFLARE_DEPLOY_HOOK_URL")
 
-    missing = [
-        k
-        for k, v in {
-            "GEMINI_API_KEY": gemini_api_key,
-            "SUPABASE_URL": supabase_url,
-            "SUPABASE_SERVICE_ROLE_KEY": supabase_service_role_key,
-        }.items()
-        if not v
-    ]
-    if missing:
-        print(f"[auto_blog] 환경변수 누락: {', '.join(missing)}", file=sys.stderr)
-        return 1
+        missing = [
+            k
+            for k, v in {
+                "GEMINI_API_KEY": gemini_api_key,
+                "SUPABASE_URL": supabase_url,
+                "SUPABASE_SERVICE_ROLE_KEY": supabase_service_role_key,
+            }.items()
+            if not v
+        ]
+        if missing:
+            raise ValueError(f"환경변수 누락: {', '.join(missing)}")
 
-    try:
-        post = generate_post(gemini_api_key, timeout_seconds=timeout_seconds)
-        print(f"[auto_blog] generated slug={post.get('slug')} tags={post.get('tags')}")
-    except Exception as e:
-        print(f"[auto_blog] Gemini 호출/파싱 실패: {e}", file=sys.stderr)
-        return 1
-
-    try:
+        post = generate_post(gemini_api_key)
         result = insert_post_to_supabase(supabase_url, supabase_service_role_key, post)
         rows = len(result.get("data") or [])
         print(f"[auto_blog] inserted={result.get('inserted')} slug={result.get('slug')} rows={rows}")
         _trigger_cloudflare_hook(cloudflare_hook_url)
         return 0
     except Exception as e:
-        print(f"[auto_blog] Supabase insert 실패: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
