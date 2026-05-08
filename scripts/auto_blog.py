@@ -3,6 +3,7 @@ import os
 import random
 import re
 import sys
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -104,22 +105,73 @@ def _extract_text_from_genai_response(resp) -> str:
     return ""
 
 
+def _is_transient_genai_error(e: Exception) -> bool:
+    msg = (str(e) or "").lower()
+    transient_markers = [
+        "503",
+        "429",
+        "unavailable",
+        "resource_exhausted",
+        "high demand",
+        "rate limit",
+        "ratelimit",
+        "too many requests",
+        "temporarily",
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection aborted",
+        "connection error",
+        "service unavailable",
+    ]
+    if any(m in msg for m in transient_markers):
+        return True
+
+    code = getattr(e, "code", None)
+    if isinstance(code, int) and code in (429, 503):
+        return True
+
+    status_code = getattr(e, "status_code", None)
+    if isinstance(status_code, int) and status_code in (429, 503):
+        return True
+
+    return False
+
+
 def generate_post(gemini_api_key: str) -> dict:
     topic = random.choice(TOPICS)
     prompt = _build_prompt(topic)
 
     client = genai.Client(api_key=gemini_api_key)
 
-    resp = client.models.generate_content(
-        model="gemini-3.1-pro-preview",
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_schema": BlogPost,
-            "temperature": 0.9,
-            "max_output_tokens": 12000,
-        },
-    )
+    last_err: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            resp = client.models.generate_content(
+                model="gemini-3.1-pro-preview",
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": BlogPost,
+                    "temperature": 0.9,
+                    "max_output_tokens": 12000,
+                },
+            )
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            if _is_transient_genai_error(e) and attempt < 3:
+                print(
+                    f"[auto_blog] transient error on Gemini call (attempt {attempt}/3): {e}. retrying in 30s...",
+                    file=sys.stderr,
+                )
+                time.sleep(30)
+                continue
+            raise
+
+    if last_err is not None:
+        raise last_err
 
     text = _extract_text_from_genai_response(resp)
     data = _safe_json_loads(text)
