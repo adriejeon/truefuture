@@ -135,6 +135,11 @@ body,
   color: #ffffff !important;
 }
 
+/* 블로그 상단 GNB: #root 전역 흰색 글자 보다 우선 */
+header.gnb-theme-light {
+  color: #111827 !important;
+}
+
 .blog-scope {
   color-scheme: light !important;
   background: #ffffff !important;
@@ -147,6 +152,10 @@ body,
 
 .blog-scope a {
   color: #2563eb !important; /* text-blue-600 */
+}
+
+.blog-scope a.blog-scope-fill-cta {
+  color: #ffffff !important;
 }
 
 .blog-scope p,

@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import ReactMarkdown from "react-markdown";
 import { fetchBlogPostBySlug } from "../services/blogService";
 import { buildArticleJsonLd, buildPostMeta } from "../utils/blogSeo";
+import BlogPrepareNotice from "../components/BlogPrepareNotice";
 
 function formatDateTime(iso) {
   try {
@@ -68,17 +69,14 @@ export default function BlogPost() {
 
   if (error) {
     return (
-      <article className="rounded-2xl border border-red-200 bg-white p-6">
-        <h1 className="text-lg font-bold text-gray-900">오류가 발생했어요.</h1>
-        <p className="mt-2 text-sm text-gray-700 leading-relaxed">
-          {String(error?.message || error)}
-        </p>
-        <div className="mt-5">
+      <>
+        <BlogPrepareNotice />
+        <div className="mt-6 text-center">
           <Link to="/blog" className="text-sm font-semibold text-blue-600 hover:underline">
-            목록으로
+            블로그 목록으로
           </Link>
         </div>
-      </article>
+      </>
     );
   }
 
@@ -154,7 +152,7 @@ export default function BlogPost() {
           ← 목록으로
         </Link>
         <Link to="/" className="text-sm font-semibold text-gray-700 hover:underline">
-          서비스로 돌아가기
+          진짜미래 서비스로 가기
         </Link>
       </div>
     </article>

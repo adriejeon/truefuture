@@ -66,6 +66,7 @@ function AppContent() {
   const { i18n } = useTranslation();
   // 메인 페이지(/)에서만 Footer 표시
   const showFooter = location.pathname === "/";
+  const isBlogRoute = location.pathname === "/blog" || location.pathname.startsWith("/blog/");
   const canonicalUrl = `${SITE_ORIGIN}${location.pathname}`;
   const shareImageAlt = getBrandImageAlt(i18n.language);
 
@@ -87,7 +88,7 @@ function AppContent() {
         <meta name="twitter:description" content={DEFAULT_META.description} />
         <meta name="twitter:image:alt" content={shareImageAlt} />
       </Helmet>
-      <GNB />
+      <GNB theme={isBlogRoute ? "light" : "dark"} />
       <Routes>
         <Route path="/blog" element={<BlogLayout />}>
           <Route index element={<BlogList />} />

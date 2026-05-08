@@ -38,6 +38,13 @@ function Footer() {
           style={{ color: colors.subText }}
         >
           <Link
+            to="/blog"
+            className="hover:text-white transition-colors duration-200 underline"
+          >
+            {t("footer.blog_column")}
+          </Link>
+          <span className="hidden sm:inline text-slate-600">|</span>
+          <Link
             to="/faq"
             className="hover:text-white transition-colors duration-200 underline"
           >

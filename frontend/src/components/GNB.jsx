@@ -7,7 +7,8 @@ import ConversationDrawer from "./ConversationDrawer";
 import { colors } from "../constants/colors";
 import { getBrandLogoAlt } from "../constants/seoMeta";
 
-function GNB() {
+function GNB({ theme = "dark" }) {
+  const isLight = theme === "light";
   const { t, i18n } = useTranslation();
   const logoSrc = i18n.language?.startsWith("en")
     ? "/assets/logo-en.png"
@@ -99,15 +100,29 @@ function GNB() {
         onClose={() => setIsDrawerOpen(false)}
       />
       <header
-        className="w-full py-4 sm:py-5 sticky top-0 z-50"
+        className={`w-full py-4 sm:py-5 sticky top-0 z-50 ${isLight ? "gnb-theme-light border-b border-gray-200" : ""}`}
         style={{
-          backgroundColor: isScrolled ? "rgba(52, 50, 97, 0.1)" : "#343261",
-          backdropFilter: isScrolled ? "blur(16px) saturate(100%)" : "none",
+          backgroundColor: isLight
+            ? isScrolled
+              ? "rgba(255, 255, 255, 0.94)"
+              : "#ffffff"
+            : isScrolled
+              ? "rgba(52, 50, 97, 0.1)"
+              : "#343261",
+          backdropFilter: isScrolled
+            ? isLight
+              ? "blur(14px) saturate(160%)"
+              : "blur(16px) saturate(100%)"
+            : "none",
           WebkitBackdropFilter: isScrolled
-            ? "blur(16px) saturate(100%)"
+            ? isLight
+              ? "blur(14px) saturate(160%)"
+              : "blur(16px) saturate(100%)"
             : "none",
           boxShadow: isScrolled
-            ? "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
+            ? isLight
+              ? "0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)"
+              : "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
             : "none",
           transition:
             "background-color 0.15s ease-out, backdrop-filter 0.15s ease-out, box-shadow 0.15s ease-out",
@@ -120,7 +135,7 @@ function GNB() {
               {user ? (
                 <button
                   onClick={() => setIsDrawerOpen(true)}
-                  className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+                  className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full transition-colors flex-shrink-0 ${isLight ? "hover:bg-gray-100" : "hover:bg-white/10"}`}
                   aria-label={t("nav.open_chat_list")}
                 >
                   <svg
@@ -128,7 +143,7 @@ function GNB() {
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                    style={{ color: colors.primary }}
+                    style={{ color: isLight ? "#4b5563" : colors.primary }}
                   >
                     <path
                       strokeLinecap="round"
@@ -164,7 +179,7 @@ function GNB() {
                   </span>
                   <button
                     onClick={handleAuthClick}
-                    className="px-4 py-2 text-sm sm:text-base bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded-lg border border-white/20 transition-all duration-200 font-medium"
+                    className={`px-4 py-2 text-sm sm:text-base rounded-lg border transition-all duration-200 font-medium ${isLight ? "border-gray-300 bg-gray-900 text-white hover:bg-gray-800" : "bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white border-white/20"}`}
                   >
                     {t("nav.login")}
                   </button>
@@ -173,7 +188,7 @@ function GNB() {
                 <>
                   <button
                     onClick={() => navigate("/purchase")}
-                    className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+                    className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full transition-colors flex-shrink-0 ${isLight ? "hover:bg-gray-100" : "hover:bg-white/10"}`}
                     aria-label={t("nav.charge_stars")}
                   >
                     <span className="text-yellow-400 text-sm">⭐</span>
@@ -184,12 +199,12 @@ function GNB() {
                     <img
                       src={getProfileImage()}
                       alt="프로필"
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 object-cover cursor-pointer hover:border-white/50 transition-all duration-200"
+                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 object-cover cursor-pointer transition-all duration-200 ${isLight ? "border-gray-200 hover:border-gray-300" : "border-white/30 hover:border-white/50"}`}
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     />
                   ) : (
                     <div
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center text-white font-semibold text-sm sm:text-base cursor-pointer hover:bg-white/30 hover:border-white/50 transition-all duration-200"
+                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 flex items-center justify-center font-semibold text-sm sm:text-base cursor-pointer transition-all duration-200 ${isLight ? "border-gray-200 bg-gray-100 text-gray-800 hover:bg-gray-200 hover:border-gray-300" : "bg-white/20 border-white/30 text-white hover:bg-white/30 hover:border-white/50"}`}
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     >
                       {getUserInitial()}
@@ -198,13 +213,13 @@ function GNB() {
 
                   {isDropdownOpen && (
                     <div
-                      className="absolute right-0 mt-2 w-36 bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden z-50"
+                      className={`absolute right-0 mt-2 w-36 rounded-lg shadow-lg overflow-hidden z-50 border ${isLight ? "bg-white border-gray-200" : "bg-slate-800 border-slate-700"}`}
                       onMouseDown={(e) => e.stopPropagation()}
                     >
                       <button
                         type="button"
                         onClick={handleMyPageClick}
-                        className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left"
+                        className={`w-full px-4 py-2 text-sm transition-colors duration-200 text-left ${isLight ? "text-gray-900 hover:bg-gray-50" : "text-white hover:bg-slate-700"}`}
                       >
                         {t("nav.mypage")}
                       </button>
@@ -220,7 +235,7 @@ function GNB() {
                           setIsDropdownOpen(false);
                           handleLogout();
                         }}
-                        className="w-full px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors duration-200 text-left border-t border-slate-700"
+                        className={`w-full px-4 py-2 text-sm transition-colors duration-200 text-left border-t ${isLight ? "text-gray-900 hover:bg-gray-50 border-gray-200" : "text-white hover:bg-slate-700 border-slate-700"}`}
                       >
                         {t("nav.logout")}
                       </button>

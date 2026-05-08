@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchBlogPosts } from "../services/blogService";
+import BlogPrepareNotice from "../components/BlogPrepareNotice";
 
 function formatDate(iso) {
   try {
@@ -58,25 +59,13 @@ export default function BlogList() {
   }
 
   if (error) {
-    return (
-      <section className="rounded-2xl border border-red-200 bg-white p-6">
-        <p className="text-sm font-semibold text-gray-900">불러오기에 실패했어요.</p>
-        <p className="mt-2 text-sm text-gray-700 leading-relaxed">
-          {String(error?.message || error)}
-        </p>
-      </section>
-    );
+    return <BlogPrepareNotice />;
   }
 
   return (
     <section className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">블로그</h1>
-          <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-            읽기 쉬운 라이트 테마로 렌더링됩니다.
-          </p>
-        </div>
+      <div className="flex items-end justify-between gap-4 border-b border-gray-100 pb-4">
+        <h2 className="text-lg font-semibold text-gray-900">최신 글</h2>
         <span className="text-xs text-gray-500">총 {items.length}개</span>
       </div>
 
