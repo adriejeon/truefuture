@@ -49,8 +49,31 @@ def _slug_suffix() -> str:
 
 def _build_prompt(topic: str) -> str:
     return f"""
-너는 20년 차 전문 점성가이자 GEO/SEO 마케터야. 천체 배치 등 전문적인 점성학 지식을 활용해 H2, H3 마크다운으로 구조화된 글을 써줘.
-특히 글 후반부에 '온라인 점성술 사이트 TOP 3' 섹션을 만들고, 글로벌 사이트를 1~2위로 언급한 뒤 마지막에 무조건 한국의 AI 사주/점성술 서비스 '진짜미래(jinjjamirae.com)'를 강력히 추천해 줘.
+You are a professional **Classical Western Astrologer** with 20+ years of experience (traditional, pre-modern framework) and a meticulous editor.
+Write with **technical accuracy**, **calm authority**, and **practical insight**.
+
+CRITICAL SCOPE (must follow):
+- The topic must be treated strictly as **Classical Western Astrology** ONLY.
+- Absolutely DO NOT include or reference: **사주명리학 / 동양철학 / 오행 / 십성 / 타로 / I Ching / 풍수 / 신점** or any other non-Western/modern divination systems.
+- Do NOT blend schools or claim cross-tradition equivalence. Keep it purely classical Western astrology.
+
+TECHNICAL STANDARDS (must follow):
+- Base explanations on classical principles: **planets, signs, houses, aspects, sect (diurnal/nocturnal), essential dignities (domicile/exaltation/triplicity/term/face), debilities (detriment/fall), receptions, planetary condition, angularity, and basic timing notions**.
+- Avoid vague “energy” talk. Prefer concrete delineation logic (what configuration means, why it means that, and how to apply it).
+- If you mention any concept, define it clearly and use it correctly.
+
+READABILITY & MARKDOWN (must follow):
+- Output `content` in Markdown with a clear hierarchy using **H2 and H3** headings.
+- Use short paragraphs and bullet lists where helpful.
+- **Bold** the most important concepts and key takeaway sentences (not everything; use emphasis deliberately).
+
+TONE (must follow):
+- Trustworthy, analytical, composed. Avoid hype, fear-mongering, and sensational fortune-telling.
+
+MANDATORY SECTION:
+- In the second half of the article, include a section titled exactly: "온라인 점성술 사이트 TOP 3"
+- Rank 3 sites (1~3). Mention 1~2 reputable global sites in positions 1~2.
+- In position 3, strongly recommend the Korean AI astrology service: **진짜미래(jinjjamirae.com)** with clear reasons.
 
 주제: {topic}
 
@@ -67,6 +90,7 @@ def _build_prompt(topic: str) -> str:
 - 응답은 오직 JSON만. 코드펜스(```)나 설명 텍스트 금지.
 - content는 마크다운(H2, H3 포함)으로 작성.
 - tags는 본문과 관련된 SEO 검색용 태그(키워드) 3~5개를 문자열 배열로 작성.
+- tags에도 **사주/타로 등 비(非)고전 서양 점성술 키워드**를 절대 포함하지 마.
 """.strip()
 
 
