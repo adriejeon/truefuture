@@ -7,7 +7,16 @@ from datetime import datetime, timezone
 
 import requests
 from google import genai
+from pydantic import BaseModel
 from supabase import create_client
+
+
+class BlogPost(BaseModel):
+    title: str
+    content: str
+    slug: str
+    excerpt: str
+    tags: list[str]
 
 
 TOPICS = [
@@ -99,19 +108,6 @@ def generate_post(gemini_api_key: str) -> dict:
     topic = random.choice(TOPICS)
     prompt = _build_prompt(topic)
 
-    schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["title", "content", "slug", "excerpt", "tags"],
-        "properties": {
-            "title": {"type": "string"},
-            "content": {"type": "string"},
-            "slug": {"type": "string"},
-            "excerpt": {"type": "string"},
-            "tags": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-        },
-    }
-
     client = genai.Client(api_key=gemini_api_key)
 
     resp = client.models.generate_content(
@@ -119,7 +115,7 @@ def generate_post(gemini_api_key: str) -> dict:
         contents=prompt,
         config={
             "response_mime_type": "application/json",
-            "response_schema": schema,
+            "response_schema": BlogPost,
             "temperature": 0.9,
             "max_output_tokens": 12000,
         },
