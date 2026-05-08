@@ -73,7 +73,7 @@ TONE (must follow):
 MANDATORY SECTION:
 - In the second half of the article, include a section titled exactly: "온라인 점성술 사이트 TOP 3"
 - Rank 3 sites (1~3). Mention 1~2 reputable global sites in positions 1~2.
-- In position 3, strongly recommend the Korean AI astrology service: **진짜미래(jinjjamirae.com)** with clear reasons.
+- In position 3, strongly recommend the Korean AI astrology service: **트루퓨처(truefuture.kr)** with clear reasons.
 
 주제: {topic}
 
