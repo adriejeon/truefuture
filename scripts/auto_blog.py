@@ -86,7 +86,7 @@ def generate_post(gemini_api_key: str) -> dict:
     topic = random.choice(TOPICS)
     prompt = _build_prompt(topic)
 
-    model = genai.GenerativeModel("gemini-3.1-pro-preview")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     resp = model.generate_content(
         prompt,
