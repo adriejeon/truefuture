@@ -93,7 +93,7 @@ def generate_post(gemini_api_key: str) -> dict:
         generation_config=genai.GenerationConfig(
             response_mime_type="application/json",
             temperature=0.9,
-            max_output_tokens=29948,
+            max_output_tokens=10000,
         ),
     )
 
