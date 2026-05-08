@@ -64,6 +64,13 @@ export default function BlogList() {
 
   return (
     <section className="space-y-4">
+      <div className="border-b border-gray-100 pb-8">
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">블로그</h1>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-gray-600">
+          진짜미래 점성술·사주 서비스와 함께 읽는 칼럼입니다.
+        </p>
+      </div>
+
       <div className="flex items-end justify-between gap-4 border-b border-gray-100 pb-4">
         <h2 className="text-lg font-semibold text-gray-900">최신 글</h2>
         <span className="text-xs text-gray-500">총 {items.length}개</span>

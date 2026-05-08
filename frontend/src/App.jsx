@@ -88,7 +88,7 @@ function AppContent() {
         <meta name="twitter:description" content={DEFAULT_META.description} />
         <meta name="twitter:image:alt" content={shareImageAlt} />
       </Helmet>
-      <GNB theme={isBlogRoute ? "light" : "dark"} />
+      {!isBlogRoute ? <GNB /> : null}
       <Routes>
         <Route path="/blog" element={<BlogLayout />}>
           <Route index element={<BlogList />} />
