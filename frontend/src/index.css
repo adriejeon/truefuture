@@ -175,6 +175,32 @@ body,
   color: #374151 !important; /* text-gray-700 */
 }
 
+/* 블로그 본문(마크다운) 반응형 안전장치: 모바일 가로 오버플로우 방지 */
+.blog-scope .prose :where(img, video) {
+  max-width: 100%;
+  height: auto;
+}
+
+.blog-scope .prose :where(pre) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.blog-scope .prose :where(code) {
+  word-break: break-word;
+}
+
+.blog-scope .prose :where(table) {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.blog-scope .prose :where(p, li, a) {
+  overflow-wrap: anywhere;
+}
+
 /* Samsung Internet(특히 강제 다크모드)에서 그라데이션/클립 텍스트가 과도하게 어두워지는 현상 완화 */
 @media (prefers-color-scheme: dark) {
   html.samsung-internet .typewriter-gradient-text {

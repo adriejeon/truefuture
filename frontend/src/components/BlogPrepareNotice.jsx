@@ -1,5 +1,3 @@
-import { Link } from "react-router-dom";
-
 export default function BlogPrepareNotice() {
   return (
     <section
@@ -10,12 +8,6 @@ export default function BlogPrepareNotice() {
       <p className="mt-3 max-w-sm text-sm leading-relaxed text-gray-600">
         잠시 후 다시 확인해 주세요.
       </p>
-      <Link
-        to="/"
-        className="blog-scope-fill-cta mt-8 inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold shadow-md shadow-indigo-600/20 transition-colors hover:bg-indigo-700"
-      >
-        진짜미래 서비스로 가기
-      </Link>
     </section>
   );
 }

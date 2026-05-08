@@ -151,9 +151,6 @@ export default function BlogPost() {
         <Link to="/blog" className="text-sm font-semibold text-blue-600 hover:underline">
           ← 목록으로
         </Link>
-        <Link to="/" className="text-sm font-semibold text-gray-700 hover:underline">
-          진짜미래 서비스로 가기
-        </Link>
       </div>
     </article>
   );
