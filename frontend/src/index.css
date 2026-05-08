@@ -135,6 +135,42 @@ body,
   color: #ffffff !important;
 }
 
+.blog-scope {
+  color-scheme: light !important;
+  background: #ffffff !important;
+  color: #111827 !important; /* text-gray-900 */
+}
+
+.blog-scope * {
+  color: inherit;
+}
+
+.blog-scope a {
+  color: #2563eb !important; /* text-blue-600 */
+}
+
+.blog-scope p,
+.blog-scope li {
+  line-height: 1.75 !important; /* leading-relaxed */
+}
+
+.blog-scope pre,
+.blog-scope code {
+  color: #111827 !important;
+}
+
+.blog-scope .prose {
+  color: #111827 !important;
+}
+
+.blog-scope .prose :where(h1, h2, h3, h4) {
+  color: #111827 !important;
+}
+
+.blog-scope .prose :where(p, li) {
+  color: #374151 !important; /* text-gray-700 */
+}
+
 /* Samsung Internet(특히 강제 다크모드)에서 그라데이션/클립 텍스트가 과도하게 어두워지는 현상 완화 */
 @media (prefers-color-scheme: dark) {
   html.samsung-internet .typewriter-gradient-text {

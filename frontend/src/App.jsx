@@ -4,6 +4,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  Outlet,
 } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import Compatibility from "./pages/Compatibility";
@@ -26,6 +27,9 @@ import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_META, SITE_ORIGIN, getBrandImageAlt } from "./constants/seoMeta";
+import BlogList from "./pages/BlogList";
+import BlogPost from "./pages/BlogPost";
+import BlogLayout from "./layouts/BlogLayout";
 
 /** 로그인 여부와 관계없이 / → 메인(Home)으로 보냄 */
 function RootRoute() {
@@ -41,6 +45,20 @@ function RootRoute() {
     );
   }
   return <Home />;
+}
+
+function DefaultLayout() {
+  return (
+    <main
+      className="flex-1 w-full"
+      style={{
+        background: "linear-gradient(to bottom, #343261 0%, #0F0F2B 100%)",
+        color: "#ffffff",
+      }}
+    >
+      <Outlet />
+    </main>
+  );
 }
 
 function AppContent() {
@@ -70,14 +88,13 @@ function AppContent() {
         <meta name="twitter:image:alt" content={shareImageAlt} />
       </Helmet>
       <GNB />
-      <main
-        className="flex-1 w-full"
-        style={{
-          background: "linear-gradient(to bottom, #343261 0%, #0F0F2B 100%)",
-          color: "#ffffff",
-        }}
-      >
-        <Routes>
+      <Routes>
+        <Route path="/blog" element={<BlogLayout />}>
+          <Route index element={<BlogList />} />
+          <Route path=":slug" element={<BlogPost />} />
+        </Route>
+
+        <Route element={<DefaultLayout />}>
           <Route path="/" element={<RootRoute />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
@@ -94,8 +111,8 @@ function AppContent() {
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/faq" element={<FAQ />} />
-        </Routes>
-      </main>
+        </Route>
+      </Routes>
       {showFooter && <Footer />}
     </div>
   );
