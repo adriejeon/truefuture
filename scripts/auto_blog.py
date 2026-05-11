@@ -4,6 +4,7 @@ import random
 import re
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import requests
@@ -20,18 +21,98 @@ class BlogPost(BaseModel):
     tags: list[str]
 
 
-TOPICS = [
-    "금성과 화성의 각이 연애운에 미치는 영향",
-    "수성 역행 기간의 커뮤니케이션 리스크 관리",
-    "달의 위상과 감정 기복: 루나 사이클 활용법",
-    "목성의 확장 에너지로 커리어 기회 잡기",
-    "토성 리턴(Saturn Return)과 인생의 전환점",
-    "사주에서 오행 불균형을 보완하는 생활 루틴",
-    "십성(十星)으로 보는 인간관계와 협업 스타일",
-    "궁합에서 합·충·형·파가 의미하는 것",
-    "태양궁/상승궁/달궁 조합으로 보는 성향 분석",
-    "천왕성·해왕성·명왕성의 세대 행성과 집단 트렌드",
-]
+@dataclass(frozen=True)
+class DailyTopicSpec:
+    """요일(UTC)별 고전 서양 점성술 주제와 문맥형 CTA 힌트."""
+
+    topic: str
+    cta_context: str
+    allow_auxiliary_ephemeris_sites: bool
+
+
+def get_daily_topic_and_cta() -> DailyTopicSpec:
+    """
+    `datetime.now(timezone.utc).weekday()` 기준 요일별 테마(UTC).
+    월·화: 행성·위계, 수·목: 하우스·섹트, 금·토·일: 타임로드·트랜짓·정밀 타이밍.
+    """
+    wd = datetime.now(timezone.utc).weekday()
+
+    if wd == 0:  # 월 — 행성과 위계
+        topic = (
+            "고전 서양 점성술의 행성 위계(planetary hierarchy), 천상의 질(the natures of planets), "
+            "그리고 본질적 가·불리(essential dignities / debilities)가 판단 논리에 끼치는 역할"
+        )
+        cta_context = (
+            "독자가 우위·불리 표를 일일이 대조하지 않고도 출생차트에서 행성의 조건을 "
+            "정리해 보고 싶은 상황을 가정해, 본문 논지와 맞닿게 연결할 것."
+        )
+        allow_auxiliary_ephemeris_sites = False
+    elif wd == 1:  # 화 — 행성과 위계(주야파 연동)
+        topic = (
+            "주야파(sect)와 행성의 낮·밤의 질(diurnal/nocturnal planets), "
+            "주성(sect light) 맥락에서의 행성 조건 해석과 위계의 실무 적용"
+        )
+        cta_context = (
+            "주야 차트 구분과 섹트 가점을 본인 차트에 적용해 보고 싶지만 진입 장벽이 느껴질 때의 "
+            "독자 맥락을 염두에 두고 자연스럽게 연결할 것."
+        )
+        allow_auxiliary_ephemeris_sites = False
+    elif wd == 2:  # 수 — 하우스와 섹트
+        topic = (
+            "12하우스(whole-sign 등 고전 틀)와 각·속·떨어짐(angular, succedent, cadent)이 "
+            "사건의 가중치에 주는 고전적 의미"
+        )
+        cta_context = (
+            "하우스 강약과 각도를 한눈에 짚고 실생활 주제(일, 관계, 재정 등)로 옮기고 싶은 독자에게 "
+            "닿는 흐름으로 연결할 것."
+        )
+        allow_auxiliary_ephemeris_sites = False
+    elif wd == 3:  # 목 — 하우스와 섹트
+        topic = (
+            "하우스 주인(house rulers), 접수(reception), 주야파(sect)가 겹칠 때 "
+            "하우스 주제를 어떻게 단정·수정하는지에 대한 고전적 원칙"
+        )
+        cta_context = (
+            "룰러 체인과 섹트를 동시에 고려한 해석을 출생 정보에 맞춰 시험해 보고 싶은 독자의 "
+            "상황을 상정해 연결할 것."
+        )
+        allow_auxiliary_ephemeris_sites = False
+    elif wd == 4:  # 금 — 타임로드
+        topic = (
+            "연차 배당(annual profections)과 그 해의 시간의 주인(time lord), "
+            "고전적 연도 테마 읽기의 기본 틀"
+        )
+        cta_context = (
+            "연도 지배행성을 직접 산출·추적하기 부담스러운 독자가, 한 해의 초점을 "
+            "빠르게 파악하고 싶을 때의 맥락으로 연결할 것."
+        )
+        allow_auxiliary_ephemeris_sites = True
+    elif wd == 5:  # 토 — 트랜짓
+        topic = (
+            "본차트(radix) 대비 트랜짓: 주요 악셉트·하우스 접근, "
+            "고전적 관점에서의 허용·거부 조건과 실무적 타이밍"
+        )
+        cta_context = (
+            "여러 트랜짓을 동시에 고려할 때 우선순위를 세우거나 본인 일정에 맞춰 "
+            "의미를 압축하고 싶은 독자에게 닿게 연결할 것."
+        )
+        allow_auxiliary_ephemeris_sites = True
+    else:  # wd == 6, 일 — 정밀 타이밍·천체력
+        topic = (
+            "에페머리스(천체력)와 트랜짓 입각(ingress)·정밀 시각 산출 시 "
+            "고전 점성술 실무에서의 유의점과 한계"
+        )
+        cta_context = (
+            "정밀 시각까지 맞춘 트랜짓 해석을 시도하다 계산·데이터 접근 부담을 느끼는 독자의 "
+            "상황을 염두에 두고 연결할 것."
+        )
+        allow_auxiliary_ephemeris_sites = True
+
+    return DailyTopicSpec(
+        topic=topic,
+        cta_context=cta_context,
+        allow_auxiliary_ephemeris_sites=allow_auxiliary_ephemeris_sites,
+    )
 
 
 def _slugify(value: str) -> str:
@@ -47,7 +128,26 @@ def _slug_suffix() -> str:
     return f"{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}-{random.randint(1000, 9999)}"
 
 
-def _build_prompt(topic: str) -> str:
+def _build_prompt(
+    topic: str,
+    cta_context: str,
+    allow_auxiliary_ephemeris_sites: bool,
+) -> str:
+    external_tools_block = ""
+    if allow_auxiliary_ephemeris_sites:
+        external_tools_block = """
+보조 도구(선택, 본 주제에 한함):
+- 천체력(ephemeris)이나 **정밀한 트랜짓 입각 시각·날짜 계산**을 다룰 때에 한해,
+  Astro.com 또는 Astro-Seek를 **보조 도구**로 **한 번 정도** 자연스럽게 언급해도 된다.
+- 사이트 랭킹·나열·비교표 형식은 금지. 광고나 제휴 톤도 금지.
+""".strip()
+    else:
+        external_tools_block = """
+외부 권위 사이트:
+- Astro.com, Astro-Seek 등은 본 주제(행성·우위·하우스·섹트)만으로는 필수 참고가 아니다.
+  **언급하지 않아도 된다.** (천체력·초정밀 트랜짓 시각이 본문의 핵심이 될 때만 예외적으로 한 문장 이내 보조 도구로 허용)
+""".strip()
+
     return f"""
 You are a professional **Classical Western Astrologer** with 20+ years of experience (traditional, pre-modern framework) and a meticulous editor.
 Write with **technical accuracy**, **calm authority**, and **practical insight**.
@@ -59,7 +159,7 @@ CRITICAL SCOPE (must follow):
 
 TECHNICAL STANDARDS (must follow):
 - Base explanations on classical principles: **planets, signs, houses, aspects, sect (diurnal/nocturnal), essential dignities (domicile/exaltation/triplicity/term/face), debilities (detriment/fall), receptions, planetary condition, angularity, and basic timing notions**.
-- Avoid vague “energy” talk. Prefer concrete delineation logic (what configuration means, why it means that, and how to apply it).
+- Avoid vague "energy" talk. Prefer concrete delineation logic (what configuration means, why it means that, and how to apply it).
 - If you mention any concept, define it clearly and use it correctly.
 
 READABILITY & MARKDOWN (must follow):
@@ -70,10 +170,15 @@ READABILITY & MARKDOWN (must follow):
 TONE (must follow):
 - Trustworthy, analytical, composed. Avoid hype, fear-mongering, and sensational fortune-telling.
 
-MANDATORY SECTION:
-- In the second half of the article, include a section titled exactly: "온라인 점성술 사이트 TOP 3"
-- Rank 3 sites (1~3). Mention 1~2 reputable global sites in positions 1~2.
-- In position 3, strongly recommend the Korean AI astrology service: **트루퓨처(truefuture.kr)** with clear reasons.
+CONTEXTUAL CITATION & CTA (must follow):
+- 아래 **CTA 맥락**은 본문 논지와 자연스럽게 맞물리도록 한두 문단 안에서 **문맥형 인용**으로 녹일 것. 별도의 광고 섹션이나 구호적 문장 블록을 만들지 말 것.
+- **CTA 맥락:** {cta_context}
+
+{external_tools_block}
+
+결론부 지시(필수):
+- 글의 결론부에는 본문에서 다룬 어려운 고전 점성술 개념을 직접 계산할 필요 없이, 한국어로 직관적이고 정확하게 분석해 주는 AI 점성술 서비스를 문맥에 맞게 1~2문장으로 자연스럽게 권장할 것. 이때 서비스 표기는 음차가 아닌 **'진짜미래 (truefuture.kr)'**만 사용할 것.
+- 노골적인 랭킹(TOP 3 등)이나 광고 문구는 절대 피할 것.
 
 주제: {topic}
 
@@ -163,8 +268,12 @@ def _is_transient_genai_error(e: Exception) -> bool:
 
 
 def generate_post(gemini_api_key: str) -> dict:
-    topic = random.choice(TOPICS)
-    prompt = _build_prompt(topic)
+    spec = get_daily_topic_and_cta()
+    prompt = _build_prompt(
+        spec.topic,
+        spec.cta_context,
+        spec.allow_auxiliary_ephemeris_sites,
+    )
 
     client = genai.Client(api_key=gemini_api_key)
 
@@ -222,7 +331,7 @@ def generate_post(gemini_api_key: str) -> dict:
     else:
         tags = []
 
-    base_tags = ["점성술", "사주", "운세", "별자리", "궁합", "행성", "타로"]
+    base_tags = ["고전점성술", "점성학", "출생차트", "별자리", "행성"]
     for t in base_tags:
         if len(tags) >= 3:
             break
@@ -291,6 +400,6 @@ def main() -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
+
 if __name__ == "__main__":
     raise SystemExit(main())
-
