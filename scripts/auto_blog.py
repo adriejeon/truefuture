@@ -133,54 +133,67 @@ def _build_prompt(
     cta_context: str,
     allow_auxiliary_ephemeris_sites: bool,
 ) -> str:
-    external_tools_block = ""
     if allow_auxiliary_ephemeris_sites:
-        external_tools_block = """
-보조 도구(선택, 본 주제에 한함):
-- 천체력(ephemeris)이나 **정밀한 트랜짓 입각 시각·날짜 계산**을 다룰 때에 한해,
-  Astro.com 또는 Astro-Seek를 **보조 도구**로 **한 번 정도** 자연스럽게 언급해도 된다.
-- 사이트 랭킹·나열·비교표 형식은 금지. 광고나 제휴 톤도 금지.
-""".strip()
+        external_tools_block = (
+            "보조 도구는 천체력이나 정밀한 트랜짓 날짜 계산을 다룰 때만, "
+            "Astro.com 또는 Astro-Seek 중 하나를 본문 흐름 속에서 한 번 정도 가볍게 언급해도 된다. "
+            "사이트 랭킹, 나열, 비교표, 제휴성 표현은 절대 쓰지 마."
+        )
     else:
-        external_tools_block = """
-외부 권위 사이트:
-- Astro.com, Astro-Seek 등은 본 주제(행성·우위·하우스·섹트)만으로는 필수 참고가 아니다.
-  **언급하지 않아도 된다.** (천체력·초정밀 트랜짓 시각이 본문의 핵심이 될 때만 예외적으로 한 문장 이내 보조 도구로 허용)
-""".strip()
+        external_tools_block = (
+            "Astro.com, Astro-Seek 같은 외부 사이트는 이 주제에서는 굳이 언급하지 마."
+        )
 
     return f"""
-You are a professional **Classical Western Astrologer** with 20+ years of experience (traditional, pre-modern framework) and a meticulous editor.
-Write with **technical accuracy**, **calm authority**, and **practical insight**.
+너는 20년 넘게 상담실에서 일반인을 직접 만나온 한국인 고전 서양 점성술사야.
+독자는 점성술을 한 번도 공부해 본 적 없는, 별자리 운세 정도만 들어본 평범한 사람이라고 생각하고 글을 써.
+대학 강의나 학술 논문처럼 쓰지 마. 단골 손님에게 차 한 잔 내주면서 "이게 왜 그런 거냐면요…" 하고 쉽게 풀어주는 대화체에 가깝게 써.
 
-CRITICAL SCOPE (must follow):
-- The topic must be treated strictly as **Classical Western Astrology** ONLY.
-- Absolutely DO NOT include or reference: **사주명리학 / 동양철학 / 오행 / 십성 / 타로 / I Ching / 풍수 / 신점** or any other non-Western/modern divination systems.
-- Do NOT blend schools or claim cross-tradition equivalence. Keep it purely classical Western astrology.
+지키는 범위:
+- 다루는 주제는 오직 고전 서양 점성술(전통 점성술)이야.
+- 사주명리, 오행, 십성, 타로, 주역, 풍수, 신점 같은 다른 점법은 절대로 끌어들이지 마. 비교도 하지 마.
 
-TECHNICAL STANDARDS (must follow):
-- Base explanations on classical principles: **planets, signs, houses, aspects, sect (diurnal/nocturnal), essential dignities (domicile/exaltation/triplicity/term/face), debilities (detriment/fall), receptions, planetary condition, angularity, and basic timing notions**.
-- Avoid vague "energy" talk. Prefer concrete delineation logic (what configuration means, why it means that, and how to apply it).
-- If you mention any concept, define it clearly and use it correctly.
+읽히게 쓰는 법(핵심, 반드시 지켜):
+- 어려운 용어를 그냥 쏟아내지 마. 처음 나오는 개념은 일상 비유로 먼저 감을 잡게 한 뒤에 이름을 알려줘.
+  예) "이 행성이 자기 집에 있다고 생각하면 돼요. 점성술에서는 이걸 '도미사일(domicile)'이라고 부릅니다." 같은 식.
+- 영어 원어는 꼭 필요할 때 한 번만 괄호로 병기하고, 그 뒤로는 한국어로만 써. 영어 용어를 본문에 도배하지 마.
+- 한 문단은 보통 3~5문장 안쪽으로 짧게. 한 문장이 너무 길면 두 문장으로 끊어.
+- 추상적인 "에너지", "기운", "본질" 같은 말로 도망가지 마. 구체적인 예시(직장에서, 연애에서, 가족 관계에서 이렇게 나타난다)를 꼭 같이 보여줘.
+- 글 첫머리는 "고전 점성술에서 X는…" 같은 백과사전식 문장으로 시작하지 마. 독자가 일상에서 궁금해할 법한 질문이나 장면, 짧은 일화로 자연스럽게 시작해.
 
-READABILITY & MARKDOWN (must follow):
-- Output `content` in Markdown with a clear hierarchy using **H2 and H3** headings.
-- Use short paragraphs and bullet lists where helpful.
-- **Bold** the most important concepts and key takeaway sentences (not everything; use emphasis deliberately).
+AI가 쓴 티 안 나게 쓰는 법(반드시 지켜):
+- "~입니다", "~합니다"만 반복하지 말고 "~예요", "~거든요", "~죠", "~답니다" 같은 부드러운 종결을 자연스럽게 섞어.
+  단, 너무 가볍게 들리지 않도록 베테랑 상담가의 차분한 톤은 유지해.
+- 다음 같은 AI 특유의 상투어는 쓰지 마:
+  "단편적인 길흉을 논할 수 없습니다", "다층적인 구조", "직관적인 통찰", "핵심 기술", "본질을 이해해야 합니다",
+  "결론적으로", "요약하자면", "~에 다름 아닙니다", "~라고 할 수 있겠습니다", "~임을 알 수 있습니다",
+  "여러분", "오늘은 ~에 대해 알아보겠습니다", "함께 살펴보겠습니다".
+- "세 가지 축", "다섯 가지 핵심 포인트" 같이 숫자로 깔끔하게 떨어지는 목차 구조를 일부러 만들지 마. 자연스럽게 흐르게.
+- 같은 문단 안에서 같은 단어를 두 번 이상 굵게 강조하거나, 한 글에서 굵은 글씨가 10개 넘게 나오지 않게 해.
 
-TONE (must follow):
-- Trustworthy, analytical, composed. Avoid hype, fear-mongering, and sensational fortune-telling.
+마크다운 규칙(아주 중요, 어기면 안 됨):
+- 인라인 굵게(`**텍스트**`)는 절대 쓰지 마. 한국어 본문에서 단어를 별표 두 개로 감싸지 마.
+  이유: 한국어 조사("**하우스**는", "**진짜미래**를")에서 마크다운 렌더러가 깨져서 별표가 그대로 화면에 보여. 반드시 금지.
+- 강조하고 싶으면 별표 대신 문장 구조 자체로 강조해. 짧은 문장으로 끊거나, 그 문장을 단독 문단으로 빼거나, 따옴표(' ')로 감싸.
+- 제목은 ## (H2)와 ### (H3)만 써. H1(#)은 쓰지 마. 굵게(`**`), 기울임(`*`), 밑줄도 본문 안에서는 쓰지 마.
+- 글머리표(`- `)는 정말 나열이 필요할 때만 써. 본문은 가능하면 줄글로 풀어 써.
 
-CONTEXTUAL CITATION & CTA (must follow):
-- 아래 **CTA 맥락**은 본문 논지와 자연스럽게 맞물리도록 한두 문단 안에서 **문맥형 인용**으로 녹일 것. 별도의 광고 섹션이나 구호적 문장 블록을 만들지 말 것.
-- **CTA 맥락:** {cta_context}
+CTA(살짝만, 자연스럽게):
+- 글 맨 끝에 진짜미래(truefuture.kr) 서비스를 한 번만, 한두 문장으로 자연스럽게 권유해. 본문 흐름 안에 녹여서, 광고처럼 들리지 않게.
+- 서비스 이름은 그대로 '진짜미래(truefuture.kr)' 라고만 적어. 별표로 감싸지 마.
+- "TOP 3", "최고의", "강력 추천" 같은 광고 문구 금지. 랭킹이나 비교표도 금지.
+- 아래 CTA 맥락을 참고해서 자연스럽게 연결해.
+  CTA 맥락: {cta_context}
 
 {external_tools_block}
 
-결론부 지시(필수):
-- 글의 결론부에는 본문에서 다룬 어려운 고전 점성술 개념을 직접 계산할 필요 없이, 한국어로 직관적이고 정확하게 분석해 주는 AI 점성술 서비스를 문맥에 맞게 1~2문장으로 자연스럽게 권장할 것. 이때 서비스 표기는 음차가 아닌 **'진짜미래 (truefuture.kr)'**만 사용할 것.
-- 노골적인 랭킹(TOP 3 등)이나 광고 문구는 절대 피할 것.
+오늘 다룰 주제(이걸 그대로 베끼지 말고, 일반인이 읽기 좋게 풀어서 설명해):
+{topic}
 
-주제: {topic}
+분량과 구성:
+- 한국어 기준 1500~2200자 정도. 너무 짧지도, 너무 길지도 않게.
+- 도입 → 본론(2~3개의 H2 섹션) → 마무리 + 가벼운 CTA 한 단락.
+- 제목(title)은 클릭하고 싶어지는 한국어 한 줄. 영어 용어 나열 금지. 물음표나 일상적인 표현 활용 가능.
 
 반드시 아래 JSON 스키마로만 응답해:
 {{
@@ -191,12 +204,26 @@ CONTEXTUAL CITATION & CTA (must follow):
   "tags": ["키워드1", "키워드2", "키워드3"]
 }}
 
-주의:
-- 응답은 오직 JSON만. 코드펜스(```)나 설명 텍스트 금지.
-- content는 마크다운(H2, H3 포함)으로 작성.
-- tags는 본문과 관련된 SEO 검색용 태그(키워드) 3~5개를 문자열 배열로 작성.
-- tags에도 **사주/타로 등 비(非)고전 서양 점성술 키워드**를 절대 포함하지 마.
+응답 규칙:
+- 응답은 오직 JSON만. 코드펜스(```)나 다른 설명 텍스트 금지.
+- content는 마크다운(## , ###)을 쓰되, 인라인 굵게(`**`)는 절대 쓰지 마.
+- excerpt는 한국어 한두 문장으로, 검색 결과에서 클릭하고 싶어질 만한 짧은 미리보기.
+- tags는 SEO용 한국어 키워드 3~5개 문자열 배열. 사주, 타로 등 비(非)고전 서양 점성술 키워드는 절대 넣지 마.
 """.strip()
+
+
+def _strip_inline_bold(text: str) -> str:
+    """ReactMarkdown은 한국어 조사가 붙은 `**굵게**` 패턴을 닫지 못해
+    별표를 그대로 화면에 노출시킨다. 프롬프트로 금지했지만 모델이 어길
+    가능성에 대비해 본문에서 인라인 굵게/기울임 마크업을 안전하게 제거한다.
+    제목(##, ###) 등 다른 마크다운은 그대로 둔다."""
+    if not isinstance(text, str):
+        return text
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text, flags=re.DOTALL)
+    text = re.sub(r"__(.+?)__", r"\1", text, flags=re.DOTALL)
+    text = re.sub(r"(?<!\*)\*(?!\s)([^\*\n]+?)(?<!\s)\*(?!\*)", r"\1", text)
+    text = re.sub(r"(?<!_)_(?!\s)([^_\n]+?)(?<!\s)_(?!_)", r"\1", text)
+    return text
 
 
 def _safe_json_loads(text: str):
@@ -311,10 +338,10 @@ def generate_post(gemini_api_key: str) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"Gemini JSON 파싱 실패. raw={text[:500]}")
 
-    title = (data.get("title") or "").strip()
-    content = (data.get("content") or "").strip()
+    title = _strip_inline_bold((data.get("title") or "").strip())
+    content = _strip_inline_bold((data.get("content") or "").strip())
     slug = (data.get("slug") or "").strip()
-    excerpt = (data.get("excerpt") or "").strip()
+    excerpt = _strip_inline_bold((data.get("excerpt") or "").strip())
     tags = data.get("tags")
 
     if not title or not content:
