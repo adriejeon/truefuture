@@ -186,6 +186,27 @@
     "default_desc": "Please log in to access this feature.",
     "login_btn": "Log In"
   },
+  "inapp_modal": {
+    "title": "Please open in your default browser",
+    "subtitle": "Some TrueFuture features do not work correctly inside the {{appName}} in-app browser.",
+    "restricted_label": "Features restricted in this in-app browser",
+    "restricted": {
+      "payment": "Payment (card / quick pay)",
+      "login": "Kakao / Google sign-in",
+      "fortune": "Fortune generation and viewing"
+    },
+    "open_external_btn": "Open in default browser",
+    "copy_url_btn": "Copy URL",
+    "copied_btn": "Copied",
+    "guide": {
+      "kakaotalk_ios": "If the button does not work, tap the ⋯ menu at the bottom right and choose 'Open in another browser'.",
+      "kakaotalk_android": "If the button does not work, tap the ⋮ menu at the top right and choose 'Open in another browser'.",
+      "naver": "If the button does not work, tap the menu at the bottom right and choose 'Open in another browser'.",
+      "meta_ios": "Threads / Instagram / Facebook in-app browsers cannot redirect automatically. Tap the ⋯ menu at the top right and choose 'Open in Safari' or 'Open in Chrome', or use 'Copy URL' below and paste it into your default browser.",
+      "meta_android": "Automatic redirect may be blocked in Threads / Instagram / Facebook. Tap the ⋮ menu at the top right and choose 'Open in external browser', or use 'Copy URL' below and paste it into your default browser.",
+      "default": "Automatic redirect may not be available in this browser. Use 'Copy URL' below and paste the address into Safari or Chrome."
+    }
+  },
   "order_modal": {
     "back": "Back",
     "title": "Order Review & Payment",

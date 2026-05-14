@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -30,6 +31,10 @@ import { DEFAULT_META, SITE_ORIGIN, getBrandImageAlt } from "./constants/seoMeta
 import BlogList from "./pages/BlogList";
 import BlogPost from "./pages/BlogPost";
 import BlogLayout from "./layouts/BlogLayout";
+import InAppBrowserModal from "./components/InAppBrowserModal";
+import { detectInAppBrowser } from "./utils/inAppBrowserDetector";
+
+const INAPP_DISMISS_KEY = "inapp_browser_modal_dismissed";
 
 /** 로그인 여부와 관계없이 / → 메인(Home)으로 보냄 */
 function RootRoute() {
@@ -69,6 +74,27 @@ function AppContent() {
   const isBlogRoute = location.pathname === "/blog" || location.pathname.startsWith("/blog/");
   const canonicalUrl = `${SITE_ORIGIN}${location.pathname}`;
   const shareImageAlt = getBrandImageAlt(i18n.language);
+
+  // 인앱 브라우저 감지 → 진입 시 1회 안내 모달 노출 (sessionStorage로 dismiss 추적)
+  const [inAppInfo, setInAppInfo] = useState(null);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(INAPP_DISMISS_KEY) === "1") return;
+    } catch (_) {}
+
+    const { isInApp, appName, appKey } = detectInAppBrowser();
+    if (isInApp && appName) {
+      setInAppInfo({ appName, appKey });
+    }
+  }, []);
+
+  const handleCloseInAppModal = () => {
+    try {
+      sessionStorage.setItem(INAPP_DISMISS_KEY, "1");
+    } catch (_) {}
+    setInAppInfo(null);
+  };
 
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ colorScheme: "dark light" }}>
@@ -115,6 +141,12 @@ function AppContent() {
         </Route>
       </Routes>
       {showFooter && <Footer />}
+      <InAppBrowserModal
+        isOpen={!!inAppInfo}
+        appName={inAppInfo?.appName}
+        appKey={inAppInfo?.appKey}
+        onClose={handleCloseInAppModal}
+      />
     </div>
   );
 }

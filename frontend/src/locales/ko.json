@@ -186,6 +186,27 @@
     "default_desc": "해당 서비스는 로그인 후 이용하실 수 있습니다.",
     "login_btn": "로그인하기"
   },
+  "inapp_modal": {
+    "title": "외부 브라우저로 접속해 주세요",
+    "subtitle": "{{appName}} 인앱 브라우저에서는 진짜미래의 일부 기능이 정상 동작하지 않습니다.",
+    "restricted_label": "인앱 브라우저에서 제한되는 기능",
+    "restricted": {
+      "payment": "결제 (카드결제·간편결제)",
+      "login": "카카오·구글 로그인",
+      "fortune": "운세 생성 및 결과 확인"
+    },
+    "open_external_btn": "외부 브라우저로 열기",
+    "copy_url_btn": "URL 복사하기",
+    "copied_btn": "복사되었습니다",
+    "guide": {
+      "kakaotalk_ios": "버튼이 동작하지 않으면, 화면 우측 하단의 ⋯ 메뉴 → '다른 브라우저로 열기'를 선택해 주세요.",
+      "kakaotalk_android": "버튼이 동작하지 않으면, 화면 우측 상단의 ⋮ 메뉴 → '다른 브라우저로 열기'를 선택해 주세요.",
+      "naver": "버튼이 동작하지 않으면, 우측 하단 메뉴에서 '다른 브라우저로 열기'를 선택해 주세요.",
+      "meta_ios": "Threads·Instagram·Facebook 인앱에서는 자동 이동이 제한됩니다. 우측 상단의 ⋯ 메뉴 → 'Safari로 열기' 또는 'Chrome으로 열기'를 선택하거나, 아래 'URL 복사하기'로 주소를 복사해 외부 브라우저에 붙여넣어 주세요.",
+      "meta_android": "Threads·Instagram·Facebook 인앱에서는 자동 이동이 제한될 수 있습니다. 우측 상단의 ⋮ 메뉴 → '외부 브라우저에서 열기'를 선택하거나, 아래 'URL 복사하기'로 주소를 복사해 외부 브라우저에 붙여넣어 주세요.",
+      "default": "현재 브라우저에서 자동 이동이 제한될 수 있습니다. 'URL 복사하기'로 주소를 복사해 Safari 또는 Chrome 등 외부 브라우저에서 열어 주세요."
+    }
+  },
   "order_modal": {
     "back": "뒤로",
     "title": "주문 확인 및 결제",
