@@ -33,7 +33,7 @@ class DailyTopicSpec:
 def get_daily_topic_and_cta() -> DailyTopicSpec:
     """
     `datetime.now(timezone.utc).weekday()` 기준 요일별 테마(UTC).
-    월·화: 행성·위계, 수·목: 하우스·섹트, 금·토·일: 타임로드·트랜짓·정밀 타이밍.
+    월·화: 행성·별자리, 수·목: 하우스, 금: 어스펙트, 토: 트랜짓, 일: 종합 해석.
     """
     wd = datetime.now(timezone.utc).weekday()
 
@@ -47,17 +47,18 @@ def get_daily_topic_and_cta() -> DailyTopicSpec:
             "정리해 보고 싶은 상황을 가정해, 본문 논지와 맞닿게 연결할 것."
         )
         allow_auxiliary_ephemeris_sites = False
-    elif wd == 1:  # 화 — 행성과 위계(주야파 연동)
+    elif wd == 1:  # 화 — 행성과 별자리의 결합
         topic = (
-            "주야파(sect)와 행성의 낮·밤의 질(diurnal/nocturnal planets), "
-            "주성(sect light) 맥락에서의 행성 조건 해석과 위계의 실무 적용"
+            "12개 별자리(sign)의 기본 성격과, 각 별자리가 어떤 행성의 '집(domicile)'인지 — "
+            "행성과 별자리가 짝지어지는 고전적 원리, 그리고 같은 행성이라도 어느 별자리에 있느냐에 따라 "
+            "표현이 어떻게 달라지는지"
         )
         cta_context = (
-            "주야 차트 구분과 섹트 가점을 본인 차트에 적용해 보고 싶지만 진입 장벽이 느껴질 때의 "
-            "독자 맥락을 염두에 두고 자연스럽게 연결할 것."
+            "별자리 운세 정도만 들어본 독자가, 자신의 출생차트에서 행성이 어느 별자리에 있는지 "
+            "확인하고 그 의미를 직관적으로 파악하고 싶을 때의 맥락으로 자연스럽게 연결할 것."
         )
         allow_auxiliary_ephemeris_sites = False
-    elif wd == 2:  # 수 — 하우스와 섹트
+    elif wd == 2:  # 수 — 하우스
         topic = (
             "12하우스(whole-sign 등 고전 틀)와 각·속·떨어짐(angular, succedent, cadent)이 "
             "사건의 가중치에 주는 고전적 의미"
@@ -67,26 +68,26 @@ def get_daily_topic_and_cta() -> DailyTopicSpec:
             "닿는 흐름으로 연결할 것."
         )
         allow_auxiliary_ephemeris_sites = False
-    elif wd == 3:  # 목 — 하우스와 섹트
+    elif wd == 3:  # 목 — 하우스 주인과 접수
         topic = (
-            "하우스 주인(house rulers), 접수(reception), 주야파(sect)가 겹칠 때 "
+            "하우스 주인(house rulers)과 접수(reception)가 겹칠 때 "
             "하우스 주제를 어떻게 단정·수정하는지에 대한 고전적 원칙"
         )
         cta_context = (
-            "룰러 체인과 섹트를 동시에 고려한 해석을 출생 정보에 맞춰 시험해 보고 싶은 독자의 "
+            "룰러 체인을 고려한 해석을 출생 정보에 맞춰 시험해 보고 싶은 독자의 "
             "상황을 상정해 연결할 것."
         )
         allow_auxiliary_ephemeris_sites = False
-    elif wd == 4:  # 금 — 타임로드
+    elif wd == 4:  # 금 — 어스펙트
         topic = (
-            "연차 배당(annual profections)과 그 해의 시간의 주인(time lord), "
-            "고전적 연도 테마 읽기의 기본 틀"
+            "행성과 행성 사이의 각도(aspect): 컨정션·옵포지션·트라인·스퀘어·섹스타일의 "
+            "고전적 의미와 차이, 그리고 어스펙트가 차트 해석에 어떤 식으로 무게를 더하는지"
         )
         cta_context = (
-            "연도 지배행성을 직접 산출·추적하기 부담스러운 독자가, 한 해의 초점을 "
-            "빠르게 파악하고 싶을 때의 맥락으로 연결할 것."
+            "어스펙트라는 말은 들어봤지만 각 각도가 실제로 어떤 의미를 가지는지, "
+            "본인 차트의 행성 관계를 어떻게 읽어야 할지 막연한 독자의 맥락으로 연결할 것."
         )
-        allow_auxiliary_ephemeris_sites = True
+        allow_auxiliary_ephemeris_sites = False
     elif wd == 5:  # 토 — 트랜짓
         topic = (
             "본차트(radix) 대비 트랜짓: 주요 악셉트·하우스 접근, "
@@ -96,17 +97,17 @@ def get_daily_topic_and_cta() -> DailyTopicSpec:
             "여러 트랜짓을 동시에 고려할 때 우선순위를 세우거나 본인 일정에 맞춰 "
             "의미를 압축하고 싶은 독자에게 닿게 연결할 것."
         )
-        allow_auxiliary_ephemeris_sites = True
-    else:  # wd == 6, 일 — 정밀 타이밍·천체력
+        allow_auxiliary_ephemeris_sites = False
+    else:  # wd == 6, 일 — 출생 차트 종합 해석
         topic = (
-            "에페머리스(천체력)와 트랜짓 입각(ingress)·정밀 시각 산출 시 "
-            "고전 점성술 실무에서의 유의점과 한계"
+            "출생 차트를 처음부터 끝까지 어떻게 읽어야 하는지 — 행성·별자리·하우스·각도를 "
+            "한 번에 보는 종합 해석의 순서와, 초보자가 자주 막히는 지점에 대한 고전적 안내"
         )
         cta_context = (
-            "정밀 시각까지 맞춘 트랜짓 해석을 시도하다 계산·데이터 접근 부담을 느끼는 독자의 "
-            "상황을 염두에 두고 연결할 것."
+            "차트 이미지는 받아 봤지만 어디서부터 봐야 할지 몰라 막막한 독자가 "
+            "한 번에 정리된 해석을 받아 보고 싶을 때의 맥락으로 연결할 것."
         )
-        allow_auxiliary_ephemeris_sites = True
+        allow_auxiliary_ephemeris_sites = False
 
     return DailyTopicSpec(
         topic=topic,
