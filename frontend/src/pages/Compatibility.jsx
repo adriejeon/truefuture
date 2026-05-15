@@ -580,10 +580,6 @@ function Compatibility() {
         className="w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24"
         style={{ position: "relative", zIndex: 1 }}
       >
-        <h1 className="text-3xl sm:text-4xl font-bold mb-4 sm:mb-6 text-primary">
-          {t(COMPATIBILITY_TITLE_KEY)}
-        </h1>
-
         {/* 페이지 소개 - 진짜 궁합 (Synastry) */}
         <div className="mb-6 sm:mb-8">
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">

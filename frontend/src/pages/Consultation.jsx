@@ -2014,10 +2014,6 @@ function Consultation() {
         style={{ position: "relative", zIndex: 1 }}
       >
         <div className="py-8 sm:py-12">
-          <h1 className="text-3xl sm:text-4xl font-bold mb-4 sm:mb-6 text-primary">
-            {t(FREE_QUESTION_TITLE_KEY)}
-          </h1>
-
           {/* 페이지 소개 (SEO/GEO 본문 텍스트 동기화용 section id 유지) */}
           <section id="ai-comment-astrology" className="mb-6 sm:mb-8">
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
