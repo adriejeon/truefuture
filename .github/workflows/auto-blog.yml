@@ -1,10 +1,9 @@
 name: Auto Blog (Gemini → Supabase)
 
 on:
-  # 자동 발행 일시 중단 (요청에 의해 홀딩). 수동 실행만 허용.
-  # schedule:
-  #   # KST 08:00 (UTC 23:00) — 하루 1회
-  #   - cron: '0 23 * * *'
+  schedule:
+    # KST 08:00 (UTC 23:00) — 하루 1회
+    - cron: '0 23 * * *'
   workflow_dispatch:
 
 permissions:
