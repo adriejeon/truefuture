@@ -173,11 +173,19 @@ AI가 쓴 티 안 나게 쓰는 법(반드시 지켜):
 - 같은 문단 안에서 같은 단어를 두 번 이상 굵게 강조하거나, 한 글에서 굵은 글씨가 10개 넘게 나오지 않게 해.
 
 마크다운 규칙(아주 중요, 어기면 안 됨):
-- 인라인 굵게(`**텍스트**`)는 절대 쓰지 마. 한국어 본문에서 단어를 별표 두 개로 감싸지 마.
-  이유: 한국어 조사("**하우스**는", "**진짜미래**를")에서 마크다운 렌더러가 깨져서 별표가 그대로 화면에 보여. 반드시 금지.
-- 강조하고 싶으면 별표 대신 문장 구조 자체로 강조해. 짧은 문장으로 끊거나, 그 문장을 단독 문단으로 빼거나, 따옴표(' ')로 감싸.
-- 제목은 ## (H2)와 ### (H3)만 써. H1(#)은 쓰지 마. 굵게(`**`), 기울임(`*`), 밑줄도 본문 안에서는 쓰지 마.
-- 글머리표(`- `)는 정말 나열이 필요할 때만 써. 본문은 가능하면 줄글로 풀어 써.
+- 문단과 문단 사이에는 반드시 빈 줄 한 줄을 띄워. 즉 `\\n\\n` 형태로 문단을 구분해.
+  하나의 문단은 한 덩어리 생각이고, 다음 생각으로 넘어갈 때는 무조건 빈 줄 한 줄 넣어. 한 줄 띄움만으로는 화면에서 문단이 안 떨어져.
+- 제목은 ## (H2)와 ### (H3)만 써. H1(#)은 쓰지 마. H2/H3 위아래에도 빈 줄 한 줄씩 넣어.
+- 굵게(`**텍스트**`)는 핵심 개념이나 한 문장의 키 메시지를 짚을 때만, 한 글에서 4~7번 정도까지만 써. 같은 단어를 두 번 이상 굵게 강조하지 마.
+- 굵게 강조에 한국어 조사를 직접 붙이지 마. 닫는 `**` 바로 다음에는 공백이나 문장부호가 오게 해.
+  (이유: `**행성**은` 같은 패턴은 일부 렌더러에서 별표가 그대로 보일 수 있어. 한국어 조사가 붙어야 하면 굵게 부분을 줄여서 조사 앞에서 끊어.)
+  좋음: "이 별을 점성술에서는 **도미사일(domicile)**이라고 불러요." (닫는 ** 다음에 "이라고"가 오니 조사 직접 부착 아님 — 다만 더 안전하게는 "이걸 **도미사일**, 즉 '집'이라고 부릅니다." 처럼 닫는 ** 다음에 쉼표/공백을 두는 형태가 베스트)
+  베스트: "고전에서는 행성을 일종의 **그릇**이라고 봐요." ← 닫는 ** 다음이 "이라고"(공백 없이도 어절 경계)
+  나쁨: "**행성**은 천체입니다." ← 닫는 ** 바로 뒤에 조사 '은' 직결 (금지)
+  나쁨: "**진짜미래**를 추천해요." ← 닫는 ** 바로 뒤에 조사 '를' 직결 (금지)
+  요령: 굵게 처리할 어절을 잡을 때 그 뒤에 공백·쉼표·마침표가 오도록 문장 구조를 짜. 안 되면 그 단어는 굵게 처리하지 마.
+- 기울임(`*텍스트*`, `_텍스트_`)과 밑줄은 본문에서 쓰지 마. 한국어에는 기울임 표현이 어색해.
+- 글머리표(`- `)는 정말 나열이 필요할 때만 써. 본문은 가능하면 줄글로 풀어 써. 글머리표를 쓸 때도 위아래에 빈 줄을 둬.
 
 CTA(살짝만, 자연스럽게):
 - 글 맨 끝에 진짜미래(truefuture.kr) 서비스를 한 번만, 한두 문장으로 자연스럽게 권유해. 본문 흐름 안에 녹여서, 광고처럼 들리지 않게.
@@ -207,24 +215,85 @@ CTA(살짝만, 자연스럽게):
 
 응답 규칙:
 - 응답은 오직 JSON만. 코드펜스(```)나 다른 설명 텍스트 금지.
-- content는 마크다운(## , ###)을 쓰되, 인라인 굵게(`**`)는 절대 쓰지 마.
-- excerpt는 한국어 한두 문장으로, 검색 결과에서 클릭하고 싶어질 만한 짧은 미리보기.
+- content는 마크다운으로 작성해. 문단은 빈 줄(`\\n\\n`)로 반드시 구분하고, 헤더는 ##/###만 사용해.
+- 굵게(`**`)는 위 규칙대로 핵심 어절에만 절제해서 쓰고, 닫는 `**` 뒤에 한국어 조사가 직접 붙지 않도록 문장을 구성해.
+- excerpt는 한국어 한두 문장으로, 검색 결과에서 클릭하고 싶어질 만한 짧은 미리보기. excerpt에는 굵게/마크다운 쓰지 마, 평문으로만.
 - tags는 SEO용 한국어 키워드 3~5개 문자열 배열. 사주, 타로 등 비(非)고전 서양 점성술 키워드는 절대 넣지 마.
 """.strip()
 
 
-def _strip_inline_bold(text: str) -> str:
-    """ReactMarkdown은 한국어 조사가 붙은 `**굵게**` 패턴을 닫지 못해
-    별표를 그대로 화면에 노출시킨다. 프롬프트로 금지했지만 모델이 어길
-    가능성에 대비해 본문에서 인라인 굵게/기울임 마크업을 안전하게 제거한다.
-    제목(##, ###) 등 다른 마크다운은 그대로 둔다."""
+_KOREAN_JOSA = (
+    "은는이가을를과와의로으로에게서께서도만조차마저까지부터처럼보다이나거나"
+    "라고라며이라고이라며이며이라서라서이라서이라"
+)
+
+
+def _sanitize_markdown(text: str) -> str:
+    """잘 형성된 `**굵게**` 쌍은 보존하고, 짝 안 맞는 별표/언더스코어와
+    한국어 기울임 마크업만 정리한다. 닫는 `**` 바로 뒤에 한국어 조사가
+    직결되어 일부 렌더러에서 별표가 노출되는 패턴은 별표 안쪽으로 조사를
+    당겨 안전하게 만든다."""
     if not isinstance(text, str):
         return text
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text, flags=re.DOTALL)
-    text = re.sub(r"__(.+?)__", r"\1", text, flags=re.DOTALL)
-    text = re.sub(r"(?<!\*)\*(?!\s)([^\*\n]+?)(?<!\s)\*(?!\*)", r"\1", text)
-    text = re.sub(r"(?<!_)_(?!\s)([^_\n]+?)(?<!\s)_(?!_)", r"\1", text)
+
+    # 0) `** 텍스트 **` 처럼 안쪽 공백이 있는 경우 — 닫힘이 안 되니 공백 제거
+    text = re.sub(r"\*\*\s+([^\n*]+?)\s+\*\*", r"**\1**", text)
+
+    # 1) 잘 형성된 `**...**` 쌍을 임시 토큰으로 보호. 한 줄 안, 양끝 비공백.
+    bold_pair_re = re.compile(r"\*\*(?=\S)([^\n*]+?)(?<=\S)\*\*")
+
+    placeholders: list[str] = []
+
+    def _keep_pair(match: "re.Match[str]") -> str:
+        inner = match.group(1)
+        placeholders.append(inner)
+        return f"\x00BOLD{len(placeholders) - 1}\x00"
+
+    text = bold_pair_re.sub(_keep_pair, text)
+
+    # 2) 보호 토큰 밖에 남은 짝 안 맞는 `**`, `*`, `__`, `_` 정리
+    text = text.replace("**", "")
+    text = re.sub(r"(?<!\*)\*(?!\*)", "", text)
+    text = text.replace("__", "")
+    text = re.sub(r"(?<!_)_(?!_)", "", text)
+
+    # 3) 보호된 굵게 쌍 복원. 단, 닫는 `**` 바로 뒤가 한국어 조사면
+    #    조사를 굵게 안쪽으로 흡수시켜 렌더러 호환 패턴으로 만든다.
+    josa_pattern = re.compile(rf"\x00BOLD(\d+)\x00([{_KOREAN_JOSA}]+)")
+
+    def _absorb_josa(match: "re.Match[str]") -> str:
+        idx = int(match.group(1))
+        josa = match.group(2)
+        return f"**{placeholders[idx]}{josa}**"
+
+    text = josa_pattern.sub(_absorb_josa, text)
+
+    def _restore(match: "re.Match[str]") -> str:
+        idx = int(match.group(1))
+        return f"**{placeholders[idx]}**"
+
+    text = re.sub(r"\x00BOLD(\d+)\x00", _restore, text)
+
     return text
+
+
+def _normalize_paragraph_breaks(text: str) -> str:
+    """3개 이상 연속 개행은 2개로 줄이고, 헤더(##/###) 위아래는 빈 줄을
+    보장한다. 단일 개행을 이중 개행으로 강제하지는 않는다(리스트/인용 구조
+    파괴 방지)."""
+    if not isinstance(text, str):
+        return text
+
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    # 헤더 위에 빈 줄 보장
+    text = re.sub(r"([^\n])\n(#{2,3} )", r"\1\n\n\2", text)
+    # 헤더 다음에 빈 줄 보장
+    text = re.sub(r"^(#{2,3} [^\n]*)\n(?!\n|#)", r"\1\n\n", text, flags=re.MULTILINE)
+
+    return text.strip() + "\n"
 
 
 def _safe_json_loads(text: str):
@@ -339,11 +408,22 @@ def generate_post(gemini_api_key: str) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"Gemini JSON 파싱 실패. raw={text[:500]}")
 
-    title = _strip_inline_bold((data.get("title") or "").strip())
-    content = _strip_inline_bold((data.get("content") or "").strip())
+    raw_title = (data.get("title") or "").strip()
+    raw_content = (data.get("content") or "").strip()
     slug = (data.get("slug") or "").strip()
-    excerpt = _strip_inline_bold((data.get("excerpt") or "").strip())
+    raw_excerpt = (data.get("excerpt") or "").strip()
     tags = data.get("tags")
+
+    # 제목은 굵게 마크업이 들어와도 평문화(렌더러에 따라 이상해질 수 있음)
+    title = re.sub(r"\*\*(.+?)\*\*", r"\1", raw_title, flags=re.DOTALL)
+    title = re.sub(r"[*_]", "", title).strip()
+
+    # 본문은 굵게 쌍을 살리되 짝 안 맞는 별표/조사 직결 패턴 정리
+    content = _normalize_paragraph_breaks(_sanitize_markdown(raw_content))
+
+    # 미리보기(excerpt)는 평문만
+    excerpt = re.sub(r"\*\*(.+?)\*\*", r"\1", raw_excerpt, flags=re.DOTALL)
+    excerpt = re.sub(r"[*_`#>]+", "", excerpt).strip()
 
     if not title or not content:
         raise ValueError("Gemini 응답에 title/content가 비어 있습니다.")
