@@ -8,6 +8,8 @@ import "react-datepicker/dist/react-datepicker.css";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function formatLocalDateTime(d) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -22,6 +24,8 @@ function RefundInquiry() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [replyEmail, setReplyEmail] = useState(user?.email || "");
+  const [emailError, setEmailError] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [productName, setProductName] = useState("");
   const [paymentDate, setPaymentDate] = useState(null);
@@ -46,6 +50,13 @@ function RefundInquiry() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setEmailError("");
+
+    const trimmedReply = replyEmail.trim();
+    if (!trimmedReply || !EMAIL_REGEX.test(trimmedReply)) {
+      setEmailError(t("refund_inquiry.email_error"));
+      return;
+    }
 
     if (!paymentAmount.trim()) {
       alert(t("refund_inquiry.error_amount"));
@@ -70,10 +81,11 @@ function RefundInquiry() {
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
           to: "jupiteradrie@gmail.com",
-          subject: `[환불 문의] ${user?.email || "알 수 없음"}`,
+          subject: `[환불 문의] ${trimmedReply}`,
           type: "refund",
+          replyTo: trimmedReply,
           content: {
-            userEmail: user?.email || "알 수 없음",
+            userEmail: trimmedReply,
             userName: user?.user_metadata?.full_name || user?.email || "알 수 없음",
             paymentMethod: "국내카드 결제",
             paymentAmount: paymentAmount.trim(),
@@ -143,6 +155,39 @@ function RefundInquiry() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <div>
+            <label className="block text-gray-900 font-medium mb-2">
+              {t("refund_inquiry.email_label")} <span className="text-red-600">*</span>
+            </label>
+            <p className="text-xs text-gray-600 mb-2">
+              {t("refund_inquiry.email_hint")}
+            </p>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={replyEmail}
+              onChange={(e) => {
+                setReplyEmail(e.target.value);
+                if (emailError) setEmailError("");
+              }}
+              placeholder={t("refund_inquiry.email_placeholder")}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-yellow-500 bg-white"
+              aria-invalid={!!emailError}
+              aria-describedby={emailError ? "refund-email-error" : undefined}
+              required
+            />
+            {emailError && (
+              <p
+                id="refund-email-error"
+                className="mt-2 text-sm text-red-600"
+                role="alert"
+              >
+                {emailError}
+              </p>
+            )}
+          </div>
+
           <div>
             <label className="block text-gray-900 font-medium mb-2">
               {t("refund_inquiry.amount_label")} <span className="text-red-600">*</span>
