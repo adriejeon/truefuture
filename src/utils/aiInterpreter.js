@@ -3,8 +3,8 @@
  * Google Gemini API를 사용한 점성술 차트 해석
  */
 
-// Gemini API 모델 설정 (무료 할당량 최적화: gemini-2.5-flash-lite - 하루 1,000회 무료)
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+// Gemini API 모델 설정
+const GEMINI_MODEL = 'gemini-3.5-flash';
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 /**
