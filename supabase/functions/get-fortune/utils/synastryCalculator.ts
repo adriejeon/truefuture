@@ -283,7 +283,8 @@ function getHouseInPartnerChartByPOF(
 function calculateMajorAspect(
   lon1: number,
   lon2: number,
-  maxOrb: number = 5
+  maxOrb: number = 5,
+  includeSextile: boolean = false
 ): SynastryAspect | null {
   const angleDiff = calculateAngleDifference(lon1, lon2);
 
@@ -294,6 +295,16 @@ function calculateMajorAspect(
       planetB: "",
       type: "Conjunction",
       orb: angleDiff,
+    };
+  }
+
+  // Sextile (60도) — 유효각에 포함 (옵션: 본선 하일렉 판정 등에서 사용)
+  if (includeSextile && Math.abs(angleDiff - 60) <= maxOrb) {
+    return {
+      planetA: "",
+      planetB: "",
+      type: "Sextile",
+      orb: Math.abs(angleDiff - 60),
     };
   }
 
@@ -452,6 +463,13 @@ function calculateConnectionDetail(
 ): ConnectionDetail {
   const rulerSign = getPlanetSign(partnerChart, rulerPlanet);
   const rulerLon = getPlanetLongitude(partnerChart, rulerPlanet);
+  const rulerKey = PLANET_NAME_TO_KEY[rulerPlanet];
+  const rulerData = rulerKey
+    ? (partnerChart.planets as Record<
+        string,
+        { qsHouse?: number; qsStrength?: string }
+      >)[rulerKey]
+    : undefined;
   if (!rulerSign || rulerLon == null) {
     return {
       type: "None",
@@ -481,9 +499,13 @@ function calculateConnectionDetail(
   const lotSign = getSignFromLongitude(lotLon).sign;
   const lotLabel: "PoS" | "PoF" = isMale ? "PoS" : "PoF";
 
-  // 예선: 상대 Asc 기준 / 상대 lot 기준 중 더 강한 앵글 채택
+  // 예선: 상대 Asc 기준 / 상대 lot 기준 중 더 강한 앵글 채택.
+  // 앵글은 Whole-Sign과 QS(쿼드런트)를 모두 포괄하며 QS가 더 유효 → QS 앵글이면 앵글(10점)로 인정.
   const ascHouse = getHouseInPartnerChart(rulerSign, pAscSign);
-  const ascBaseScore = getHouseBaseScore(ascHouse);
+  const qsAngular =
+    rulerData?.qsStrength === "Angle" ||
+    (typeof rulerData?.qsHouse === "number" && isAngleHouse(rulerData.qsHouse));
+  const ascBaseScore = qsAngular ? 10 : getHouseBaseScore(ascHouse);
   const lotHouse = getHouseInPartnerChartByPOF(rulerSign, lotSign);
   const lotBaseScore = getHouseBaseScore(lotHouse);
 
@@ -500,10 +522,10 @@ function calculateConnectionDetail(
     reference = "Asc";
   }
 
-  // 본선: 룰러(상대 차트 좌표)가 주인의 하일렉(달·태양·PoF·ASC)과 4도 이내 유효각
+  // 본선: 룰러(상대 차트 좌표)가 주인의 하일렉(달·태양·PoF·ASC)과 4도 이내 유효각 (육각 포함)
   const keyPointAspects: SynastryAspect[] = [];
   for (const point of ownerHyleg) {
-    const aspect = calculateMajorAspect(rulerLon, point.longitude, 4);
+    const aspect = calculateMajorAspect(rulerLon, point.longitude, 4, true);
     if (aspect) {
       keyPointAspects.push({
         ...aspect,
