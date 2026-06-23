@@ -390,8 +390,8 @@ export function buildSynastryMoonDispositorSection(
   natalData2: ChartData,
   locale: "ko" | "en",
 ): string {
-  const u1 = locale === "ko" ? "User1 (내담자님)" : "User 1 (You)";
-  const u2 = locale === "ko" ? "User2 (상대방)" : "User 2 (Partner)";
+  const u1 = locale === "ko" ? "사람 1" : "User 1 (You)";
+  const u2 = locale === "ko" ? "사람 2" : "User 2 (Partner)";
   const l1 = formatMoonLordInPartnerChartLineForLocale(
     u1,
     u2,
@@ -960,10 +960,10 @@ export function generateCompatibilityUserPrompt(
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [DEEP SOUL CHARACTER ANALYSIS — Fixed Star Influences]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**User1 (내담자님) 타고난 항성 기질:**
+**사람 1의 타고난 항성 기질:**
 ${block1}
 
-**User2 (상대방) 타고난 항성 기질:**
+**사람 2의 타고난 항성 기질:**
 ${block2}
 
 **해석 지침:** 두 사람의 항성적 기질이 서로 조화를 이루는지, 아니면 둘 다 Royal Star(Regulus 등)나 강한 항성이 겹쳐서 부딪힐 수 있는지 Synastry 해석에 반드시 포함하세요. "User1은 [Star]의 영향을 받아 [Character]한 성향이 있고, User2는 [Star]의 영향으로 [Character]합니다." 형식으로 입체적으로 분석하세요.
@@ -981,14 +981,14 @@ ${block2}
 궁합 분석을 위한 데이터입니다.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[📋 내담자님(User 1) 기본 정보]
+[📋 사람 1(User 1) 기본 정보]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 출생 연월일: ${birthYear1}년 ${birthMonth1}월 ${birthDay1}일
 출생 시간: ${natalData1.date}
 출생 위치: 위도 ${natalData1.location.lat}, 경도 ${natalData1.location.lng}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[🌌 내담자님 Natal Chart]
+[🌌 사람 1 Natal Chart]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 감응점(앵글): 상승점 ${natalAscSign1} | MC ${natalMCSign1} | IC ${natalICSign1} | 하강점 ${natalDscSign1}
 
@@ -1002,14 +1002,14 @@ Part of Fortune: ${
   )})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[📋 상대방(User 2) 기본 정보]
+[📋 사람 2(User 2) 기본 정보]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 출생 연월일: ${birthYear2}년 ${birthMonth2}월 ${birthDay2}일
 출생 시간: ${natalData2.date}
 출생 위치: 위도 ${natalData2.location.lat}, 경도 ${natalData2.location.lng}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[🌌 상대방 Natal Chart]
+[🌌 사람 2 Natal Chart]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 감응점(앵글): 상승점 ${natalAscSign2} | MC ${natalMCSign2} | IC ${natalICSign2} | 하강점 ${natalDscSign2}
 

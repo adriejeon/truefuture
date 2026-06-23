@@ -89,8 +89,8 @@ export interface ConnectionDetail {
   keyPointAspects: SynastryAspect[];
   /** 점수 */
   score: number;
-  /** 기준 (Asc 또는 POF) */
-  reference: "Asc" | "POF";
+  /** 기준 (Asc / PoF / PoS) */
+  reference: "Asc" | "PoF" | "PoS";
   /** 하우스 번호 */
   house: number;
   /** Base Score (하우스 점수) */
@@ -404,25 +404,58 @@ function getKeyPoints(chart: ChartData): Array<{
 }
 
 /**
- * 2단계 검증을 통한 연결 상세 정보 계산 (Dual Reference System: Asc & POF)
- * 
- * @param rulerPlanet - 룰러 행성명
- * @param rulerChart - 룰러가 위치한 차트
- * @param targetChart - 대상 차트 (상대방)
- * @param targetKeyPoints - 대상 차트의 주요 감응점
- * @returns ConnectionDetail
+ * 본선 하일렉 포인트(정본 4점): 달·태양·PoF·ASC 의 황경 배열.
+ * 달/랏 "주인"의 차트에서 산출한다(예선과 달리 본선은 주인 차트로 돌아온다).
+ */
+function getHylegPoints(chart: ChartData): Array<{
+  name: string;
+  longitude: number;
+}> {
+  const points: Array<{ name: string; longitude: number }> = [];
+  const asc = chart.houses?.angles?.ascendant;
+  const sun = chart.planets.sun?.degree;
+  const moon = chart.planets.moon?.degree;
+  if (asc != null) points.push({ name: "ASC", longitude: asc });
+  if (sun != null) points.push({ name: "태양", longitude: sun });
+  if (moon != null) points.push({ name: "달", longitude: moon });
+  if (asc != null && sun != null && moon != null) {
+    const isDay = chart.planets.sun?.house
+      ? chart.planets.sun.house >= 7 && chart.planets.sun.house <= 12
+      : true;
+    points.push({
+      name: "포르투나",
+      longitude: calculateFortuna(asc, moon, sun, isDay),
+    });
+  }
+  return points;
+}
+
+/**
+ * 달/랏 룰러 연결 판정 — 정본("차트 건너갔다 돌아오기")
+ *
+ * - 예선: rulerPlanet 을 partnerChart(상대 차트)에서 읽어, 상대의 Asc 또는
+ *   상대 성별 lot(남=PoS, 여=PoF) 기준 앵글(1·4·7·10)에 드는지 본다.
+ * - 본선: 그 룰러(상대 차트 좌표)가 ownerHyleg(달/랏 주인의 하일렉: 달·태양·PoF·ASC)와
+ *   4도 이내 유효각인지 본다.
+ * - 패자부활전: 예선이 수세덴트라도 본선에서 파틸 또는 2개 이상 하일렉 동시 유효각이면 보완 통과.
+ *
+ * @param rulerPlanet   - 달/랏 사인의 도머사일 룰러 행성명
+ * @param partnerChart  - 룰러를 읽는 상대 차트 (예선 앵글 기준점도 이 차트)
+ * @param ownerHyleg    - 달/랏 주인의 하일렉 포인트 (getHylegPoints 결과)
+ * @param partnerGender - 상대 성별 ("M"/"F" 등) → 예선 lot 선택(남=PoS, 여=PoF)
  */
 function calculateConnectionDetail(
   rulerPlanet: string,
-  rulerChart: ChartData,
-  targetChart: ChartData,
-  targetKeyPoints: Array<{ name: string; longitude: number }>
+  partnerChart: ChartData,
+  ownerHyleg: Array<{ name: string; longitude: number }>,
+  partnerGender: string
 ): ConnectionDetail {
-  const rulerSign = getPlanetSign(rulerChart, rulerPlanet);
-  if (!rulerSign) {
+  const rulerSign = getPlanetSign(partnerChart, rulerPlanet);
+  const rulerLon = getPlanetLongitude(partnerChart, rulerPlanet);
+  if (!rulerSign || rulerLon == null) {
     return {
       type: "None",
-      description: `${rulerPlanet} 위치 정보 없음`,
+      description: `${rulerPlanet} 위치 정보 없음(상대 차트)`,
       inAngle: false,
       keyPointAspects: [],
       score: 0,
@@ -432,107 +465,90 @@ function calculateConnectionDetail(
     };
   }
 
-  const targetAscSign = getSignFromLongitude(
-    targetChart.houses?.angles?.ascendant ?? 0
-  ).sign;
-  
-  // POF 계산
-  const targetAsc = targetChart.houses?.angles?.ascendant ?? 0;
-  const targetSunLon = targetChart.planets.sun?.degree ?? 0;
-  const targetMoonLon = targetChart.planets.moon?.degree ?? 0;
-  const isDayChart = targetChart.planets.sun?.house
-    ? targetChart.planets.sun.house >= 7 && targetChart.planets.sun.house <= 12
+  // 예선 기준점은 상대(partner) 차트의 것: Asc + 성별 lot (남=PoS, 여=PoF)
+  const pAsc = partnerChart.houses?.angles?.ascendant ?? 0;
+  const pAscSign = getSignFromLongitude(pAsc).sign;
+  const pSunLon = partnerChart.planets.sun?.degree ?? 0;
+  const pMoonLon = partnerChart.planets.moon?.degree ?? 0;
+  const pIsDay = partnerChart.planets.sun?.house
+    ? partnerChart.planets.sun.house >= 7 && partnerChart.planets.sun.house <= 12
     : true;
-  
-  const targetPofLon = calculateFortuna(targetAsc, targetMoonLon, targetSunLon, isDayChart);
-  const targetPofSign = getSignFromLongitude(targetPofLon).sign;
+  const isMale = /^(m|male|남)/i.test(partnerGender ?? "");
+  // PoF = Asc+Moon-Sun(주간) / PoS = 주야 반전
+  const lotLon = isMale
+    ? calculateFortuna(pAsc, pMoonLon, pSunLon, !pIsDay)
+    : calculateFortuna(pAsc, pMoonLon, pSunLon, pIsDay);
+  const lotSign = getSignFromLongitude(lotLon).sign;
+  const lotLabel: "PoS" | "PoF" = isMale ? "PoS" : "PoF";
 
-  // Reference A: Ascendant 기준
-  const ascHouse = getHouseInPartnerChart(rulerSign, targetAscSign);
+  // 예선: 상대 Asc 기준 / 상대 lot 기준 중 더 강한 앵글 채택
+  const ascHouse = getHouseInPartnerChart(rulerSign, pAscSign);
   const ascBaseScore = getHouseBaseScore(ascHouse);
+  const lotHouse = getHouseInPartnerChartByPOF(rulerSign, lotSign);
+  const lotBaseScore = getHouseBaseScore(lotHouse);
 
-  // Reference B: POF 기준
-  const pofHouse = getHouseInPartnerChartByPOF(rulerSign, targetPofSign);
-  const pofBaseScore = getHouseBaseScore(pofHouse);
-
-  // 두 기준 중 더 높은 점수를 채택
   let finalHouse: number;
   let finalBaseScore: number;
-  let reference: "Asc" | "POF";
-  let referenceSign: string;
-
-  if (pofBaseScore > ascBaseScore) {
-    finalHouse = pofHouse;
-    finalBaseScore = pofBaseScore;
-    reference = "POF";
-    referenceSign = targetPofSign;
+  let reference: "Asc" | "PoF" | "PoS";
+  if (lotBaseScore > ascBaseScore) {
+    finalHouse = lotHouse;
+    finalBaseScore = lotBaseScore;
+    reference = lotLabel;
   } else {
     finalHouse = ascHouse;
     finalBaseScore = ascBaseScore;
     reference = "Asc";
-    referenceSign = targetAscSign;
   }
 
-  // Base Score가 0점이면 None
-  if (finalBaseScore === 0) {
-    return {
-      type: "None",
-      description: `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점)에 위치`,
-      inAngle: false,
-      keyPointAspects: [],
-      score: 0,
-      reference,
-      house: finalHouse,
-      baseScore: finalBaseScore,
-    };
-  }
-
-  // 주요 감응점과의 애스펙트 체크
-  const rulerLon = getPlanetLongitude(rulerChart, rulerPlanet);
+  // 본선: 룰러(상대 차트 좌표)가 주인의 하일렉(달·태양·PoF·ASC)과 4도 이내 유효각
   const keyPointAspects: SynastryAspect[] = [];
-  
-  if (rulerLon != null) {
-    for (const point of targetKeyPoints) {
-      const aspect = calculateMajorAspect(rulerLon, point.longitude, 5);
-      if (aspect) {
-        keyPointAspects.push({
-          ...aspect,
-          planetA: rulerPlanet,
-          planetB: point.name,
-        });
-      }
+  for (const point of ownerHyleg) {
+    const aspect = calculateMajorAspect(rulerLon, point.longitude, 4);
+    if (aspect) {
+      keyPointAspects.push({
+        ...aspect,
+        planetA: rulerPlanet,
+        planetB: point.name,
+      });
     }
   }
+  const hasAspect = keyPointAspects.length > 0;
+  // 패자부활: 파틸(1도 이내) 또는 2개 이상 하일렉 동시 유효각이면 본선 강함
+  const strongHyleg =
+    keyPointAspects.some((a) => a.orb <= 1) || keyPointAspects.length >= 2;
+  const angleText =
+    finalBaseScore === 10 ? "앵글" : finalBaseScore === 5 ? "수세덴트" : "케이던트";
+  const aspectDesc = hasAspect
+    ? keyPointAspects
+        .map((a) => `${a.planetB}와 ${a.type}(orb ${a.orb.toFixed(1)}°)`)
+        .join(", ")
+    : "";
 
-  // Type 결정 및 점수 계산
   let type: ConnectionType;
   let description: string;
   let score: number;
 
-  if (keyPointAspects.length > 0) {
-    // Destiny: Base Score 5점 이상 + 주요 감응점 애스펙트
+  if (finalBaseScore === 10 && hasAspect) {
+    // 예선(앵글) + 본선 통과 → 운명적 연결
     type = "Destiny";
-    const aspectDesc = keyPointAspects
-      .map((a) => `${a.planetB}와 ${a.type} (orb ${a.orb.toFixed(1)}°)`)
-      .join(", ");
-    
-    const angleText = finalBaseScore === 10 ? "앵글" : "수세덴트";
-    description = `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점, ${angleText})에 위치하며, ${aspectDesc}`;
-    
-    // Base Score + Aspect Bonus (+20)
-    score = finalBaseScore + 20;
-  } else if (finalBaseScore >= 5) {
-    // Potential: Base Score 5점 이상, 애스펙트 없음
+    score = 30;
+    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(앵글)에 위치하며, ${aspectDesc}`;
+  } else if (finalBaseScore === 10) {
+    // 예선만 통과 (본선 유효각 없음) → 잠재
     type = "Potential";
-    const angleText = finalBaseScore === 10 ? "앵글" : "수세덴트";
-    description = `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점, ${angleText})에 위치`;
-    
-    score = finalBaseScore;
+    score = 10;
+    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(앵글)에 위치하나 본선 하일렉 유효각 없음`;
+  } else if (finalBaseScore === 5 && strongHyleg) {
+    // 수세덴트지만 본선 강함 → 패자부활(잠재)
+    type = "Potential";
+    score = 20;
+    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(수세덴트)이나 본선 강함(${aspectDesc}) → 패자부활`;
   } else {
-    // None: Base Score 0점
     type = "None";
-    description = `${rulerPlanet}가 상대방 ${reference} 기준 ${finalHouse}하우스(${finalBaseScore}점)에 위치`;
     score = 0;
+    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(${angleText})${
+      hasAspect ? `, ${aspectDesc}` : ", 유효각 없음"
+    }`;
   }
 
   return {
@@ -552,7 +568,9 @@ function calculateConnectionDetail(
  */
 function analyzeMoonRulerConnection(
   chartA: ChartData,
-  chartB: ChartData
+  chartB: ChartData,
+  genderA: string,
+  genderB: string
 ): MoonRulerConnection {
   const aMoonSign = chartA.planets.moon?.sign;
   const aMoonRuler = aMoonSign ? getSignRuler(aMoonSign) : "Unknown";
@@ -560,12 +578,12 @@ function analyzeMoonRulerConnection(
   const bMoonSign = chartB.planets.moon?.sign;
   const bMoonRuler = bMoonSign ? getSignRuler(bMoonSign) : "Unknown";
 
-  const aKeyPoints = getKeyPoints(chartA);
-  const bKeyPoints = getKeyPoints(chartB);
+  const aHyleg = getHylegPoints(chartA);
+  const bHyleg = getHylegPoints(chartB);
 
-  // A -> B 연결
+  // 사람A 달 연결: A 달의 룰러를 B 차트에서 읽어 B 앵글(B 성별 lot) 판정 → A 하일렉에 본선
   const aToB = aMoonRuler !== "Unknown"
-    ? calculateConnectionDetail(aMoonRuler, chartA, chartB, bKeyPoints)
+    ? calculateConnectionDetail(aMoonRuler, chartB, aHyleg, genderB)
     : {
         type: "None" as ConnectionType,
         description: "A의 달 룰러 정보 없음",
@@ -577,9 +595,9 @@ function analyzeMoonRulerConnection(
         baseScore: 0,
       };
 
-  // B -> A 연결
+  // 사람B 달 연결: B 달의 룰러를 A 차트에서 읽어 A 앵글(A 성별 lot) 판정 → B 하일렉에 본선
   const bToA = bMoonRuler !== "Unknown"
-    ? calculateConnectionDetail(bMoonRuler, chartB, chartA, aKeyPoints)
+    ? calculateConnectionDetail(bMoonRuler, chartA, bHyleg, genderA)
     : {
         type: "None" as ConnectionType,
         description: "B의 달 룰러 정보 없음",
@@ -624,14 +642,14 @@ function analyzeMarriageLotConnection(
   const bLot = calculateLotOfMarriage(chartB, genderB);
   const bLotRuler = getSignRuler(bLot.sign);
 
-  const aKeyPoints = getKeyPoints(chartA);
-  const bKeyPoints = getKeyPoints(chartB);
+  const aHyleg = getHylegPoints(chartA);
+  const bHyleg = getHylegPoints(chartB);
 
-  // A -> B 연결
-  const aToB = calculateConnectionDetail(aLotRuler, chartA, chartB, bKeyPoints);
+  // 사람A 결혼랏 연결: A 랏 룰러를 B 차트에서 읽어 B 앵글(B 성별 lot) → A 하일렉에 본선
+  const aToB = calculateConnectionDetail(aLotRuler, chartB, aHyleg, genderB);
 
-  // B -> A 연결
-  const bToA = calculateConnectionDetail(bLotRuler, chartB, chartA, aKeyPoints);
+  // 사람B 결혼랏 연결: B 랏 룰러를 A 차트에서 읽어 A 앵글(A 성별 lot) → B 하일렉에 본선
+  const bToA = calculateConnectionDetail(bLotRuler, chartA, bHyleg, genderA);
 
   // 상호 연결 여부
   const isMutual = aToB.type === "Destiny" && bToA.type === "Destiny";
@@ -874,8 +892,13 @@ export function calculateSynastry(
   genderA: string = "M",
   genderB: string = "M"
 ): SynastryResult {
-  // Step 1: 달의 룰러 연결 (2단계 검증)
-  const moonRulerConnection = analyzeMoonRulerConnection(chartA, chartB);
+  // Step 1: 달의 룰러 연결 (2단계 검증, 성별 lot 반영)
+  const moonRulerConnection = analyzeMoonRulerConnection(
+    chartA,
+    chartB,
+    genderA,
+    genderB
+  );
 
   // Step 2: 결혼의 랏 룰러 연결 (2단계 검증)
   const marriageLotConnection = analyzeMarriageLotConnection(

@@ -438,8 +438,8 @@ ${section.body}`;
  * * 핵심: 시너스트리(Synastry) 기법.
  * 노하우: 달-달 관계(정서), 금성-화성(케미), 흉각(충돌).
  *
- * @param natalData1 - 내담자님(User 1)의 차트 데이터
- * @param natalData2 - 상대방(User 2)의 차트 데이터
+ * @param natalData1 - 사람 1(User 1)의 차트 데이터
+ * @param natalData2 - 사람 2(User 2)의 차트 데이터
  * @param synastryResult - 코드로 계산된 궁합 분석 결과
  * @param relationshipType - 관계 유형 (연인, 친구, 가족 등)
  */
@@ -551,27 +551,27 @@ export function getCompatibilityPrompt(
   if (adjustment.venusMarsHarmony.aVenusBMars) {
     const asp = adjustment.venusMarsHarmony.aVenusBMars;
     venusMarsInfo.push(
-      `내담자님 금성 ${asp.type} 상대방 화성 (orb ${asp.orb.toFixed(1)}°)`,
+      `사람 1 금성 ${asp.type} 사람 2 화성 (orb ${asp.orb.toFixed(1)}°)`,
     );
   }
   if (adjustment.venusMarsHarmony.bVenusAMars) {
     const asp = adjustment.venusMarsHarmony.bVenusAMars;
     venusMarsInfo.push(
-      `상대방 금성 ${asp.type} 내담자님 화성 (orb ${asp.orb.toFixed(1)}°)`,
+      `사람 2 금성 ${asp.type} 사람 1 화성 (orb ${asp.orb.toFixed(1)}°)`,
     );
   }
 
   const saturnInfo: string[] = [];
   adjustment.saturnHardAspects.aSaturnToBSensitive.forEach((asp) => {
     saturnInfo.push(
-      `내담자님 토성 ${asp.type} 상대방 ${asp.planetB} (orb ${asp.orb.toFixed(
+      `사람 1 토성 ${asp.type} 사람 2 ${asp.planetB} (orb ${asp.orb.toFixed(
         1,
       )}°)`,
     );
   });
   adjustment.saturnHardAspects.bSaturnToASensitive.forEach((asp) => {
     saturnInfo.push(
-      `상대방 토성 ${asp.type} 내담자님 ${asp.planetB} (orb ${asp.orb.toFixed(
+      `사람 2 토성 ${asp.type} 사람 1 ${asp.planetB} (orb ${asp.orb.toFixed(
         1,
       )}°)`,
     );
@@ -587,8 +587,8 @@ export function getCompatibilityPrompt(
 
   const calculatedReport = `
 1. 🌙 Moon Ruler Connection (Step 1 결과 - 2단계 검증):
-   - 내담자 → 상대방: ${aToBMoonDetails}
-   - 상대방 → 내담자: ${bToAMoonDetails}
+   - 사람 1 → 사람 2: ${aToBMoonDetails}
+   - 사람 2 → 사람 1: ${bToAMoonDetails}
    - 상호 연결 여부: ${moonMutualStatus}
    - 점수: ${
      moon.isMutual
@@ -601,8 +601,8 @@ export function getCompatibilityPrompt(
    }
 
 2. 💍 Marriage Lot Connection (Step 2 결과 - 2단계 검증):
-   - 내담자 → 상대방: ${aToBLotDetails}
-   - 상대방 → 내담자: ${bToALotDetails}
+   - 사람 1 → 사람 2: ${aToBLotDetails}
+   - 사람 2 → 사람 1: ${bToALotDetails}
    - 상호 연결 여부: ${lotMutualStatus}
    - 점수: ${
      lot.isMutual
@@ -637,7 +637,7 @@ export function getCompatibilityPrompt(
 당신은 관계 심리와 고전 점성술의 심오한 원리에 통달한 전문가 '진짜 미래'입니다.
 제공된 두 사람(User 1, User 2)의 차트 데이터와 **[🧮 정밀 계산된 궁합 데이터]**를 바탕으로, 아래 **[출력 구조]**를 엄격히 준수하여 '궁합(Synastry)'을 분석하십시오.
 
-사용자 1을 표현할 때는 '내담자님'이라고 표현하고, 사용자 2를 표현할 때는 '상대방' 이라고 표햔합니다.
+사용자 1은 '사람 1', 사용자 2는 '사람 2'라고 표현합니다.
 중요: 절대 '달의 룰러', '어센던트', '디센던트'와 같은 점성학 용어를 사용하지 않습니다. 
 
 ${relationshipGuidance}
@@ -645,12 +645,12 @@ ${relationshipGuidance}
 ${COMMON_RULES}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[📋 내담자님(User 1) Natal Chart]
+[📋 사람 1(User 1) Natal Chart]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${chart1Formatted}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[📋 상대방(User 2) Natal Chart]
+[📋 사람 2(User 2) Natal Chart]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${chart2Formatted}
 
@@ -668,14 +668,14 @@ ${calculatedReport}
 
 1. **점수 산정:** 이미 계산된 **${synastryResult.overallScore}점**을 그대로 사용하십시오. 임의로 변경하지 마십시오.
 2. **Step 1 (운명적 끌림):** 위 데이터의 '1. Moon Ruler Connection' 내용을 바탕으로 작성하십시오.
-   - **Destiny (본선 통과):** 룰러가 앵글에 있으며 주요 감응점(Asc/Dsc/Sun/Moon)과 5도 이내 애스펙트를 맺는 경우. 매우 강력한 운명적 인연으로 묘사하십시오.
+   - **Destiny (본선 통과):** 룰러가 상대 차트에서 앵글에 있으며, 달 주인의 하일렉(달·태양·포르투나·ASC)과 4도 이내 유효각을 맺는 경우. 매우 강력한 운명적 인연으로 묘사하십시오.
    - **Potential (예선 통과):** 룰러가 앵글에 있지만 주요 감응점과의 애스펙트가 없는 경우. 잠재적 인연으로 묘사하십시오.
    - **쌍방 Destiny:** 양방향 모두 Destiny일 경우 "피할 수 없는 인연"으로 강조하십시오.
 3. **Step 2 (장기 관계 적합성):** 위 데이터의 '2. Marriage Lot Connection' 내용을 바탕으로 작성하십시오. 관계 유형이 '연인'이면 결혼/동거 적합성으로, '친구'면 장기 우정, '가족'이면 가족 조화·안정성, '직장 동료'면 장기 협업, '동업자'면 사업 파트너십, '기타'면 장기적 관계 안정성으로 재해석하십시오.
    - **Destiny:** 해당 관계 유형에서 장기적으로 매우 안정적일 가능성 높음.
    - **Potential:** 해당 관계 유형에서 장기적 가능성은 있으나 Destiny보다는 낮음.
 4. **Step 3 & 4 (갈등 및 솔루션):** 위 데이터의 '3. 길흉 보정'을 참고하여 갈등 요소와 솔루션을 도출하십시오.
-   - **Detriment/Fall 갈등:** 달이 싫어하는 행성이 상대방의 앵글에 있거나 주요 감응점과 애스펙트를 맺는 경우. 구체적으로 어떤 상황에서 불편함이 발생할지 예시를 들어 설명하십시오.
+   - **Detriment/Fall 갈등:** 달이 싫어하는 행성이 상대 쪽 앵글에 있거나 주요 감응점과 애스펙트를 맺는 경우. 구체적으로 어떤 상황에서 불편함이 발생할지 예시를 들어 설명하십시오.
    - **토성 흉각:** 토성이 주요 감응점과 Square/Opposition을 맺는 경우. 현실적 장애물로 설명하십시오.
 
 [출력 구조]
@@ -695,7 +695,7 @@ ${getCompatibilityFitSection(relationshipType || "연인")}
 
 ## 🔑 관계 유지를 위한 솔루션
 > (솔루션 한 줄 요약)
-(본문: [필수: 최소 600자 이상, 6~8문장 이상 아주 길고 적나라하게 작성할 것!] 위 분석을 바탕으로 이 관계를 오래 유지하기 위해 서로가 당장 실천해야 할 구체적 행동 지침을 상세하게 작성하세요. "내담자님은 이렇게 하고, 상대방은 이렇게 하면" 식으로 양쪽 모두를 위한 구체적이고 실용적인 조언을 제시하세요. 단순히 "이해하세요"가 아니라, "이런 상황에서는 이렇게 말하고 행동하세요"처럼 실제로 적용 가능한 솔루션을 제공하세요.)
+(본문: [필수: 최소 600자 이상, 6~8문장 이상 아주 길고 적나라하게 작성할 것!] 위 분석을 바탕으로 이 관계를 오래 유지하기 위해 서로가 당장 실천해야 할 구체적 행동 지침을 상세하게 작성하세요. "사람 1은 이렇게 하고, 사람 2는 이렇게 하면" 식으로 양쪽 모두를 위한 구체적이고 실용적인 조언을 제시하세요. 단순히 "이해하세요"가 아니라, "이런 상황에서는 이렇게 말하고 행동하세요"처럼 실제로 적용 가능한 솔루션을 제공하세요.)
 `.trim();
 }
 
