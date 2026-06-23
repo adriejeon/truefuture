@@ -89,8 +89,8 @@ export interface ConnectionDetail {
   keyPointAspects: SynastryAspect[];
   /** 점수 */
   score: number;
-  /** 기준 (Asc / PoF / PoS) */
-  reference: "Asc" | "PoF" | "PoS";
+  /** 기준 (Asc / PoF / PoS / QS) */
+  reference: "Asc" | "PoF" | "PoS" | "QS";
   /** 하우스 번호 */
   house: number;
   /** Base Score (하우스 점수) */
@@ -492,83 +492,124 @@ function calculateConnectionDetail(
     ? partnerChart.planets.sun.house >= 7 && partnerChart.planets.sun.house <= 12
     : true;
   const isMale = /^(m|male|남)/i.test(partnerGender ?? "");
-  // PoF = Asc+Moon-Sun(주간) / PoS = 주야 반전
-  const lotLon = isMale
-    ? calculateFortuna(pAsc, pMoonLon, pSunLon, !pIsDay)
-    : calculateFortuna(pAsc, pMoonLon, pSunLon, pIsDay);
-  const lotSign = getSignFromLongitude(lotLon).sign;
-  const lotLabel: "PoS" | "PoF" = isMale ? "PoS" : "PoF";
 
-  // 예선: 상대 Asc 기준 / 상대 lot 기준 중 더 강한 앵글 채택.
-  // 앵글은 Whole-Sign과 QS(쿼드런트)를 모두 포괄하며 QS가 더 유효 → QS 앵글이면 앵글(10점)로 인정.
+  // 예선 기준점(상대 차트): Asc(WS+QS) + PoF + PoS 를 모두 평가.
+  // 성별쪽 lot이 1순위(여=PoF / 남=PoS)이나 반대쪽 lot도 보조로 인정한다(패자부활).
+  const pofLon = calculateFortuna(pAsc, pMoonLon, pSunLon, pIsDay);
+  const posLon = calculateFortuna(pAsc, pMoonLon, pSunLon, !pIsDay);
+  const pofSign = getSignFromLongitude(pofLon).sign;
+  const posSign = getSignFromLongitude(posLon).sign;
+
   const ascHouse = getHouseInPartnerChart(rulerSign, pAscSign);
-  const qsAngular =
+  const pofHouse = getHouseInPartnerChartByPOF(rulerSign, pofSign);
+  const posHouse = getHouseInPartnerChartByPOF(rulerSign, posSign);
+
+  // QS(쿼드런트) 앵글 — 가장 강한 형태("예선만 통과하면 본선 걱정이 적은" 케이스)
+  const qsAngle =
     rulerData?.qsStrength === "Angle" ||
     (typeof rulerData?.qsHouse === "number" && isAngleHouse(rulerData.qsHouse));
-  const ascBaseScore = qsAngular ? 10 : getHouseBaseScore(ascHouse);
-  const lotHouse = getHouseInPartnerChartByPOF(rulerSign, lotSign);
-  const lotBaseScore = getHouseBaseScore(lotHouse);
+  const ascWsAngle = isAngleHouse(ascHouse);
+  const pofAngle = isAngleHouse(pofHouse);
+  const posAngle = isAngleHouse(posHouse);
+  const anyAngle = qsAngle || ascWsAngle || pofAngle || posAngle;
+  // QS만 앵글이고 WS 기준점은 비앵글 → 슬로우번(초기 끌림 약, 갈수록 안정) 패턴
+  const slowBurn = qsAngle && !ascWsAngle && !pofAngle && !posAngle;
 
+  // 표시용 기준/하우스 (강한 순: QS > Asc WS > 1순위 lot > 2순위 lot)
+  const lotPrimaryAngle = isMale ? posAngle : pofAngle;
+  const lotSecondaryAngle = isMale ? pofAngle : posAngle;
+  let reference: "Asc" | "PoF" | "PoS" | "QS";
   let finalHouse: number;
-  let finalBaseScore: number;
-  let reference: "Asc" | "PoF" | "PoS";
-  if (lotBaseScore > ascBaseScore) {
-    finalHouse = lotHouse;
-    finalBaseScore = lotBaseScore;
-    reference = lotLabel;
-  } else {
-    finalHouse = ascHouse;
-    finalBaseScore = ascBaseScore;
+  if (qsAngle) {
+    reference = "QS";
+    finalHouse = rulerData?.qsHouse ?? ascHouse;
+  } else if (ascWsAngle) {
     reference = "Asc";
+    finalHouse = ascHouse;
+  } else if (lotPrimaryAngle) {
+    reference = isMale ? "PoS" : "PoF";
+    finalHouse = isMale ? posHouse : pofHouse;
+  } else if (lotSecondaryAngle) {
+    reference = isMale ? "PoF" : "PoS";
+    finalHouse = isMale ? pofHouse : posHouse;
+  } else {
+    reference = "Asc";
+    finalHouse = ascHouse;
   }
+  const isSuccedent =
+    !anyAngle &&
+    Math.max(
+      getHouseBaseScore(ascHouse),
+      getHouseBaseScore(pofHouse),
+      getHouseBaseScore(posHouse)
+    ) === 5;
 
-  // 본선: 룰러(상대 차트 좌표)가 주인의 하일렉(달·태양·PoF·ASC)과 4도 이내 유효각 (육각 포함)
+  // 본선 1(정통): 룰러가 '내(달/랏 주인) 하일렉'과 4도 이내 유효각(육각 포함)
   const keyPointAspects: SynastryAspect[] = [];
   for (const point of ownerHyleg) {
     const aspect = calculateMajorAspect(rulerLon, point.longitude, 4, true);
     if (aspect) {
-      keyPointAspects.push({
-        ...aspect,
-        planetA: rulerPlanet,
-        planetB: point.name,
-      });
+      keyPointAspects.push({ ...aspect, planetA: rulerPlanet, planetB: point.name });
     }
   }
   const hasAspect = keyPointAspects.length > 0;
-  // 패자부활: 파틸(1도 이내) 또는 2개 이상 하일렉 동시 유효각이면 본선 강함
   const strongHyleg =
     keyPointAspects.some((a) => a.orb <= 1) || keyPointAspects.length >= 2;
-  const angleText =
-    finalBaseScore === 10 ? "앵글" : finalBaseScore === 5 ? "수세덴트" : "케이던트";
-  const aspectDesc = hasAspect
-    ? keyPointAspects
-        .map((a) => `${a.planetB}와 ${a.type}(orb ${a.orb.toFixed(1)}°)`)
-        .join(", ")
+
+  // 본선 2(패자부활): QS 강앵글일 때, 룰러가 '룰러가 놓인 상대 차트의 하일렉'과 3도 이내 각
+  const partnerHyleg = getHylegPoints(partnerChart);
+  const partnerAspects: SynastryAspect[] = [];
+  for (const point of partnerHyleg) {
+    const aspect = calculateMajorAspect(rulerLon, point.longitude, 3, true);
+    if (aspect) {
+      partnerAspects.push({ ...aspect, planetA: rulerPlanet, planetB: point.name });
+    }
+  }
+  const hasPartnerAspect = partnerAspects.length > 0;
+
+  const aspectDesc = keyPointAspects
+    .map((a) => `${a.planetB}와 ${a.type}(orb ${a.orb.toFixed(1)}°)`)
+    .join(", ");
+  const partnerAspectDesc = partnerAspects
+    .map((a) => `상대 ${a.planetB}와 ${a.type}(orb ${a.orb.toFixed(1)}°)`)
+    .join(", ");
+  const slowNote = slowBurn
+    ? " → 초기 끌림은 약하나 갈수록 안정되는 연결"
     : "";
 
   let type: ConnectionType;
   let description: string;
   let score: number;
 
-  if (finalBaseScore === 10 && hasAspect) {
-    // 예선(앵글) + 본선 통과 → 운명적 연결
+  if (anyAngle && hasAspect) {
+    // 예선 앵글 + 본선(내 하일렉) → 운명적 연결
     type = "Destiny";
     score = 30;
-    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(앵글)에 위치하며, ${aspectDesc}`;
-  } else if (finalBaseScore === 10) {
-    // 예선만 통과 (본선 유효각 없음) → 잠재
+    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(앵글) + 내 하일렉 ${aspectDesc}${slowNote}`;
+  } else if (qsAngle && hasPartnerAspect) {
+    // QS 강앵글 + 상대 하일렉 3도 → 패자부활(슬로우번 운명적 연결)
+    type = "Destiny";
+    score = 26;
+    description = `${rulerPlanet}가 상대 QS 앵글(강) + ${partnerAspectDesc} (패자부활)${slowNote}`;
+  } else if (qsAngle) {
+    // QS 강앵글(하일렉 유효각 미연결) → 강한 잠재
     type = "Potential";
-    score = 10;
-    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(앵글)에 위치하나 본선 하일렉 유효각 없음`;
-  } else if (finalBaseScore === 5 && strongHyleg) {
-    // 수세덴트지만 본선 강함 → 패자부활(잠재)
+    score = 18;
+    description = `${rulerPlanet}가 상대 QS 앵글(강)이나 하일렉 유효각 미연결${slowNote}`;
+  } else if (anyAngle) {
+    // WS 앵글(Asc/PoF/PoS) 예선 통과(본선 미연결) → 잠재
     type = "Potential";
-    score = 20;
+    score = 14;
+    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(앵글)이나 하일렉 유효각 없음`;
+  } else if (isSuccedent && strongHyleg) {
+    // 수세덴트 + 본선 강함 → 패자부활
+    type = "Potential";
+    score = 16;
     description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(수세덴트)이나 본선 강함(${aspectDesc}) → 패자부활`;
   } else {
     type = "None";
     score = 0;
-    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(${angleText})${
+    description = `${rulerPlanet}가 상대 ${reference} 기준 ${finalHouse}하우스(비앵글)${
       hasAspect ? `, ${aspectDesc}` : ", 유효각 없음"
     }`;
   }
@@ -576,12 +617,12 @@ function calculateConnectionDetail(
   return {
     type,
     description,
-    inAngle: finalBaseScore === 10,
+    inAngle: anyAngle,
     keyPointAspects,
     score,
     reference,
     house: finalHouse,
-    baseScore: finalBaseScore,
+    baseScore: anyAngle ? 10 : isSuccedent ? 5 : 0,
   };
 }
 
