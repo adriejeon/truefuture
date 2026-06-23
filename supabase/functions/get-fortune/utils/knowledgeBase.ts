@@ -59,14 +59,14 @@ function relevantHousesByType(ft: FortuneType): string[] {
 function goldenKeysByType(ft: FortuneType): GoldenKey[] {
   switch (ft) {
     case FortuneType.LIFETIME:
-      return ["personality", "love", "career", "wealth", "health"];
+      return ["personality", "love", "career", "wealth", "health", "general"];
     case FortuneType.COMPATIBILITY:
       // personality(기질) = 두 사람 기질 비교 섹션의 기본 베이스
-      return ["personality", "synastry"];
+      return ["personality", "synastry", "general"];
     case FortuneType.YEARLY:
-      return ["personality", "timing"];
+      return ["personality", "timing", "general"];
     case FortuneType.CONSULTATION:
-      return ["personality", "timing", "career", "love"];
+      return ["personality", "timing", "career", "love", "wealth", "general"];
     case FortuneType.DAILY:
     default:
       return ["timing"];
