@@ -39,6 +39,7 @@ import {
   getSignDisplay,
   formatPlanetHouseWsQs,
   buildSynastryMoonDispositorSection,
+  formatNatalAspectsForPrompt,
 } from "./chartFormatter.ts";
 
 // ─── Re-export language-neutral types & shared formatters ────────────────────
@@ -616,6 +617,16 @@ export function generateLifetimeUserPrompt(natalData: ChartData): string {
   const natalIC = normalizeDegrees(natalMC + 180);
   const natalDsc = normalizeDegrees(natalAscendant + 180);
 
+  // Natal aspects (planet-to-planet) — inject backend-computed values so the
+  // model interprets calculated facts instead of inferring angles from raw degrees.
+  const natalAspectsLines = formatNatalAspectsForPrompt(natalData);
+  const natalAspectsSection = natalAspectsLines
+    ? `
+Major Aspects (planet-to-planet — backend-computed; key basis for fortune & talent reading):
+${natalAspectsLines}
+`
+    : "";
+
   return `
 Life Overview — Analysis Data
 
@@ -642,7 +653,7 @@ Planets:
 ${natalPlanets}
 
 Part of Fortune: ${natalData.fortuna.sign} ${natalData.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(natalData.fortuna)})
-
+${natalAspectsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Please analyze the life overview based on the data above.

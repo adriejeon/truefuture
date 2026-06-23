@@ -22,6 +22,7 @@ import {
   getSignRuler,
   normalizeDegrees,
   calculateAngleDifference,
+  calculateAspects,
   type CareerAnalysisResult,
   type WealthAnalysisResult,
   type PrimaryDirectionHit,
@@ -298,6 +299,31 @@ export function formatPlanetHouseWsQs(
   return opts?.sr
     ? `SR WS: ${ws}H / SR QS: ${qsHouse}H - ${qsStrength}`
     : `WS: ${ws}H / QS: ${qsHouse}H - ${qsStrength}`;
+}
+
+/**
+ * Natal 차트 내 주요 어스펙트(행성 간 각)를 중복 제거하여 텍스트 라인으로 포맷.
+ * 백엔드(calculateAspects)가 산출한 값을 프롬프트에 주입해, AI가 raw 도수에서
+ * 각을 추론하지 않고 "계산된 팩트"를 해석하도록 한다.
+ * calculateAspects(chart, chart)는 자기-합(Sun-Sun 등)과 대칭쌍(A-B, B-A)을
+ * 중복 생성하므로 둘 다 제거한다. 결과 없으면 빈 문자열 반환(헤더는 호출부에서 처리).
+ */
+export function formatNatalAspectsForPrompt(natalData: ChartData): string {
+  if (!natalData?.planets) return "";
+  const raw = calculateAspects(natalData, natalData);
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const a of raw) {
+    if (a.transitPlanet === a.natalPlanet) continue; // 자기 자신과의 각 제외
+    const pairKey =
+      [a.transitPlanet, a.natalPlanet].sort().join("|") + "|" + a.type;
+    if (seen.has(pairKey)) continue; // 대칭쌍 중복 제거
+    seen.add(pairKey);
+    lines.push(
+      `  - ${a.transitPlanet} ${a.type} ${a.natalPlanet} (orb ${a.orb.toFixed(1)}°)`,
+    );
+  }
+  return lines.join("\n");
 }
 
 /** 데일리용: 네이탈 발광체·포르투나만 WS/QS 요약 (전체 행성 목록은 분량 절약) */
@@ -816,6 +842,15 @@ export function generateLifetimeUserPrompt(natalData: ChartData): string {
   const natalICSign = getSignDisplay(natalIC);
   const natalDscSign = getSignDisplay(natalDsc);
 
+  // 네이탈 어스펙트(행성 간 각) — 백엔드 계산값 주입 (AI가 raw 도수에서 추론하지 않도록)
+  const natalAspectsLines = formatNatalAspectsForPrompt(natalData);
+  const natalAspectsSection = natalAspectsLines
+    ? `
+주요 어스펙트 (행성 간 각 — 백엔드 계산 완료, 길흉·재능 해석의 핵심 근거):
+${natalAspectsLines}
+`
+    : "";
+
   // 최종 User Prompt 생성
   return `
 인생 종합운(사주) 분석을 위한 데이터입니다.
@@ -847,7 +882,7 @@ Part of Fortune: ${
   } ${natalData.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(
     natalData.fortuna,
   )})
-
+${natalAspectsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 위 데이터를 기반으로 인생 종합운을 분석해 주세요.
