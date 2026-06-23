@@ -220,6 +220,14 @@ export function buildKnowledgeContext(
     if (TIMING_KB.transit?.length) {
       timingLines.push(...TIMING_KB.transit.map((r) => `· ${r}`));
     }
+    // 피르다리아는 장기 시기 기법 → 연간·자유상담에만 (데일리 제외, 분량 절약)
+    if (
+      (fortuneType === FortuneType.YEARLY ||
+        fortuneType === FortuneType.CONSULTATION) &&
+      TIMING_KB.firdaria?.length
+    ) {
+      timingLines.push(...TIMING_KB.firdaria.map((r) => `· ${r}`));
+    }
     if (timingLines.length) {
       sections.push("■ 시기 해석 기준\n" + dedup(timingLines).join("\n"));
     }
