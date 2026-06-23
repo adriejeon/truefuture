@@ -61,11 +61,12 @@ function goldenKeysByType(ft: FortuneType): GoldenKey[] {
     case FortuneType.LIFETIME:
       return ["personality", "love", "career", "wealth", "health"];
     case FortuneType.COMPATIBILITY:
-      return ["synastry"];
+      // personality(기질) = 두 사람 기질 비교 섹션의 기본 베이스
+      return ["personality", "synastry"];
     case FortuneType.YEARLY:
-      return ["timing"];
+      return ["personality", "timing"];
     case FortuneType.CONSULTATION:
-      return ["timing", "career", "love"];
+      return ["personality", "timing", "career", "love"];
     case FortuneType.DAILY:
     default:
       return ["timing"];
