@@ -282,9 +282,9 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
                 {/* 서브타이틀 (요약) - 버튼 아래 별도 영역 */}
                 {section.summary && (
                   <div className="px-4 sm:px-5 pb-3 sm:pb-4 pt-0">
-                    <p className="text-base text-slate-400">
-                      {section.summary}
-                    </p>
+                    <div className="text-base text-slate-400 prose prose-invert max-w-none prose-sm [&>p]:mb-0 [&>p]:text-slate-400 [&>p]:text-base [&>strong]:text-slate-300">
+                      <ReactMarkdown>{section.summary}</ReactMarkdown>
+                    </div>
                   </div>
                 )}
 
@@ -316,7 +316,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
               .split("\n")
               .filter((line) => {
                 const t = line.trim();
-                return t && !metaKeywords.test(t);
+                return !t || !metaKeywords.test(t); // 빈 줄은 유지 (마크다운 단락 구분에 필요)
               })
               .join("\n")
               .trim();

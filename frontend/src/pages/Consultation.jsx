@@ -92,12 +92,14 @@ function FollowUpConsultationCard({ parsedData }) {
             💡 Action Tip
           </h3>
           {action_tip.what && (
-            <p className="text-slate-100 font-medium mb-2">{action_tip.what}</p>
+            <div className="prose prose-invert max-w-none prose-sm [&>p]:mb-0 [&>p]:font-medium [&>p]:text-slate-100 font-medium mb-2">
+              <ReactMarkdown>{action_tip.what}</ReactMarkdown>
+            </div>
           )}
           {action_tip.why && (
-            <p className="text-slate-300 text-sm leading-relaxed">
-              {action_tip.why}
-            </p>
+            <div className="prose prose-invert max-w-none prose-sm [&>p]:mb-0 [&>p]:text-slate-300 [&>p]:text-sm text-slate-300 text-sm leading-relaxed">
+              <ReactMarkdown>{action_tip.why}</ReactMarkdown>
+            </div>
           )}
         </div>
       )}
