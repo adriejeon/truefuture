@@ -282,7 +282,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
                 {/* 서브타이틀 (요약) - 버튼 아래 별도 영역 */}
                 {section.summary && (
                   <div className="px-4 sm:px-5 pb-3 sm:pb-4 pt-0">
-                    <p className="text-base text-slate-400 line-clamp-2">
+                    <p className="text-base text-slate-400">
                       {section.summary}
                     </p>
                   </div>
