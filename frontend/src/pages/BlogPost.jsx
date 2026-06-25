@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import ReactMarkdown from "react-markdown";
 import { fetchBlogPostBySlug } from "../services/blogService";
-import { buildArticleJsonLd, buildPostMeta } from "../utils/blogSeo";
+import { buildArticleJsonLd, buildFaqJsonLd, buildPostMeta } from "../utils/blogSeo";
 import BlogPrepareNotice from "../components/BlogPrepareNotice";
 
 function formatDateTime(iso) {
@@ -57,6 +57,7 @@ export default function BlogPost() {
 
   const meta = useMemo(() => buildPostMeta(post), [post]);
   const jsonLd = useMemo(() => buildArticleJsonLd(post), [post]);
+  const faqJsonLd = useMemo(() => buildFaqJsonLd(post), [post]);
   const tags = useMemo(() => normalizeTags(post?.tags), [post?.tags]);
 
   if (loading) {
@@ -111,6 +112,9 @@ export default function BlogPost() {
         <meta name="twitter:description" content={meta.description} />
 
         <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
+        {faqJsonLd ? (
+          <script type="application/ld+json">{JSON.stringify(faqJsonLd)}</script>
+        ) : null}
       </Helmet>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

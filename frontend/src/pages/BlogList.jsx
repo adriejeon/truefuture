@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { fetchBlogPosts } from "../services/blogService";
+import { BLOG_LIST_META, buildBlogListJsonLd } from "../utils/blogSeo";
 import BlogPrepareNotice from "../components/BlogPrepareNotice";
 
 function formatDate(iso) {
@@ -49,6 +51,7 @@ export default function BlogList() {
   }, []);
 
   const items = useMemo(() => posts ?? [], [posts]);
+  const listJsonLd = useMemo(() => buildBlogListJsonLd(items), [items]);
 
   if (loading) {
     return (
@@ -64,6 +67,20 @@ export default function BlogList() {
 
   return (
     <section className="space-y-4">
+      <Helmet>
+        <title>{BLOG_LIST_META.title}</title>
+        <meta name="description" content={BLOG_LIST_META.description} />
+        <link rel="canonical" href={BLOG_LIST_META.url} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={BLOG_LIST_META.title} />
+        <meta property="og:description" content={BLOG_LIST_META.description} />
+        <meta property="og:url" content={BLOG_LIST_META.url} />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={BLOG_LIST_META.title} />
+        <meta name="twitter:description" content={BLOG_LIST_META.description} />
+        <script type="application/ld+json">{JSON.stringify(listJsonLd)}</script>
+      </Helmet>
+
       <div className="border-b border-gray-100 pb-8">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">블로그</h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-gray-600">

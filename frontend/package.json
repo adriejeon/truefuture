@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/generate-sitemap.js",
+    "build": "vite build && node scripts/prerender-blog.js && node scripts/generate-sitemap.js",
     "preview": "vite preview",
     "pw:auth": "PW_AUTH_REFRESH=1 playwright test --project=setup",
     "pw:test": "playwright test"
@@ -16,6 +16,7 @@
     "date-fns": "^4.1.0",
     "i18next": "^25.10.9",
     "i18next-browser-languagedetector": "^8.2.1",
+    "marked": "^18.0.5",
     "react": "^18.2.0",
     "react-datepicker": "^9.1.0",
     "react-dom": "^18.2.0",
