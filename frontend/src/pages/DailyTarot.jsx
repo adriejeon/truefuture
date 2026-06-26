@@ -8,6 +8,79 @@ import { colors } from "../constants/colors";
 import { TAROT_CARDS, ORACLE_CARDS, randomCard } from "../constants/tarotCards";
 import { supabase } from "../lib/supabaseClient";
 
+const DAILY_TAROT_JSON_LD_ID = "daily-tarot-ld-json";
+const DAILY_TAROT_URL = "https://truefuture.kr/daily-tarot";
+
+/**
+ * 데일리 타로 페이지용 JSON-LD.
+ * Helmet 메타(meta_title/meta_desc)·화면 텍스트와 동기화하기 위해
+ * i18n 번역값을 받아 로케일에 맞는 스키마를 생성한다.
+ */
+function buildDailyTarotJsonLd({ isKo, name, description }) {
+  const aboutItems = isKo
+    ? [
+        {
+          "@type": "Thing",
+          name: "타로 카드",
+          description:
+            "라이더 웨이트 계열 78장 타로 카드 덱. 메이저 아르카나 22장과 마이너 아르카나 56장으로 구성되며 과거·현재·미래를 상징적으로 해석합니다.",
+        },
+        {
+          "@type": "Thing",
+          name: "오라클 카드",
+          description:
+            "직관과 영감을 중심으로 설계된 35장 오라클 카드 덱. 타로보다 자유로운 형식으로 메시지와 조언을 제공합니다.",
+        },
+      ]
+    : [
+        {
+          "@type": "Thing",
+          name: "Tarot Cards",
+          description:
+            "A 78-card Rider–Waite tarot deck of 22 Major Arcana and 56 Minor Arcana cards, read symbolically across past, present and future.",
+        },
+        {
+          "@type": "Thing",
+          name: "Oracle Cards",
+          description:
+            "A 35-card oracle deck built around intuition and inspiration, offering free-form messages and guidance.",
+        },
+      ];
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${DAILY_TAROT_URL}#webpage`,
+    name,
+    description,
+    url: DAILY_TAROT_URL,
+    inLanguage: isKo ? "ko" : "en",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "진짜미래",
+      url: "https://truefuture.kr",
+    },
+    about: aboutItems,
+    offers: {
+      "@type": "Offer",
+      name: isKo
+        ? "무료 데일리 타로·오라클 카드 뽑기"
+        : "Free Daily Tarot & Oracle Card Draw",
+      price: "0",
+      priceCurrency: "KRW",
+      description: isKo
+        ? "하루 1회 무료로 타로 또는 오라클 카드를 뽑고 AI 기반 카드 해석을 받을 수 있습니다."
+        : "Draw one tarot or oracle card for free each day and receive an AI-generated card reading.",
+      availability: "https://schema.org/InStock",
+    },
+    provider: {
+      "@type": "Organization",
+      name: "진짜미래",
+      url: "https://truefuture.kr",
+    },
+  };
+}
+
 // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD)
 function getKoreanDate() {
   const now = new Date();
@@ -27,6 +100,29 @@ function DailyTarot() {
   const [interpretation, setInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [alreadyDrawn, setAlreadyDrawn] = useState(false);
+
+  // JSON-LD 삽입 (Helmet 메타/i18n과 동기화)
+  useEffect(() => {
+    const jsonLd = buildDailyTarotJsonLd({
+      isKo,
+      name: t("daily_tarot.meta_title"),
+      description: t("daily_tarot.meta_desc"),
+    });
+
+    const existing = document.getElementById(DAILY_TAROT_JSON_LD_ID);
+    if (existing) existing.remove();
+
+    const script = document.createElement("script");
+    script.id = DAILY_TAROT_JSON_LD_ID;
+    script.type = "application/ld+json";
+    script.textContent = JSON.stringify(jsonLd);
+    document.head.appendChild(script);
+
+    return () => {
+      const el = document.getElementById(DAILY_TAROT_JSON_LD_ID);
+      if (el) el.remove();
+    };
+  }, [isKo, t]);
 
   // 오늘 이미 뽑았는지 복원
   useEffect(() => {
@@ -140,7 +236,7 @@ function DailyTarot() {
         {/* 덱 선택 (뽑기 전에만) */}
         {!flipped && (
           <div
-            className="flex gap-1 mb-6 p-1 rounded-lg"
+            className="flex gap-1 mb-10 p-1 rounded-lg"
             style={{ backgroundColor: "#121230" }}
           >
             {[

@@ -65,6 +65,14 @@ const ASTROLOGY_PRODUCT_JSON_LD = {
       description: "궁합/운세 등 분석을 위한 이용권 14개",
       availability: "https://schema.org/InStock",
     },
+    {
+      "@type": "Offer",
+      name: "탐사선 1대",
+      priceCurrency: "KRW",
+      price: "2990",
+      description: "연간/종합운세 심층 분석 1회 열람권",
+      availability: "https://schema.org/InStock",
+    },
   ],
 };
 

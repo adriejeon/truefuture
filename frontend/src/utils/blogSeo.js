@@ -1,8 +1,8 @@
 import { SITE_ORIGIN } from "../constants/seoMeta.js";
 
-const BRAND_NAME = "트루퓨처";
+const BRAND_NAME = "진짜미래";
 const BLOG_URL = `${SITE_ORIGIN}/blog`;
-const PUBLISHER_LOGO_URL = `${SITE_ORIGIN}/assets/logo-en.png`;
+const PUBLISHER_LOGO_URL = `${SITE_ORIGIN}/assets/logo.png`;
 
 function stripMarkdown(md) {
   if (typeof md !== "string") return "";
@@ -19,7 +19,7 @@ function stripMarkdown(md) {
 export const BLOG_LIST_META = {
   title: `블로그 | ${BRAND_NAME}`,
   description:
-    "점성술·사주·타로 등 운세에 대해 자주 묻는 질문을, 질문과 답변 형식으로 풀어 주는 진짜미래(트루퓨처) 블로그입니다.",
+    "점성술·사주·타로 등 운세에 대해 자주 묻는 질문을, 질문과 답변 형식으로 풀어 주는 진짜미래 블로그입니다.",
   url: BLOG_URL,
 };
 

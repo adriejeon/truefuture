@@ -134,6 +134,7 @@ function Consultation() {
   const pageDescription = t(FREE_QUESTION_DESCRIPTION_KEY);
 
   const freeQuestionJsonLd = useMemo(() => {
+    const isEn = (i18n.language || "ko").toLowerCase().startsWith("en");
     return {
       "@context": "https://schema.org",
       "@type": "WebPage",
@@ -141,7 +142,37 @@ function Consultation() {
       url: canonicalUrl,
       name: pageTitle,
       description: pageDescription,
-      inLanguage: (i18n.language || "ko").toLowerCase().startsWith("en") ? "en" : "ko",
+      inLanguage: isEn ? "en" : "ko",
+      isPartOf: {
+        "@type": "WebSite",
+        name: "진짜미래",
+        url: SITE_ORIGIN,
+      },
+      mainEntity: {
+        "@type": "Service",
+        name: isEn
+          ? "True Future Astrology 1:1 Free Question Consultation"
+          : "진짜미래 점성술 1:1 자유 질문 상담",
+        serviceType: isEn
+          ? "Personalized astrology consultation"
+          : "고전 점성술 출생 차트 기반 1:1 맞춤 상담",
+        description: pageDescription,
+        provider: {
+          "@type": "Organization",
+          name: "진짜미래",
+          url: SITE_ORIGIN,
+        },
+        areaServed: { "@type": "Country", name: "KR" },
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "KRW",
+          price: "1000",
+          description: isEn
+            ? "1:1 question analysis using telescope credits."
+            : "망원경 이용권으로 이용하는 1:1 질문 분석.",
+          availability: "https://schema.org/InStock",
+        },
+      },
     };
   }, [canonicalUrl, i18n.language, pageDescription, pageTitle]);
 

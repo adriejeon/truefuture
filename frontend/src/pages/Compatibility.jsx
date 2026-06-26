@@ -107,6 +107,7 @@ function Compatibility() {
   const pageDescription = t(COMPATIBILITY_DESCRIPTION_KEY);
 
   const compatibilityJsonLd = useMemo(() => {
+    const isEn = (i18n.language || "ko").toLowerCase().startsWith("en");
     return {
       "@context": "https://schema.org",
       "@type": "WebPage",
@@ -114,7 +115,37 @@ function Compatibility() {
       url: canonicalUrl,
       name: pageTitle,
       description: pageDescription,
-      inLanguage: (i18n.language || "ko").toLowerCase().startsWith("en") ? "en" : "ko",
+      inLanguage: isEn ? "en" : "ko",
+      isPartOf: {
+        "@type": "WebSite",
+        name: "진짜미래",
+        url: SITE_ORIGIN,
+      },
+      mainEntity: {
+        "@type": "Service",
+        name: isEn
+          ? "True Future Astrology Compatibility Analysis"
+          : "진짜미래 점성술 궁합 분석",
+        serviceType: isEn
+          ? "Astrology synastry compatibility analysis"
+          : "고전 점성술 시너스트리 궁합 분석",
+        description: pageDescription,
+        provider: {
+          "@type": "Organization",
+          name: "진짜미래",
+          url: SITE_ORIGIN,
+        },
+        areaServed: { "@type": "Country", name: "KR" },
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "KRW",
+          price: "1900",
+          description: isEn
+            ? "Compatibility analysis using compass credits."
+            : "나침반 이용권으로 이용하는 궁합 분석.",
+          availability: "https://schema.org/InStock",
+        },
+      },
     };
   }, [canonicalUrl, i18n.language, pageDescription, pageTitle]);
 
