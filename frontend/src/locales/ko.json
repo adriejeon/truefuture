@@ -26,7 +26,23 @@
   "bottom_nav": {
     "consultation": "진짜미래",
     "compatibility": "진짜궁합",
-    "yearly": "진짜운세"
+    "yearly": "진짜운세",
+    "tarot": "타로"
+  },
+  "daily_tarot": {
+    "meta_title": "오늘의 타로 - 진짜미래",
+    "meta_desc": "타로와 오라클 카드로 오늘 하루의 운세를 무료로 확인하세요.",
+    "title": "오늘의 타로",
+    "free_badge": "무료",
+    "subtitle": "타로 또는 오라클 카드로 오늘 하루의 에너지를 확인해보세요. 로그인 없이 매일 한 장씩 무료로 뽑을 수 있어요.",
+    "deck_tarot": "타로 카드",
+    "deck_oracle": "오라클 카드",
+    "tap_hint": "카드를 탭해서 오늘의 운세를 확인하세요",
+    "card_back_alt": "타로 카드 뒷면",
+    "generating": "AI가 오늘의 메시지를 생성하는 중...",
+    "cta_title": "더 정확한 운세가 궁금하다면?",
+    "cta_subtitle": "20년 경력 점성술사의 로직으로 분석하는 정통 고전 점성술 운세를 확인해보세요.",
+    "come_back_tomorrow": "오늘의 카드를 뽑았어요. 내일 다시 만나요!"
   },
   "footer": {
     "company": "주피터",

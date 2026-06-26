@@ -26,7 +26,23 @@
   "bottom_nav": {
     "consultation": "True Future",
     "compatibility": "True Match",
-    "yearly": "True Fortune"
+    "yearly": "True Fortune",
+    "tarot": "Tarot"
+  },
+  "daily_tarot": {
+    "meta_title": "Daily Tarot - True Future",
+    "meta_desc": "Check your daily fortune for free with tarot and oracle cards.",
+    "title": "Daily Tarot",
+    "free_badge": "FREE",
+    "subtitle": "Check today's energy with a tarot or oracle card. Draw one card for free every day, no login required.",
+    "deck_tarot": "Tarot",
+    "deck_oracle": "Oracle",
+    "tap_hint": "Tap the card to reveal today's reading",
+    "card_back_alt": "Tarot card back",
+    "generating": "AI is generating your reading...",
+    "cta_title": "Want a deeper reading?",
+    "cta_subtitle": "Get a full astrology reading powered by 20 years of expert knowledge.",
+    "come_back_tomorrow": "You've drawn today's card. See you tomorrow!"
   },
   "footer": {
     "company": "Jupiter",
