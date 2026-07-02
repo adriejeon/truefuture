@@ -1,9 +1,11 @@
 name: Auto Blog (Gemini → Supabase)
 
 on:
-  schedule:
-    # KST 08:00 (UTC 23:00) — 하루 1회
-    - cron: '0 23 * * *'
+  # 매일 자동 블로그 생성 중단 (2026-07-02). 아래 cron 스케줄 비활성화.
+  # 재개하려면 schedule 블록 주석을 해제하세요.
+  # schedule:
+  #   # KST 08:00 (UTC 23:00) — 하루 1회
+  #   - cron: '0 23 * * *'
   workflow_dispatch:
 
 permissions:

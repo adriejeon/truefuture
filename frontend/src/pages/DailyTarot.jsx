@@ -6,7 +6,6 @@ import BottomNavigation from "../components/BottomNavigation";
 import PrimaryButton from "../components/PrimaryButton";
 import { colors } from "../constants/colors";
 import { TAROT_CARDS, ORACLE_CARDS, randomCard } from "../constants/tarotCards";
-import { supabase } from "../lib/supabaseClient";
 
 const DAILY_TAROT_JSON_LD_ID = "daily-tarot-ld-json";
 const DAILY_TAROT_URL = "https://truefuture.kr/daily-tarot";
@@ -98,7 +97,6 @@ function DailyTarot() {
   const [card, setCard] = useState(null);
   const [flipped, setFlipped] = useState(false);
   const [interpretation, setInterpretation] = useState("");
-  const [loading, setLoading] = useState(false);
   const [alreadyDrawn, setAlreadyDrawn] = useState(false);
 
   // JSON-LD 삽입 (Helmet 메타/i18n과 동기화)
@@ -146,48 +144,23 @@ function DailyTarot() {
     }
   }, []);
 
-  const fetchInterpretation = useCallback(
-    async (picked) => {
-      setLoading(true);
-      try {
-        const lang = isKo ? "ko" : "en";
-        const body = {
+  // onecard 덱의 고정 해석(description)을 그대로 사용한다. AI 호출 없음.
+  const applyInterpretation = useCallback((picked) => {
+    const text = picked.description || "";
+    setInterpretation(text);
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          date: getKoreanDate(),
           cardId: picked.id,
-          cardName: isKo ? picked.nameKo : picked.nameEn,
-          keywords: isKo ? picked.keywords : picked.keywordsEn,
-          cardType: picked.deck,
-          isPositive: picked.isPositive,
-          language: lang,
-        };
-
-        let text = "";
-        if (supabase) {
-          const { data, error } = await supabase.functions.invoke("daily-tarot", {
-            body,
-          });
-          if (error) throw error;
-          text = data?.interpretation || "";
-        }
-        if (!text) text = picked.description; // 폴백
-        setInterpretation(text);
-
-        // 기록 저장
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            date: getKoreanDate(),
-            cardId: picked.id,
-            interpretation: text,
-          })
-        );
-      } catch (_) {
-        setInterpretation(picked.description);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [isKo]
-  );
+          interpretation: text,
+        })
+      );
+    } catch (_) {
+      // ignore
+    }
+  }, []);
 
   const handleDraw = () => {
     if (flipped || alreadyDrawn) return;
@@ -195,7 +168,7 @@ function DailyTarot() {
     setCard(picked);
     setFlipped(true);
     setAlreadyDrawn(true);
-    fetchInterpretation(picked);
+    applyInterpretation(picked);
   };
 
   const cardName = card ? (isKo ? card.nameKo : card.nameEn) : "";
@@ -327,27 +300,15 @@ function DailyTarot() {
         {flipped && (
           <div className="mb-8">
             <div className="rounded-xl border border-slate-700 bg-[#0F0F2B]/60 p-5 sm:p-6">
-              {loading ? (
-                <div className="flex flex-col items-center py-6">
-                  <div
-                    className="animate-spin rounded-full h-8 w-8 border-b-2 mb-4"
-                    style={{ borderColor: colors.primary }}
-                  ></div>
-                  <p className="text-slate-400 text-sm">
-                    {t("daily_tarot.generating")}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-slate-100 text-[15px] sm:text-base leading-[1.9] whitespace-pre-line">
-                  {interpretation}
-                </p>
-              )}
+              <p className="text-slate-100 text-[15px] sm:text-base leading-[1.9] whitespace-pre-line">
+                {interpretation}
+              </p>
             </div>
           </div>
         )}
 
         {/* 유료 운세 CTA */}
-        {flipped && !loading && (
+        {flipped && (
           <div className="mb-6">
             <Link
               to="/yearly"
@@ -377,7 +338,7 @@ function DailyTarot() {
           </div>
         )}
 
-        {alreadyDrawn && !loading && (
+        {alreadyDrawn && (
           <p className="text-center text-slate-500 text-xs">
             {t("daily_tarot.come_back_tomorrow")}
           </p>

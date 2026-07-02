@@ -1,7 +1,7 @@
 // 데일리 타로 카드 데이터 (웹)
 // onecard 커스텀 덱에서 변환. 타로 78장 + 오라클 35장.
-// 해석 텍스트는 daily-tarot Edge Function이 AI로 매번 새로 생성하므로
-// 여기 description은 폴백(네트워크 실패 시)으로만 사용한다.
+// description은 onecard 앱의 고정 해석 그대로이며, DailyTarot 화면에서
+// 이 텍스트를 그대로 노출한다. (AI 호출 없음 — 2026-07-02)
 
 export const TAROT_CARDS = [
   {
