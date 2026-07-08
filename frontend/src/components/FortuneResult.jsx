@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { parseMarkdownToSections } from "../utils/markdownParser";
+import { normalizeFortuneMarkdown } from "../utils/normalizeFortuneMarkdown";
 import { colors } from "../constants/colors";
 
 /** 운세 한 줄 요약을 intro/섹션에서 추출 (최대 100자) */
@@ -190,7 +191,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
       {/* Intro (서론) - ## 헤더가 있을 때만 표시 (아코디언과 함께) */}
       {intro && accordionSections.length > 0 && (
         <div className="mb-4 sm:mb-6 prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
-          <ReactMarkdown>{intro}</ReactMarkdown>
+          <ReactMarkdown>{normalizeFortuneMarkdown(intro)}</ReactMarkdown>
         </div>
       )}
 
@@ -283,7 +284,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
                 {section.summary && (
                   <div className="px-4 sm:px-5 pb-3 sm:pb-4 pt-0">
                     <div className="text-base text-slate-400 prose prose-invert max-w-none prose-sm [&>p]:mb-0 [&>p]:text-slate-400 [&>p]:text-base [&>strong]:text-slate-300">
-                      <ReactMarkdown>{section.summary}</ReactMarkdown>
+                      <ReactMarkdown>{normalizeFortuneMarkdown(section.summary)}</ReactMarkdown>
                     </div>
                   </div>
                 )}
@@ -296,7 +297,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
                 >
                   <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0">
                     <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
-                      <ReactMarkdown>{section.content}</ReactMarkdown>
+                      <ReactMarkdown>{normalizeFortuneMarkdown(section.content)}</ReactMarkdown>
                     </div>
                   </div>
                 </div>
@@ -327,7 +328,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
                   💡 Real Tip
                 </h3>
                 <div className="prose prose-invert max-w-none prose-base text-slate-100 leading-relaxed text-base break-words">
-                  <ReactMarkdown>{tipContent}</ReactMarkdown>
+                  <ReactMarkdown>{normalizeFortuneMarkdown(tipContent)}</ReactMarkdown>
                 </div>
               </div>
             );
@@ -336,7 +337,7 @@ function FortuneResult({ title, interpretation, shareId, isShared = false, share
       ) : (
         /* 헤더가 없으면 intro와 동일한 내용 중복 방지: interpretation만 렌더 */
         <div className="prose prose-invert max-w-none prose-base text-slate-200 leading-relaxed text-base break-words">
-          <ReactMarkdown>{interpretation}</ReactMarkdown>
+          <ReactMarkdown>{normalizeFortuneMarkdown(interpretation)}</ReactMarkdown>
         </div>
       )}
     </>

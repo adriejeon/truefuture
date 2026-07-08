@@ -13,7 +13,7 @@ import BottomNavigation from "../components/BottomNavigation";
 import TypewriterLoader from "../components/TypewriterLoader";
 import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown from "../components/FortuneMarkdown";
 import { colors } from "../constants/colors";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
