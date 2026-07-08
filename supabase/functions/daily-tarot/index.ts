@@ -76,12 +76,13 @@ serve(async (req: Request) => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${accessToken}`,
         },
+        // Vertex는 contents[].role 이 "user"|"model" 이어야 함 (role 누락 시 400)
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.85,
-            maxOutputTokens: 220,
-            topP: 0.9,
+            temperature: 0.9,
+            maxOutputTokens: 320,
+            topP: 0.95,
           },
           systemInstruction: {
             parts: [{ text: getSystemInstruction(language) }],
@@ -118,23 +119,27 @@ serve(async (req: Request) => {
 
 function getSystemInstruction(language: "ko" | "en"): string {
   if (language === "ko") {
-    return `당신은 타로 카드 전문 해석가입니다.
-규칙:
-- 오늘 하루를 위한 짧고 인사이트 있는 메시지를 생성합니다 (3-5문장).
-- 매번 새롭고 다양한 시각과 표현으로 작성합니다. 기존 설명과 겹치지 마세요.
-- 구체적이고 실생활에 적용 가능한 조언을 포함합니다.
-- 부드럽고 따뜻하지만 직관적인 어조를 유지합니다.
-- "오늘은" 또는 날짜 관련 표현으로 시작하지 마세요. 다양하게 시작하세요.
-- 마크다운, 제목, 불릿 포인트 사용 금지. 일반 텍스트만 사용합니다.`;
+    return `당신은 데일리 타로에서 '오늘의 키워드'를 가볍게 풀어주는 안내자입니다.
+이 카드는 특정 질문에 대한 답이 아니라, 오늘 하루 전반의 '흐름에 대한 힌트'입니다.
+
+작성 규칙:
+- 먼저 오늘의 키워드가 어떤 결인지 자연스럽게 짚어주고, 그 기운이 하루 중 어떤 순간에 드러날 수 있는지 가볍게 이어주세요.
+- "~할 수 있어요", "~한 순간을 마주할지도 몰라요"처럼 가능성을 열어두는 어조를 쓰세요. 단정하거나 예언하듯 말하지 마세요.
+- 일·관계·마음·돈 등 어떤 상황에도 대입할 수 있게 범용적으로 표현하세요. 특정 질문이나 특정 상황을 임의로 가정하지 마세요.
+- 마지막에 그 키워드를 오늘 어떻게 활용하면 좋을지 부드러운 한 마디를 덧붙이세요.
+- 3~4문장, 따뜻하고 부드러운 구어체. 마크다운·제목·불릿·이모지 없이 일반 텍스트만.
+- 표현은 매번 다르게 하세요.`;
   }
-  return `You are a professional tarot card interpreter.
+  return `You are a guide who lightly unpacks the "keywords of the day" in a daily tarot draw.
+This card is not an answer to a specific question — it is a hint about the overall flow of the day.
+
 Rules:
-- Generate a short, insightful daily message (3-5 sentences).
-- Each response must be fresh and varied in perspective and phrasing.
-- Include specific, actionable advice applicable to daily life.
-- Maintain a warm yet intuitive tone.
-- Do not start with "Today" or date-related expressions. Vary your openings.
-- No markdown, headers, or bullet points. Plain text only.`;
+- First name the tone of today's keywords naturally, then connect it to moments where that energy might surface during the day.
+- Use open, possibility-oriented phrasing like "you might…", "there may be a moment when…". Do not be definitive or predict as fact.
+- Keep it general so it can apply to any area — work, relationships, feelings, money. Do not assume a specific question or situation.
+- End with a soft note on how to make use of that keyword today.
+- 3-4 sentences, warm and gentle conversational tone. Plain text only — no markdown, headings, bullets, or emoji.
+- Vary your phrasing each time.`;
 }
 
 function buildKoreanPrompt(
@@ -145,11 +150,10 @@ function buildKoreanPrompt(
 ): string {
   const typeLabel = cardType === "tarot" ? "타로 카드" : "오라클 카드";
   return `오늘 뽑힌 ${typeLabel}: ${cardName}
-에너지: ${energyLabel}
-핵심 키워드: ${keywords}
+오늘의 키워드: ${keywords}
+전반적 에너지: ${energyLabel}
 
-위 카드의 에너지와 키워드를 바탕으로, 오늘 하루를 위한 타로 해석 메시지를 작성해주세요.
-키워드를 기계적으로 나열하지 말고, 이야기처럼 자연스럽게 녹여주세요.`;
+이 키워드가 오늘 하루의 흐름에서 어떤 식으로 나타날 수 있는지, 위 규칙대로 범용적인 힌트로 풀어주세요.`;
 }
 
 function buildEnglishPrompt(
@@ -160,9 +164,8 @@ function buildEnglishPrompt(
 ): string {
   const typeLabel = cardType === "tarot" ? "tarot card" : "oracle card";
   return `Today's drawn ${typeLabel}: ${cardName}
-Energy: ${energyLabel}
-Core keywords: ${keywords}
+Today's keywords: ${keywords}
+Overall energy: ${energyLabel}
 
-Based on this card's energy and keywords, write a tarot interpretation message for today.
-Do not mechanically list the keywords — weave them naturally into a flowing narrative.`;
+Following the rules above, unpack how these keywords might show up in the flow of today as a general, widely-applicable hint.`;
 }

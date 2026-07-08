@@ -82,7 +82,12 @@ import { resolveTimezoneOffsetHours } from "./utils/timezoneUtils.ts";
 // 해석 지식베이스 (차트 맞춤 규칙 룩업 → 프롬프트 주입, KO 전용)
 import { buildKnowledgeContext } from "./utils/knowledgeBase.ts";
 // Vertex AI 인증/엔드포인트 헬퍼 (서비스 계정 OAuth2 Bearer)
-import { getVertexAccessToken, buildVertexUrl } from "../_shared/vertex.ts";
+import {
+  getVertexAccessToken,
+  buildVertexUrl,
+  normalizeVertexRequest,
+  logVertexRequestShape,
+} from "../_shared/vertex.ts";
 
 // ========== CORS 헤더 설정 ==========
 const corsHeaders = {
@@ -91,6 +96,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
+/**
+ * 프론트로 노출하는 공통 실패 메시지.
+ * Vertex/Gemini 원문 에러(예: 400 role 오류)는 서버 로그에만 남기고,
+ * 사용자에게는 이 친화 메시지만 보여준다.
+ */
+const USER_FACING_ERROR =
+  "운세 생성에 실패했습니다. 잠시 후 다시 시도해주세요.";
 
 /** birthDateTime 등이 NaN/Invalid Date인 상태로 calculateChart에 넘어가는 것 방지 */
 function assertValidDate(d: Date, context: string): void {
@@ -431,6 +444,10 @@ async function callGeminiAPI(
   const endpoint = buildVertexUrl(modelName, "generateContent");
   const accessToken = await getVertexAccessToken();
 
+  // Vertex는 contents[].role 이 "user"|"model" 이어야 함 → 항상 정규화 후 전송
+  const normalizedBody = normalizeVertexRequest(requestBody);
+  logVertexRequestShape(normalizedBody, { model: modelName, method: "generateContent" });
+
   const maxRetries = 3;
   let delay = 1000; // 초기 지연 시간: 1초
 
@@ -442,7 +459,7 @@ async function callGeminiAPI(
           "Content-Type": "application/json",
           "Authorization": `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(normalizedBody),
       });
 
       // 503 Service Unavailable (Model Overloaded): 재시도 없이 즉시 throw → 상위에서 폴백 모델로 전환
@@ -565,12 +582,19 @@ async function* callGeminiAPIStream(
   };
   const endpoint = buildVertexUrl(primaryModel, "streamGenerateContent");
 
+  // Vertex는 contents[].role 이 "user"|"model" 이어야 함 → 항상 정규화 후 전송
+  const normalizedBody = normalizeVertexRequest(requestBody);
+  logVertexRequestShape(normalizedBody, {
+    model: primaryModel,
+    method: "streamGenerateContent",
+  });
+
   let response: Response;
   try {
     response = await fetch(endpoint, {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(normalizedBody),
     });
   } catch (e: any) {
     console.error("❌ Gemini stream fetch 실패:", e?.message);
@@ -580,10 +604,14 @@ async function* callGeminiAPIStream(
   if (response.status === 503 && is503OrOverloaded(new Error("503"))) {
     console.warn("⚠️ Gemini 스트림 503 → 폴백 모델로 재시도");
     const fallbackEndpoint = buildVertexUrl(fallbackModel, "streamGenerateContent");
+    logVertexRequestShape(normalizedBody, {
+      model: fallbackModel,
+      method: "streamGenerateContent",
+    });
     response = await fetch(fallbackEndpoint, {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(normalizedBody),
     });
   }
 
@@ -685,6 +713,35 @@ function createFortuneSSEStream(
   let fullText = "";
   const cancelledRef = { current: false };
   let completed = false;
+  let refunded = false;
+
+  /**
+   * 스트림이 정상 완료(completed)되지 않은 상태로 중단된 경우 차감분을 환불한다.
+   * - Gemini/서버 오류로 start()가 throw될 때, 그리고 클라이언트 연결 끊김(cancel)일 때 공통 사용
+   * - refunded 가드로 중복 환불 방지
+   */
+  const refundConsumed = async (reason: string): Promise<void> => {
+    if (refunded || completed) return;
+    if (
+      !(
+        options?.consumeTransactionId &&
+        options?.authUserId &&
+        options?.consumeAmount != null &&
+        options.consumeAmount > 0
+      )
+    ) {
+      return;
+    }
+    refunded = true;
+    // 서비스 롤 키로 환불(RLS 영향 없이 확실히 복구). autoRefundConsumed는 함수 선언이라 호이스팅됨.
+    await autoRefundConsumed({
+      authUserId: options.authUserId,
+      consumeAmount: options.consumeAmount,
+      consumeDescription: options.consumeDescription ?? "",
+      consumeTransactionId: options.consumeTransactionId,
+      reason,
+    });
+  };
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -714,8 +771,7 @@ function createFortuneSSEStream(
 
         if (resultError) {
           console.error("❌ [스트림] fortune_results insert 실패:", resultError);
-          const errEvent = `data: ${JSON.stringify({ error: resultError.message })}\n\n`;
-          controller.enqueue(encoder.encode(errEvent));
+          // 사용자에게는 아래 catch에서 친화 메시지를 전송하고, 여기서는 원문만 로그로 남긴다.
           throw new Error(resultError.message);
         }
 
@@ -763,10 +819,13 @@ function createFortuneSSEStream(
           ),
         );
       } catch (e: any) {
+        // 원문 에러(Vertex 400 등)는 서버 로그에만 남기고, 프론트에는 친화 메시지만 전달
         console.error("❌ [스트림] 에러:", e?.message);
+        // 스트림이 정상 완료되지 못했으므로 차감분 자동 환불
+        await refundConsumed("운세 생성 실패(스트림 처리 오류)로 인한 자동 환불");
         controller.enqueue(
           encoder.encode(
-            `data: ${JSON.stringify({ error: e?.message ?? "Stream error" })}\n\n`,
+            `data: ${JSON.stringify({ error: USER_FACING_ERROR })}\n\n`,
           ),
         );
         throw e;
@@ -774,35 +833,9 @@ function createFortuneSSEStream(
         controller.close();
       }
     },
-    cancel(reason) {
+    cancel() {
       cancelledRef.current = true;
-      if (
-        !completed &&
-        options?.consumeTransactionId &&
-        options?.authUserId &&
-        options?.consumeAmount != null &&
-        options?.consumeAmount > 0
-      ) {
-        const refundType = getRefundTypeFromDescription(options.consumeDescription ?? "");
-        (async () => {
-          try {
-            await supabase.rpc("refund_stars", {
-              p_user_id: options!.authUserId!,
-              p_amount: options!.consumeAmount!,
-              p_description: "운세 생성 실패(클라이언트 연결 끊김)로 인한 자동 환불",
-              p_refund_type: refundType,
-            });
-            await supabase
-              .from("star_transactions")
-              .update({ consume_status: "FAILED" })
-              .eq("id", options!.consumeTransactionId!)
-              .eq("type", "CONSUME");
-            console.log("✅ [스트림] 클라이언트 연결 끊김 → 차감분 자동 환불 완료");
-          } catch (err) {
-            console.error("❌ [스트림] cancel 시 refund_stars 실패:", err);
-          }
-        })();
-      }
+      void refundConsumed("운세 생성 실패(클라이언트 연결 끊김)로 인한 자동 환불");
     },
   });
 }
@@ -1069,6 +1102,7 @@ async function getInterpretation(
     const requestBody = {
       contents: [
         {
+          role: "user",
           parts: [
             {
               text: userPrompt,
@@ -1296,6 +1330,7 @@ async function generateLifetimeFortune(
     const requestBodyNature = {
       contents: [
         {
+          role: "user",
           parts: [
             {
               text:
@@ -1324,6 +1359,7 @@ async function generateLifetimeFortune(
     const requestBodyLove = {
       contents: [
         {
+          role: "user",
           parts: [
             {
               text:
@@ -1352,6 +1388,7 @@ async function generateLifetimeFortune(
     const requestBodyMoneyCareer = {
       contents: [
         {
+          role: "user",
           parts: [
             {
               text:
@@ -1380,6 +1417,7 @@ async function generateLifetimeFortune(
     const requestBodyHealthTotal = {
       contents: [
         {
+          role: "user",
           parts: [
             {
               text:
@@ -1483,6 +1521,50 @@ function getRefundTypeFromDescription(description: string): "PAID" | "BONUS" | "
   if (d.includes("데일리") || d.includes("오늘 운세")) return "BONUS";
   if (d.includes("종합운세") || d.includes("종합 운세") || d.includes("탐사선")) return "PROBE";
   return "PAID";
+}
+
+/**
+ * 운세 생성 실패 시 차감된 운세권을 서비스 롤 키로 자동 환불.
+ * - 서비스 롤 클라이언트를 별도 생성해 RLS 영향 없이 refund_stars 실행
+ * - 해당 CONSUME 트랜잭션을 FAILED로 마킹해 중복 환불(크론 롤백 등) 방지
+ * 비스트리밍 경로(AI 해석 에러객체 반환 / 최상단 catch)에서 공통 사용.
+ */
+async function autoRefundConsumed(params: {
+  authUserId: string | null;
+  consumeAmount: number;
+  consumeDescription: string;
+  consumeTransactionId: string | null;
+  reason: string;
+}): Promise<void> {
+  const { authUserId, consumeAmount, consumeDescription, consumeTransactionId, reason } =
+    params;
+  if (!authUserId || !(consumeAmount > 0)) return;
+  try {
+    const refundUrl = Deno.env.get("SUPABASE_URL");
+    const refundKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!refundUrl || !refundKey) {
+      console.error("❌ 환불 불가: SUPABASE_URL/SERVICE_ROLE_KEY 미설정");
+      return;
+    }
+    const supabaseRefund = createClient(refundUrl, refundKey);
+    const refundType = getRefundTypeFromDescription(consumeDescription);
+    await supabaseRefund.rpc("refund_stars", {
+      p_user_id: authUserId,
+      p_amount: consumeAmount,
+      p_description: reason,
+      p_refund_type: refundType,
+    });
+    if (consumeTransactionId) {
+      await supabaseRefund
+        .from("star_transactions")
+        .update({ consume_status: "FAILED" })
+        .eq("id", consumeTransactionId)
+        .eq("type", "CONSUME");
+    }
+    console.log("✅ 차감분 자동 환불 완료:", { authUserId, consumeAmount, refundType, reason });
+  } catch (refundErr) {
+    console.error("❌ refund_stars 롤백 실패:", refundErr);
+  }
 }
 
 // ========== 메인 핸들러 ==========
@@ -2493,7 +2575,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         : getConsultationFirstQuestionConfig();
 
       const requestBody = {
-        contents: [{ parts: [{ text: userPrompt }] }],
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         systemInstruction,
         generationConfig,
       };
@@ -3325,6 +3407,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     }
 
     if (!interpretation.success || interpretation.error) {
+      // 원문 에러는 서버 로그에만 남긴다 (Vertex 400 등)
       console.error("\n" + "=".repeat(60));
       console.error("❌ AI 해석 실패");
       console.error("=".repeat(60));
@@ -3332,10 +3415,21 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       console.error("에러 상세:", interpretation.details);
       console.error("=".repeat(60) + "\n");
 
+      // 비스트리밍 경로(예: LIFETIME)는 여기서 최상단 catch를 거치지 않고 즉시 반환되므로
+      // 차감된 운세권을 이 지점에서 직접 환불한다.
+      if (consumed) {
+        await autoRefundConsumed({
+          authUserId,
+          consumeAmount,
+          consumeDescription,
+          consumeTransactionId,
+          reason: "운세 생성 실패(AI 해석 오류)로 인한 자동 환불",
+        });
+      }
+
       return new Response(
         JSON.stringify({
-          error: `AI 해석 실패: ${interpretation.message || "Unknown error"}`,
-          details: interpretation.details,
+          error: USER_FACING_ERROR,
           errorType: "AI_INTERPRETATION_FAILED",
         }),
         {
@@ -3430,38 +3524,20 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     console.error("=".repeat(60) + "\n");
 
     // 스트리밍 전 차감했던 경우 서버에서 자동 환불 (네트워크 단절 시에도 복구 가능)
-    if (consumed && authUserId && consumeAmount > 0) {
-      try {
-        const refundUrl = Deno.env.get("SUPABASE_URL");
-        const refundKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-        if (refundUrl && refundKey) {
-          const supabaseRefund = createClient(refundUrl, refundKey);
-          const refundType = getRefundTypeFromDescription(consumeDescription);
-          await supabaseRefund.rpc("refund_stars", {
-            p_user_id: authUserId,
-            p_amount: consumeAmount,
-            p_description: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-            p_refund_type: refundType,
-          });
-          console.log("✅ 차감분 자동 환불 완료:", { authUserId, consumeAmount, refundType });
-          if (consumeTransactionId) {
-            await supabaseRefund
-              .from("star_transactions")
-              .update({ consume_status: "FAILED" })
-              .eq("id", consumeTransactionId)
-              .eq("type", "CONSUME");
-          }
-        }
-      } catch (refundErr) {
-        console.error("❌ refund_stars 롤백 실패:", refundErr);
-      }
+    if (consumed) {
+      await autoRefundConsumed({
+        authUserId,
+        consumeAmount,
+        consumeDescription,
+        consumeTransactionId,
+        reason: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
+      });
     }
 
+    // 원문 에러는 위에서 로그로 남겼고, 프론트에는 친화 메시지만 노출한다.
     return new Response(
       JSON.stringify({
-        error: `서버 오류: ${
-          error.message || "알 수 없는 오류가 발생했습니다."
-        }`,
+        error: USER_FACING_ERROR,
         errorType: error.name || "UNKNOWN_ERROR",
         details:
           Deno.env.get("DENO_ENV") === "development" ? error.stack : undefined,

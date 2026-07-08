@@ -154,3 +154,103 @@ export function buildVertexUrl(
     ? `${base}:streamGenerateContent?alt=sse`
     : `${base}:generateContent`;
 }
+
+// ---------- 요청 body 정규화 (Vertex role 규격 강제) ----------
+//
+// Vertex AI Gemini는 contents[].role 이 반드시 "user" | "model" 이어야 한다.
+// (누락/빈 문자열/"assistant"/"system" 등 → 400 "Please use a valid role: user, model.")
+// Google AI Studio(generativelanguage)는 role 누락 시 자동으로 "user"로 처리했으나,
+// Vertex로 엔드포인트를 바꾸면 동일 body가 400을 낸다. → 여기서 항상 정규화한다.
+//
+// 변환 규칙:
+//   - role 누락/빈값/기타 → "user"
+//   - "assistant" | "bot" | "ai" | "model" → "model"
+//   - "system" | "developer" → contents에서 제거하고 그 text를 systemInstruction으로 병합
+// (OpenAI 스타일 { role, content } 가 흘러들어오더라도 parts 기반으로만 처리한다.)
+
+interface VertexPart {
+  text?: string;
+  [k: string]: unknown;
+}
+interface VertexContent {
+  role?: string;
+  parts?: VertexPart[];
+  [k: string]: unknown;
+}
+interface VertexRequestBody {
+  contents?: VertexContent[];
+  systemInstruction?: { parts?: VertexPart[] };
+  [k: string]: unknown;
+}
+
+export function normalizeVertexRequest<T extends VertexRequestBody>(
+  requestBody: T,
+): T {
+  if (!requestBody || !Array.isArray(requestBody.contents)) return requestBody;
+
+  const extractedSystemTexts: string[] = [];
+  const normalizedContents: VertexContent[] = [];
+
+  for (const c of requestBody.contents) {
+    if (!c || !Array.isArray(c.parts)) continue;
+    const rawRole = typeof c.role === "string" ? c.role.trim().toLowerCase() : "";
+
+    // 시스템/개발자 프롬프트는 contents에 넣지 않고 systemInstruction으로 분리
+    if (rawRole === "system" || rawRole === "developer") {
+      for (const p of c.parts) {
+        if (p && typeof p.text === "string" && p.text) extractedSystemTexts.push(p.text);
+      }
+      continue;
+    }
+
+    const role: "user" | "model" =
+      rawRole === "model" || rawRole === "assistant" || rawRole === "bot" || rawRole === "ai"
+        ? "model"
+        : "user"; // "user" 및 누락/빈값/기타 → user
+
+    normalizedContents.push({ ...c, role });
+  }
+
+  let systemInstruction = requestBody.systemInstruction;
+  if (extractedSystemTexts.length > 0) {
+    const existing = Array.isArray(systemInstruction?.parts)
+      ? systemInstruction!.parts!
+          .map((p) => (typeof p?.text === "string" ? p.text : ""))
+          .filter(Boolean)
+          .join("\n\n")
+      : "";
+    const mergedText = [...extractedSystemTexts, existing].filter(Boolean).join("\n\n");
+    systemInstruction = { parts: [{ text: mergedText }] };
+  }
+
+  return { ...requestBody, contents: normalizedContents, systemInstruction };
+}
+
+// ---------- 요청 payload 구조 로깅 (개인정보/프롬프트 전문 제외) ----------
+//
+// 개인정보/생년월일/질문 전문/API Key는 남기지 않고, role/구조만 확인 가능하게 한다.
+export function logVertexRequestShape(
+  requestBody: VertexRequestBody,
+  meta: { model: string; method: string },
+): void {
+  const roles = Array.isArray(requestBody?.contents)
+    ? requestBody.contents.map((c) => (typeof c?.role === "string" && c.role ? c.role : "(none)"))
+    : [];
+  const hasSystemInstruction = !!(
+    requestBody?.systemInstruction?.parts &&
+    requestBody.systemInstruction.parts.some(
+      (p) => typeof p?.text === "string" && p.text.length > 0,
+    )
+  );
+  console.log(
+    JSON.stringify({
+      logType: "VERTEX_REQUEST",
+      provider: "vertex-ai",
+      model: meta.model,
+      method: meta.method,
+      contentsRoles: roles,
+      contentsCount: roles.length,
+      hasSystemInstruction,
+    }),
+  );
+}
