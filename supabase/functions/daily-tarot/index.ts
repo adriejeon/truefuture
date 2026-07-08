@@ -1,6 +1,7 @@
 // daily-tarot Edge Function
 // 타로/오라클 카드 키워드를 받아 Gemini 2.5 Flash-Lite로 그날의 AI 해석을 생성
 // 인증 불필요 (무료 기능)
+// AI 호출은 Vertex AI(서비스 계정 OAuth2)로 처리한다.
 
 declare global {
   const Deno: {
@@ -9,6 +10,9 @@ declare global {
 }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getVertexAccessToken, buildVertexUrl } from "../_shared/vertex.ts";
+
+const TAROT_MODEL = "gemini-2.5-flash-lite";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,10 +52,9 @@ serve(async (req: Request) => {
       );
     }
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
+    if (!Deno.env.get("GCP_SERVICE_ACCOUNT_JSON")) {
       return new Response(
-        JSON.stringify({ error: "GEMINI_API_KEY not set" }),
+        JSON.stringify({ error: "GCP_SERVICE_ACCOUNT_JSON not set" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -64,11 +67,15 @@ serve(async (req: Request) => {
       ? buildKoreanPrompt(cardName, keywords, cardType, energyLabel)
       : buildEnglishPrompt(cardName, keywords, cardType, energyLabel);
 
+    const accessToken = await getVertexAccessToken();
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+      buildVertexUrl(TAROT_MODEL, "generateContent"),
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {

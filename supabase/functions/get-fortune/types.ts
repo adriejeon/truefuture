@@ -3,7 +3,6 @@ export enum FortuneType {
   DAILY = "daily", // 오늘의 운세 (Home.jsx)
   LIFETIME = "lifetime", // 인생 종합운/사주 (LifetimeFortune.jsx)
   COMPATIBILITY = "compatibility", // 궁합 (Compatibility.jsx)
-  YEARLY = "yearly", // 1년 운세 (YearlyFortune.jsx)
   CONSULTATION = "consultation", // 싱글턴 자유 질문 (고급 예측 기법 활용)
 }
 

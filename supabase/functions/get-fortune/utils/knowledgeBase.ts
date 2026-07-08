@@ -45,8 +45,6 @@ function relevantHousesByType(ft: FortuneType): string[] {
       return ["1", "2", "5", "6", "7", "10"];
     case FortuneType.COMPATIBILITY:
       return ["1", "5", "7", "11"];
-    case FortuneType.YEARLY:
-      return ["1", "10", "7", "4"];
     case FortuneType.CONSULTATION:
       return ["1", "2", "7", "10"];
     case FortuneType.DAILY:
@@ -63,8 +61,6 @@ function goldenKeysByType(ft: FortuneType): GoldenKey[] {
     case FortuneType.COMPATIBILITY:
       // personality(기질) = 두 사람 기질 비교 섹션의 기본 베이스
       return ["personality", "synastry", "general"];
-    case FortuneType.YEARLY:
-      return ["personality", "timing", "general"];
     case FortuneType.CONSULTATION:
       return ["personality", "timing", "career", "love", "wealth", "general"];
     case FortuneType.DAILY:
@@ -215,16 +211,12 @@ export function buildKnowledgeContext(
   // ── 5. 시기 해석 (데일리/연간/상담) ──
   if (goldenKeys.includes("timing" as GoldenKey)) {
     const timingLines: string[] = [];
-    if (fortuneType === FortuneType.YEARLY && TIMING_KB.solarReturn?.length) {
-      timingLines.push(...TIMING_KB.solarReturn.map((r) => `· ${r}`));
-    }
     if (TIMING_KB.transit?.length) {
       timingLines.push(...TIMING_KB.transit.map((r) => `· ${r}`));
     }
-    // 피르다리아는 장기 시기 기법 → 연간·자유상담에만 (데일리 제외, 분량 절약)
+    // 피르다리아는 장기 시기 기법 → 자유상담에만 (데일리 제외, 분량 절약)
     if (
-      (fortuneType === FortuneType.YEARLY ||
-        fortuneType === FortuneType.CONSULTATION) &&
+      fortuneType === FortuneType.CONSULTATION &&
       TIMING_KB.firdaria?.length
     ) {
       timingLines.push(...TIMING_KB.firdaria.map((r) => `· ${r}`));

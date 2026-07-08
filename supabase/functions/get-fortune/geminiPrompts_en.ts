@@ -936,8 +936,6 @@ export function getSystemInstruction(
         {} as SynastryResult,
         relationshipType,
       );
-    case FortuneType.YEARLY:
-      return getYearlyPrompt();
     case FortuneType.CONSULTATION:
       return getConsultationSystemPrompt(category || "General");
     default:
