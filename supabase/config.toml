@@ -393,3 +393,10 @@ entrypoint = "./functions/get-fortune/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/get-fortune/*.html" ]
+
+[functions.daily-tarot]
+enabled = true
+# 무료·무인증 기능: 앱은 apikey 헤더만 보내고 Authorization(JWT)은 보내지 않으므로
+# 게이트웨이 JWT 검증을 끈다. (verify_jwt=true면 앱 요청이 401 → 하드코딩 폴백)
+verify_jwt = false
+entrypoint = "./functions/daily-tarot/index.ts"
