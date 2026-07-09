@@ -41,19 +41,29 @@ function breakBoldLabelLines(text) {
     `^(\\s*)${marker}\\*\\*\\s*([^*\\n]+?)\\s*[:：]\\s*\\*\\*\\s*(\\S[\\s\\S]*)$`,
   );
 
-  return text
-    .split("\n")
-    .map((line) => {
-      const m = line.match(reOutside) || line.match(reInside);
-      if (!m) return line;
-      const indent = m[1] || "";
-      const title = m[2].trim().replace(/[:：]\s*$/, "");
-      const sub = m[3].trim();
-      if (!title || !sub) return line;
-      // 빈 줄로 문단 분리 → 제목/본문이 확실히 줄바꿈되어 보인다
-      return `${indent}**${title}**\n\n${indent}${sub}`;
-    })
-    .join("\n");
+  const out = [];
+  for (const line of text.split("\n")) {
+    const m = line.match(reOutside) || line.match(reInside);
+    if (!m) {
+      out.push(line);
+      continue;
+    }
+    const indent = m[1] || "";
+    const title = m[2].trim().replace(/[:：]\s*$/, "");
+    const sub = m[3].trim();
+    if (!title || !sub) {
+      out.push(line);
+      continue;
+    }
+    // 앞 블록과 붙어 한 문단으로 합쳐지지 않도록 빈 줄로 분리
+    if (out.length && out[out.length - 1].trim() !== "") out.push("");
+    out.push(`${indent}**${title}**`); // 볼드 제목 줄
+    out.push(""); // 제목/본문 사이 빈 줄
+    out.push(`${indent}${sub}`); // 서브텍스트 줄
+    out.push(""); // 다음 줄과 분리
+  }
+  // 과도한 빈 줄 정리
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
 }
 
 /** (A-1) 볼드 양끝 따옴표를 델리미터 밖으로 이동: `**'X'**` → `'**X**'` (간격 없이 깔끔하게 교정) */
