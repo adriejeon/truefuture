@@ -56,6 +56,12 @@ export interface PlanetPosition {
   isRetrograde: boolean;
   /** 황경 속도 (deg/일, 정지/Station 구간 판별용, 선택) */
   speed?: number;
+  /** 도데카테모리온 황경(도, 선택) */
+  dodeca?: number;
+  /** 앤티션 황경(도, 선택) */
+  antiscion?: number;
+  /** 태양 기준 동방(oriental)/서방(occidental) 위상 (태양·랏 제외, 선택) */
+  orientality?: "oriental" | "occidental";
 }
 
 // 차트 데이터 타입
@@ -84,7 +90,51 @@ export interface ChartData {
     pluto: PlanetPosition;
   };
   fortuna: PlanetPosition;
+  /**
+   * 추가 랏(Lot). 계산된 것만 채워짐(선택).
+   * 공식 출처: 운영자 제공 "랏 계산" 표 (진짜미래 기준, 헬레니즘).
+   * - spirit(스피릿): 낮 Asc+Sun-Moon / 밤 Asc+Moon-Sun
+   * - exaltation(엑절테이션/PoE): 낮 Asc+19°Aries-Sun / 밤 Asc+3°Taurus-Moon
+   * - basis(베이시스/PoB): Love(Asc+Spirit-Fortune)·Necessity(Asc+Fortune-Spirit) 중 지평선 아래의 것
+   * - eros/father/mother/children/son/daughter/siblings/accusation: "랏 계산" 표 기준
+   */
+  lots?: Partial<Record<LotKey, PlanetPosition>>;
+  /**
+   * 주요 감응점(Asc·Sun·Moon·Fortune·MC)의 알무텐(지배행성) + 지향점(aim = 4포인트 합산 최고).
+   * 값은 행성명(예: "Jupiter"). 계산: dignityCalculator.almutenOfDegree.
+   */
+  almutens?: {
+    ascendant?: string;
+    sun?: string;
+    moon?: string;
+    fortune?: string;
+    midheaven?: string;
+    aim?: string;
+  };
+  /** 기질(한열조습). temperamentCalculator.computeTemperament 산출(휴리스틱). */
+  temperament?: {
+    hot: number;
+    cold: number;
+    wet: number;
+    dry: number;
+    label: string;
+    summary: string;
+  };
 }
+
+/** 계산·주입되는 추가 랏 키 */
+export type LotKey =
+  | "spirit"
+  | "exaltation"
+  | "basis"
+  | "eros"
+  | "father"
+  | "mother"
+  | "children"
+  | "son"
+  | "daughter"
+  | "siblings"
+  | "accusation";
 
 // Aspect 정보 타입
 export interface Aspect {

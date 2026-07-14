@@ -296,9 +296,17 @@ export function formatPlanetHouseWsQs(
     return opts?.sr ? `SR WS: ${ws}H` : `WS: ${ws}H`;
   }
   const { qsHouse, qsStrength } = planet;
+  // 동방/서방(오리엔트/옥시덴트) 위상 표기 (있을 때만; 태양·랏은 없음)
+  const orient = (planet as { orientality?: string }).orientality;
+  const orientLabel =
+    orient === "oriental"
+      ? " / 동방(오리엔트)"
+      : orient === "occidental"
+        ? " / 서방(옥시덴트)"
+        : "";
   return opts?.sr
-    ? `SR WS: ${ws}H / SR QS: ${qsHouse}H - ${qsStrength}`
-    : `WS: ${ws}H / QS: ${qsHouse}H - ${qsStrength}`;
+    ? `SR WS: ${ws}H / SR QS: ${qsHouse}H - ${qsStrength}${orientLabel}`
+    : `WS: ${ws}H / QS: ${qsHouse}H - ${qsStrength}${orientLabel}`;
 }
 
 /**
@@ -355,6 +363,109 @@ function formatNatalQsReferenceBlock(natalData: ChartData): string {
 ${lines.join("\n")}
 시스템 프롬프트의 Quadrant Strength(QS) 해석 규칙을 가중치로 사용하세요.
 `.trim();
+}
+
+/** 랏 키 → 한글 라벨 (렌더 순서) */
+const LOT_LABELS: Array<[string, string]> = [
+  ["spirit", "Lot of Spirit(스피릿/PoS)"],
+  ["exaltation", "Lot of Exaltation(엑절테이션/PoE)"],
+  ["basis", "Lot of Basis(베이시스/PoB)"],
+  ["eros", "Lot of Eros(에로스·연애)"],
+  ["father", "Lot of Father(아버지)"],
+  ["mother", "Lot of Mother(어머니)"],
+  ["children", "Lot of Children(자녀)"],
+  ["siblings", "Lot of Siblings(형제)"],
+  ["accusation", "Lot of Accusation(소송·구설)"],
+];
+
+/**
+ * 계산된 추가 랏을 프롬프트용으로 포맷. 없으면 빈 문자열.
+ * 로드(지배행성)를 함께 노출해 재물 5기둥·격(格)·연애·육친 규칙이 근거로 활용하도록 함.
+ * @param keys 렌더할 랏 키 목록(생략 시 전부)
+ */
+function formatLotsBlockForPrompt(chartData: ChartData, keys?: string[]): string {
+  const lots = chartData.lots as Record<string, PlanetPosition | undefined> | undefined;
+  if (!lots) return "";
+  const lines: string[] = [];
+  for (const [key, label] of LOT_LABELS) {
+    if (keys && !keys.includes(key)) continue;
+    const p = lots[key];
+    if (!p) continue;
+    lines.push(
+      `- ${label}: ${p.sign} ${p.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(p)}) / 로드: ${getSignRuler(p.sign)}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/** 기질(한열조습) 한 줄. 없으면 빈 문자열. */
+function formatTemperamentLine(chartData: ChartData): string {
+  const t = chartData.temperament;
+  if (!t) return "";
+  return `- 기질(한열조습): ${t.summary}`;
+}
+
+/** 주요 감응점 알무텐 + 지향점(재능) 한 줄. 없으면 빈 문자열. */
+function formatAlmutensLine(chartData: ChartData): string {
+  const a = chartData.almutens;
+  if (!a) return "";
+  const parts: string[] = [];
+  if (a.ascendant) parts.push(`상승점:${a.ascendant}`);
+  if (a.sun) parts.push(`태양:${a.sun}`);
+  if (a.moon) parts.push(`달:${a.moon}`);
+  if (a.fortune) parts.push(`포르투나:${a.fortune}`);
+  if (a.midheaven) parts.push(`MC:${a.midheaven}`);
+  const aim = a.aim ? ` / 지향점(재능·이상): ${a.aim}` : "";
+  if (!parts.length && !aim) return "";
+  return `- 주요 감응점 알무텐(지배행성): ${parts.join(", ")}${aim}`;
+}
+
+/** 도데카테모리온(각 행성) 한 줄. 없으면 빈 문자열. */
+function formatDodecaLine(chartData: ChartData): string {
+  const planets = chartData.planets;
+  if (!planets) return "";
+  const order: Array<[string, string]> = [
+    ["sun", "태양"],
+    ["moon", "달"],
+    ["mercury", "수성"],
+    ["venus", "금성"],
+    ["mars", "화성"],
+    ["jupiter", "목성"],
+    ["saturn", "토성"],
+  ];
+  const parts: string[] = [];
+  for (const [key, ko] of order) {
+    const p = (planets as Record<string, PlanetPosition | undefined>)[key];
+    if (!p || p.dodeca == null) continue;
+    const d = getSignFromLongitude(p.dodeca);
+    parts.push(`${ko}→${d.sign} ${d.degreeInSign.toFixed(0)}°`);
+  }
+  if (!parts.length) return "";
+  return `- 도데카테모리온(도수×12 파생 위치): ${parts.join(", ")}`;
+}
+
+/** 앤티션(하지/동지 축 대칭점) 한 줄. 없으면 빈 문자열. */
+function formatAntiscionLine(chartData: ChartData): string {
+  const planets = chartData.planets;
+  if (!planets) return "";
+  const order: Array<[string, string]> = [
+    ["sun", "태양"],
+    ["moon", "달"],
+    ["mercury", "수성"],
+    ["venus", "금성"],
+    ["mars", "화성"],
+    ["jupiter", "목성"],
+    ["saturn", "토성"],
+  ];
+  const parts: string[] = [];
+  for (const [key, ko] of order) {
+    const p = (planets as Record<string, PlanetPosition | undefined>)[key];
+    if (!p || p.antiscion == null) continue;
+    const a = getSignFromLongitude(p.antiscion);
+    parts.push(`${ko}→${a.sign} ${a.degreeInSign.toFixed(0)}°`);
+  }
+  if (!parts.length) return "";
+  return `- 앤티션(하지/동지 축 대칭점, 회합·대립으로 은밀히 작용): ${parts.join(", ")}`;
 }
 
 function formatMoonLordInPartnerChartLineForLocale(
@@ -851,6 +962,17 @@ ${natalAspectsLines}
 `
     : "";
 
+  // 파생 지표(기질·알무텐·추가 랏·도데카테모리온) — 성격·재능·재물·격(格) 판단 근거
+  const natalLotsBlock = [
+    formatTemperamentLine(natalData),
+    formatAlmutensLine(natalData),
+    formatLotsBlockForPrompt(natalData),
+    formatDodecaLine(natalData),
+    formatAntiscionLine(natalData),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   // 최종 User Prompt 생성
   return `
 인생 종합운(사주) 분석을 위한 데이터입니다.
@@ -882,7 +1004,7 @@ Part of Fortune: ${
   } ${natalData.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(
     natalData.fortuna,
   )})
-${natalAspectsSection}
+${natalLotsBlock ? natalLotsBlock + "\n" : ""}${natalAspectsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 위 데이터를 기반으로 인생 종합운을 분석해 주세요.
@@ -1000,7 +1122,24 @@ Part of Fortune: ${
   } ${natalData1.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(
     natalData1.fortuna,
   )})
-
+${(() => {
+  const b = [
+    formatTemperamentLine(natalData1),
+    formatLotsBlockForPrompt(natalData1, [
+      "spirit",
+      "exaltation",
+      "basis",
+      "eros",
+      "father",
+      "mother",
+      "children",
+      "siblings",
+    ]),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return b ? b + "\n" : "";
+})()}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [📋 사람 2(User 2) 기본 정보]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1021,7 +1160,24 @@ Part of Fortune: ${
   } ${natalData2.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(
     natalData2.fortuna,
   )})
-
+${(() => {
+  const b = [
+    formatTemperamentLine(natalData2),
+    formatLotsBlockForPrompt(natalData2, [
+      "spirit",
+      "exaltation",
+      "basis",
+      "eros",
+      "father",
+      "mother",
+      "children",
+      "siblings",
+    ]),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return b ? b + "\n" : "";
+})()}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [📅 분석 시점]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1101,10 +1257,19 @@ export function generatePredictionPrompt(
   const fortunaLine = chartData.fortuna
     ? `- Part of Fortune: ${chartData.fortuna.sign} ${chartData.fortuna.degreeInSign.toFixed(1)}° (${formatPlanetHouseWsQs(chartData.fortuna)})`
     : "";
+  const lotsLines = [
+    formatTemperamentLine(chartData),
+    formatAlmutensLine(chartData),
+    formatLotsBlockForPrompt(chartData),
+    formatDodecaLine(chartData),
+    formatAntiscionLine(chartData),
+  ]
+    .filter(Boolean)
+    .join("\n");
   sections.push(`[🌌 Natal Chart]
 - 감응점(앵글): Ascendant: ${ascDisplay} | MC: ${getSignDisplay(mcLong)} | IC: ${getSignDisplay(icLong)} | Descendant: ${getSignDisplay(dscLong)}${ascCharacter ? ` (Asc Character: ${ascCharacter})` : ""}
 ${planetLines}
-${fortunaLine ? `\n${fortunaLine}` : ""}
+${fortunaLine ? `\n${fortunaLine}` : ""}${lotsLines ? `\n${lotsLines}` : ""}
 - 7th House Ruler: ${seventhRuler}`);
 
   if (consultationTransitChart?.planets) {

@@ -164,3 +164,169 @@ export function buildPlanetContext(
   }
   return line.trim();
 }
+
+// ============================================================================
+// 세부 위계(Minor Dignities): 트리플리시티 / 텀(바운드) / 페이스 + 알무텐
+// 표 출처: 고전 표준 (Dorothean 트리플리시티, Egyptian 텀, Chaldean 페이스).
+// 이 데이터는 almuten(지배행성) 산출과 도수별 위계 판단에 사용된다.
+// ============================================================================
+
+/** 12사인 zodiacal 순서 (0=Aries) */
+const SIGN_ORDER = [
+  "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+] as const;
+
+const SIGN_ELEMENT: Record<string, "Fire" | "Earth" | "Air" | "Water"> = {
+  Aries: "Fire", Leo: "Fire", Sagittarius: "Fire",
+  Taurus: "Earth", Virgo: "Earth", Capricorn: "Earth",
+  Gemini: "Air", Libra: "Air", Aquarius: "Air",
+  Cancer: "Water", Scorpio: "Water", Pisces: "Water",
+};
+
+/** 도로테우스 트리플리시티 로드: [낮 로드, 밤 로드, 공동(participating)] */
+const TRIPLICITY_LORDS: Record<string, [string, string, string]> = {
+  Fire: ["Sun", "Jupiter", "Saturn"],
+  Earth: ["Venus", "Moon", "Mars"],
+  Air: ["Saturn", "Mercury", "Jupiter"],
+  Water: ["Venus", "Mars", "Moon"],
+};
+
+/** 이집션 텀(바운드): 각 사인별 [로드, 시작도, 끝도] 5구간 */
+const EGYPTIAN_TERMS: Record<string, Array<[string, number, number]>> = {
+  Aries: [["Jupiter", 0, 6], ["Venus", 6, 12], ["Mercury", 12, 20], ["Mars", 20, 25], ["Saturn", 25, 30]],
+  Taurus: [["Venus", 0, 8], ["Mercury", 8, 14], ["Jupiter", 14, 22], ["Saturn", 22, 27], ["Mars", 27, 30]],
+  Gemini: [["Mercury", 0, 6], ["Jupiter", 6, 12], ["Venus", 12, 17], ["Mars", 17, 24], ["Saturn", 24, 30]],
+  Cancer: [["Mars", 0, 7], ["Venus", 7, 13], ["Mercury", 13, 19], ["Jupiter", 19, 26], ["Saturn", 26, 30]],
+  Leo: [["Jupiter", 0, 6], ["Venus", 6, 11], ["Saturn", 11, 18], ["Mercury", 18, 24], ["Mars", 24, 30]],
+  Virgo: [["Mercury", 0, 7], ["Venus", 7, 17], ["Jupiter", 17, 21], ["Mars", 21, 28], ["Saturn", 28, 30]],
+  Libra: [["Saturn", 0, 6], ["Mercury", 6, 14], ["Jupiter", 14, 21], ["Venus", 21, 28], ["Mars", 28, 30]],
+  Scorpio: [["Mars", 0, 7], ["Venus", 7, 11], ["Mercury", 11, 19], ["Jupiter", 19, 24], ["Saturn", 24, 30]],
+  Sagittarius: [["Jupiter", 0, 12], ["Venus", 12, 17], ["Mercury", 17, 21], ["Saturn", 21, 26], ["Mars", 26, 30]],
+  Capricorn: [["Mercury", 0, 7], ["Jupiter", 7, 14], ["Venus", 14, 22], ["Saturn", 22, 26], ["Mars", 26, 30]],
+  Aquarius: [["Mercury", 0, 7], ["Venus", 7, 13], ["Jupiter", 13, 20], ["Mars", 20, 25], ["Saturn", 25, 30]],
+  Pisces: [["Venus", 0, 12], ["Jupiter", 12, 16], ["Mercury", 16, 19], ["Mars", 19, 28], ["Saturn", 28, 30]],
+};
+
+/** 페이스(데칸): 각 사인 3구간(0-10/10-20/20-30) 로드 — Chaldean order (Aries 0°=Mars 시작) */
+const FACES: Record<string, [string, string, string]> = {
+  Aries: ["Mars", "Sun", "Venus"],
+  Taurus: ["Mercury", "Moon", "Saturn"],
+  Gemini: ["Jupiter", "Mars", "Sun"],
+  Cancer: ["Venus", "Mercury", "Moon"],
+  Leo: ["Saturn", "Jupiter", "Mars"],
+  Virgo: ["Sun", "Venus", "Mercury"],
+  Libra: ["Moon", "Saturn", "Jupiter"],
+  Scorpio: ["Mars", "Sun", "Venus"],
+  Sagittarius: ["Mercury", "Moon", "Saturn"],
+  Capricorn: ["Jupiter", "Mars", "Sun"],
+  Aquarius: ["Venus", "Mercury", "Moon"],
+  Pisces: ["Saturn", "Jupiter", "Mars"],
+};
+
+/** 도미사일(룰러) 로드 */
+const DOMICILE_LORD: Record<string, string> = {
+  Aries: "Mars", Taurus: "Venus", Gemini: "Mercury", Cancer: "Moon",
+  Leo: "Sun", Virgo: "Mercury", Libra: "Venus", Scorpio: "Mars",
+  Sagittarius: "Jupiter", Capricorn: "Saturn", Aquarius: "Saturn", Pisces: "Jupiter",
+};
+
+/** 엑절테이션 로드 (사인 → 그 사인에서 항진하는 행성) */
+const EXALTATION_LORD: Record<string, string> = {
+  Aries: "Sun", Taurus: "Moon", Cancer: "Jupiter", Virgo: "Mercury",
+  Libra: "Saturn", Capricorn: "Mars", Pisces: "Venus",
+};
+
+/** 트리플리시티 로드 반환 (섹트 반영). day=주간 로드, night=야간 로드 우선, 공동 로드는 별도 취급 안 함 */
+export function getTriplicityLord(signName: string, isDayChart: boolean): string | null {
+  const el = SIGN_ELEMENT[signName.trim()];
+  if (!el) return null;
+  const [dayLord, nightLord] = TRIPLICITY_LORDS[el];
+  return isDayChart ? dayLord : nightLord;
+}
+
+/** 텀(바운드) 로드 반환 */
+export function getTermLord(signName: string, degreeInSign: number): string | null {
+  const terms = EGYPTIAN_TERMS[signName.trim()];
+  if (!terms) return null;
+  for (const [lord, start, end] of terms) {
+    if (degreeInSign >= start && degreeInSign < end) return lord;
+  }
+  return terms[terms.length - 1][0]; // 30° 경계 보정
+}
+
+/** 페이스 로드 반환 */
+export function getFaceLord(signName: string, degreeInSign: number): string | null {
+  const faces = FACES[signName.trim()];
+  if (!faces) return null;
+  const idx = Math.min(2, Math.floor(degreeInSign / 10));
+  return faces[idx];
+}
+
+export interface AlmutenResult {
+  winner: string | null;
+  scores: Record<string, number>;
+}
+
+/**
+ * 특정 도수(사인+도)의 알무텐 산출.
+ * 가중치: 도미사일 5 · 엑절테이션 4 · 트리플리시티 3 · 텀 2 · 페이스 1 (Lilly/Ibn Ezra 방식).
+ * 동점이면 winner는 도미사일>엑절>트리플>텀>페이스 우선순위의 최고 기여 행성으로 tiebreak.
+ */
+export function almutenOfDegree(
+  signName: string,
+  degreeInSign: number,
+  isDayChart: boolean,
+): AlmutenResult {
+  const sign = signName.trim();
+  const scores: Record<string, number> = {};
+  const add = (planet: string | null | undefined, pts: number, rank: number) => {
+    if (!planet) return;
+    scores[planet] = (scores[planet] ?? 0) + pts;
+    // tiebreak 저장용: 각 행성이 가진 최고 rank(작을수록 우선)
+    const key = `__rank_${planet}`;
+    (scores as any)[key] = Math.min((scores as any)[key] ?? 99, rank);
+  };
+  add(DOMICILE_LORD[sign], 5, 1);
+  add(EXALTATION_LORD[sign], 4, 2);
+  add(getTriplicityLord(sign, isDayChart), 3, 3);
+  add(getTermLord(sign, degreeInSign), 2, 4);
+  add(getFaceLord(sign, degreeInSign), 1, 5);
+
+  let winner: string | null = null;
+  let best = -1;
+  let bestRank = 99;
+  for (const [k, v] of Object.entries(scores)) {
+    if (k.startsWith("__rank_")) continue;
+    const rank = (scores as any)[`__rank_${k}`] ?? 99;
+    if (v > best || (v === best && rank < bestRank)) {
+      best = v;
+      bestRank = rank;
+      winner = k;
+    }
+  }
+  // 내부 rank 키 제거
+  const clean: Record<string, number> = {};
+  for (const [k, v] of Object.entries(scores)) {
+    if (!k.startsWith("__rank_")) clean[k] = v;
+  }
+  return { winner, scores: clean };
+}
+
+/** 특정 도수의 전체 위계(도미사일/엑절/트리플/텀/페이스 로드)를 한 줄로 요약 */
+export function describeDignitiesAtDegree(
+  signName: string,
+  degreeInSign: number,
+  isDayChart: boolean,
+): string {
+  const sign = signName.trim();
+  const dom = DOMICILE_LORD[sign] ?? "?";
+  const exalt = EXALTATION_LORD[sign] ?? "-";
+  const trip = getTriplicityLord(sign, isDayChart) ?? "-";
+  const term = getTermLord(sign, degreeInSign) ?? "-";
+  const face = getFaceLord(sign, degreeInSign) ?? "-";
+  const alm = almutenOfDegree(sign, degreeInSign, isDayChart).winner ?? "-";
+  return `룰러:${dom}/엑절:${exalt}/트리플:${trip}/텀:${term}/페이스:${face} → 알무텐:${alm}`;
+}
+
+export { SIGN_ORDER, SIGN_ELEMENT, DOMICILE_LORD, EXALTATION_LORD };

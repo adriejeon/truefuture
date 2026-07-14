@@ -21,6 +21,10 @@ import { PLANETS_KB } from "../knowledge/planets.ts";
 import { PLANET_COMBOS } from "../knowledge/planetCombos.ts";
 import { GOLDEN_RULES } from "../knowledge/goldenRules.ts";
 import { TIMING_KB } from "../knowledge/timing.ts";
+import {
+  OUTER_PLANET_NATURES,
+  OUTER_PLANETS_RULES,
+} from "../knowledge/outerPlanets.ts";
 
 // 차트 planets 키(소문자) → 지식베이스 행성명(TitleCase)
 const PKEY_TO_NAME: Record<string, string> = {
@@ -223,6 +227,23 @@ export function buildKnowledgeContext(
     }
     if (timingLines.length) {
       sections.push("■ 시기 해석 기준\n" + dedup(timingLines).join("\n"));
+    }
+  }
+
+  // ── 6. 세외3행성·달의 교점 (심층 리딩·자유상담에만: 해당 데이터가 프롬프트에 포함됨) ──
+  if (
+    fortuneType === FortuneType.LIFETIME ||
+    fortuneType === FortuneType.CONSULTATION
+  ) {
+    const outerLines: string[] = [];
+    for (const nature of Object.values(OUTER_PLANET_NATURES)) {
+      outerLines.push(`· ${nature}`);
+    }
+    for (const r of OUTER_PLANETS_RULES) {
+      outerLines.push(`· ${r}`);
+    }
+    if (outerLines.length) {
+      sections.push("■ 세외3행성·달의 교점 판단\n" + outerLines.join("\n"));
     }
   }
 

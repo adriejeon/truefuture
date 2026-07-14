@@ -33,6 +33,8 @@ import type {
   LordProfectionAngleEntry,
   AspectPhase,
 } from "../types.ts";
+import { almutenOfDegree } from "./dignityCalculator.ts";
+import { computeTemperament } from "./temperamentCalculator.ts";
 
 // ========== 상수 정의 ==========
 export const SIGNS = [
@@ -235,6 +237,176 @@ export function calculateFortuna(
 }
 
 /**
+ * Lot of Spirit(스피릿) 계산 (Day: Asc+Sun-Moon, Night: Asc+Moon-Sun)
+ * 공식 출처: 운영자 제공 "랏 계산" 표 (포르투나의 대칭 랏).
+ */
+export function calculateSpirit(
+  ascendant: number,
+  moonLon: number,
+  sunLon: number,
+  isDayChart: boolean = true,
+): number {
+  const spirit = isDayChart
+    ? ascendant + sunLon - moonLon
+    : ascendant + moonLon - sunLon;
+  return normalizeDegrees(spirit);
+}
+
+/**
+ * Lot of Exaltation(엑절테이션/PoE) 계산
+ * Day: Asc + 19°Aries - Sun / Night: Asc + 3°Taurus - Moon
+ * 공식 출처: 운영자 제공 "랏 계산" 표 (Paulus Alexandrinus 방식).
+ * 19°Aries = 절대경도 19°(태양 항진도수), 3°Taurus = 절대경도 33°(달 항진도수).
+ */
+export function calculateLotOfExaltation(
+  ascendant: number,
+  sunLon: number,
+  moonLon: number,
+  isDayChart: boolean = true,
+): number {
+  const SUN_EXALTATION_DEG = 19; // 19° Aries
+  const MOON_EXALTATION_DEG = 33; // 3° Taurus (30 + 3)
+  const lot = isDayChart
+    ? ascendant + SUN_EXALTATION_DEG - sunLon
+    : ascendant + MOON_EXALTATION_DEG - moonLon;
+  return normalizeDegrees(lot);
+}
+
+/**
+ * Lot of Basis(베이시스/PoB) 계산.
+ * 정의(운영자 제공): 랏 오브 러브(Asc+Spirit-Fortune)와 랏 오브 네세서티(Asc+Fortune-Spirit)
+ * 중 "지평선 아래"에 위치한 것이 랏 오브 베이시스가 된다.
+ * - 두 후보는 Asc를 기준으로 대칭이므로 정확히 하나가 지평선 아래에 온다.
+ * - "지평선 아래" = Asc에서 IC로 내려가는 반원 = Asc 기준 0~180°(zodiacal 방향) 구간.
+ *   (즉 normalizeDegrees(lot - Asc) < 180. MC≈Asc+270°는 위, IC≈Asc+90°는 아래로 일치.)
+ */
+export function calculateLotOfBasis(
+  ascendant: number,
+  fortunaLon: number,
+  spiritLon: number,
+): number {
+  const love = normalizeDegrees(ascendant + spiritLon - fortunaLon);
+  const necessity = normalizeDegrees(ascendant + fortunaLon - spiritLon);
+  const isBelowHorizon = (lon: number): boolean =>
+    normalizeDegrees(lon - ascendant) < 180;
+  return isBelowHorizon(love) ? love : necessity;
+}
+
+/**
+ * 도데카테모리온(dodecatemoria) 황경 계산.
+ * 사인 내 도수를 12배하여 그 사인 시작점에 더함(사인 넘어가며 wrap).
+ * dodeca = normalize(signStart + degreeInSign*12).
+ */
+export function calculateDodecatemoria(longitude: number): number {
+  const lon = normalizeDegrees(longitude);
+  const signIndex = Math.floor(lon / 30);
+  const degreeInSign = lon - signIndex * 30;
+  return normalizeDegrees(signIndex * 30 + degreeInSign * 12);
+}
+
+/** 앤티션(antiscion): Cancer/Capricorn(하지/동지) 축 대칭. antiscion = normalize(180 - lon). */
+export function calculateAntiscion(longitude: number): number {
+  return normalizeDegrees(180 - normalizeDegrees(longitude));
+}
+
+/** 콘트라앤티션(contra-antiscion): antiscion의 대궁. = normalize(360 - lon). */
+export function calculateContraAntiscion(longitude: number): number {
+  return normalizeDegrees(360 - normalizeDegrees(longitude));
+}
+
+/**
+ * 추가 랏(에로스·부모·자녀·형제·어큐세이션) 황경 일괄 계산.
+ * 공식 출처: 운영자 제공 "랏 계산" 표. day 공식 기준, reverses=true인 랏은 밤차트에서 두 항 반전.
+ * (R4=Spirit는 호출부에서 spirit로 전달)
+ */
+export function calculateExtraLots(params: {
+  ascendant: number;
+  sun: number;
+  moon: number;
+  venus: number;
+  mars: number;
+  saturn: number;
+  jupiter: number;
+  mercury: number;
+  spirit: number;
+  isDayChart: boolean;
+}): Record<string, number> {
+  const {
+    ascendant: asc,
+    sun,
+    moon,
+    venus,
+    mars,
+    saturn,
+    jupiter,
+    mercury,
+    spirit,
+    isDayChart,
+  } = params;
+  const night = !isDayChart;
+  // "AC + x - y" (day). reverses면 밤에는 "AC + y - x".
+  const lot = (x: number, y: number, reverses: boolean) =>
+    normalizeDegrees(reverses && night ? asc + y - x : asc + x - y);
+  return {
+    eros: lot(venus, spirit, true), // AC + Venus - Spirit
+    father: lot(saturn, sun, true), // AC + Saturn - Sun
+    mother: lot(moon, venus, true), // AC + Moon - Venus
+    children: lot(saturn, jupiter, true), // AC + Saturn - Jupiter
+    son: lot(mercury, jupiter, true), // AC + Mercury - Jupiter
+    daughter: lot(venus, jupiter, true), // AC + Venus - Jupiter
+    siblings: lot(jupiter, saturn, false), // AC + Jupiter - Saturn (섹트 반전 없음)
+    accusation: lot(mars, saturn, true), // AC + Mars - Saturn
+  };
+}
+
+/** 주요 감응점(Asc·Sun·Moon·Fortune·MC)의 알무텐 + 지향점(aim=Asc+Sun+Moon+Fortune 합산 최고) */
+export function computeChartAlmutens(
+  ascendant: number,
+  sunLon: number,
+  moonLon: number,
+  fortunaLon: number,
+  midheaven: number,
+  isDayChart: boolean,
+): {
+  ascendant?: string;
+  sun?: string;
+  moon?: string;
+  fortune?: string;
+  midheaven?: string;
+  aim?: string;
+} {
+  const at = (lon: number) => {
+    const s = getSignFromLongitude(lon);
+    return almutenOfDegree(s.sign, s.degreeInSign, isDayChart);
+  };
+  const asc = at(ascendant);
+  const sun = at(sunLon);
+  const moon = at(moonLon);
+  const fo = at(fortunaLon);
+  const mc = at(midheaven);
+  const agg: Record<string, number> = {};
+  for (const r of [asc, sun, moon, fo]) {
+    for (const [k, v] of Object.entries(r.scores)) agg[k] = (agg[k] ?? 0) + v;
+  }
+  let aim: string | undefined;
+  let best = -1;
+  for (const [k, v] of Object.entries(agg)) {
+    if (v > best) {
+      best = v;
+      aim = k;
+    }
+  }
+  return {
+    ascendant: asc.winner ?? undefined,
+    sun: sun.winner ?? undefined,
+    moon: moon.winner ?? undefined,
+    fortune: fo.winner ?? undefined,
+    midheaven: mc.winner ?? undefined,
+    aim,
+  };
+}
+
+/**
  * 행성의 황도 경도 계산
  */
 export function getPlanetLongitude(body: any, time: any): number {
@@ -404,6 +576,8 @@ export async function calculateChart(
           qsHouse,
           qsStrength: quadrantStrengthFromHouse(qsHouse),
           isRetrograde,
+          dodeca: calculateDodecatemoria(longitude),
+          antiscion: calculateAntiscion(longitude),
           ...(speed !== undefined && { speed }),
         };
       } catch (planetError: any) {
@@ -419,12 +593,90 @@ export async function calculateChart(
     const isDayChart =
       planetsData.sun.house >= 7 && planetsData.sun.house <= 12;
 
+    // 태양 기준 동방(oriental)/서방(occidental) 위상: 태양보다 뒤(낮은 황경)면 동방
+    for (const key of [
+      "moon",
+      "mercury",
+      "venus",
+      "mars",
+      "jupiter",
+      "saturn",
+    ] as const) {
+      const p = (planetsData as Record<string, PlanetPosition>)[key];
+      if (!p) continue;
+      const behind = normalizeDegrees(sunLon - p.degree);
+      p.orientality = behind > 0 && behind < 180 ? "oriental" : "occidental";
+    }
+
     const fortunaLon = calculateFortuna(ascendant, moonLon, sunLon, isDayChart);
     const fortunaSignInfo = getSignFromLongitude(fortunaLon);
     const fortunaHouse = getWholeSignHouse(fortunaLon, ascendant);
     const fortunaQsHouse = alcabitiusHouseForLongitude(
       fortunaLon,
       alcabitiusCusps,
+    );
+
+    // 랏(Lot) 경도 → PlanetPosition 변환 헬퍼 (포르투나와 동일 구조, 역행은 랏이므로 항상 false)
+    const buildLotPosition = (lon: number): PlanetPosition => {
+      const signInfo = getSignFromLongitude(lon);
+      const qsHouse = alcabitiusHouseForLongitude(lon, alcabitiusCusps);
+      return {
+        sign: signInfo.sign,
+        degree: lon,
+        degreeInSign: signInfo.degreeInSign,
+        house: getWholeSignHouse(lon, ascendant),
+        qsHouse,
+        qsStrength: quadrantStrengthFromHouse(qsHouse),
+        isRetrograde: false,
+      };
+    };
+
+    // 추가 랏: 스피릿 / 엑절테이션 / 베이시스 (공식 출처: 운영자 "랏 계산" 표 + Basis 정의)
+    const spiritLon = calculateSpirit(ascendant, moonLon, sunLon, isDayChart);
+    const exaltationLon = calculateLotOfExaltation(
+      ascendant,
+      sunLon,
+      moonLon,
+      isDayChart,
+    );
+    // Basis는 Fortune·Spirit에서 파생되므로 두 랏 계산 뒤에 산출
+    const basisLon = calculateLotOfBasis(ascendant, fortunaLon, spiritLon);
+
+    // 추가 랏(에로스·부모·자녀·형제·어큐세이션)
+    const extraLotLons = calculateExtraLots({
+      ascendant,
+      sun: sunLon,
+      moon: moonLon,
+      venus: planetsData.venus.degree,
+      mars: planetsData.mars.degree,
+      saturn: planetsData.saturn.degree,
+      jupiter: planetsData.jupiter.degree,
+      mercury: planetsData.mercury.degree,
+      spirit: spiritLon,
+      isDayChart,
+    });
+    const extraLotPositions: Record<string, PlanetPosition> = {};
+    for (const [name, lon] of Object.entries(extraLotLons)) {
+      extraLotPositions[name] = buildLotPosition(lon);
+    }
+
+    // 주요 감응점 알무텐 + 지향점(AoH)
+    const almutens = computeChartAlmutens(
+      ascendant,
+      sunLon,
+      moonLon,
+      fortunaLon,
+      midheaven,
+      isDayChart,
+    );
+
+    // 기질(한열조습)
+    const ascSign = getSignFromLongitude(ascendant).sign;
+    const temperament = computeTemperament(
+      planetsData,
+      ascSign,
+      moonLon,
+      sunLon,
     );
 
     const result: ChartData = {
@@ -448,6 +700,14 @@ export async function calculateChart(
         qsStrength: quadrantStrengthFromHouse(fortunaQsHouse),
         isRetrograde: false,
       },
+      lots: {
+        spirit: buildLotPosition(spiritLon),
+        exaltation: buildLotPosition(exaltationLon),
+        basis: buildLotPosition(basisLon),
+        ...extraLotPositions,
+      },
+      almutens,
+      temperament,
     };
 
     return result;
