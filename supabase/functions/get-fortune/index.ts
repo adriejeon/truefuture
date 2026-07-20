@@ -75,6 +75,8 @@ import {
   computeDailySpotlight,
   formatDailySpotlightForPrompt,
 } from "./utils/dailySpotlight.ts";
+// 데일리 Phase 2 트리거 (일월식·시저지·정지·MPD→SR→달)
+import { computeDailyTriggerSignals } from "./utils/dailyTriggers.ts";
 
 // Neo4j 전문 해석 데이터 조회
 import {
@@ -3310,6 +3312,36 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           // 데일리 프롬프트의 해석 강도·분량을 게이팅한다. 실패 시 기존 항성 텍스트 유지.
           try {
             const firdaria = calculateFirdaria(birthDateTime, { lat, lng }, now);
+            // Phase 2 트리거(일월식·시저지·정지·MPD→SR→달) — 실패해도 무시하고 진행
+            let triggerSignals: any[] = [];
+            try {
+              const lordLonNow = lordKey
+                ? getPlanetLongitudeAndSpeed(lordKey, now).longitude
+                : 0;
+              triggerSignals = await computeDailyTriggerSignals({
+                targetDate: now,
+                location: { lat, lng },
+                birthDate: birthDateTime,
+                natalSunLon: chartData.planets.sun.degree,
+                natalPoints: {
+                  Sun: chartData.planets.sun.degree,
+                  Moon: chartData.planets.moon.degree,
+                  Ascendant: chartData.houses.angles.ascendant,
+                  Midheaven: chartData.houses.angles.midheaven,
+                  PartOfFortune: chartData.fortuna.degree,
+                },
+                natalPlanets: chartData.planets,
+                annualProfectionSign: dailyProfection.profectionSign,
+                lordName,
+                lordLon: lordLonNow,
+                transitMoonLon: transitChartData?.planets.moon.degree ?? 0,
+              });
+            } catch (trigErr: any) {
+              console.warn(
+                "⚠️ [DAILY] Phase2 트리거 계산 실패 (무시):",
+                trigErr?.message,
+              );
+            }
             const spotlight = computeDailySpotlight({
               lordName,
               profectionSign: dailyProfection.profectionSign,
@@ -3319,6 +3351,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
               lordRetrograde: isRetrograde,
               lordProfectionAngleHouse: lordProfectionAngleEntry?.house ?? null,
               angleStrikes: dailyAngleStrikes ?? [],
+              extraSignals: triggerSignals,
             });
             dailyLordStarConjunctionsText = formatDailySpotlightForPrompt(spotlight);
           } catch (spotErr: any) {

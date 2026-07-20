@@ -41,6 +41,8 @@ export interface DailySpotlightInput {
   /** 연주가 진입한 프로펙션 앵글 하우스 (없으면 null) */
   lordProfectionAngleHouse: number | null;
   angleStrikes: DailyAngleStrike[];
+  /** Phase 2 트리거 신호(일월식·시저지·정지·MPD→SR→달). 점수에 그대로 합산 */
+  extraSignals?: DailySpotlightSignal[];
 }
 
 const PLANET_KEY: Record<string, string> = {
@@ -152,6 +154,12 @@ export function computeDailySpotlight(input: DailySpotlightInput): DailySpotligh
     });
   }
   score += Math.min(strikeTotal, ANGLE_STRIKE_CAP);
+
+  // 5. Phase 2 트리거(일월식·시저지·정지·MPD→SR→달) — 점수에 합산
+  for (const sig of input.extraSignals ?? []) {
+    signals.push(sig);
+    score += sig.weight;
+  }
 
   const level: DailyLevel =
     score >= 4 ? "major" : score === 3 ? "clear" : score === 2 ? "notable" : "quiet";
