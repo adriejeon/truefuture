@@ -70,6 +70,11 @@ import {
   getLordOfYearFixedStarConjunctions,
   formatLordStarConjunctionsForPrompt,
 } from "./utils/advancedAstrology.ts";
+// 데일리 "오늘의 신호 등급" 스코어링 (연주–항성 회합 최상위 가중)
+import {
+  computeDailySpotlight,
+  formatDailySpotlightForPrompt,
+} from "./utils/dailySpotlight.ts";
 
 // Neo4j 전문 해석 데이터 조회
 import {
@@ -3175,6 +3180,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         }
       | undefined;
     let dailyLordStarConjunctionsText: string | undefined;
+    let dailyLordStarConjunctions: any[] = [];
     let dailyFlowAM: import("./types.ts").DailyFlowSummary | undefined;
     let dailyFlowPM: import("./types.ts").DailyFlowSummary | undefined;
     let dailyAngleStrikes: import("./types.ts").DailyAngleStrike[] | undefined;
@@ -3244,6 +3250,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             lordName,
             now.getFullYear(),
           );
+          dailyLordStarConjunctions = lordStarConjunctions;
           dailyLordStarConjunctionsText = formatLordStarConjunctionsForPrompt(
             lordName,
             lordStarConjunctions,
@@ -3297,6 +3304,29 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
               (s) => s.phase === "Separating",
             ),
           };
+
+          // 오늘의 신호 등급(스포트라이트 스코어링) — 연주 상태가 다 계산된 뒤 종합.
+          // 연주–항성 회합을 최상위 축으로, 날 등급(잔잔/주목/뚜렷/중대)을 산출해
+          // 데일리 프롬프트의 해석 강도·분량을 게이팅한다. 실패 시 기존 항성 텍스트 유지.
+          try {
+            const firdaria = calculateFirdaria(birthDateTime, { lat, lng }, now);
+            const spotlight = computeDailySpotlight({
+              lordName,
+              profectionSign: dailyProfection.profectionSign,
+              natalPlanets: chartData.planets,
+              firdariaSubLord: firdaria.subLord ?? null,
+              lordStarConjunctions: dailyLordStarConjunctions,
+              lordRetrograde: isRetrograde,
+              lordProfectionAngleHouse: lordProfectionAngleEntry?.house ?? null,
+              angleStrikes: dailyAngleStrikes ?? [],
+            });
+            dailyLordStarConjunctionsText = formatDailySpotlightForPrompt(spotlight);
+          } catch (spotErr: any) {
+            console.warn(
+              "⚠️ [DAILY] 스포트라이트 스코어링 실패 (기존 항성 텍스트 유지):",
+              spotErr?.message,
+            );
+          }
         }
       } catch (err: any) {
         console.warn(

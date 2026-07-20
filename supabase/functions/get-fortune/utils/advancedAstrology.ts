@@ -1295,6 +1295,8 @@ export interface LordStarConjunctionItem {
   meaning: string;
   distance: number;
   phase: "접근 중" | "분리 중";
+  /** 항성 등급(magnitude). 스포트라이트 가중용(1~2등성=밝은 항성) */
+  magnitude: number;
 }
 
 /**
@@ -1335,6 +1337,7 @@ export function getLordOfYearFixedStarConjunctions(
         meaning: effectText,
         distance: result.distance,
         phase: result.applying ? "접근 중" : "분리 중",
+        magnitude: star.magnitude,
       });
     }
   }
