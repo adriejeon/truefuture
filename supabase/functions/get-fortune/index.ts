@@ -3234,7 +3234,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           transitChartData,
           lordName,
         );
-        // 연주–항성 회합 (접근 0.66° / 분리 0.5° 엄격 Orb, 세차 적용)
+        // 연주–항성 회합 (등급별 orb: 1~2등성 40'/30', 3등성 30'/20', 세차 적용)
         try {
           const { longitude: lordLon, speed: lordSpeed } =
             getPlanetLongitudeAndSpeed(lordKey, now);
