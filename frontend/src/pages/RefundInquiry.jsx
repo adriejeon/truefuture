@@ -1,52 +1,118 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import DatePicker from "react-datepicker";
-import { ko as localeKo } from "date-fns/locale/ko";
-import { enUS } from "date-fns/locale/en-US";
-import "react-datepicker/dist/react-datepicker.css";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function formatLocalDateTime(d) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+const STORE_LINKS = {
+  apple: "https://reportaproblem.apple.com",
+  google: "https://play.google.com/store/account/orderhistory",
+};
+
+// related_item_id 접두사로 결제 채널을 판정한다. (send-email의 판정과 동일 규칙)
+//   웹  : purchase-stars     → PortOne merchant_uid / imp_uid
+//   IAP : purchase-stars-iap → `iap_{platform}_{purchase_id}`
+function resolvePaymentChannel(relatedItemId) {
+  const id = (relatedItemId ?? "").toString();
+  if (id.startsWith("iap_ios_")) return { key: "ios", store: "apple" };
+  if (id.startsWith("iap_android_")) return { key: "android", store: "google" };
+  return { key: "web", store: null };
 }
 
 function RefundInquiry() {
   const { t, i18n } = useTranslation();
-  const { user } = useAuth();
+  const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
   const [replyEmail, setReplyEmail] = useState(user?.email || "");
   const [emailError, setEmailError] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [productName, setProductName] = useState("");
-  const [paymentDate, setPaymentDate] = useState(null);
-  const [transactionId, setTransactionId] = useState(searchParams.get("transactionId") || "");
   const [refundReason, setRefundReason] = useState("");
+  const [transactions, setTransactions] = useState([]);
+  const [selectedTxId, setSelectedTxId] = useState(searchParams.get("transactionId") || "");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const dateFnsLocale = i18n.language?.startsWith("ko") ? localeKo : enUS;
+  useEffect(() => {
+    if (!replyEmail && user?.email) {
+      setReplyEmail(user.email);
+    }
+  }, [user?.email]);
 
   useEffect(() => {
-    const txId = searchParams.get("transactionId");
-    const date = searchParams.get("purchaseDate");
+    if (loadingAuth) return;
 
-    if (txId) {
-      setTransactionId(txId);
+    if (!user) {
+      navigate("/login", { replace: true });
+      return;
     }
-    if (date && /^\d{4}-\d{2}-\d{2}/.test(date)) {
-      const ymd = date.slice(0, 10);
-      setPaymentDate(new Date(`${ymd}T00:00:00`));
-    }
-  }, [searchParams]);
+
+    let cancelled = false;
+
+    const fetchTransactions = async () => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+
+        const { data, error } = await supabase
+          .from("star_transactions")
+          .select(
+            "id, created_at, description, related_item_id, amount, paid_amount, bonus_amount, probe_amount, expires_at, is_expired"
+          )
+          .eq("user_id", user.id)
+          .eq("type", "CHARGE")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const rows = data || [];
+        setTransactions(rows);
+
+        // 딥링크로 넘어온 건이 목록에 없으면 선택을 비운다.
+        setSelectedTxId((prev) => {
+          if (prev && rows.some((tx) => tx.id === prev)) return prev;
+          return rows.length === 1 ? rows[0].id : "";
+        });
+      } catch (err) {
+        if (cancelled) return;
+        console.error("❌ 결제 내역 조회 실패:", err);
+        setLoadError(t("refund_inquiry.error_load"));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchTransactions();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, loadingAuth]);
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const locale = i18n.language?.startsWith("ko") ? "ko-KR" : "en-US";
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
+
+  const getPackageName = (description) => {
+    if (!description) return t("refund_inquiry.product_fallback");
+    const name = description.replace(/(운세권\s*구매|IAP\s*구매)\s*:/gi, "").trim();
+    return name || t("refund_inquiry.product_fallback");
+  };
+
+  const selectedTx = transactions.find((tx) => tx.id === selectedTxId) || null;
+  const selectedChannel = selectedTx ? resolvePaymentChannel(selectedTx.related_item_id) : null;
+  const isStorePurchase = !!selectedChannel?.store;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,46 +124,43 @@ function RefundInquiry() {
       return;
     }
 
-    if (!paymentAmount.trim()) {
-      alert(t("refund_inquiry.error_amount"));
+    if (!selectedTx) {
+      alert(t("refund_inquiry.error_select"));
       return;
     }
 
-    if (!productName.trim()) {
-      alert(t("refund_inquiry.error_product"));
+    // 인앱결제는 애플/구글이 환불 주체다. 서버에서도 거부하지만 여기서 먼저 막는다.
+    if (isStorePurchase) {
       return;
     }
-
-    if (!paymentDate || Number.isNaN(paymentDate.getTime())) {
-      alert(t("refund_inquiry.error_datetime"));
-      return;
-    }
-
-    const dt = formatLocalDateTime(paymentDate);
 
     setIsSubmitting(true);
 
     try {
+      // 결제 정보는 보내지 않는다. 서버가 transactionId로 DB에서 직접 조회한다.
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
-          to: "jupiteradrie@gmail.com",
-          subject: `[환불 문의] ${trimmedReply}`,
           type: "refund",
+          transactionId: selectedTx.id,
           replyTo: trimmedReply,
           content: {
-            userEmail: trimmedReply,
-            userName: user?.user_metadata?.full_name || user?.email || "알 수 없음",
-            paymentMethod: "국내카드 결제",
-            paymentAmount: paymentAmount.trim(),
-            productName: productName.trim(),
-            paymentDateTime: dt,
-            transactionId: transactionId || "미입력",
             refundReason: refundReason.trim() || "미입력",
           },
         },
       });
 
-      if (error) throw error;
+      // 함수가 4xx를 반환하면 supabase-js는 FunctionsHttpError를 던지고 data는 null이 된다.
+      // 서버가 담아 보낸 안내 문구는 error.context(Response) 본문에 있으므로 꺼내서 보여준다.
+      if (error) {
+        let serverMessage = "";
+        try {
+          const detail = await error.context?.json?.();
+          serverMessage = detail?.error || "";
+        } catch {
+          serverMessage = "";
+        }
+        throw new Error(serverMessage || t("refund_inquiry.error_send"));
+      }
 
       if (!data?.success) {
         throw new Error(data?.error || t("refund_inquiry.error_send"));
@@ -111,6 +174,97 @@ function RefundInquiry() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const renderTransactionList = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+        </div>
+      );
+    }
+
+    if (loadError) {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-700">{loadError}</p>
+        </div>
+      );
+    }
+
+    if (transactions.length === 0) {
+      return (
+        <div className="border border-gray-200 rounded-lg p-6 text-center">
+          <p className="text-gray-600 mb-4">{t("refund_inquiry.empty")}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/purchase")}
+            className="text-sm font-semibold text-yellow-700 hover:text-yellow-800 underline"
+          >
+            {t("refund_inquiry.go_purchase")}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {transactions.map((tx) => {
+          const channel = resolvePaymentChannel(tx.related_item_id);
+          const isSelected = tx.id === selectedTxId;
+          return (
+            <label
+              key={tx.id}
+              className={`block border rounded-lg p-4 cursor-pointer transition-colors ${
+                isSelected
+                  ? "border-yellow-500 bg-yellow-50"
+                  : "border-gray-300 bg-white hover:border-gray-400"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="transaction"
+                  value={tx.id}
+                  checked={isSelected}
+                  onChange={() => setSelectedTxId(tx.id)}
+                  className="mt-1 accent-yellow-500"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-semibold text-gray-900 truncate">
+                      {getPackageName(tx.description)}
+                    </span>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 text-xs rounded-full ${
+                        tx.is_expired
+                          ? "bg-red-100 text-red-700"
+                          : "bg-green-100 text-green-700"
+                      }`}
+                    >
+                      {tx.is_expired
+                        ? t("refund_inquiry.status_expired")
+                        : t("refund_inquiry.status_valid")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {t("refund_inquiry.purchased_at_label")} {formatDate(tx.created_at)}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {t("refund_inquiry.channel_label")}{" "}
+                    {t(`refund_inquiry.channel_${channel.key}`)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 break-all">
+                    {t("refund_inquiry.tx_id_label")} {tx.related_item_id || tx.id}
+                  </p>
+                </div>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -157,11 +311,36 @@ function RefundInquiry() {
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
             <label className="block text-gray-900 font-medium mb-2">
+              {t("refund_inquiry.select_label")} <span className="text-red-600">*</span>
+            </label>
+            <p className="text-xs text-gray-600 mb-2">{t("refund_inquiry.select_hint")}</p>
+            {renderTransactionList()}
+          </div>
+
+          {isStorePurchase && (
+            <div className="bg-blue-50 border border-blue-300 rounded-lg p-4">
+              <p className="font-semibold text-blue-900 mb-2">
+                {t("refund_inquiry.iap_title")}
+              </p>
+              <p className="text-sm text-blue-800 mb-3">
+                {t(`refund_inquiry.iap_desc_${selectedChannel.store}`)}
+              </p>
+              <a
+                href={STORE_LINKS[selectedChannel.store]}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                {t(`refund_inquiry.iap_btn_${selectedChannel.store}`)}
+              </a>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-gray-900 font-medium mb-2">
               {t("refund_inquiry.email_label")} <span className="text-red-600">*</span>
             </label>
-            <p className="text-xs text-gray-600 mb-2">
-              {t("refund_inquiry.email_hint")}
-            </p>
+            <p className="text-xs text-gray-600 mb-2">{t("refund_inquiry.email_hint")}</p>
             <input
               type="email"
               inputMode="email"
@@ -178,11 +357,7 @@ function RefundInquiry() {
               required
             />
             {emailError && (
-              <p
-                id="refund-email-error"
-                className="mt-2 text-sm text-red-600"
-                role="alert"
-              >
+              <p id="refund-email-error" className="mt-2 text-sm text-red-600" role="alert">
                 {emailError}
               </p>
             )}
@@ -190,71 +365,8 @@ function RefundInquiry() {
 
           <div>
             <label className="block text-gray-900 font-medium mb-2">
-              {t("refund_inquiry.amount_label")} <span className="text-red-600">*</span>
+              {t("refund_inquiry.reason_label")}
             </label>
-            <input
-              type="text"
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
-              placeholder={t("refund_inquiry.amount_placeholder")}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-yellow-500 bg-white"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-900 font-medium mb-2">
-              {t("refund_inquiry.product_label")} <span className="text-red-600">*</span>
-            </label>
-            <input
-              type="text"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              placeholder={t("refund_inquiry.product_placeholder")}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-yellow-500 bg-white"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-900 font-medium mb-2">
-              {t("refund_inquiry.datetime_label")} <span className="text-red-600">*</span>
-            </label>
-            <p className="text-xs text-gray-600 mb-2">
-              {t("refund_inquiry.datetime_hint")}
-            </p>
-            <DatePicker
-              selected={paymentDate}
-              onChange={(date) => setPaymentDate(date)}
-              showTimeSelect
-              timeIntervals={1}
-              dateFormat="Pp"
-              locale={dateFnsLocale}
-              placeholderText={t("refund_inquiry.datetime_placeholder")}
-              timeCaption={t("refund_inquiry.time_caption")}
-              autoComplete="off"
-              wrapperClassName="w-full block"
-              popperClassName="refund-datepicker-popper z-[200]"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-yellow-500 bg-white"
-            />
-          </div>
-
-          {transactionId && (
-            <div>
-              <label className="block text-gray-900 font-medium mb-2">
-                {t("refund_inquiry.tx_id_label")}
-              </label>
-              <input
-                type="text"
-                value={transactionId}
-                readOnly
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-600 bg-gray-100 cursor-not-allowed"
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="block text-gray-900 font-medium mb-2">{t("refund_inquiry.reason_label")}</label>
             <textarea
               value={refundReason}
               onChange={(e) => setRefundReason(e.target.value)}
@@ -266,8 +378,8 @@ function RefundInquiry() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-300 text-gray-900 font-bold py-4 text-lg rounded-lg transition-colors"
+            disabled={isSubmitting || loading || !selectedTx || isStorePurchase}
+            className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-200 disabled:text-gray-400 text-gray-900 font-bold py-4 text-lg rounded-lg transition-colors"
           >
             {isSubmitting ? t("refund_inquiry.submitting") : t("refund_inquiry.submit_btn")}
           </button>

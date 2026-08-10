@@ -91,14 +91,6 @@ function PurchaseHistory() {
     }).format(date);
   };
 
-  const formatDateForRefund = (dateString) => {
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
   const getPackageName = (description) => {
     if (!description) return t("purchase_history.purchase_fallback");
     
@@ -131,9 +123,9 @@ function PurchaseHistory() {
     }
   };
 
+  // 결제 일시·상품명은 환불 문의 페이지가 DB에서 직접 읽는다. 거래 ID만 넘긴다.
   const handleRefundRequest = (tx) => {
-    const purchaseDate = formatDateForRefund(tx.created_at);
-    navigate(`/refund-inquiry?transactionId=${tx.id}&purchaseDate=${encodeURIComponent(purchaseDate)}`);
+    navigate(`/refund-inquiry?transactionId=${encodeURIComponent(tx.id)}`);
   };
 
   const getExpirationStatus = (tx) => {
