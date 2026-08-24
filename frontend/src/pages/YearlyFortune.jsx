@@ -526,12 +526,17 @@ function YearlyFortune() {
                 fullData?.transitMoonHouse ?? debug?.transitMoonHouse,
               shareId: sid,
             });
-            await saveFortuneHistory(
-              selectedProfile.id,
-              "daily",
-              sid ?? undefined,
-              targetDate
-            );
+            // sid가 없으면 서버도 결과를 저장하지 못한 상태다.
+            // 이때 이력을 남기면 조회만 막히고 복구는 불가능해지므로 저장하지 않는다.
+            // (sid가 있으면 서버가 이미 같은 이력을 넣지만, 서버 insert 실패 대비로 유지)
+            if (sid) {
+              await saveFortuneHistory(
+                selectedProfile.id,
+                "daily",
+                sid,
+                targetDate
+              );
+            }
             setFortuneAvailability((prev) => ({ ...prev, daily: false }));
             setInterpretation(text);
             setFromCache(false);
@@ -669,8 +674,10 @@ function YearlyFortune() {
     }
   }, [user?.id, selectedProfile, saveFortuneHistory, t]);
 
-  // 데일리: 이미 오늘 조회함(DB 또는 로컬캐시) 또는 조회 불가면 버튼 비활성화
+  // 데일리: 이미 조회함(DB 또는 로컬캐시)이면 버튼 비활성화
+  // DB 기준(fortuneAvailability.daily)을 함께 보므로 기기를 바꿔도 정확하다. null은 확인 전.
   const canViewDaily =
+    fortuneAvailability.daily !== false &&
     !getDailyFortuneFromStorage(
       selectedProfile?.id,
       dailyTargetDate || getLocalTodayDate()

@@ -283,7 +283,12 @@ export function useProfiles() {
                 ? targetDate
                 : todayDateKst;
             if (history && history.length > 0) {
-              const already = history.some((h) => h?.fortune_date === dateToCheck);
+              // result_id가 있는 기록만 "이미 조회함"으로 인정한다.
+              // 복구(restoreFortuneIfExists)와 서버 중복 체크가 모두 result_id 기준이므로,
+              // result_id 없는 기록까지 막으면 결과는 못 보는데 재발급도 안 되는 상태가 된다.
+              const already = history.some(
+                (h) => h?.fortune_date === dateToCheck && h?.result_id
+              );
               if (already) {
                 return {
                   available: false,
