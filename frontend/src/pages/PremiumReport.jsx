@@ -27,13 +27,13 @@ import { trackPurchase } from "../utils/analytics";
 import { colors } from "../constants/colors";
 import { SITE_ORIGIN } from "../constants/seoMeta";
 
-const REPORT_PRICE = 15000;
+const REPORT_PRICE = 18000;
 const QUESTION_MAX = 300;
 const CHECKOUT_STORAGE_KEY = "premium_report_checkout";
 
-const PAGE_TITLE = "프리미엄 상세 리포트 | 진짜미래 - 전문가 서면 감정 리포트";
+const PAGE_TITLE = "프리미엄 상세 리포트 | 진짜미래 - 질문 상담과 10년 시기 리포트";
 const PAGE_DESCRIPTION =
-  "출생 차트 전체를 정밀 감정하는 프리미엄 상세 리포트. 타고난 기질·재능·직업·재물·연애·건강에 생시 기반 시기 분석과 나만의 질문 풀이까지, PDF로 소장하는 전문가 수준의 서면 감정서입니다.";
+  "궁금한 질문에 먼저 답하고, 출생 시각 기반으로 앞으로 10년의 흐름을 연도별로 풀어드리는 서면 상담 리포트. 완성본은 텍스트 PDF로 기기에 저장해 소장할 수 있습니다.";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -78,7 +78,6 @@ function PremiumReport() {
   const [pdfSaving, setPdfSaving] = useState(false);
   const genLoopRef = useRef(false);
   const redirectHandledRef = useRef(false);
-  const pdfContainerRef = useRef(null);
 
   const reportIdParam = searchParams.get("id");
 
@@ -401,38 +400,37 @@ function PremiumReport() {
 
   // ===== PDF 저장 =====
 
+  // 텍스트 레이어를 가진 실제 PDF 생성 (@react-pdf/renderer + 한글 서브셋 폰트)
   const handleSavePdf = async () => {
     if (!report?.content || pdfSaving) return;
     setPdfSaving(true);
     try {
-      const { default: html2pdf } = await import("html2pdf.js");
-      const element = pdfContainerRef.current;
-      if (!element) throw new Error("PDF 영역을 찾을 수 없습니다.");
+      const [{ pdf }, { registerReportFonts, buildReportPdfDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../pdf/reportPdf"),
+      ]);
+      registerReportFonts("/fonts");
+
+      const doc = buildReportPdfDocument({
+        snapshot: report.profile_snapshot || {},
+        question: report.question || null,
+        content: report.content,
+        createdAt: report.created_at,
+      });
+      const blob = await pdf(doc).toBlob();
 
       const name = report.profile_snapshot?.name || "내담자";
       const dateStr = (report.created_at || "").substring(0, 10).replace(/-/g, "");
       const filename = `진짜미래_상세리포트_${name}_${dateStr}.pdf`;
 
-      // 캔버스 최대 크기 제한(브라우저 한계) 안에서 최대 해상도 선택
-      const scrollHeight = element.scrollHeight || 1;
-      const scale = Math.max(1, Math.min(2, 30000 / scrollHeight));
-
-      await html2pdf()
-        .set({
-          margin: [12, 12, 14, 12],
-          filename,
-          image: { type: "jpeg", quality: 0.92 },
-          html2canvas: {
-            scale,
-            useCORS: true,
-            backgroundColor: "#ffffff",
-            windowWidth: 794,
-          },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-          pagebreak: { mode: ["css", "legacy"], avoid: ["h1", "h2", "h3", "blockquote"] },
-        })
-        .from(element)
-        .save();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err) {
       console.error("❌ PDF 저장 실패:", err);
       alert(t("premium_report.pdf_error"));
@@ -475,10 +473,10 @@ function PremiumReport() {
   };
 
   const features = [
-    { Icon: Fingerprint, key: "feature_nature" },
-    { Icon: Briefcase, key: "feature_life" },
-    { Icon: CalendarRange, key: "feature_timing" },
     { Icon: MessageCircleQuestion, key: "feature_question" },
+    { Icon: CalendarRange, key: "feature_timing" },
+    { Icon: Briefcase, key: "feature_life" },
+    { Icon: Fingerprint, key: "feature_nature" },
     { Icon: FileDown, key: "feature_pdf" },
   ];
 
@@ -757,7 +755,6 @@ function PremiumReport() {
 
   const renderDone = () => {
     const snapshot = report?.profile_snapshot || {};
-    const birthLabel = String(snapshot.birth_date || "").substring(0, 16).replace("T", " ");
     return (
       <div className="py-4">
         <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
@@ -814,95 +811,6 @@ function PremiumReport() {
           </div>
         </div>
 
-        {/* PDF 렌더링용 오프스크린 컨테이너 (라이트 테마 A4) */}
-        <div
-          style={{
-            position: "fixed",
-            left: "-10000px",
-            top: 0,
-            width: "794px",
-            zIndex: -1,
-          }}
-          aria-hidden="true"
-        >
-          <div
-            ref={pdfContainerRef}
-            style={{
-              width: "794px",
-              backgroundColor: "#ffffff",
-              color: "#1f2333",
-              fontFamily:
-                "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
-              padding: "8px 6px",
-              lineHeight: 1.75,
-              fontSize: "13px",
-            }}
-            className="premium-pdf-root"
-          >
-            <style>{`
-              .premium-pdf-root h1 { font-size: 21px; margin: 0 0 6px; color: #14162b; }
-              .premium-pdf-root h2 { font-size: 17px; margin: 26px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #E1AC3F; color: #14162b; page-break-after: avoid; }
-              .premium-pdf-root h3 { font-size: 14.5px; margin: 18px 0 6px; color: #2a2d45; page-break-after: avoid; }
-              .premium-pdf-root p { margin: 0 0 10px; }
-              .premium-pdf-root blockquote { margin: 6px 0 12px; padding: 8px 14px; background: #faf5e9; border-left: 3px solid #E1AC3F; color: #5a4a22; font-weight: 500; }
-              .premium-pdf-root ul, .premium-pdf-root ol { margin: 0 0 10px; padding-left: 20px; }
-              .premium-pdf-root li { margin-bottom: 4px; }
-              .premium-pdf-root strong { color: #14162b; }
-            `}</style>
-            <div
-              style={{
-                textAlign: "center",
-                padding: "26px 0 20px",
-                borderBottom: "3px solid #E1AC3F",
-                marginBottom: "10px",
-              }}
-            >
-              <p style={{ margin: 0, fontSize: "11px", letterSpacing: "4px", color: "#a08428" }}>
-                TRUE FUTURE PREMIUM REPORT
-              </p>
-              <h1 style={{ margin: "10px 0 4px", fontSize: "24px" }}>프리미엄 상세 리포트</h1>
-              <p style={{ margin: "2px 0", fontSize: "12.5px", color: "#555a75" }}>
-                {snapshot.name || ""}
-                {snapshot.gender ? ` · ${snapshot.gender}` : ""}
-              </p>
-              <p style={{ margin: "2px 0", fontSize: "12px", color: "#555a75" }}>
-                {birthLabel}
-                {snapshot.city_name ? ` · ${snapshot.city_name}` : ""}
-              </p>
-              <p style={{ margin: "2px 0", fontSize: "11px", color: "#8a8fa8" }}>
-                발행일 {formatDate(report?.created_at)} · truefuture.kr
-              </p>
-            </div>
-            {report?.question && (
-              <div
-                style={{
-                  margin: "0 0 14px",
-                  padding: "10px 14px",
-                  background: "#f4f5fb",
-                  borderRadius: "6px",
-                  fontSize: "12.5px",
-                }}
-              >
-                <strong style={{ color: "#a08428" }}>내담자님의 질문</strong>
-                <p style={{ margin: "4px 0 0" }}>{report.question}</p>
-              </div>
-            )}
-            <FortuneMarkdown>{report?.content || ""}</FortuneMarkdown>
-            <div
-              style={{
-                marginTop: "24px",
-                paddingTop: "12px",
-                borderTop: "1px solid #d8dbe8",
-                fontSize: "10.5px",
-                color: "#8a8fa8",
-                textAlign: "center",
-              }}
-            >
-              본 리포트는 서양 고전 점성술 이론에 기반한 해석 콘텐츠로, 의료·법률·투자 판단의
-              근거가 될 수 없습니다. © 진짜미래 truefuture.kr
-            </div>
-          </div>
-        </div>
       </div>
     );
   };

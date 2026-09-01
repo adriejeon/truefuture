@@ -19,6 +19,8 @@ import {
   buildBaseData,
   buildNatalBasePrompt,
   buildTimingPrompt,
+  buildTenYearTimingData,
+  buildCompactNatalBlock,
 } from "./reportData.ts";
 import type { ProfileSnapshot } from "./reportData.ts";
 import {
@@ -31,7 +33,11 @@ import {
   getPremiumPrompt_Part1,
   getPremiumPrompt_Part2,
   getPremiumPrompt_Part3,
+  QUESTION_DECOMPOSE_SYSTEM,
 } from "./premiumPrompts.ts";
+import type { SubQuestion } from "./premiumPrompts.ts";
+import { validateSection } from "./reportValidation.ts";
+import type { SectionValidationContext } from "./reportValidation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,13 +47,15 @@ const corsHeaders = {
 };
 
 // ===== 상품 정의 (서버가 단일 진실 공급원) =====
-const REPORT_PRICE_KRW = 15000;
+const REPORT_PRICE_KRW = 18000;
 const REPORT_PRODUCT_NAME = "프리미엄 상세 리포트 (Premium_Report)";
 const SECTIONS_TOTAL = 3;
 const QUESTION_MAX_LENGTH = 500;
 
 // 플래그십 유료 상품 → Pro 모델 고정 (품질 우선, flash 폴백 없음)
 const GEMINI_PRO_MODEL = "gemini-3.1-pro-preview";
+// 질문 분해(구조화 출력) 등 보조 작업용 경량 모델
+const GEMINI_FLASH_MODEL = "gemini-3.5-flash";
 
 // 생성 중복 방지 락 유효 시간 (이 시간이 지나면 죽은 락으로 간주하고 재시도 허용)
 const GENERATION_LOCK_TTL_MS = 4 * 60 * 1000;
@@ -94,16 +102,17 @@ interface GeminiUsage {
 /**
  * Vertex Gemini 호출 (non-stream).
  * - 429: 지수 백오프 재시도 (최대 3회)
- * - 503/과부하: 3s → 8s 대기 후 Pro 모델로 재시도 (유료 리포트이므로 flash 폴백 없이 Pro 고정)
+ * - 503/과부하: 3s → 8s 대기 후 같은 모델로 재시도 (유료 리포트이므로 품질 하향 폴백 없음)
  * - usageMetadata(토큰 사용량)를 함께 반환·로깅 (원가 모니터링용)
  */
-async function callGeminiPro(
+async function callGemini(
+  modelName: string,
   requestBody: any,
 ): Promise<{ text: string; usage: GeminiUsage | null }> {
-  const endpoint = buildVertexUrl(GEMINI_PRO_MODEL, "generateContent");
+  const endpoint = buildVertexUrl(modelName, "generateContent");
   const normalizedBody = normalizeVertexRequest(requestBody);
   logVertexRequestShape(normalizedBody, {
-    model: GEMINI_PRO_MODEL,
+    model: modelName,
     method: "generateContent",
   });
 
@@ -166,7 +175,7 @@ async function callGeminiPro(
       console.log(
         JSON.stringify({
           logType: "PREMIUM_REPORT_USAGE",
-          model: GEMINI_PRO_MODEL,
+          model: modelName,
           promptTokenCount: usage.promptTokenCount ?? 0,
           candidatesTokenCount: usage.candidatesTokenCount ?? 0,
           thoughtsTokenCount: usage.thoughtsTokenCount ?? 0,
@@ -178,47 +187,183 @@ async function callGeminiPro(
   }
 }
 
-// ===== 섹션 생성 =====
+// ===== 질문 분해 (구조화 출력) =====
+
+async function decomposeQuestion(question: string): Promise<SubQuestion[]> {
+  try {
+    const requestBody = {
+      contents: [{ role: "user", parts: [{ text: `신청서 질문 원문:\n"""\n${question}\n"""` }] }],
+      systemInstruction: { parts: [{ text: QUESTION_DECOMPOSE_SYSTEM }] },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 2000,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            sub_questions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { text: { type: "string" } },
+                required: ["text"],
+              },
+            },
+          },
+          required: ["sub_questions"],
+        },
+      },
+    };
+    const { text } = await callGemini(GEMINI_FLASH_MODEL, requestBody);
+    const parsed = JSON.parse(text);
+    const items = Array.isArray(parsed?.sub_questions) ? parsed.sub_questions : [];
+    const subs: SubQuestion[] = items
+      .map((it: any) => (typeof it?.text === "string" ? it.text.trim() : ""))
+      .filter((t: string) => t.length > 0)
+      .slice(0, 5)
+      .map((t: string, i: number) => ({ id: i + 1, text: t }));
+    if (subs.length > 0) return subs;
+  } catch (e) {
+    console.warn("⚠️ 질문 분해 실패 — 원문 단일 질문으로 처리:", e);
+  }
+  return [{ id: 1, text: question }];
+}
+
+// ===== 섹션 생성 (검증 실패 시 교정 지시 후 1회 재생성) =====
+
+async function generateValidated(
+  systemText: string,
+  userPrompt: string,
+  ctx: SectionValidationContext,
+): Promise<{ text: string; usage: GeminiUsage | null }> {
+  const makeBody = (sys: string) => ({
+    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+    systemInstruction: { parts: [{ text: sys }] },
+    generationConfig: {
+      temperature: 0.7,
+      topK: 50,
+      topP: 0.95,
+      maxOutputTokens: 32768,
+    },
+  });
+
+  let result = await callGemini(GEMINI_PRO_MODEL, makeBody(systemText));
+  let verdict = validateSection(result.text, ctx);
+  if (verdict.ok) return result;
+
+  console.warn(
+    JSON.stringify({
+      logType: "PREMIUM_REPORT_VALIDATION_RETRY",
+      sectionIndex: ctx.sectionIndex,
+      problems: verdict.problems,
+    }),
+  );
+  const corrective =
+    systemText +
+    "\n\n### [재생성 교정 지시 — 반드시 반영]\n" +
+    "직전 원고가 아래 검증에 실패했습니다. 전체 원고를 처음부터 다시 작성하되, 아래 문제를 모두 해결하십시오:\n" +
+    verdict.problems.map((p) => `- ${p}`).join("\n");
+
+  result = await callGemini(GEMINI_PRO_MODEL, makeBody(corrective));
+  verdict = validateSection(result.text, ctx);
+  if (!verdict.ok) {
+    throw new Error(
+      `원고 검증 실패 (재생성 후에도): ${verdict.problems.slice(0, 5).join(" / ")}`,
+    );
+  }
+  return result;
+}
+
+/** 연도 제목 문자열: "2026년 (9월~12월, 만 34~35세)" */
+function yearHeading(l: { year: number; partial: string | null; ages: string }): string {
+  return l.partial
+    ? `${l.year}년 (${l.partial}, ${l.ages})`
+    : `${l.year}년 (${l.ages})`;
+}
 
 async function generateSection(
   sectionIndex: number,
   snapshot: ProfileSnapshot,
   question: string | null,
+  subQuestions: SubQuestion[] | null,
+  baseDate: Date,
+  priorContent: string,
 ): Promise<{ text: string; usage: GeminiUsage | null }> {
   const base = await buildBaseData(snapshot);
-
-  let systemText: string;
-  let userPrompt: string;
+  const questionTopic = question ? question.substring(0, 120) : null;
 
   if (sectionIndex === 0) {
-    systemText = getPremiumPrompt_Part1();
-    userPrompt =
+    // 파트 1: 상담 도입 + 질문 답변 + 배경 성향
+    const systemText = getPremiumPrompt_Part1(subQuestions);
+    const questionBlock = question
+      ? `\n\n[신청서 질문 원문]\n"""\n${question}\n"""`
+      : "";
+    const userPrompt =
       buildNatalBasePrompt(base, snapshot) +
-      "\n\n위 데이터를 근거로 리포트 파트 1(소제목 1~4)을 작성해 주세요.";
-  } else if (sectionIndex === 1) {
-    systemText = getPremiumPrompt_Part2();
-    userPrompt =
-      buildNatalBasePrompt(base, snapshot) +
-      "\n\n위 데이터를 근거로 리포트 파트 2(소제목 5~8)를 작성해 주세요.";
-  } else {
-    systemText = getPremiumPrompt_Part3(question);
-    userPrompt =
+      "\n\n" +
       (await buildTimingPrompt(base, snapshot)) +
-      "\n\n위 데이터를 근거로 리포트 파트 3(소제목 9~12)을 작성해 주세요.";
+      questionBlock +
+      "\n\n위 데이터를 근거로 리포트 파트 1을 작성해 주세요.";
+    const ctx: SectionValidationContext = {
+      sectionIndex: 0,
+      subQuestions,
+      expectedYears: [],
+    };
+    return await generateValidated(systemText, userPrompt, ctx);
   }
 
-  const requestBody = {
-    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-    systemInstruction: { parts: [{ text: systemText }] },
-    generationConfig: {
-      temperature: 0.85,
-      topK: 50,
-      topP: 0.95,
-      maxOutputTokens: 16000,
-    },
-  };
+  // 파트 2·3: 10년 시기 데이터
+  const tenYear = await buildTenYearTimingData(base, snapshot, baseDate);
+  const splitAt = 6; // 전반부 6개 연도 / 후반부 나머지 (11개 달력 연도 기준 6+5)
+  const part2Labels = tenYear.yearLabels.slice(0, splitAt);
+  const part3Labels = tenYear.yearLabels.slice(splitAt);
 
-  return await callGeminiPro(requestBody);
+  if (sectionIndex === 1) {
+    const systemText = getPremiumPrompt_Part2(
+      part2Labels.map(yearHeading),
+      questionTopic,
+    );
+    const userPrompt =
+      buildCompactNatalBlock(base, snapshot) +
+      "\n\n" +
+      tenYear.buildYearsBlock(part2Labels.map((l) => l.year)) +
+      `\n\n(참고: 이 파트에서는 ${part2Labels[0].year}~${part2Labels[part2Labels.length - 1].year}년을 다루고, 나머지 연도(${part3Labels[0].year}~${part3Labels[part3Labels.length - 1].year}년)는 다음 파트에서 이어집니다. 전체 흐름 요약에서는 10년 전체(${tenYear.startYear}~${tenYear.endYear}년)를 조망하십시오.)` +
+      "\n\n위 데이터를 근거로 리포트 파트 2를 작성해 주세요.";
+    const ctx: SectionValidationContext = {
+      sectionIndex: 1,
+      subQuestions,
+      expectedYears: part2Labels.map((l) => l.year),
+    };
+    return await generateValidated(systemText, userPrompt, ctx);
+  }
+
+  // 파트 3: 앞 파트의 전체 흐름 요약을 발췌해 모순 없이 이어가게 함
+  let part2Summary = "";
+  const summaryMatch = priorContent.match(
+    /##\s*앞으로 10년의 전체 흐름[\s\S]*?(?=##\s*연도별 상세 흐름)/,
+  );
+  if (summaryMatch) {
+    part2Summary = summaryMatch[0].substring(0, 2500);
+  } else {
+    part2Summary = priorContent.substring(Math.max(0, priorContent.length - 2000));
+  }
+
+  const systemText = getPremiumPrompt_Part3(
+    part3Labels.map(yearHeading),
+    questionTopic,
+    part2Summary,
+  );
+  const userPrompt =
+    buildCompactNatalBlock(base, snapshot) +
+    "\n\n" +
+    tenYear.buildYearsBlock(part3Labels.map((l) => l.year)) +
+    "\n\n위 데이터를 근거로 리포트 파트 3을 작성해 주세요.";
+  const ctx: SectionValidationContext = {
+    sectionIndex: 2,
+    subQuestions,
+    expectedYears: part3Labels.map((l) => l.year),
+  };
+  return await generateValidated(systemText, userPrompt, ctx);
 }
 
 // ===== 액션 핸들러 =====
@@ -407,7 +552,7 @@ async function handleGenerate(
   const { data: report, error: fetchError } = await supabaseAdmin
     .from("premium_reports")
     .select(
-      "id, user_id, status, sections_total, sections_done, content, question, profile_snapshot, generation_lock_at",
+      "id, user_id, status, sections_total, sections_done, content, question, question_breakdown, profile_snapshot, generation_lock_at, created_at",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -467,10 +612,38 @@ async function handleGenerate(
 
   try {
     const snapshot = report.profile_snapshot as ProfileSnapshot;
+    const question: string | null = report.question ?? null;
+
+    // 질문 분해 (최초 1회, 구조화 저장 → 검증에 사용)
+    let subQuestions: SubQuestion[] | null = Array.isArray(report.question_breakdown)
+      ? (report.question_breakdown as SubQuestion[])
+      : null;
+    if (question && (!subQuestions || subQuestions.length === 0)) {
+      subQuestions = await decomposeQuestion(question);
+      await supabaseAdmin
+        .from("premium_reports")
+        .update({ question_breakdown: subQuestions })
+        .eq("id", reportId);
+      console.log(
+        JSON.stringify({
+          logType: "PREMIUM_REPORT_QUESTION_BREAKDOWN",
+          reportId,
+          count: subQuestions.length,
+        }),
+      );
+    }
+    if (!question) subQuestions = null;
+
+    // 리포트 기준일 = 구매 시점 (재시도해도 불변)
+    const baseDate = new Date(report.created_at);
+
     const { text: sectionText, usage } = await generateSection(
       sectionIndex,
       snapshot,
-      report.question ?? null,
+      question,
+      subQuestions,
+      baseDate,
+      report.content ?? "",
     );
 
     const newContent = report.content

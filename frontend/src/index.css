@@ -880,11 +880,3 @@ a {
   font-weight: 700;
 }
 
-/* ===== 프리미엄 리포트 PDF (라이트 A4) — 마크다운 기본 요소 ===== */
-.premium-pdf-root ul {
-  list-style: disc;
-}
-
-.premium-pdf-root ol {
-  list-style: decimal;
-}
