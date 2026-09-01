@@ -123,8 +123,9 @@ function PremiumReport() {
       setGenError("");
       setView("generating");
       try {
-        // 최대 30회 반복 (섹션 3개 + 락 대기 재시도 여유분)
-        for (let attempt = 0; attempt < 30; attempt++) {
+        // 최대 45회 반복 (섹션 3개 + 일시 오류·검증 재생성·락 대기 여유분)
+        let consecutiveErrors = 0;
+        for (let attempt = 0; attempt < 45; attempt++) {
           let row = null;
           try {
             row = await fetchReportRow(reportId);
@@ -150,10 +151,29 @@ function PremiumReport() {
               await sleep(8000);
               continue;
             }
+            // 서버/워커 일시 장애(5xx·네트워크)는 잠시 후 이어서 재시도
+            const isTransientHttp =
+              parsed.status == null || parsed.status >= 500 || parsed.status === 429;
+            if (isTransientHttp && consecutiveErrors < 5) {
+              consecutiveErrors += 1;
+              await sleep(15000);
+              continue;
+            }
             throw new Error(parsed.message || t("premium_report.error_generate"));
           }
           if (!data?.success) {
             throw new Error(data?.error || t("premium_report.error_generate"));
+          }
+          consecutiveErrors = 0;
+
+          // 서버가 일시 오류(쿼터 등)로 이번 호출을 건너뜀 → 잠시 후 재호출
+          if (data.transient) {
+            await sleep((Number(data.waitSeconds) || 20) * 1000);
+            continue;
+          }
+          // 원고 검증 실패 → 교정 지시가 저장됐으니 즉시 재호출해 재생성
+          if (data.revalidate) {
+            continue;
           }
 
           try {

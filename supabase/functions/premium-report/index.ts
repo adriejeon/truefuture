@@ -117,10 +117,9 @@ async function callGemini(
     method: "generateContent",
   });
 
-  const overloadDelays = [3000, 8000];
+  // 요청 내 재시도는 최소화 (엣지 워커 리소스 한도 — 긴 대기·중복 생성은 다음 HTTP 요청이 수행)
+  const overloadDelays = [3000];
   let overloadAttempt = 0;
-  // 429는 분당 쿼터 소진이 대부분 → 쿼터 윈도우를 넘길 수 있게 길게 백오프 (15s→30s→60s)
-  let rateDelay = 15000;
   let rateAttempt = 0;
 
   while (true) {
@@ -138,28 +137,28 @@ async function callGemini(
       const errorText = await response.text();
       if (overloadAttempt < overloadDelays.length) {
         console.warn(
-          `⚠️ Gemini Pro 503 (overloaded). ${overloadDelays[overloadAttempt]}ms 후 재시도...`,
+          `⚠️ Gemini 503 (overloaded). ${overloadDelays[overloadAttempt]}ms 후 재시도...`,
         );
         await new Promise((r) => setTimeout(r, overloadDelays[overloadAttempt]));
         overloadAttempt++;
         continue;
       }
       throw new Error(
-        `Gemini API 503 Service Unavailable: ${errorText.substring(0, 200)}`,
+        `TRANSIENT: Gemini 503 Service Unavailable: ${errorText.substring(0, 150)}`,
       );
     }
 
     if (response.status === 429) {
-      if (rateAttempt < 3) {
-        console.warn(`⚠️ 429 Too Many Requests. ${rateDelay}ms 후 재시도...`);
-        await new Promise((r) => setTimeout(r, rateDelay));
-        rateDelay *= 2;
+      if (rateAttempt < 1) {
+        console.warn(`⚠️ 429 Too Many Requests. 10s 후 재시도...`);
+        await new Promise((r) => setTimeout(r, 10000));
         rateAttempt++;
         continue;
       }
       const errorText = await response.text();
+      // 분당 쿼터 소진 — 다음 요청에서 이어가도록 일시 오류로 표시
       throw new Error(
-        `Gemini API Quota Exceeded (429): ${errorText.substring(0, 200)}`,
+        `TRANSIENT: Gemini Quota Exceeded (429): ${errorText.substring(0, 150)}`,
       );
     }
 
@@ -231,14 +230,26 @@ async function decomposeQuestion(question: string): Promise<SubQuestion[]> {
   return [{ id: 1, text: question }];
 }
 
-// ===== 섹션 생성 (검증 실패 시 교정 지시 후 1회 재생성) =====
+// ===== 섹션 생성 =====
+// 한 HTTP 요청은 Gemini 호출을 1번만 수행한다 (엣지 워커 리소스 한도 회피).
+// 검증 실패 시 문제 목록을 VALIDATION: 접두 에러로 던지고, 호출부(handleGenerate)가
+// pending_fix 로 저장 → 다음 generate 요청이 교정 지시를 붙여 재생성한다.
 
 async function generateValidated(
   systemText: string,
   userPrompt: string,
   ctx: SectionValidationContext,
+  correctiveProblems: string[] | null,
 ): Promise<{ text: string; usage: GeminiUsage | null }> {
-  const makeBody = (sys: string) => ({
+  let sys = systemText;
+  if (correctiveProblems && correctiveProblems.length > 0) {
+    sys +=
+      "\n\n### [재생성 교정 지시 — 반드시 반영]\n" +
+      "직전 원고가 아래 검증에 실패했습니다. 전체 원고를 처음부터 다시 작성하되, 아래 문제를 모두 해결하십시오:\n" +
+      correctiveProblems.map((p) => `- ${p}`).join("\n");
+  }
+
+  const result = await callGemini(GEMINI_PRO_MODEL, {
     contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     systemInstruction: { parts: [{ text: sys }] },
     generationConfig: {
@@ -249,29 +260,9 @@ async function generateValidated(
     },
   });
 
-  let result = await callGemini(GEMINI_PRO_MODEL, makeBody(systemText));
-  let verdict = validateSection(result.text, ctx);
-  if (verdict.ok) return result;
-
-  console.warn(
-    JSON.stringify({
-      logType: "PREMIUM_REPORT_VALIDATION_RETRY",
-      sectionIndex: ctx.sectionIndex,
-      problems: verdict.problems,
-    }),
-  );
-  const corrective =
-    systemText +
-    "\n\n### [재생성 교정 지시 — 반드시 반영]\n" +
-    "직전 원고가 아래 검증에 실패했습니다. 전체 원고를 처음부터 다시 작성하되, 아래 문제를 모두 해결하십시오:\n" +
-    verdict.problems.map((p) => `- ${p}`).join("\n");
-
-  result = await callGemini(GEMINI_PRO_MODEL, makeBody(corrective));
-  verdict = validateSection(result.text, ctx);
+  const verdict = validateSection(result.text, ctx);
   if (!verdict.ok) {
-    throw new Error(
-      `원고 검증 실패 (재생성 후에도): ${verdict.problems.slice(0, 5).join(" / ")}`,
-    );
+    throw new Error(`VALIDATION:${JSON.stringify(verdict.problems.slice(0, 12))}`);
   }
   return result;
 }
@@ -290,6 +281,7 @@ async function generateSection(
   subQuestions: SubQuestion[] | null,
   baseDate: Date,
   priorContent: string,
+  correctiveProblems: string[] | null,
 ): Promise<{ text: string; usage: GeminiUsage | null }> {
   const base = await buildBaseData(snapshot);
   const questionTopic = question ? question.substring(0, 120) : null;
@@ -313,7 +305,7 @@ async function generateSection(
       subQuestions,
       expectedYears: [],
     };
-    return await generateValidated(systemText, userPrompt, ctx);
+    return await generateValidated(systemText, userPrompt, ctx, correctiveProblems);
   }
 
   // 파트 2·3: 10년 시기 데이터
@@ -338,7 +330,7 @@ async function generateSection(
       subQuestions,
       expectedYears: part2Labels.map((l) => l.year),
     };
-    return await generateValidated(systemText, userPrompt, ctx);
+    return await generateValidated(systemText, userPrompt, ctx, correctiveProblems);
   }
 
   // 파트 3: 앞 파트의 전체 흐름 요약을 발췌해 모순 없이 이어가게 함
@@ -367,7 +359,7 @@ async function generateSection(
     subQuestions,
     expectedYears: part3Labels.map((l) => l.year),
   };
-  return await generateValidated(systemText, userPrompt, ctx);
+  return await generateValidated(systemText, userPrompt, ctx, correctiveProblems);
 }
 
 // ===== 액션 핸들러 =====
@@ -556,7 +548,7 @@ async function handleGenerate(
   const { data: report, error: fetchError } = await supabaseAdmin
     .from("premium_reports")
     .select(
-      "id, user_id, status, sections_total, sections_done, content, question, question_breakdown, profile_snapshot, generation_lock_at, created_at",
+      "id, user_id, status, sections_total, sections_done, content, question, question_breakdown, profile_snapshot, generation_lock_at, created_at, generation_attempts, pending_fix",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -576,12 +568,33 @@ async function handleGenerate(
     });
   }
 
+  // 무한 재시도 방지: 누적 시도 상한 (섹션 3개 + 검증/일시오류 재시도 여유분)
+  const attempts = Number(report.generation_attempts ?? 0);
+  if (attempts >= 15) {
+    await supabaseAdmin
+      .from("premium_reports")
+      .update({
+        status: "FAILED",
+        error_message: "생성 시도 횟수 상한 초과 — 고객센터에 문의해 주세요.",
+        generation_lock_at: null,
+      })
+      .eq("id", reportId);
+    return json(500, {
+      success: false,
+      error: "리포트 생성이 반복 실패했습니다. 고객센터에 문의해 주시면 확인 후 처리해 드리겠습니다.",
+    });
+  }
+
   // 원자적 락 획득: 락이 없거나 TTL이 지난 경우에만 통과
   const nowIso = new Date().toISOString();
   const staleIso = new Date(Date.now() - GENERATION_LOCK_TTL_MS).toISOString();
   const { data: locked, error: lockError } = await supabaseAdmin
     .from("premium_reports")
-    .update({ generation_lock_at: nowIso, status: "GENERATING" })
+    .update({
+      generation_lock_at: nowIso,
+      status: "GENERATING",
+      generation_attempts: attempts + 1,
+    })
     .eq("id", reportId)
     .or(`generation_lock_at.is.null,generation_lock_at.lt.${staleIso}`)
     .select("id, sections_done")
@@ -641,6 +654,11 @@ async function handleGenerate(
     // 리포트 기준일 = 구매 시점 (재시도해도 불변)
     const baseDate = new Date(report.created_at);
 
+    // 직전 시도의 검증 실패 항목 (있으면 교정 지시로 사용)
+    const correctiveProblems: string[] | null = Array.isArray(report.pending_fix)
+      ? (report.pending_fix as string[])
+      : null;
+
     const { text: sectionText, usage } = await generateSection(
       sectionIndex,
       snapshot,
@@ -648,6 +666,7 @@ async function handleGenerate(
       subQuestions,
       baseDate,
       report.content ?? "",
+      correctiveProblems,
     );
 
     const newContent = report.content
@@ -663,6 +682,7 @@ async function handleGenerate(
         sections_done: newSectionsDone,
         status: isDone ? "DONE" : "GENERATING",
         error_message: null,
+        pending_fix: null,
         generation_lock_at: null,
       })
       .eq("id", reportId);
@@ -692,6 +712,59 @@ async function handleGenerate(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "알 수 없는 오류";
+
+    // ① 일시 오류 (쿼터·과부하): 상태 유지, 락 해제 → 클라이언트 루프가 잠시 후 재호출
+    if (message.startsWith("TRANSIENT:")) {
+      console.warn(`⏳ 리포트 섹션 ${sectionIndex} 일시 오류 — 다음 요청에서 재시도:`, message);
+      await supabaseAdmin
+        .from("premium_reports")
+        .update({ status: "GENERATING", generation_lock_at: null })
+        .eq("id", reportId);
+      return json(200, {
+        success: true,
+        done: false,
+        transient: true,
+        waitSeconds: 20,
+        sectionsDone: sectionIndex,
+        sectionsTotal: report.sections_total,
+      });
+    }
+
+    // ② 원고 검증 실패: 문제 목록 저장 → 다음 요청이 교정 지시를 붙여 재생성
+    //    (직전 시도도 교정 재생성이었으면 이 섹션은 2회 연속 실패 → FAILED)
+    if (message.startsWith("VALIDATION:")) {
+      let problems: string[] = [];
+      try {
+        problems = JSON.parse(message.substring("VALIDATION:".length));
+      } catch (_) {
+        problems = [message.substring(0, 300)];
+      }
+      console.warn(
+        JSON.stringify({
+          logType: "PREMIUM_REPORT_VALIDATION_RETRY",
+          reportId,
+          sectionIndex,
+          hadCorrective: !!(report.pending_fix && (report.pending_fix as string[]).length),
+          problems,
+        }),
+      );
+      const alreadyRetried = Array.isArray(report.pending_fix) && report.pending_fix.length > 0;
+      if (!alreadyRetried) {
+        await supabaseAdmin
+          .from("premium_reports")
+          .update({ status: "GENERATING", pending_fix: problems, generation_lock_at: null })
+          .eq("id", reportId);
+        return json(200, {
+          success: true,
+          done: false,
+          revalidate: true,
+          sectionsDone: sectionIndex,
+          sectionsTotal: report.sections_total,
+        });
+      }
+      // 교정 재생성까지 실패 → FAILED (무료 재시도 시 pending_fix 를 갖고 다시 시도)
+    }
+
     console.error(`❌ 리포트 섹션 ${sectionIndex} 생성 실패:`, err);
     await supabaseAdmin
       .from("premium_reports")
