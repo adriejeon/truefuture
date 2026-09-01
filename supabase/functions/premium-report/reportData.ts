@@ -509,6 +509,11 @@ function fmtYm(d: Date): string {
   return `${k.getUTCFullYear()}.${String(k.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+function fmtYmd(d: Date): string {
+  const k = new Date(d.getTime() + 9 * 3600 * 1000);
+  return `${k.getUTCFullYear()}.${k.getUTCMonth() + 1}.${k.getUTCDate()}`;
+}
+
 function addMonthsKeepDay(base: Date, months: number): Date {
   const d = new Date(base.getTime());
   const day = d.getUTCDate();
@@ -691,7 +696,7 @@ export async function buildTenYearTimingData(
     if (p.loosingOfBond) flags.push("궤도 대전환");
     const act = planetActivationNote(p.sign);
     if (act) flags.push(act);
-    return `${p.sign}/${p.ruler} ${fmtYm(p.from)}~${fmtYm(p.to)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+    return `${p.sign}/${p.ruler} ${p.level === 2 ? fmtYmd(p.from) : fmtYm(p.from)}~${p.level === 2 ? fmtYmd(p.to) : fmtYm(p.to)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
   };
   const zrOverlapping = (periods: ZrPeriod[], y: number) =>
     periods.filter(
