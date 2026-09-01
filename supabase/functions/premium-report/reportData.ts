@@ -234,6 +234,24 @@ export function buildNatalBasePrompt(base: ReportBaseData, snapshot: ProfileSnap
 }
 
 /** Part 3 전용: 시기 추론 데이터 프롬프트 (피르다리·프로펙션·디렉션·프로그레션·솔라리턴·단기 스캔) */
+/** 릴리징된 사인 안의 네이탈 행성 활성화 주석 (길성=발복, 흉성=부담) */
+function zrActivationNote(chartData: ChartData, sign: string): string | null {
+  const planets: string[] = [];
+  for (const [key, pl] of Object.entries(chartData.planets)) {
+    if (!["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"].includes(key)) continue;
+    if ((pl as { sign: string }).sign === sign) planets.push(key);
+  }
+  if (planets.length === 0) return null;
+  const benefics: string[] = planets.filter((p) => p === "jupiter" || p === "venus");
+  const malefics: string[] = planets.filter((p) => p === "saturn" || p === "mars");
+  const parts: string[] = [];
+  if (benefics.length > 0) parts.push(`네이탈 ${benefics.join("·")} 활성화 — 발복 신호`);
+  if (malefics.length > 0) parts.push(`네이탈 ${malefics.join("·")} 활성화 — 부담·시험 신호`);
+  const others = planets.filter((p) => !benefics.includes(p) && !malefics.includes(p));
+  if (others.length > 0 && parts.length === 0) parts.push(`네이탈 ${others.join("·")} 활성화`);
+  return parts.join(", ");
+}
+
 /** 질문이 연애·결혼·인연 주제인지 (에로스 랏 방출 주입 여부 판단) */
 export function isLoveTopicQuestion(question: string | null | undefined): boolean {
   if (!question) return false;
@@ -387,6 +405,8 @@ export async function buildTimingPrompt(
           const flags: string[] = [];
           if (p.isPeak) flags.push(`포르투나 기준 ${p.houseFromFortune}번째${p.houseFromFortune === 10 ? " — 성취 정점" : ""}`);
           if (p.loosingOfBond) flags.push("궤도 대전환");
+          const act = zrActivationNote(chartData, p.sign);
+          if (act) flags.push(act);
           const f = new Date(p.from.getTime() + 9 * 3600000);
           const t = new Date(p.to.getTime() + 9 * 3600000);
           return `  - ${p.sign}/${p.ruler}: ${f.toISOString().substring(0, 10)} ~ ${t.toISOString().substring(0, 10)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
@@ -414,6 +434,8 @@ export async function buildTimingPrompt(
           const flags: string[] = [];
           if (p.isPeak) flags.push(`포르투나 기준 ${p.houseFromFortune}번째 — 인연·애정사 부각`);
           if (p.loosingOfBond) flags.push("궤도 대전환");
+          const act = zrActivationNote(chartData, p.sign);
+          if (act) flags.push(act);
           const f = new Date(p.from.getTime() + 9 * 3600000);
           const t = new Date(p.to.getTime() + 9 * 3600000);
           return `  - ${p.sign}/${p.ruler}: ${f.toISOString().substring(0, 10)} ~ ${t.toISOString().substring(0, 10)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
@@ -642,10 +664,33 @@ export async function buildTenYearTimingData(
         })
       : null;
 
+  // 릴리징된 사인 안의 네이탈 행성 → 그 기간에 활성화 (길성 사인 릴리징 = 발복 신호)
+  const natalPlanetsBySign = new Map<string, string[]>();
+  for (const [key, pl] of Object.entries(chartData.planets)) {
+    if (!["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"].includes(key)) continue;
+    const arr = natalPlanetsBySign.get(pl.sign) ?? [];
+    arr.push(key);
+    natalPlanetsBySign.set(pl.sign, arr);
+  }
+  const planetActivationNote = (sign: string): string | null => {
+    const planets = natalPlanetsBySign.get(sign);
+    if (!planets || planets.length === 0) return null;
+    const benefics: string[] = planets.filter((p) => p === "jupiter" || p === "venus");
+    const malefics: string[] = planets.filter((p) => p === "saturn" || p === "mars");
+    const parts: string[] = [];
+    if (benefics.length > 0) parts.push(`네이탈 ${benefics.join("·")} 활성화 — 발복 신호`);
+    if (malefics.length > 0) parts.push(`네이탈 ${malefics.join("·")} 활성화 — 부담·시험 신호`);
+    const others = planets.filter((p) => !benefics.includes(p) && !malefics.includes(p));
+    if (others.length > 0 && parts.length === 0) parts.push(`네이탈 ${others.join("·")} 활성화`);
+    return parts.join(", ");
+  };
+
   const fmtZr = (p: ZrPeriod) => {
     const flags: string[] = [];
     if (p.isPeak) flags.push(`포르투나 기준 ${p.houseFromFortune}번째${p.houseFromFortune === 10 ? " — 성취 정점" : " — 부각"}`);
     if (p.loosingOfBond) flags.push("궤도 대전환");
+    const act = planetActivationNote(p.sign);
+    if (act) flags.push(act);
     return `${p.sign}/${p.ruler} ${fmtYm(p.from)}~${fmtYm(p.to)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
   };
   const zrOverlapping = (periods: ZrPeriod[], y: number) =>
@@ -702,7 +747,8 @@ export async function buildTenYearTimingData(
     lines.push(
       `※ 판단 계층: 인생 궤도(십수 년 단위)·장주기 흐름(수년 단위 배경) > 중기 지표(디렉션·프로그레션) > 연간 테마(프로펙션·솔라리턴) > 월 구간.` +
       ` 여러 층이 같은 주제를 가리킬 때만 강한 해로 서술하고, 한 층에서만 신호가 있으면 가벼운 흐름으로 다뤄야 함.` +
-      ` '성취 정점' 구간은 직업·성취가 외부로 드러나기 좋은 시기, '궤도 대전환'은 삶의 노선 자체가 크게 바뀌는 최상위 신호로 반영할 것.` +
+      ` 인생/애정 궤도의 '대주기'는 배경 챕터일 뿐이며, 사건 시기 판단은 반드시 '중주기'와 그 표식(정점·궤도 대전환·네이탈 행성 활성화)으로 할 것.` +
+      ` '성취 정점' 구간은 직업·성취가 외부로 드러나기 좋은 시기, '궤도 대전환'은 삶의 노선 자체가 크게 바뀌는 최상위 신호, '발복 신호'(길성 활성화)는 그 기간의 결실 가능성이 높다는 뜻으로 반영할 것.` +
       (zrEros
         ? ` 애정 궤도의 정점·부각 구간은 인연과 애정사가 삶의 전면에 드러나는 시기로 해석할 것.`
         : ""),
