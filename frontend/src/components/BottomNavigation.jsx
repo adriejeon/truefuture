@@ -15,8 +15,6 @@ function BottomNavigation({ activeTab }) {
       ? "compatibility"
       : location.pathname.includes("/yearly")
       ? "yearly"
-      : location.pathname.includes("/daily-tarot")
-      ? "tarot"
       : location.pathname.includes("/report")
       ? "report"
       : activeTab;
@@ -83,26 +81,6 @@ function BottomNavigation({ activeTab }) {
       ),
     },
     {
-      id: "tarot",
-      path: "/daily-tarot",
-      labelKey: "bottom_nav.tarot",
-      icon: (
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M16.5 3.5l3.5 1.4a1 1 0 01.56 1.3l-5.2 13a1 1 0 01-1.3.56l-9.3-3.72a1 1 0 01-.56-1.3l5.2-13a1 1 0 011.3-.56l1.7.68M9 8.5l3 1.2"
-          />
-        </svg>
-      ),
-    },
-    {
       id: "report",
       path: "/report",
       labelKey: "bottom_nav.report",
@@ -130,7 +108,7 @@ function BottomNavigation({ activeTab }) {
       style={{ backgroundColor: "#0F0F2B" }}
     >
       <div className="max-w-4xl mx-auto">
-        <div className="grid grid-cols-5 divide-x divide-slate-700">
+        <div className="grid grid-cols-4 divide-x divide-slate-700">
           {tabs.map((tab) => {
             const isActive = currentTab === tab.id;
 

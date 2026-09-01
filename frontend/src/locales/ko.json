@@ -109,7 +109,9 @@
     "loading_fortune_error_generic": "운세를 불러오는 중 오류가 발생했습니다.",
     "report_promo_title": "전문가의 서면 감정, 프리미엄 상세 리포트",
     "report_promo_desc": "타고난 기질·재능·직업·재물·연애·건강부터 앞으로 몇 년의 흐름까지. 궁금한 질문 하나를 정해 물으면, 그 질문까지 깊게 풀어 PDF로 소장할 수 있는 정식 감정 리포트를 보내드립니다.",
-    "report_promo_cta": "리포트 자세히 보기"
+    "report_promo_cta": "리포트 자세히 보기",
+    "tarot_banner_title": "오늘의 타로, 매일 한 장 뽑아보세요",
+    "tarot_banner_free": "무료"
   },
   "login": {
     "title": "로그인",

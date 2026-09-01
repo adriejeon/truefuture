@@ -385,7 +385,7 @@ function DailyTarot() {
         )}
       </div>
 
-      <BottomNavigation activeTab="tarot" />
+      <BottomNavigation />
 
       <style>{`
         @keyframes tarotFloat {

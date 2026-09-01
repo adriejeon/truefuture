@@ -425,6 +425,31 @@ function Home() {
                 {t("home.cta_button")}
               </PrimaryButton>
             </div>
+
+            {/* 무료 타로 - 작은 배너 (하단 내비에서 이동) */}
+            <Link
+              to="/daily-tarot"
+              className="w-full font-sans flex items-center justify-between gap-3 px-4 py-3 mb-6 sm:mb-8 rounded-xl border border-slate-700 bg-slate-800/40 hover:border-slate-500 transition-colors"
+              aria-label="오늘의 타로 무료로 보기"
+            >
+              <span className="flex items-center gap-2 min-w-0 text-left">
+                <span className="text-lg leading-none" aria-hidden="true">🃏</span>
+                <span className="text-sm text-slate-300 truncate">
+                  {t("home.tarot_banner_title")}
+                </span>
+                <span className="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                  {t("home.tarot_banner_free")}
+                </span>
+              </span>
+              <svg
+                className="w-4 h-4 shrink-0 text-slate-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
           </div>
         )}
 

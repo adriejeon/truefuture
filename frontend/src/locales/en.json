@@ -109,7 +109,9 @@
     "loading_fortune_error_generic": "An error occurred while loading the fortune.",
     "report_promo_title": "Premium In-Depth Written Report",
     "report_promo_desc": "A full written reading covering your innate temperament, talents, career, wealth, love and health, plus the years ahead — with an in-depth answer to one question of your choice. Saved as a PDF you can keep.",
-    "report_promo_cta": "See the report"
+    "report_promo_cta": "See the report",
+    "tarot_banner_title": "Draw your free daily tarot card",
+    "tarot_banner_free": "FREE"
   },
   "login": {
     "title": "Log In",
