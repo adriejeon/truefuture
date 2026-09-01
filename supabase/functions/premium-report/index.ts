@@ -84,12 +84,22 @@ function parseGeminiResponse(apiResponse: any): string {
   return text;
 }
 
+interface GeminiUsage {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+  totalTokenCount?: number;
+}
+
 /**
  * Vertex Gemini 호출 (non-stream).
  * - 429: 지수 백오프 재시도 (최대 3회)
  * - 503/과부하: 3s → 8s 대기 후 Pro 모델로 재시도 (유료 리포트이므로 flash 폴백 없이 Pro 고정)
+ * - usageMetadata(토큰 사용량)를 함께 반환·로깅 (원가 모니터링용)
  */
-async function callGeminiPro(requestBody: any): Promise<string> {
+async function callGeminiPro(
+  requestBody: any,
+): Promise<{ text: string; usage: GeminiUsage | null }> {
   const endpoint = buildVertexUrl(GEMINI_PRO_MODEL, "generateContent");
   const normalizedBody = normalizeVertexRequest(requestBody);
   logVertexRequestShape(normalizedBody, {
@@ -151,7 +161,20 @@ async function callGeminiPro(requestBody: any): Promise<string> {
     }
 
     const data = await response.json();
-    return parseGeminiResponse(data);
+    const usage: GeminiUsage | null = data?.usageMetadata ?? null;
+    if (usage) {
+      console.log(
+        JSON.stringify({
+          logType: "PREMIUM_REPORT_USAGE",
+          model: GEMINI_PRO_MODEL,
+          promptTokenCount: usage.promptTokenCount ?? 0,
+          candidatesTokenCount: usage.candidatesTokenCount ?? 0,
+          thoughtsTokenCount: usage.thoughtsTokenCount ?? 0,
+          totalTokenCount: usage.totalTokenCount ?? 0,
+        }),
+      );
+    }
+    return { text: parseGeminiResponse(data), usage };
   }
 }
 
@@ -161,7 +184,7 @@ async function generateSection(
   sectionIndex: number,
   snapshot: ProfileSnapshot,
   question: string | null,
-): Promise<string> {
+): Promise<{ text: string; usage: GeminiUsage | null }> {
   const base = await buildBaseData(snapshot);
 
   let systemText: string;
@@ -444,7 +467,7 @@ async function handleGenerate(
 
   try {
     const snapshot = report.profile_snapshot as ProfileSnapshot;
-    const sectionText = await generateSection(
+    const { text: sectionText, usage } = await generateSection(
       sectionIndex,
       snapshot,
       report.question ?? null,
@@ -479,6 +502,7 @@ async function handleGenerate(
         sectionIndex,
         sectionChars: sectionText.length,
         done: isDone,
+        usage,
       }),
     );
 
@@ -487,6 +511,7 @@ async function handleGenerate(
       done: isDone,
       sectionsDone: newSectionsDone,
       sectionsTotal: report.sections_total,
+      usage,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "알 수 없는 오류";
