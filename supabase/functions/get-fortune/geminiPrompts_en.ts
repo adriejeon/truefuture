@@ -875,7 +875,7 @@ Respond ONLY with valid JSON per the schema below. No markdown blocks, no preamb
   },
   "answer": {
     "conclusion": "Direct Yes/No or situational verdict — lead with the conclusion.",
-    "detail": "Astrological evidence + detailed explanation. Conversational, human tone."
+    "detail": "Astrological evidence + detailed explanation. Conversational, warm tone."
   },
   "action_tip": {
     "what": "Exactly what the client should do right now (command form, one sentence)",
