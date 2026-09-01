@@ -119,7 +119,8 @@ async function callGemini(
 
   const overloadDelays = [3000, 8000];
   let overloadAttempt = 0;
-  let rateDelay = 1000;
+  // 429는 분당 쿼터 소진이 대부분 → 쿼터 윈도우를 넘길 수 있게 길게 백오프 (15s→30s→60s)
+  let rateDelay = 15000;
   let rateAttempt = 0;
 
   while (true) {
