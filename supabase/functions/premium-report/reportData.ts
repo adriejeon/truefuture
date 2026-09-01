@@ -234,9 +234,18 @@ export function buildNatalBasePrompt(base: ReportBaseData, snapshot: ProfileSnap
 }
 
 /** Part 3 전용: 시기 추론 데이터 프롬프트 (피르다리·프로펙션·디렉션·프로그레션·솔라리턴·단기 스캔) */
+/** 질문이 연애·결혼·인연 주제인지 (에로스 랏 방출 주입 여부 판단) */
+export function isLoveTopicQuestion(question: string | null | undefined): boolean {
+  if (!question) return false;
+  return /연애|결혼|인연|이성\s?관계|이성운|배우자|남자\s?친구|여자\s?친구|남친|여친|재혼|혼인|소개팅|썸|짝사랑|커플|애인|만남|궁합|연인/.test(
+    question,
+  );
+}
+
 export async function buildTimingPrompt(
   base: ReportBaseData,
   snapshot: ProfileSnapshot,
+  opts?: { includeEros?: boolean },
 ): Promise<string> {
   const { chartData, birthDateTime, birthDateStr, age, genderCode } = base;
   const lat = Number(snapshot.lat);
@@ -388,6 +397,33 @@ export async function buildTimingPrompt(
         `- 향후 2년의 중주기:\n${l2Lines.join("\n")}\n` +
         `※ '성취 정점' 구간은 질문 주제(특히 직업)의 결실이 외부로 드러나기 좋은 시기, '궤도 대전환'은 삶의 노선이 바뀌는 최상위 신호.`;
     }
+
+    // 연애·결혼 질문일 때: 에로스 랏 방출 (인연·애정의 시간표)
+    const erosLon = chartData.lots?.eros?.degree;
+    if (opts?.includeEros && erosLon != null) {
+      const until = new Date(now.getTime() + 2.2 * 365.25 * 86400000);
+      const zrE = calculateZodiacalReleasing(erosLon, birthDateTime, until, {
+        fortuneLongitude: fortuneLon,
+        l2FromDate: new Date(now.getTime() - 200 * 86400000),
+      });
+      const curL1 = zrE.l1.filter((p) => p.from <= until && p.to >= now);
+      const l2Lines = zrE.l2
+        .filter((p) => p.to >= now)
+        .slice(0, 8)
+        .map((p) => {
+          const flags: string[] = [];
+          if (p.isPeak) flags.push(`포르투나 기준 ${p.houseFromFortune}번째 — 인연·애정사 부각`);
+          if (p.loosingOfBond) flags.push("궤도 대전환");
+          const f = new Date(p.from.getTime() + 9 * 3600000);
+          const t = new Date(p.to.getTime() + 9 * 3600000);
+          return `  - ${p.sign}/${p.ruler}: ${f.toISOString().substring(0, 10)} ~ ${t.toISOString().substring(0, 10)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+        });
+      prompt +=
+        "\n\n[애정 궤도 — 인연·애정 영역의 십수 년 단위 큰 흐름 (질문 주제 관련)]\n" +
+        `- 현재 대주기: ${curL1.map((p) => `${p.sign}/${p.ruler} (${p.from.toISOString().substring(0, 7)}~${p.to.toISOString().substring(0, 7)})`).join(" → ")}\n` +
+        `- 향후 2년의 중주기:\n${l2Lines.join("\n")}\n` +
+        `※ 정점·부각 구간은 인연과 애정사가 삶의 전면에 드러나는 시기. 연애·결혼 시기 판단에서는 이 궤도를 커리어 궤도보다 우선 근거로 사용할 것.`;
+    }
   } catch (zrErr) {
     console.warn("⚠️ 릴리징 계산 실패 (무시):", zrErr);
   }
@@ -465,6 +501,7 @@ export async function buildTenYearTimingData(
   base: ReportBaseData,
   snapshot: ProfileSnapshot,
   baseDate: Date,
+  opts?: { includeEros?: boolean },
 ): Promise<TenYearTimingResult> {
   const { chartData, birthDateTime } = base;
   const lat = Number(snapshot.lat);
@@ -595,6 +632,15 @@ export async function buildTenYearTimingData(
           l2FromDate: new Date(baseDate.getTime() - 400 * 86400000),
         })
       : null;
+  // 연애·결혼 질문일 때만: 에로스 랏 방출 (인연·애정 영역의 시간표)
+  const erosLon = chartData.lots?.eros?.degree;
+  const zrEros =
+    opts?.includeEros && erosLon != null
+      ? calculateZodiacalReleasing(erosLon, birthDateTime, zrUntil, {
+          fortuneLongitude: fortuneLon,
+          l2FromDate: new Date(baseDate.getTime() - 400 * 86400000),
+        })
+      : null;
 
   const fmtZr = (p: ZrPeriod) => {
     const flags: string[] = [];
@@ -656,7 +702,10 @@ export async function buildTenYearTimingData(
     lines.push(
       `※ 판단 계층: 인생 궤도(십수 년 단위)·장주기 흐름(수년 단위 배경) > 중기 지표(디렉션·프로그레션) > 연간 테마(프로펙션·솔라리턴) > 월 구간.` +
       ` 여러 층이 같은 주제를 가리킬 때만 강한 해로 서술하고, 한 층에서만 신호가 있으면 가벼운 흐름으로 다뤄야 함.` +
-      ` '성취 정점' 구간은 직업·성취가 외부로 드러나기 좋은 시기, '궤도 대전환'은 삶의 노선 자체가 크게 바뀌는 최상위 신호로 반영할 것.`,
+      ` '성취 정점' 구간은 직업·성취가 외부로 드러나기 좋은 시기, '궤도 대전환'은 삶의 노선 자체가 크게 바뀌는 최상위 신호로 반영할 것.` +
+      (zrEros
+        ? ` 애정 궤도의 정점·부각 구간은 인연과 애정사가 삶의 전면에 드러나는 시기로 해석할 것.`
+        : ""),
     );
     for (const y of years) {
       const label = yearLabels.find((l) => l.year === y)!;
@@ -698,6 +747,16 @@ export async function buildTenYearTimingData(
           lines.push(
             `- 생활 궤도(몸·생계 축): 대주기 ${l1.map((p) => `${p.sign}/${p.ruler}`).join("→")}` +
             (l2.length > 0 ? ` | 특기 구간: ${l2.map(fmtZr).join(", ")}` : ""),
+          );
+        }
+      }
+      if (zrEros) {
+        const l1 = zrOverlapping(zrEros.l1, y);
+        const l2 = zrOverlapping(zrEros.l2, y);
+        if (l1.length > 0) {
+          lines.push(
+            `- 애정 궤도(인연·애정 축, 질문 주제): 대주기 ${l1.map(fmtZr).join(" → ")}` +
+            (l2.length > 0 ? ` | 이 해의 중주기: ${l2.map(fmtZr).join(", ")}` : ""),
           );
         }
       }

@@ -21,6 +21,7 @@ import {
   buildTimingPrompt,
   buildTenYearTimingData,
   buildCompactNatalBlock,
+  isLoveTopicQuestion,
 } from "./reportData.ts";
 import type { ProfileSnapshot } from "./reportData.ts";
 import {
@@ -291,6 +292,8 @@ async function generateSection(
 ): Promise<{ text: string; usage: GeminiUsage | null }> {
   const base = await buildBaseData(snapshot);
   const questionTopic = question ? question.substring(0, 120) : null;
+  // 연애·결혼 질문이면 에로스 랏 방출(애정 궤도)을 시기 데이터에 추가 주입
+  const includeEros = isLoveTopicQuestion(question);
 
   if (sectionIndex === 0) {
     // 파트 1: 상담 도입 + 질문 답변 + 배경 성향
@@ -301,7 +304,7 @@ async function generateSection(
     const userPrompt =
       buildNatalBasePrompt(base, snapshot) +
       "\n\n" +
-      (await buildTimingPrompt(base, snapshot)) +
+      (await buildTimingPrompt(base, snapshot, { includeEros })) +
       questionBlock +
       "\n\n위 데이터를 근거로 리포트 파트 1을 작성해 주세요.";
     const ctx: SectionValidationContext = {
@@ -313,7 +316,7 @@ async function generateSection(
   }
 
   // 파트 2·3: 10년 시기 데이터
-  const tenYear = await buildTenYearTimingData(base, snapshot, baseDate);
+  const tenYear = await buildTenYearTimingData(base, snapshot, baseDate, { includeEros });
   const splitAt = 6; // 전반부 6개 연도 / 후반부 나머지 (11개 달력 연도 기준 6+5)
   const part2Labels = tenYear.yearLabels.slice(0, splitAt);
   const part3Labels = tenYear.yearLabels.slice(splitAt);
