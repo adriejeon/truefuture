@@ -27,7 +27,8 @@
     "consultation": "True Future",
     "compatibility": "True Match",
     "yearly": "True Fortune",
-    "tarot": "Tarot"
+    "tarot": "Tarot",
+    "report": "Report"
   },
   "daily_tarot": {
     "meta_title": "Daily Tarot - True Future",
@@ -105,7 +106,10 @@
     "true_life_label": "True Life",
     "shared_fortune_fallback": "Shared Fortune",
     "loading_fortune_error": "Could not load the fortune.",
-    "loading_fortune_error_generic": "An error occurred while loading the fortune."
+    "loading_fortune_error_generic": "An error occurred while loading the fortune.",
+    "report_promo_title": "Premium In-Depth Written Report",
+    "report_promo_desc": "A full written reading covering your innate temperament, talents, career, wealth, love and health, plus the years ahead — with an in-depth answer to one question of your choice. Saved as a PDF you can keep.",
+    "report_promo_cta": "See the report"
   },
   "login": {
     "title": "Log In",
@@ -156,7 +160,8 @@
     "delete_error": "An error occurred while deleting your account.",
     "language_settings": "Language",
     "language_korean": "한국어",
-    "language_english": "English"
+    "language_english": "English",
+    "menu_reports": "Premium Report"
   },
   "purchase": {
     "title": "Buy Premium Consultation Credits",
@@ -342,7 +347,14 @@
     "expire_badge_expired": "Expired",
     "expire_days_left": "{{days}}d left",
     "expire_badge_soon": "Expiring Soon",
-    "expire_badge_valid": "Valid"
+    "expire_badge_valid": "Valid",
+    "report_section_title": "Premium Reports",
+    "report_product_name": "Premium In-Depth Report",
+    "report_status_done": "Ready",
+    "report_status_generating": "Generating",
+    "report_status_failed": "Failed",
+    "report_amount_label": "Amount:",
+    "report_view_btn": "View report"
   },
   "refund_inquiry": {
     "back": "Back",
@@ -382,7 +394,9 @@
     "error_select": "Please select the purchase you'd like refunded.",
     "error_load": "We couldn't load your purchase history. Please try again shortly.",
     "success": "Your refund request has been received. We'll process it as soon as possible.",
-    "error_send": "Something went wrong while sending your request."
+    "error_send": "Something went wrong while sending your request.",
+    "report_product_name": "Premium In-Depth Report",
+    "report_badge": "Report"
   },
   "yearly_fortune": {
     "subtitle": "Explore your daily and lifetime fortune.",
@@ -573,5 +587,58 @@
     "send_success": "Your message has been sent. We'll get back to you shortly.",
     "send_error": "An error occurred while sending your message.",
     "email_send_fail": "Failed to send the email."
+  },
+  "premium_report": {
+    "title": "Premium In-Depth Report",
+    "subtitle": "A full written reading of your birth chart, built with the same logic as a private 1:1 consultation.\nBuy once, revisit anytime, and save it to your device as a PDF.\n(The report text is currently written in Korean.)",
+    "features_title": "What's inside",
+    "feature_nature": "Innate temperament and energy, the three layers of your character, real talents, and the scale of your life — a precise reading of who you are",
+    "feature_life": "Career, wealth, love & marriage, and health — deep dives into the four pillars of life",
+    "feature_timing": "Birth-time-based timing: the big currents of the next five years and month-level guidance for the coming twelve months",
+    "feature_question": "An in-depth answer to one question you most want examined",
+    "feature_pdf": "Save the finished report to your device as a PDF",
+    "price_label": "Price",
+    "profile_label": "Whose report is this?",
+    "profile_hint": "The reading is based on the selected profile's birth date, time and place. The more precise the birth time, the sharper the timing analysis.",
+    "question_label": "Anything you especially want examined?",
+    "optional": "optional",
+    "question_placeholder": "e.g. Should I stay at my current job, and if I move, when is a good time? / When is marriage likely to come for me?",
+    "buy_button": "Pay ₩{{price}} and get the report",
+    "notice_time": "The report is generated in 3 parts over about 3–5 minutes after payment. You can close the page and resume from your purchase history.",
+    "notice_revisit": "Finished reports remain available under 'My reports' on this page and in My Page > Premium Report.",
+    "notice_birthtime": "Profiles without an exact birth time (noon default) will have less precise timing analysis.",
+    "notice_refund": "As digital content, refunds may be limited once report generation has started. If something went wrong, contact us via My Page > Refund inquiry.",
+    "my_reports_title": "My reports",
+    "purchased_at": "Purchased:",
+    "report_fallback_name": "In-Depth Report",
+    "status_done": "Ready",
+    "status_failed": "Failed",
+    "status_generating": "Generating ({{done}}/{{total}})",
+    "paying_title": "Confirming your payment",
+    "paying_desc": "Please wait a moment. Don't close this window.",
+    "generating_title": "Writing your report",
+    "generating_desc": "We're reading your entire birth chart in depth. This takes about 3–5 minutes.\nGeneration continues even if you close the page — reopen it from your purchase history.",
+    "step_1": "Part 1 — Your innate nature and capacity",
+    "step_2": "Part 2 — Career, wealth, love and health",
+    "step_3": "Part 3 — Timing analysis and your question",
+    "preview_label": "Preview of finished parts",
+    "failed_title": "Generation was interrupted",
+    "failed_desc": "A temporary error interrupted report generation.\nYour payment is safe — use the button below to resume for free.",
+    "retry_button": "Resume generation",
+    "back_to_intro": "Back to report intro",
+    "done_title": "{{name}}'s Premium In-Depth Report",
+    "done_meta": "Issued {{date}} · True Future",
+    "question_display_label": "Your question",
+    "pdf_button": "Save as PDF",
+    "pdf_saving": "Creating PDF...",
+    "pdf_error": "Something went wrong while saving the PDF. Please try again.",
+    "error_generate": "An error occurred while generating the report.",
+    "error_timeout": "Report generation is taking longer than expected. Please try again shortly.",
+    "error_not_found": "Report not found. Please make sure you are logged in with the right account.",
+    "error_load": "An error occurred while loading the report.",
+    "error_purchase": "We couldn't confirm the payment. If you were charged, please contact support.",
+    "error_pay_cancelled": "The payment was cancelled or failed.",
+    "error_pay_failed": "Payment failed.",
+    "error_redirect_context": "We couldn't restore the payment context. If you were charged, check My Page > Purchase history or contact support."
   }
 }

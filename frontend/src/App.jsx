@@ -24,6 +24,7 @@ import PaymentComplete from "./pages/PaymentComplete";
 import MyPage from "./pages/MyPage";
 import Contact from "./pages/Contact";
 import RefundInquiry from "./pages/RefundInquiry";
+import PremiumReport from "./pages/PremiumReport";
 import Footer from "./components/Footer";
 import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
@@ -131,6 +132,7 @@ function AppContent() {
           <Route path="/daily-tarot" element={<DailyTarot />} />
           <Route path="/consultation" element={<Consultation />} />
           <Route path="/consultation/:resultId" element={<Consultation />} />
+          <Route path="/report" element={<PremiumReport />} />
           <Route path="/purchase" element={<Purchase />} />
           <Route path="/purchase/history" element={<PurchaseHistory />} />
           <Route path="/payment/complete" element={<PaymentComplete />} />

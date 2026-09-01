@@ -10,6 +10,7 @@ function PurchaseHistory() {
   const navigate = useNavigate();
   const location = useLocation();
   const [transactions, setTransactions] = useState([]);
+  const [reportPurchases, setReportPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [consumedAmounts, setConsumedAmounts] = useState({});
@@ -48,6 +49,18 @@ function PurchaseHistory() {
       if (fetchError) throw fetchError;
 
       setTransactions(data || []);
+
+      // 프리미엄 상세 리포트 결제 이력 (별도 원장)
+      try {
+        const { data: reports } = await supabase
+          .from("premium_reports")
+          .select("id, created_at, status, sections_done, sections_total, amount, currency, merchant_uid")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        setReportPurchases(reports || []);
+      } catch (_) {
+        // 리포트 이력 조회 실패는 운세권 이력 표시를 막지 않음
+      }
 
       if (data && data.length > 0) {
         const { data: allConsumed } = await supabase
@@ -175,12 +188,76 @@ function PurchaseHistory() {
           </div>
         )}
 
+        {/* 프리미엄 상세 리포트 결제 이력 */}
+        {!loading && reportPurchases.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {t("purchase_history.report_section_title")}
+            </h2>
+            <div className="space-y-4">
+              {reportPurchases.map((report) => {
+                const chip =
+                  report.status === "DONE"
+                    ? { text: t("purchase_history.report_status_done"), cls: "bg-green-500/20 text-green-400" }
+                    : report.status === "FAILED"
+                      ? { text: t("purchase_history.report_status_failed"), cls: "bg-red-500/20 text-red-400" }
+                      : { text: t("purchase_history.report_status_generating"), cls: "bg-amber-500/20 text-amber-400" };
+                return (
+                  <div
+                    key={report.id}
+                    className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all duration-200"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-white">
+                        {t("purchase_history.report_product_name")}
+                      </h3>
+                      <span className={`px-2 py-1 text-xs rounded-full ${chip.cls}`}>
+                        {chip.text}
+                      </span>
+                    </div>
+                    <div className="space-y-1 mb-3">
+                      <p className="text-xs text-slate-400">
+                        {t("purchase_history.date_label")} {formatDate(report.created_at)}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {t("purchase_history.report_amount_label")}{" "}
+                        {Number(report.amount || 0).toLocaleString()}
+                        {t("common.unit_won")}
+                      </p>
+                      <p className="text-xs text-slate-500 break-all">
+                        {t("purchase_history.tx_id_label")} {report.merchant_uid || report.id}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => navigate(`/report?id=${encodeURIComponent(report.id)}`)}
+                        className="text-xs font-medium underline transition-colors"
+                        style={{ color: "#E1AC3F" }}
+                      >
+                        {t("purchase_history.report_view_btn")}
+                      </button>
+                      <button
+                        onClick={() =>
+                          navigate(`/refund-inquiry?reportId=${encodeURIComponent(report.id)}`)
+                        }
+                        className="text-xs text-slate-400 hover:text-slate-300 underline transition-colors"
+                      >
+                        {t("purchase_history.refund_btn")}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 로딩 상태 */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
           </div>
-        ) : transactions.length === 0 ? (
+        ) : transactions.length === 0 && reportPurchases.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">📭</div>
             <p className="text-slate-400 text-lg mb-6">

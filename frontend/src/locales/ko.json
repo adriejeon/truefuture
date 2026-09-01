@@ -27,7 +27,8 @@
     "consultation": "진짜미래",
     "compatibility": "진짜궁합",
     "yearly": "진짜운세",
-    "tarot": "타로"
+    "tarot": "타로",
+    "report": "리포트"
   },
   "daily_tarot": {
     "meta_title": "오늘의 타로 - 진짜미래",
@@ -105,7 +106,10 @@
     "true_life_label": "진짜 인생이에요",
     "shared_fortune_fallback": "공유된 운세",
     "loading_fortune_error": "운세를 불러올 수 없습니다.",
-    "loading_fortune_error_generic": "운세를 불러오는 중 오류가 발생했습니다."
+    "loading_fortune_error_generic": "운세를 불러오는 중 오류가 발생했습니다.",
+    "report_promo_title": "전문가의 서면 감정, 프리미엄 상세 리포트",
+    "report_promo_desc": "타고난 기질·재능·직업·재물·연애·건강부터 앞으로 몇 년의 흐름까지. 궁금한 질문 하나를 정해 물으면, 그 질문까지 깊게 풀어 PDF로 소장할 수 있는 정식 감정 리포트를 보내드립니다.",
+    "report_promo_cta": "리포트 자세히 보기"
   },
   "login": {
     "title": "로그인",
@@ -156,7 +160,8 @@
     "delete_error": "회원 탈퇴 처리 중 오류가 발생했습니다.",
     "language_settings": "언어 설정",
     "language_korean": "한국어",
-    "language_english": "English"
+    "language_english": "English",
+    "menu_reports": "프리미엄 상세 리포트"
   },
   "purchase": {
     "title": "프리미엄 상담 이용권 구매",
@@ -342,7 +347,14 @@
     "expire_badge_expired": "만료",
     "expire_days_left": "{{days}}일 남음",
     "expire_badge_soon": "곧 만료",
-    "expire_badge_valid": "유효"
+    "expire_badge_valid": "유효",
+    "report_section_title": "프리미엄 상세 리포트",
+    "report_product_name": "프리미엄 상세 리포트",
+    "report_status_done": "생성 완료",
+    "report_status_generating": "생성 중",
+    "report_status_failed": "생성 실패",
+    "report_amount_label": "결제 금액:",
+    "report_view_btn": "리포트 보기"
   },
   "refund_inquiry": {
     "back": "뒤로",
@@ -382,7 +394,9 @@
     "error_select": "환불할 결제 건을 선택해 주세요.",
     "error_load": "결제 내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "success": "환불 요청이 접수되었습니다. 검토 후 빠른 시일 내에 처리해드리겠습니다.",
-    "error_send": "환불 요청 전송 중 오류가 발생했습니다."
+    "error_send": "환불 요청 전송 중 오류가 발생했습니다.",
+    "report_product_name": "프리미엄 상세 리포트",
+    "report_badge": "리포트"
   },
   "yearly_fortune": {
     "subtitle": "데일리 운세와 종합 운세를 확인해 보세요.",
@@ -573,5 +587,58 @@
     "send_success": "문의 메일이 전송되었습니다. 빠른 시일 내에 답변드리겠습니다.",
     "send_error": "문의 메일 전송 중 오류가 발생했습니다.",
     "email_send_fail": "이메일 전송에 실패했습니다."
+  },
+  "premium_report": {
+    "title": "프리미엄 상세 리포트",
+    "subtitle": "실제 1:1 상담과 동일한 로직으로 출생 차트 전체를 정밀 감정합니다.\n한 번 구매하면 언제든 다시 열람하고, PDF로 기기에 저장할 수 있습니다.",
+    "features_title": "리포트에 담기는 내용",
+    "feature_nature": "타고난 기질과 에너지, 성격의 3중 구조(겉모습·속마음·지향점), 재능과 강점, 인생의 그릇까지 — 본성 정밀 감정",
+    "feature_life": "일과 직업, 재물, 사랑과 결혼, 건강 — 삶의 4대 영역별 심층 풀이",
+    "feature_timing": "출생 시각 기반 시기 분석 — 앞으로 5년의 큰 흐름과 다가오는 12개월의 세부 지침",
+    "feature_question": "더 주의 깊게 보고 싶은 나만의 질문 1가지에 대한 심층 답변",
+    "feature_pdf": "완성된 리포트는 PDF 파일로 기기에 저장 가능",
+    "price_label": "가격",
+    "profile_label": "누구의 리포트인가요?",
+    "profile_hint": "선택한 프로필의 생년월일·출생 시간·출생지를 기준으로 감정합니다. 출생 시간이 정확할수록 시기 분석이 정밀해집니다.",
+    "question_label": "특히 궁금한 질문이 있나요?",
+    "optional": "선택",
+    "question_placeholder": "예) 지금 다니는 회사를 계속 다녀야 할지, 옮긴다면 언제가 좋을지 궁금합니다. / 결혼 인연이 언제쯤 들어올까요?",
+    "buy_button": "{{price}}원 결제하고 리포트 받기",
+    "notice_time": "리포트는 결제 후 3~5분에 걸쳐 3개 파트로 순차 생성됩니다. 생성 중 페이지를 닫아도 결제 이력에서 이어서 받을 수 있습니다.",
+    "notice_revisit": "완성된 리포트는 이 페이지의 '내 리포트'와 마이페이지 > 프리미엄 상세 리포트에서 언제든 다시 볼 수 있습니다.",
+    "notice_birthtime": "출생 시간을 모르는 프로필(정오 기준)은 시기 분석의 정밀도가 낮아질 수 있습니다.",
+    "notice_refund": "디지털 콘텐츠 특성상 리포트 생성이 시작된 후에는 환불이 제한될 수 있습니다. 문제가 있는 경우 마이페이지 > 환불 문의로 접수해 주세요.",
+    "my_reports_title": "내 리포트",
+    "purchased_at": "구매일:",
+    "report_fallback_name": "상세 리포트",
+    "status_done": "열람 가능",
+    "status_failed": "생성 실패",
+    "status_generating": "생성 중 ({{done}}/{{total}})",
+    "paying_title": "결제를 확인하고 있습니다",
+    "paying_desc": "잠시만 기다려 주세요. 창을 닫지 마세요.",
+    "generating_title": "리포트를 작성하고 있습니다",
+    "generating_desc": "출생 차트 전체를 정밀 감정하는 중입니다. 3~5분 정도 걸립니다.\n페이지를 닫아도 생성은 이어지며, 결제 이력에서 다시 열 수 있습니다.",
+    "step_1": "파트 1 — 타고난 본성과 그릇",
+    "step_2": "파트 2 — 직업·재물·사랑·건강 정밀 풀이",
+    "step_3": "파트 3 — 시기 분석과 질문 심층 풀이",
+    "preview_label": "완성된 파트 미리보기",
+    "failed_title": "생성이 잠시 중단되었습니다",
+    "failed_desc": "일시적인 오류로 리포트 생성이 중단되었습니다.\n결제는 안전하게 처리되었으니, 아래 버튼으로 무료로 이어서 생성할 수 있습니다.",
+    "retry_button": "이어서 생성하기",
+    "back_to_intro": "리포트 소개로 돌아가기",
+    "done_title": "{{name}}님의 프리미엄 상세 리포트",
+    "done_meta": "발행일 {{date}} · 진짜미래",
+    "question_display_label": "내담자님의 질문",
+    "pdf_button": "PDF로 저장",
+    "pdf_saving": "PDF 생성 중...",
+    "pdf_error": "PDF 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+    "error_generate": "리포트 생성 중 오류가 발생했습니다.",
+    "error_timeout": "리포트 생성이 예상보다 오래 걸리고 있습니다. 잠시 후 다시 시도해 주세요.",
+    "error_not_found": "리포트를 찾을 수 없습니다. 본인 계정으로 로그인되어 있는지 확인해 주세요.",
+    "error_load": "리포트를 불러오는 중 오류가 발생했습니다.",
+    "error_purchase": "결제 확인 중 오류가 발생했습니다. 결제가 완료되었다면 고객센터로 문의해 주세요.",
+    "error_pay_cancelled": "결제가 취소되었거나 실패했습니다.",
+    "error_pay_failed": "결제에 실패했습니다.",
+    "error_redirect_context": "결제 정보를 복원하지 못했습니다. 결제가 완료된 경우 마이페이지 > 결제 이력을 확인하거나 고객센터로 문의해 주세요."
   }
 }

@@ -379,6 +379,40 @@ function Home() {
               </div>
             </section>
 
+            {/* 프리미엄 상세 리포트 프로모션 */}
+            <section className="w-full font-sans mt-8 sm:mt-10">
+              <Link
+                to="/report"
+                className="block text-left rounded-2xl p-[clamp(20px,4.5vw,28px)] border transition-colors hover:border-[#E1AC3F]/70"
+                style={{
+                  backgroundColor: "rgba(37, 61, 135, 0.2)",
+                  borderColor: "#253D87",
+                }}
+              >
+                <p
+                  className="text-xs font-semibold tracking-widest mb-2"
+                  style={{ color: colors.primary }}
+                >
+                  PREMIUM REPORT
+                </p>
+                <h2 className="text-white font-noto text-[clamp(17px,4.5vw,22px)] font-medium leading-[1.5] mb-2">
+                  {t("home.report_promo_title")}
+                </h2>
+                <p className="text-[#B9B9D9] font-noto text-[clamp(13px,3.2vw,15px)] font-light leading-[1.65] mb-4">
+                  {t("home.report_promo_desc")}
+                </p>
+                <span
+                  className="inline-flex items-center gap-1 text-sm font-semibold"
+                  style={{ color: colors.primary }}
+                >
+                  {t("home.report_promo_cta")}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </Link>
+            </section>
+
             {/* CTA 버튼 */}
             <div className="w-full font-sans mt-6 sm:mt-8 mb-6 sm:mb-8 px-0">
               <PrimaryButton

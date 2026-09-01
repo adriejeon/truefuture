@@ -394,6 +394,13 @@ entrypoint = "./functions/get-fortune/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/get-fortune/*.html" ]
 
+[functions.premium-report]
+enabled = true
+# 모든 액션이 로그인 필수 → 게이트웨이 JWT 검증 사용 (핸들러에서 사용자 소유권 재검증)
+verify_jwt = true
+import_map = "./functions/premium-report/deno.json"
+entrypoint = "./functions/premium-report/index.ts"
+
 [functions.daily-tarot]
 enabled = true
 # 무료·무인증 기능: 앱은 apikey 헤더만 보내고 Authorization(JWT)은 보내지 않으므로

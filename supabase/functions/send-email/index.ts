@@ -57,7 +57,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { subject, type, content, replyTo, userEmail, message, transactionId } = body;
+    const { subject, type, content, replyTo, userEmail, message, transactionId, reportId } = body;
 
     // ── 요청자 인증 ──
     // 클라이언트가 보낸 userId/userEmail은 위조 가능하므로 JWT에서 직접 추출한다.
@@ -137,7 +137,7 @@ ${DIVIDER}
         });
       }
 
-      if (!transactionId) {
+      if (!transactionId && !reportId) {
         return json(400, { success: false, error: "환불할 결제 건을 선택해 주세요." });
       }
 
@@ -146,6 +146,109 @@ ${DIVIDER}
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
         { auth: { persistSession: false, autoRefreshToken: false } }
       );
+
+      // ── 프리미엄 상세 리포트 환불 문의 (premium_reports, 웹 PortOne 결제 전용) ──
+      if (reportId) {
+        const { data: report, error: reportError } = await admin
+          .from("premium_reports")
+          .select(
+            "id, user_id, created_at, status, sections_done, sections_total, merchant_uid, payment_id, amount, currency, question"
+          )
+          .eq("id", reportId)
+          .maybeSingle();
+
+        if (reportError) {
+          console.error("❌ 리포트 결제 건 조회 실패:", reportError);
+          return json(500, { success: false, error: "결제 정보를 불러오지 못했습니다." });
+        }
+        if (!report) {
+          return json(404, { success: false, error: "해당 결제 건을 찾을 수 없습니다." });
+        }
+        if (report.user_id !== authUser.id) {
+          console.warn(`⚠️ 타인 리포트 환불 시도: user=${authUser.id}, report=${report.id}`);
+          return json(403, { success: false, error: "본인의 결제 건만 환불 요청할 수 있습니다." });
+        }
+
+        const statusLabel =
+          report.status === "DONE"
+            ? "생성 완료 (열람 가능)"
+            : report.status === "FAILED"
+              ? "생성 실패"
+              : `생성 중 (${report.sections_done}/${report.sections_total})`;
+
+        emailSubject = `[환불 문의 - 프리미엄 리포트] ${authUser.email ?? authUser.id}`;
+        emailBody = `
+환불 문의 요청이 접수되었습니다. (프리미엄 상세 리포트)
+
+${DIVIDER}
+[고객 정보]
+${DIVIDER}
+
+사용자 ID: ${authUser.id}
+이름: ${authName}
+계정 이메일: ${authUser.email ?? "알 수 없음"}
+회신 이메일: ${replyEmailRaw || "미입력"}
+
+${DIVIDER}
+[결제 정보]
+${DIVIDER}
+
+결제 수단: 웹 결제 (PortOne / KG이니시스)
+상품명: 프리미엄 상세 리포트
+결제 금액: ${report.amount?.toLocaleString?.() ?? report.amount} ${report.currency ?? "KRW"}
+결제 일시(KST): ${formatKorea(report.created_at)}
+결제 일시(UTC): ${report.created_at}
+PG 거래 ID: ${report.merchant_uid ?? report.payment_id ?? "없음"}
+리포트 ID: ${report.id}
+리포트 상태: ${statusLabel}
+
+${DIVIDER}
+[환불 사유]
+${DIVIDER}
+
+${content?.refundReason || "사유 미입력"}
+
+${DIVIDER}
+요청 시간: ${new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
+${DIVIDER}
+        `.trim();
+
+        // 리포트 환불 문의는 여기서 이메일 본문 구성이 끝났으므로
+        // 아래 star_transactions 조회를 건너뛰고 바로 전송 단계로 진행한다.
+        const RESEND_API_KEY_REPORT = Deno.env.get("RESEND_API_KEY");
+        if (!RESEND_API_KEY_REPORT) {
+          console.warn("⚠️ RESEND_API_KEY가 설정되지 않았습니다. 이메일 전송을 건너뜁니다.");
+          return json(200, {
+            success: true,
+            message: "이메일 전송 기능이 설정되지 않았습니다. (개발 모드)",
+          });
+        }
+        const reportResendResponse = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${RESEND_API_KEY_REPORT}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "onboarding@resend.dev",
+            to: [RECIPIENT],
+            subject: emailSubject,
+            text: emailBody,
+            ...(replyEmailForResend ? { reply_to: replyEmailForResend } : {}),
+          }),
+        });
+        if (!reportResendResponse.ok) {
+          const errorData = await reportResendResponse.text();
+          console.error("Resend API 오류:", errorData);
+          throw new Error(`이메일 전송 실패: ${reportResendResponse.status}`);
+        }
+        const reportResult = await reportResendResponse.json();
+        return json(200, {
+          success: true,
+          message: "이메일이 성공적으로 전송되었습니다.",
+          data: reportResult,
+        });
+      }
 
       const { data: tx, error: txError } = await admin
         .from("star_transactions")

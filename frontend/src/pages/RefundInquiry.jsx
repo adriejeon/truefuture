@@ -31,7 +31,15 @@ function RefundInquiry() {
   const [emailError, setEmailError] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [transactions, setTransactions] = useState([]);
-  const [selectedTxId, setSelectedTxId] = useState(searchParams.get("transactionId") || "");
+  // 선택 키: 운세권 결제는 "tx:{id}", 프리미엄 리포트 결제는 "rp:{id}"
+  const [selectedKey, setSelectedKey] = useState(() => {
+    const txParam = searchParams.get("transactionId");
+    if (txParam) return `tx:${txParam}`;
+    const reportParam = searchParams.get("reportId");
+    if (reportParam) return `rp:${reportParam}`;
+    return "";
+  });
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,10 +80,31 @@ function RefundInquiry() {
         const rows = data || [];
         setTransactions(rows);
 
+        // 프리미엄 상세 리포트 결제 이력
+        let reportRows = [];
+        try {
+          const { data: reportData } = await supabase
+            .from("premium_reports")
+            .select("id, created_at, status, amount, currency, merchant_uid")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+          reportRows = reportData || [];
+        } catch (_) {
+          reportRows = [];
+        }
+        if (cancelled) return;
+        setReports(reportRows);
+
         // 딥링크로 넘어온 건이 목록에 없으면 선택을 비운다.
-        setSelectedTxId((prev) => {
-          if (prev && rows.some((tx) => tx.id === prev)) return prev;
-          return rows.length === 1 ? rows[0].id : "";
+        setSelectedKey((prev) => {
+          if (prev) {
+            const [kind, id] = prev.split(":");
+            if (kind === "tx" && rows.some((tx) => tx.id === id)) return prev;
+            if (kind === "rp" && reportRows.some((r) => r.id === id)) return prev;
+          }
+          if (rows.length === 1 && reportRows.length === 0) return `tx:${rows[0].id}`;
+          if (rows.length === 0 && reportRows.length === 1) return `rp:${reportRows[0].id}`;
+          return "";
         });
       } catch (err) {
         if (cancelled) return;
@@ -110,9 +139,14 @@ function RefundInquiry() {
     return name || t("refund_inquiry.product_fallback");
   };
 
-  const selectedTx = transactions.find((tx) => tx.id === selectedTxId) || null;
+  const [selectedKind, selectedId] = selectedKey ? selectedKey.split(":") : [null, null];
+  const selectedTx =
+    selectedKind === "tx" ? transactions.find((tx) => tx.id === selectedId) || null : null;
+  const selectedReport =
+    selectedKind === "rp" ? reports.find((r) => r.id === selectedId) || null : null;
   const selectedChannel = selectedTx ? resolvePaymentChannel(selectedTx.related_item_id) : null;
   const isStorePurchase = !!selectedChannel?.store;
+  const hasSelection = !!selectedTx || !!selectedReport;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -124,7 +158,7 @@ function RefundInquiry() {
       return;
     }
 
-    if (!selectedTx) {
+    if (!hasSelection) {
       alert(t("refund_inquiry.error_select"));
       return;
     }
@@ -137,11 +171,12 @@ function RefundInquiry() {
     setIsSubmitting(true);
 
     try {
-      // 결제 정보는 보내지 않는다. 서버가 transactionId로 DB에서 직접 조회한다.
+      // 결제 정보는 보내지 않는다. 서버가 transactionId/reportId로 DB에서 직접 조회한다.
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: {
           type: "refund",
-          transactionId: selectedTx.id,
+          ...(selectedTx ? { transactionId: selectedTx.id } : {}),
+          ...(selectedReport ? { reportId: selectedReport.id } : {}),
           replyTo: trimmedReply,
           content: {
             refundReason: refundReason.trim() || "미입력",
@@ -193,7 +228,7 @@ function RefundInquiry() {
       );
     }
 
-    if (transactions.length === 0) {
+    if (transactions.length === 0 && reports.length === 0) {
       return (
         <div className="border border-gray-200 rounded-lg p-6 text-center">
           <p className="text-gray-600 mb-4">{t("refund_inquiry.empty")}</p>
@@ -210,12 +245,12 @@ function RefundInquiry() {
 
     return (
       <div className="space-y-3">
-        {transactions.map((tx) => {
-          const channel = resolvePaymentChannel(tx.related_item_id);
-          const isSelected = tx.id === selectedTxId;
+        {reports.map((report) => {
+          const key = `rp:${report.id}`;
+          const isSelected = key === selectedKey;
           return (
             <label
-              key={tx.id}
+              key={key}
               className={`block border rounded-lg p-4 cursor-pointer transition-colors ${
                 isSelected
                   ? "border-yellow-500 bg-yellow-50"
@@ -226,9 +261,56 @@ function RefundInquiry() {
                 <input
                   type="radio"
                   name="transaction"
-                  value={tx.id}
+                  value={key}
                   checked={isSelected}
-                  onChange={() => setSelectedTxId(tx.id)}
+                  onChange={() => setSelectedKey(key)}
+                  className="mt-1 accent-yellow-500"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-semibold text-gray-900 truncate">
+                      {t("refund_inquiry.report_product_name")} (
+                      {Number(report.amount || 0).toLocaleString()}
+                      {t("common.unit_won")})
+                    </span>
+                    <span className="shrink-0 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700">
+                      {t("refund_inquiry.report_badge")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {t("refund_inquiry.purchased_at_label")} {formatDate(report.created_at)}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {t("refund_inquiry.channel_label")} {t("refund_inquiry.channel_web")}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 break-all">
+                    {t("refund_inquiry.tx_id_label")} {report.merchant_uid || report.id}
+                  </p>
+                </div>
+              </div>
+            </label>
+          );
+        })}
+        {transactions.map((tx) => {
+          const channel = resolvePaymentChannel(tx.related_item_id);
+          const key = `tx:${tx.id}`;
+          const isSelected = key === selectedKey;
+          return (
+            <label
+              key={key}
+              className={`block border rounded-lg p-4 cursor-pointer transition-colors ${
+                isSelected
+                  ? "border-yellow-500 bg-yellow-50"
+                  : "border-gray-300 bg-white hover:border-gray-400"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="transaction"
+                  value={key}
+                  checked={isSelected}
+                  onChange={() => setSelectedKey(key)}
                   className="mt-1 accent-yellow-500"
                 />
                 <div className="min-w-0 flex-1">
@@ -378,7 +460,7 @@ function RefundInquiry() {
 
           <button
             type="submit"
-            disabled={isSubmitting || loading || !selectedTx || isStorePurchase}
+            disabled={isSubmitting || loading || !hasSelection || isStorePurchase}
             className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-200 disabled:text-gray-400 text-gray-900 font-bold py-4 text-lg rounded-lg transition-colors"
           >
             {isSubmitting ? t("refund_inquiry.submitting") : t("refund_inquiry.submit_btn")}

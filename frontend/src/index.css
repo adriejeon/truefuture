@@ -806,3 +806,85 @@ a {
 .tf-datepicker-popper .react-datepicker__time-container {
   float: none;
 }
+
+/* ===== 프리미엄 상세 리포트 본문 (다크 테마 마크다운) ===== */
+.premium-report-md {
+  color: #dde1f0;
+  font-size: 0.925rem;
+  line-height: 1.85;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.premium-report-md h2 {
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(225, 172, 63, 0.55);
+}
+
+.premium-report-md h2:first-child {
+  margin-top: 0;
+}
+
+.premium-report-md h3 {
+  color: #f1e6c8;
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.premium-report-md p {
+  margin-bottom: 0.9rem;
+}
+
+.premium-report-md blockquote {
+  margin: 0.5rem 0 1rem;
+  padding: 0.6rem 1rem;
+  background: rgba(225, 172, 63, 0.08);
+  border-left: 3px solid #e1ac3f;
+  border-radius: 0 0.375rem 0.375rem 0;
+  color: #f0d9a4;
+  font-weight: 500;
+}
+
+.premium-report-md blockquote p {
+  margin-bottom: 0;
+}
+
+.premium-report-md ul,
+.premium-report-md ol {
+  margin: 0 0 0.9rem;
+  padding-left: 1.4rem;
+}
+
+.premium-report-md ul {
+  list-style: disc;
+}
+
+.premium-report-md ol {
+  list-style: decimal;
+}
+
+.premium-report-md li {
+  margin-bottom: 0.35rem;
+}
+
+.premium-report-md strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* ===== 프리미엄 리포트 PDF (라이트 A4) — 마크다운 기본 요소 ===== */
+.premium-pdf-root ul {
+  list-style: disc;
+}
+
+.premium-pdf-root ol {
+  list-style: decimal;
+}
