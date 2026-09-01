@@ -16,6 +16,7 @@ import {
 } from "../utils/profileModalStorage";
 import { colors } from "../constants/colors";
 import { getBrandImageAlt } from "../constants/seoMeta";
+import { WalletCards } from "lucide-react";
 
 function FavoriteStarIcon() {
   return (
@@ -432,8 +433,13 @@ function Home() {
               className="w-full font-sans flex items-center justify-between gap-3 px-4 py-3 mb-6 sm:mb-8 rounded-xl border border-slate-700 bg-slate-800/40 hover:border-slate-500 transition-colors"
               aria-label="오늘의 타로 무료로 보기"
             >
-              <span className="flex items-center gap-2 min-w-0 text-left">
-                <span className="text-lg leading-none" aria-hidden="true">🃏</span>
+              <span className="flex items-center gap-2.5 min-w-0 text-left">
+                <WalletCards
+                  className="w-[18px] h-[18px] shrink-0"
+                  strokeWidth={1.75}
+                  style={{ color: colors.primary }}
+                  aria-hidden="true"
+                />
                 <span className="text-sm text-slate-300 truncate">
                   {t("home.tarot_banner_title")}
                 </span>

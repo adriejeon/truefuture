@@ -3,6 +3,16 @@ import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import * as PortOne from "@portone/browser-sdk/v2";
+import {
+  Fingerprint,
+  Briefcase,
+  CalendarRange,
+  MessageCircleQuestion,
+  FileDown,
+  Telescope,
+  CircleAlert,
+  Check,
+} from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -465,11 +475,11 @@ function PremiumReport() {
   };
 
   const features = [
-    { icon: "🧬", key: "feature_nature" },
-    { icon: "💼", key: "feature_life" },
-    { icon: "🗓", key: "feature_timing" },
-    { icon: "💬", key: "feature_question" },
-    { icon: "📄", key: "feature_pdf" },
+    { Icon: Fingerprint, key: "feature_nature" },
+    { Icon: Briefcase, key: "feature_life" },
+    { Icon: CalendarRange, key: "feature_timing" },
+    { Icon: MessageCircleQuestion, key: "feature_question" },
+    { Icon: FileDown, key: "feature_pdf" },
   ];
 
   const generatingSteps = [
@@ -501,8 +511,18 @@ function PremiumReport() {
         <ul className="space-y-3">
           {features.map((f) => (
             <li key={f.key} className="flex items-start gap-3">
-              <span className="text-lg leading-6">{f.icon}</span>
-              <span className="text-slate-200 text-sm leading-6">
+              <span
+                className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: "rgba(225, 172, 63, 0.12)" }}
+              >
+                <f.Icon
+                  className="w-[18px] h-[18px]"
+                  strokeWidth={1.75}
+                  style={{ color: colors.primary }}
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="text-slate-200 text-sm leading-6 pt-1.5">
                 {t(`premium_report.${f.key}`)}
               </span>
             </li>
@@ -639,7 +659,12 @@ function PremiumReport() {
     return (
       <div className="py-8">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-4">🔭</div>
+          <Telescope
+            className="w-12 h-12 mx-auto mb-4"
+            strokeWidth={1.5}
+            style={{ color: colors.primary }}
+            aria-hidden="true"
+          />
           <h2 className="text-xl font-bold text-white mb-2">
             {t("premium_report.generating_title")}
           </h2>
@@ -671,7 +696,7 @@ function PremiumReport() {
                 }`}
               >
                 {isDoneStep ? (
-                  <span className="text-green-400">✓</span>
+                  <Check className="w-4 h-4 text-green-400" strokeWidth={2.5} aria-hidden="true" />
                 ) : isCurrent ? (
                   <span className="inline-block w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `${colors.primary} transparent ${colors.primary} ${colors.primary}` }}></span>
                 ) : (
@@ -702,7 +727,11 @@ function PremiumReport() {
 
   const renderFailed = () => (
     <div className="py-16 text-center">
-      <div className="text-5xl mb-4">🛠</div>
+      <CircleAlert
+        className="w-12 h-12 mx-auto mb-4 text-amber-400"
+        strokeWidth={1.5}
+        aria-hidden="true"
+      />
       <h2 className="text-xl font-bold text-white mb-3">
         {t("premium_report.failed_title")}
       </h2>
@@ -747,9 +776,10 @@ function PremiumReport() {
               type="button"
               onClick={handleSavePdf}
               disabled={pdfSaving}
-              className="px-4 py-2.5 rounded-lg text-sm font-semibold text-black transition-opacity disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-black transition-opacity disabled:opacity-60"
               style={{ backgroundColor: colors.primary }}
             >
+              <FileDown className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
               {pdfSaving
                 ? t("premium_report.pdf_saving")
                 : t("premium_report.pdf_button")}
