@@ -360,6 +360,38 @@ export async function buildTimingPrompt(
     console.warn("⚠️ 단기 이벤트 스캔 실패 (무시):", scanErr);
   }
 
+  // 9. 현재의 인생 궤도 (조디아컬 릴리징 — 스피릿 방출, 향후 2년의 중주기)
+  try {
+    const spiritLon = chartData.lots?.spirit?.degree;
+    const fortuneLon = chartData.fortuna?.degree;
+    if (spiritLon != null) {
+      const until = new Date(now.getTime() + 2.2 * 365.25 * 86400000);
+      const zr = calculateZodiacalReleasing(spiritLon, birthDateTime, until, {
+        fortuneLongitude: fortuneLon,
+        l2FromDate: new Date(now.getTime() - 200 * 86400000),
+      });
+      const curL1 = zr.l1.filter((p) => p.from <= until && p.to >= now);
+      const l2Lines = zr.l2
+        .filter((p) => p.to >= now)
+        .slice(0, 8)
+        .map((p) => {
+          const flags: string[] = [];
+          if (p.isPeak) flags.push(`포르투나 기준 ${p.houseFromFortune}번째${p.houseFromFortune === 10 ? " — 성취 정점" : ""}`);
+          if (p.loosingOfBond) flags.push("궤도 대전환");
+          const f = new Date(p.from.getTime() + 9 * 3600000);
+          const t = new Date(p.to.getTime() + 9 * 3600000);
+          return `  - ${p.sign}/${p.ruler}: ${f.toISOString().substring(0, 10)} ~ ${t.toISOString().substring(0, 10)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+        });
+      prompt +=
+        "\n\n[인생 궤도 — 행동·커리어의 십수 년 단위 큰 흐름]\n" +
+        `- 현재 대주기: ${curL1.map((p) => `${p.sign}/${p.ruler} (${p.from.toISOString().substring(0, 7)}~${p.to.toISOString().substring(0, 7)})`).join(" → ")}\n` +
+        `- 향후 2년의 중주기:\n${l2Lines.join("\n")}\n` +
+        `※ '성취 정점' 구간은 질문 주제(특히 직업)의 결실이 외부로 드러나기 좋은 시기, '궤도 대전환'은 삶의 노선이 바뀌는 최상위 신호.`;
+    }
+  } catch (zrErr) {
+    console.warn("⚠️ 릴리징 계산 실패 (무시):", zrErr);
+  }
+
   return prompt;
 }
 
@@ -372,6 +404,10 @@ export async function buildTimingPrompt(
 // ============================================================
 
 import { SIGNS, getSignRuler, getWholeSignHouse } from "../get-fortune/utils/astrologyCalculator.ts";
+import {
+  calculateZodiacalReleasing,
+  type ZrPeriod,
+} from "../get-fortune/utils/zodiacalReleasing.ts";
 
 const PROFECTION_HOUSE_TOPICS: Record<number, string> = {
   1: "자기 자신·방향 설정·몸",
@@ -541,6 +577,36 @@ export async function buildTenYearTimingData(
     }
   }
 
+  // ---- 최장주기: 조디아컬 릴리징 (스피릿 = 행동·커리어 / 포르투나 = 몸·생계) ----
+  const zrUntil = birthdayOf(startYear + 12);
+  const fortuneLon = chartData.fortuna?.degree;
+  const spiritLon = chartData.lots?.spirit?.degree;
+  const zrSpirit =
+    spiritLon != null
+      ? calculateZodiacalReleasing(spiritLon, birthDateTime, zrUntil, {
+          fortuneLongitude: fortuneLon,
+          l2FromDate: new Date(baseDate.getTime() - 400 * 86400000),
+        })
+      : null;
+  const zrFortune =
+    fortuneLon != null
+      ? calculateZodiacalReleasing(fortuneLon, birthDateTime, zrUntil, {
+          fortuneLongitude: fortuneLon,
+          l2FromDate: new Date(baseDate.getTime() - 400 * 86400000),
+        })
+      : null;
+
+  const fmtZr = (p: ZrPeriod) => {
+    const flags: string[] = [];
+    if (p.isPeak) flags.push(`포르투나 기준 ${p.houseFromFortune}번째${p.houseFromFortune === 10 ? " — 성취 정점" : " — 부각"}`);
+    if (p.loosingOfBond) flags.push("궤도 대전환");
+    return `${p.sign}/${p.ruler} ${fmtYm(p.from)}~${fmtYm(p.to)}${flags.length ? ` (${flags.join(", ")})` : ""}`;
+  };
+  const zrOverlapping = (periods: ZrPeriod[], y: number) =>
+    periods.filter(
+      (p) => p.from.getUTCFullYear() <= y && p.to.getUTCFullYear() >= y,
+    );
+
   // ---- 세부: 월 프로펙션 주목 구간 ----
   // 각 프로펙션 연차를 12개 월 구간으로 나누고(생일 일자 앵커),
   // 월 사인이 연 사인과 같거나(첫 달), 월 로드=연주, 또는 월 사인이 앵글 하우스(1·4·7·10)일 때 주목 구간으로 표시.
@@ -588,8 +654,9 @@ export async function buildTenYearTimingData(
     const lines: string[] = [];
     lines.push(`[연도별 시기 데이터] (기준일 ${baseYmd}, 커버 범위 ${startYear}.${String(startMonth).padStart(2, "0")} ~ ${endYear}.${String(endMonth).padStart(2, "0")})`);
     lines.push(
-      `※ 판단 계층: 장주기(수년 단위 배경) > 중기 지표(디렉션·프로그레션) > 연간 테마(프로펙션·솔라리턴) > 월 구간.` +
-      ` 여러 층이 같은 주제를 가리킬 때만 강한 해로 서술하고, 한 층에서만 신호가 있으면 가벼운 흐름으로 다뤄야 함.`,
+      `※ 판단 계층: 인생 궤도(십수 년 단위)·장주기 흐름(수년 단위 배경) > 중기 지표(디렉션·프로그레션) > 연간 테마(프로펙션·솔라리턴) > 월 구간.` +
+      ` 여러 층이 같은 주제를 가리킬 때만 강한 해로 서술하고, 한 층에서만 신호가 있으면 가벼운 흐름으로 다뤄야 함.` +
+      ` '성취 정점' 구간은 직업·성취가 외부로 드러나기 좋은 시기, '궤도 대전환'은 삶의 노선 자체가 크게 바뀌는 최상위 신호로 반영할 것.`,
     );
     for (const y of years) {
       const label = yearLabels.find((l) => l.year === y)!;
@@ -611,6 +678,28 @@ export async function buildTenYearTimingData(
         );
         const hl = monthlyHighlights(p).filter((s) => s.startsWith(`${y}.`));
         if (hl.length > 0) lines.push(`  · 월 주목 구간: ${hl.join(" / ")}`);
+      }
+
+      // 최장주기: 인생 궤도 (조디아컬 릴리징)
+      if (zrSpirit) {
+        const l1 = zrOverlapping(zrSpirit.l1, y);
+        const l2 = zrOverlapping(zrSpirit.l2, y);
+        if (l1.length > 0) {
+          lines.push(
+            `- 인생 궤도(행동·커리어 축): 대주기 ${l1.map(fmtZr).join(" → ")}` +
+            (l2.length > 0 ? ` | 이 해의 중주기: ${l2.map(fmtZr).join(", ")}` : ""),
+          );
+        }
+      }
+      if (zrFortune) {
+        const l2 = zrOverlapping(zrFortune.l2, y).filter((p) => p.isPeak || p.loosingOfBond);
+        const l1 = zrOverlapping(zrFortune.l1, y);
+        if (l1.length > 0 && (l2.length > 0 || l1.some((p) => p.loosingOfBond))) {
+          lines.push(
+            `- 생활 궤도(몸·생계 축): 대주기 ${l1.map((p) => `${p.sign}/${p.ruler}`).join("→")}` +
+            (l2.length > 0 ? ` | 특기 구간: ${l2.map(fmtZr).join(", ")}` : ""),
+          );
+        }
       }
 
       // 장주기 (해당 연도와 겹치는 피르다리아 서브 기간)

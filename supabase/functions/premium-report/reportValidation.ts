@@ -45,7 +45,10 @@ const JARGON_PATTERNS: RegExp[] = [
   /포르투나/,
   /루미너리/,
   /역행\s?정지/,
-  /\b(?:natal|transit|profection|firdaria|direction|progression|aspect)\b/i,
+  /릴리징/,
+  /조디아컬/,
+  /사슬\s?풀림/,
+  /\b(?:natal|transit|profection|firdaria|direction|progression|aspect|releasing)\b/i,
 ];
 
 // 금지 표현 (극적·단정·AI 운세 클리셰)
@@ -58,6 +61,9 @@ const BANNED_PHRASES: RegExp[] = [
   /팩폭/,
   /갓생/,
   /---/,
+  /다음 파트/,
+  /이번 파트/,
+  /파트 \d/,
 ];
 
 function checkCommon(text: string, problems: string[]): void {
