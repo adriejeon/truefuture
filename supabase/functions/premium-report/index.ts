@@ -49,6 +49,9 @@ const corsHeaders = {
 
 // ===== 상품 정의 (서버가 단일 진실 공급원) =====
 const REPORT_PRICE_KRW = 18000;
+// 가격 인상 전환기: 캐시된 구버전 클라이언트가 이전 가격으로 결제한 경우도 유효 처리
+// (실결제가 이미 승인된 뒤 검증되므로, 알던 가격이면 거절 대신 수용하는 것이 고객 보호)
+const ACCEPTED_PRICES_KRW = [18000, 15000];
 const REPORT_PRODUCT_NAME = "프리미엄 상세 리포트 (Premium_Report)";
 const SECTIONS_TOTAL = 3;
 const QUESTION_MAX_LENGTH = 500;
@@ -424,6 +427,7 @@ async function handlePurchase(
   }
 
   let paymentId = impUid || merchantUid;
+  let paidAmount = REPORT_PRICE_KRW;
   try {
     const paymentResponse = await fetch(
       `https://api.portone.io/payments/${encodeURIComponent(paymentId)}`,
@@ -442,15 +446,49 @@ async function handlePurchase(
     }
     const verifiedAmount = payment.amount?.total;
     const verifiedCurrency = (payment.amount?.currency || "KRW").toUpperCase();
-    if (verifiedCurrency !== "KRW" || verifiedAmount !== REPORT_PRICE_KRW) {
+    if (verifiedCurrency !== "KRW" || !ACCEPTED_PRICES_KRW.includes(verifiedAmount)) {
       console.error(
-        `❌ 리포트 결제 금액 불일치: ${verifiedAmount} ${verifiedCurrency} (기대: ${REPORT_PRICE_KRW} KRW)`,
+        `❌ 리포트 결제 금액 불일치: ${verifiedAmount} ${verifiedCurrency} (허용: ${ACCEPTED_PRICES_KRW.join("/")} KRW) — 자동 취소 시도`,
       );
+      // 이미 승인된 결제이므로 고객 보호를 위해 자동 취소
+      let cancelled = false;
+      try {
+        const cancelRes = await fetch(
+          `https://api.portone.io/payments/${encodeURIComponent(payment.id ?? paymentId)}/cancel`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `PortOne ${portoneApiSecret}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ reason: "상품 가격 불일치 자동 취소 (진짜미래 프리미엄 리포트)" }),
+          },
+        );
+        cancelled = cancelRes.ok;
+        if (!cancelRes.ok) {
+          console.error("❌ 자동 취소 실패:", cancelRes.status, (await cancelRes.text()).substring(0, 200));
+        }
+      } catch (cancelErr) {
+        console.error("❌ 자동 취소 예외:", cancelErr);
+      }
       return json(400, {
         success: false,
-        error: "결제 금액이 상품 가격과 일치하지 않습니다.",
+        error: cancelled
+          ? "결제 금액이 현재 상품 가격과 달라 결제를 자동 취소했습니다. 페이지를 새로고침한 뒤 다시 결제해 주세요."
+          : "결제 금액이 상품 가격과 일치하지 않습니다. 결제가 되었다면 자동 환불 처리되며, 문제가 지속되면 고객센터로 문의해 주세요.",
       });
     }
+    if (verifiedAmount !== REPORT_PRICE_KRW) {
+      console.warn(
+        JSON.stringify({
+          logType: "PREMIUM_REPORT_LEGACY_PRICE",
+          paidAmount: verifiedAmount,
+          currentPrice: REPORT_PRICE_KRW,
+          note: "가격 전환기 구버전 클라이언트 결제 수용",
+        }),
+      );
+    }
+    paidAmount = verifiedAmount;
     if (payment.id) paymentId = payment.id;
   } catch (err) {
     console.error("❌ PortOne 결제 검증 실패:", err);
@@ -498,7 +536,7 @@ async function handlePurchase(
       content: "",
       merchant_uid: dedupeKey,
       payment_id: paymentId,
-      amount: REPORT_PRICE_KRW,
+      amount: paidAmount,
       currency: "KRW",
     })
     .select("id")

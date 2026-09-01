@@ -78,6 +78,7 @@ function PremiumReport() {
   const [pdfSaving, setPdfSaving] = useState(false);
   const genLoopRef = useRef(false);
   const redirectHandledRef = useRef(false);
+  const recoveryTriedRef = useRef(false);
 
   const reportIdParam = searchParams.get("id");
 
@@ -347,6 +348,63 @@ function PremiumReport() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, user, loadingAuth, completePurchase]);
+
+  // ===== 미완료 결제 자동 복구 =====
+  // 결제는 승인됐는데 리포트 생성 확인 단계에서 오류가 났던 경우(예: 서버 거절·네트워크 중단),
+  // 결제 컨텍스트가 sessionStorage에 남아 있으므로 페이지 재방문 시 자동으로 이어서 처리한다.
+  useEffect(() => {
+    if (loadingAuth || !user) return;
+    if (reportIdParam || searchParams.get("pay_redirect")) return;
+    if (recoveryTriedRef.current) return;
+    recoveryTriedRef.current = true;
+
+    let stored = null;
+    try {
+      stored = JSON.parse(sessionStorage.getItem(CHECKOUT_STORAGE_KEY) || "null");
+    } catch (_) {}
+    if (!stored?.merchantUid || !stored?.profileId) return;
+
+    (async () => {
+      setView("paying");
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke("premium-report", {
+          body: {
+            action: "purchase",
+            merchant_uid: stored.merchantUid,
+            imp_uid: stored.merchantUid,
+            profile_id: stored.profileId,
+            question: stored.question || "",
+          },
+        });
+        if (!fnError && data?.success && data?.reportId) {
+          try {
+            sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
+          } catch (_) {}
+          setSearchParams({ id: data.reportId }, { replace: true });
+          runGenerationLoop(data.reportId);
+          return;
+        }
+        const parsed = fnError ? await parseFnError(fnError) : { message: data?.error || "" };
+        const msg = parsed.message || "";
+        // 결제 자체가 없거나 미완료였던 컨텍스트 → 조용히 정리하고 일반 화면으로
+        const notPaid =
+          /완료되지 않았습니다|찾을 수 없|조회 실패|PgProviderError|PAY_PROCESS/i.test(msg);
+        if (notPaid || !msg) {
+          try {
+            sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
+          } catch (_) {}
+        } else {
+          // 결제가 잡혀 있을 수 있는 실패 → 컨텍스트 유지 + 안내
+          setError(msg);
+        }
+      } catch (_) {
+        // 네트워크 등 일시 오류 — 다음 방문 때 다시 시도할 수 있게 컨텍스트 유지
+      } finally {
+        setView((v) => (v === "paying" ? "intro" : v));
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loadingAuth, reportIdParam]);
 
   // ===== 결제 시작 =====
 
