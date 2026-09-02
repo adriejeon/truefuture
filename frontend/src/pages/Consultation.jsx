@@ -251,10 +251,6 @@ function Consultation() {
       t("consultation.preset_health_4"),
     ],
   };
-  // 카테고리 UI 가 없으므로 예시 질문은 전 카테고리에서 하나씩 섞어 보여준다
-  const presetChips =
-    PRESET_QUESTIONS[selectedTopic] ??
-    Object.values(PRESET_QUESTIONS).map((list) => list[0]);
   const {
     profiles,
     selectedProfile,
@@ -279,6 +275,11 @@ function Consultation() {
   // 카테고리는 사용자가 고르지 않는다. 항상 AUTO 로 보내고 서버가 질문을 읽어 카테고리를 판단한다.
   // (setSelectedTopic 은 히스토리/공유 뷰 복원 경로에서만 사용)
   const [selectedTopic, setSelectedTopic] = useState("AUTO");
+
+  // 카테고리 UI 가 없으므로 예시 질문은 전 카테고리에서 하나씩 섞어 보여준다
+  const presetChips =
+    PRESET_QUESTIONS[selectedTopic] ??
+    Object.values(PRESET_QUESTIONS).map((list) => list[0]);
   const [userQuestion, setUserQuestion] = useState(() =>
     getTempConsultationState()?.question ?? ""
   );
