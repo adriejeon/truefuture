@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import useNoIndex from "../hooks/useNoIndex";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -57,6 +58,7 @@ function sendPurchaseEventFromStorage() {
 }
 
 function PaymentComplete() {
+  useNoIndex();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();

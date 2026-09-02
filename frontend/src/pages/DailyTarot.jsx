@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getSeoLanguage } from "../i18n";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
@@ -93,6 +94,9 @@ const STORAGE_KEY = "daily_tarot_record";
 function DailyTarot() {
   const { t, i18n } = useTranslation();
   const isKo = !i18n.language?.startsWith("en");
+  // SEO 문구(title/meta/JSON-LD)는 직접 고른 언어가 없으면 한국어 — UI 언어와 분리
+  const seoLang = getSeoLanguage();
+  const tSeo = i18n.getFixedT(seoLang);
 
   const [deck, setDeck] = useState("tarot"); // "tarot" | "oracle"
   const [card, setCard] = useState(null);
@@ -104,9 +108,9 @@ function DailyTarot() {
   // JSON-LD 삽입 (Helmet 메타/i18n과 동기화)
   useEffect(() => {
     const jsonLd = buildDailyTarotJsonLd({
-      isKo,
-      name: t("daily_tarot.meta_title"),
-      description: t("daily_tarot.meta_desc"),
+      isKo: seoLang === "ko",
+      name: tSeo("daily_tarot.meta_title"),
+      description: tSeo("daily_tarot.meta_desc"),
     });
 
     const existing = document.getElementById(DAILY_TAROT_JSON_LD_ID);
@@ -211,8 +215,8 @@ function DailyTarot() {
   return (
     <div className="w-full py-8 sm:py-12" style={{ position: "relative", zIndex: 1 }}>
       <Helmet>
-        <title>{t("daily_tarot.meta_title")}</title>
-        <meta name="description" content={t("daily_tarot.meta_desc")} />
+        <title>{tSeo("daily_tarot.meta_title")}</title>
+        <meta name="description" content={tSeo("daily_tarot.meta_desc")} />
       </Helmet>
 
       <div className="w-full max-w-[600px] mx-auto px-4 pb-24 sm:pb-28">

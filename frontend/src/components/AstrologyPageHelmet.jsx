@@ -7,11 +7,14 @@ import {
   SITE_ORIGIN,
   getBrandImageAlt,
 } from "../constants/seoMeta";
+import { TICKET_OFFERS_JSON_LD, TICKET_PRODUCT_ID } from "../constants/packageOffers";
 
 /** 점성술 페이지용 JSON-LD Product 스키마 (GEO/리치 결과용) */
 const ASTROLOGY_PRODUCT_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "Product",
+  "@id": TICKET_PRODUCT_ID, // /purchase 의 Product 와 동일 개체
+  url: "https://truefuture.kr/purchase",
   name: "진짜미래 프리미엄 AI 점성술 컨설팅",
   image: ["https://truefuture.kr/assets/1200x630.png"],
   description:
@@ -24,56 +27,7 @@ const ASTROLOGY_PRODUCT_JSON_LD = {
     "@type": "Brand",
     name: "진짜미래",
   },
-  offers: [
-    {
-      "@type": "Offer",
-      name: "망원경 1개",
-      priceCurrency: "KRW",
-      price: "1000",
-      description: "전문가 로직 기반 1:1 질문 분석 1회권",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "망원경 3개",
-      priceCurrency: "KRW",
-      price: "2900",
-      description: "전문가 로직 기반 1:1 질문 분석 3회권",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "망원경 5개",
-      priceCurrency: "KRW",
-      price: "4950",
-      description: "전문가 로직 기반 1:1 질문 분석 5회권",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "나침반 7개",
-      priceCurrency: "KRW",
-      price: "1900",
-      description: "궁합/운세 등 분석을 위한 이용권 7개",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "나침반 14개",
-      priceCurrency: "KRW",
-      price: "3500",
-      description: "궁합/운세 등 분석을 위한 이용권 14개",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
-      name: "탐사선 1대",
-      priceCurrency: "KRW",
-      price: "2990",
-      description: "연간/종합운세 심층 분석 1회 열람권",
-      availability: "https://schema.org/InStock",
-    },
-  ],
+  offers: TICKET_OFFERS_JSON_LD,
 };
 
 const JSON_LD_SCRIPT_ID = "astrology-product-ld-json";

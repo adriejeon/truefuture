@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { getSeoLanguage } from "../i18n";
 import { useSearchParams, useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
@@ -135,11 +136,14 @@ function Consultation() {
   const shareImageAlt = getBrandImageAlt(i18n.language);
 
   // SEO/GEO: 화면 상단 안내문(About)과 메타/JSON-LD의 title/description을 1:1로 동기화
-  const pageTitle = t(FREE_QUESTION_TITLE_KEY);
-  const pageDescription = t(FREE_QUESTION_DESCRIPTION_KEY);
+  // SEO 문구는 사용자가 직접 고른 언어가 없으면 한국어(크롤러 대응) — UI 언어(t)와 분리
+  const seoLang = getSeoLanguage();
+  const tSeo = i18n.getFixedT(seoLang);
+  const pageTitle = tSeo(FREE_QUESTION_TITLE_KEY);
+  const pageDescription = tSeo(FREE_QUESTION_DESCRIPTION_KEY);
 
   const freeQuestionJsonLd = useMemo(() => {
-    const isEn = (i18n.language || "ko").toLowerCase().startsWith("en");
+    const isEn = seoLang === "en";
     return {
       "@context": "https://schema.org",
       "@type": "WebPage",

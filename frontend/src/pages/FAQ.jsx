@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { getSeoLanguage } from "../i18n";
 import { useState, useEffect, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -11,7 +12,8 @@ const FAQ_PAGE_DESCRIPTION =
 const FAQ_JSON_LD_SCRIPT_ID = "faq-page-ld-json";
 
 function FAQ() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const tSeo = i18n.getFixedT(getSeoLanguage()); // SEO 문구는 직접 고른 언어가 없으면 한국어
   const [openSections, setOpenSections] = useState(new Set());
 
   // JSON-LD와 화면(UI)에 노출되는 Q/A 텍스트를 100% 동일하게 유지(숨김 텍스트 이슈 방지)
@@ -85,7 +87,7 @@ function FAQ() {
   return (
     <>
       <Helmet>
-        <title>{t(FAQ_PAGE_TITLE_KEY)}</title>
+        <title>{tSeo(FAQ_PAGE_TITLE_KEY)}</title>
         <meta name="description" content={FAQ_PAGE_DESCRIPTION} />
         <link rel="canonical" href={canonicalUrl} />
         <meta property="og:type" content="website" />

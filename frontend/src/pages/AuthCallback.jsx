@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import useNoIndex from "../hooks/useNoIndex";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { registerReferralIfPending } from "../utils/referral";
@@ -10,6 +11,7 @@ import { registerReferralIfPending } from "../utils/referral";
  * ref(초대 코드)가 저장되어 있으면 register_referral RPC 호출 (실패해도 로그인 흐름은 유지).
  */
 function AuthCallback() {
+  useNoIndex();
   const navigate = useNavigate();
   const [message, setMessage] = useState("로그인 처리 중...");
 

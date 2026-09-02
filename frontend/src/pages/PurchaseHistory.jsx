@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import useNoIndex from "../hooks/useNoIndex";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 
 function PurchaseHistory() {
+  useNoIndex();
   const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();

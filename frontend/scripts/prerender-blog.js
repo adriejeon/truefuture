@@ -119,7 +119,7 @@ function setCanonical(html, url) {
 function injectJsonLd(html, objects) {
   const scripts = objects
     .filter(Boolean)
-    .map((o) => `    <script type="application/ld+json">${JSON.stringify(o)}</script>`)
+    .map((o) => `    <script type="application/ld+json" data-rh="true">${JSON.stringify(o)}</script>`) // data-rh: 클라이언트 Helmet 이 인계(중복 삽입 방지)
     .join('\n');
   if (!scripts) return html;
   return html.replace(/<\/head>/i, `${scripts}\n  </head>`);

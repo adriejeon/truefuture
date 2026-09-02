@@ -1,4 +1,5 @@
 import SocialLoginButtons from "../components/SocialLoginButtons";
+import useNoIndex from "../hooks/useNoIndex";
 import { useAuth } from "../hooks/useAuth";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -7,6 +8,7 @@ import { supabase } from "../lib/supabaseClient";
 import { setPendingReferralCode } from "../utils/referral";
 
 function Login() {
+  useNoIndex();
   const { t } = useTranslation();
   const { user, loadingAuth } = useAuth();
   const navigate = useNavigate();

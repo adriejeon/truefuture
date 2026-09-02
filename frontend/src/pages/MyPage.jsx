@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import useNoIndex from "../hooks/useNoIndex";
+import { setExplicitLanguage } from "../i18n";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
@@ -10,6 +12,7 @@ import BottomNavigation from "../components/BottomNavigation";
 import Toast from "../components/Toast";
 
 function MyPage() {
+  useNoIndex();
   const { t } = useTranslation();
   const { user, logout, loadingAuth } = useAuth();
   const { stars } = useStars();
@@ -311,7 +314,7 @@ function MyPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => i18n.changeLanguage("ko")}
+              onClick={() => { setExplicitLanguage("ko"); i18n.changeLanguage("ko"); }}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 border ${
                 currentLang === "ko"
                   ? "bg-primary text-black border-primary"
@@ -322,7 +325,7 @@ function MyPage() {
             </button>
             <button
               type="button"
-              onClick={() => i18n.changeLanguage("en")}
+              onClick={() => { setExplicitLanguage("en"); i18n.changeLanguage("en"); }}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 border ${
                 currentLang === "en"
                   ? "bg-primary text-black border-primary"

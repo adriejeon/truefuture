@@ -3,6 +3,8 @@ import { SITE_ORIGIN } from "../constants/seoMeta.js";
 const BRAND_NAME = "진짜미래";
 const BLOG_URL = `${SITE_ORIGIN}/blog`;
 const PUBLISHER_LOGO_URL = `${SITE_ORIGIN}/assets/logo.png`;
+/** 글별 대표 이미지가 없어 브랜드 OG 이미지를 Article image 로 사용 (Google Article 리치결과는 image 필수) */
+const DEFAULT_ARTICLE_IMAGE = `${SITE_ORIGIN}/assets/1200x630.png`;
 
 function stripMarkdown(md) {
   if (typeof md !== "string") return "";
@@ -113,6 +115,7 @@ export function buildBlogListJsonLd(posts) {
         const entry = {
           "@type": "BlogPosting",
           headline: p.title,
+          image: [DEFAULT_ARTICLE_IMAGE],
           url: `${SITE_ORIGIN}/blog/${p.slug}`,
           datePublished: published,
           description: p.excerpt || undefined,
@@ -141,6 +144,7 @@ export function buildArticleJsonLd(post) {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post?.title || "블로그",
+    image: [DEFAULT_ARTICLE_IMAGE],
     description: meta.description,
     datePublished: published,
     dateModified: published,
