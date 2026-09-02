@@ -198,19 +198,7 @@ function Consultation() {
     };
   }, [freeQuestionJsonLd]);
 
-  const TOPIC_OPTIONS = [
-    { id: "AUTO", label: t("consultation.topic_auto") },
-    { id: "LOVE", label: t("consultation.topic_love") },
-    { id: "MONEY", label: t("consultation.topic_money") },
-    { id: "WORK", label: t("consultation.topic_work") },
-    { id: "HEALTH", label: t("consultation.topic_health") },
-    { id: "EXAM", label: t("consultation.topic_exam") },
-    { id: "MOVE", label: t("consultation.topic_move") },
-    { id: "WEEKLY", label: t("consultation.topic_weekly") },
-    { id: "MONTHLY", label: t("consultation.topic_monthly") },
-    { id: "YEARLY", label: t("consultation.topic_yearly") },
-    { id: "OTHER", label: t("consultation.topic_other") },
-  ];
+  // 카테고리 선택 UI 는 폐지 — 서버가 질문 내용으로 카테고리를 자동 판단한다 (selectedTopic 은 항상 AUTO)
 
   const PRESET_QUESTIONS = {
     LOVE: [
@@ -263,6 +251,10 @@ function Consultation() {
       t("consultation.preset_health_4"),
     ],
   };
+  // 카테고리 UI 가 없으므로 예시 질문은 전 카테고리에서 하나씩 섞어 보여준다
+  const presetChips =
+    PRESET_QUESTIONS[selectedTopic] ??
+    Object.values(PRESET_QUESTIONS).map((list) => list[0]);
   const {
     profiles,
     selectedProfile,
@@ -284,10 +276,9 @@ function Consultation() {
 
   // UI 상태 (질문·토픽은 마운트 시 드래프트에서 복원)
   const [showProfileModal, setShowProfileModal] = useState(false);
-  // 기본값 AUTO: 카테고리를 고르지 않아도 서버가 질문을 읽고 카테고리를 자동 판단한다
-  const [selectedTopic, setSelectedTopic] = useState(() =>
-    getTempConsultationState()?.topic ?? "AUTO"
-  );
+  // 카테고리는 사용자가 고르지 않는다. 항상 AUTO 로 보내고 서버가 질문을 읽어 카테고리를 판단한다.
+  // (setSelectedTopic 은 히스토리/공유 뷰 복원 경로에서만 사용)
+  const [selectedTopic, setSelectedTopic] = useState("AUTO");
   const [userQuestion, setUserQuestion] = useState(() =>
     getTempConsultationState()?.question ?? ""
   );
@@ -2261,40 +2252,11 @@ function Consultation() {
             />
           </div>
 
-          {/* 토픽 선택 */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-slate-300 mb-3">
-              {t("consultation.select_category")}
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {TOPIC_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTopic(option.id);
-                    setUserQuestion("");
-                    setSelectedChipIndex(null);
-                    setIsScrolled(false);
-                    setIsScrolling(false);
-                  }}
-                  className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    selectedTopic === option.id
-                      ? "bg-primary text-black shadow-lg"
-                      : "bg-slate-700/50 text-slate-300 hover:bg-slate-600/50"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 카테고리가 선택된 경우에만 질문 입력 영역 표시 */}
-          {selectedTopic && (
+          {/* 질문 입력 영역 (카테고리 선택 없이 바로 질문) */}
+          {(
             <>
               {/* 질문 도우미 칩 (프리셋 질문) */}
-              {PRESET_QUESTIONS[selectedTopic] && (
+              {presetChips.length > 0 && (
                 <div className="mb-6 -mx-4">
                   <p className="text-xs text-slate-400 mb-3 px-4">
                     {t("consultation.suggested_questions")}
@@ -2307,7 +2269,7 @@ function Consultation() {
                         : "chip-scrollbar-hide"
                     } ${isScrolled ? "" : "pl-4"}`}
                   >
-                    {PRESET_QUESTIONS[selectedTopic].map((question, idx) => {
+                    {presetChips.map((question, idx) => {
                       const isSelected =
                         selectedChipIndex === idx && userQuestion === question;
                       return (
