@@ -280,6 +280,60 @@ function Consultation() {
   const presetChips =
     PRESET_QUESTIONS[selectedTopic] ??
     Object.values(PRESET_QUESTIONS).map((list) => list[0]);
+
+  // 개인화 추천 질문: 이 프로필의 이전 상담 질문·답변 요지를 바탕으로 서버(플래시 모델)가 2~3개 생성.
+  // 세션 캐시(프로필별, 10분)로 재호출을 줄이고, 새 답변이 완료되면 캐시를 지운다.
+  const [personalChips, setPersonalChips] = useState([]);
+  const SUGGEST_CACHE_TTL_MS = 10 * 60 * 1000;
+  const suggestCacheKey = (profileId) => `consult_suggest_${profileId}`;
+  useEffect(() => {
+    const profileId = selectedProfile?.id;
+    if (!user?.id || !profileId) {
+      setPersonalChips([]);
+      return;
+    }
+    let cancelled = false;
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(suggestCacheKey(profileId)) || "null");
+      if (cached && Array.isArray(cached.questions) && Date.now() - (cached.ts || 0) < SUGGEST_CACHE_TTL_MS) {
+        setPersonalChips(cached.questions);
+        return;
+      }
+    } catch (_) {}
+    setPersonalChips([]);
+    (async () => {
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke("suggest-questions", {
+          body: {
+            profile_id: profileId,
+            language: i18n.language?.startsWith("en") ? "en" : "ko",
+          },
+        });
+        if (cancelled || fnError) return;
+        const questions = Array.isArray(data?.questions)
+          ? data.questions.filter((q) => typeof q === "string" && q.trim()).slice(0, 3)
+          : [];
+        setPersonalChips(questions);
+        try {
+          sessionStorage.setItem(
+            suggestCacheKey(profileId),
+            JSON.stringify({ ts: Date.now(), questions })
+          );
+        } catch (_) {}
+      } catch (_) {
+        // 추천 실패는 조용히 무시 (일반 예시 칩이 표시됨)
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, selectedProfile?.id, i18n.language]);
+
+  // 화면에 보일 칩: 개인화 추천(최대 3) 먼저, 그 뒤 일반 예시 2개
+  const suggestionChips = personalChips.length
+    ? [...personalChips, ...presetChips.filter((q) => !personalChips.includes(q)).slice(0, 2)]
+    : presetChips;
   const [userQuestion, setUserQuestion] = useState(() =>
     getTempConsultationState()?.question ?? ""
   );
@@ -860,6 +914,9 @@ function Consultation() {
           });
           setStreamingInterpretation("");
           if (shareId) {
+            try {
+              sessionStorage.removeItem(`consult_suggest_${selectedProfile?.id}`);
+            } catch (_) {}
             saveFortuneHistory(
               user.id,
               selectedProfile.id,
@@ -2257,10 +2314,12 @@ function Consultation() {
           {(
             <>
               {/* 질문 도우미 칩 (프리셋 질문) */}
-              {presetChips.length > 0 && (
+              {suggestionChips.length > 0 && (
                 <div className="mb-6 -mx-4">
                   <p className="text-xs text-slate-400 mb-3 px-4">
-                    {t("consultation.suggested_questions")}
+                    {personalChips.length
+                      ? t("consultation.suggested_personalized")
+                      : t("consultation.suggested_questions")}
                   </p>
                   <div
                     ref={chipScrollRef}
@@ -2270,7 +2329,7 @@ function Consultation() {
                         : "chip-scrollbar-hide"
                     } ${isScrolled ? "" : "pl-4"}`}
                   >
-                    {presetChips.map((question, idx) => {
+                    {suggestionChips.map((question, idx) => {
                       const isSelected =
                         selectedChipIndex === idx && userQuestion === question;
                       return (

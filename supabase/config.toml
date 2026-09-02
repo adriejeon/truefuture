@@ -414,3 +414,8 @@ enabled = true
 # 함수 내부에서 Standard Webhooks 서명(webhook-signature)으로 발신자를 검증한다.
 verify_jwt = false
 entrypoint = "./functions/portone-webhook/index.ts"
+
+[functions.suggest-questions]
+enabled = true
+# 상담소 개인화 추천 질문: 로그인 필수 → 게이트웨이 JWT 검증 사용 (핸들러에서 프로필 소유 재검증)
+verify_jwt = true
