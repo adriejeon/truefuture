@@ -3,16 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import * as PortOne from "@portone/browser-sdk/v2";
-import {
-  Fingerprint,
-  Briefcase,
-  CalendarRange,
-  MessageCircleQuestion,
-  FileDown,
-  Telescope,
-  CircleAlert,
-  Check,
-} from "lucide-react";
+import { FileDown, Telescope, CircleAlert, Check, ShieldCheck, ChevronRight } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -23,6 +14,19 @@ import BottomNavigation from "../components/BottomNavigation";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import FortuneMarkdown from "../components/FortuneMarkdown";
 import ReviewPrompt from "../components/ReviewPrompt";
+import {
+  ReportHero,
+  ReportQuestions,
+  ReportOutcomes,
+  ReportContents,
+  ReportSamplePreview,
+  ReportMethod,
+  ReportComparison,
+  ReportPricing,
+  ReportTestimonials,
+  ReportFaq,
+  ReportStickyCta,
+} from "../components/ReportLanding";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { parseFnError, describeFnError, toUserFacingError } from "../utils/fnError";
 import { deliverPdfFile } from "../utils/pdfDelivery";
@@ -141,6 +145,54 @@ function PremiumReport() {
   const pdfCacheRef = useRef(null);
 
   const reportIdParam = searchParams.get("id");
+
+  // ===== 랜딩(intro) 전용: 하단 고정 CTA 노출 판단 + 섹션 이동 =====
+
+  /** 히어로 CTA·신청 박스가 둘 다 화면 밖일 때만 하단 고정 CTA 를 띄운다 */
+  const heroCtaRef = useRef(null);
+  const purchaseBoxRef = useRef(null);
+  const questionInputRef = useRef(null);
+  const [heroCtaVisible, setHeroCtaVisible] = useState(true);
+  const [purchaseBoxVisible, setPurchaseBoxVisible] = useState(false);
+  const showStickyCta = view === "intro" && !heroCtaVisible && !purchaseBoxVisible;
+
+  useEffect(() => {
+    if (view !== "intro") return undefined;
+    if (typeof IntersectionObserver === "undefined") return undefined;
+    const heroEl = heroCtaRef.current;
+    const boxEl = purchaseBoxRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.target === heroEl) setHeroCtaVisible(entry.isIntersecting);
+          if (entry.target === boxEl) setPurchaseBoxVisible(entry.isIntersecting);
+        }
+      },
+      { threshold: 0.05 }
+    );
+    if (heroEl) observer.observe(heroEl);
+    if (boxEl) observer.observe(boxEl);
+    return () => observer.disconnect();
+  }, [view]);
+
+  const scrollToPurchase = useCallback(() => {
+    purchaseBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const scrollToSample = useCallback(() => {
+    document.getElementById("report-sample")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  /** 질문 예시 칩 → 신청서 질문란에 담고 신청 박스로 이동 */
+  const handlePickQuestion = useCallback(
+    (text) => {
+      setQuestion(String(text || "").slice(0, QUESTION_MAX));
+      scrollToPurchase();
+      // 스크롤이 끝난 뒤 포커스 (모바일 키보드가 스크롤을 끊지 않도록 지연)
+      setTimeout(() => questionInputRef.current?.focus({ preventScroll: true }), 450);
+    },
+    [scrollToPurchase]
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -820,68 +872,31 @@ function PremiumReport() {
     return [snapshot.name, birth].filter(Boolean).join(" · ");
   };
 
-  const features = [
-    { Icon: MessageCircleQuestion, key: "feature_question" },
-    { Icon: CalendarRange, key: "feature_timing" },
-    { Icon: Briefcase, key: "feature_life" },
-    { Icon: Fingerprint, key: "feature_nature" },
-    { Icon: FileDown, key: "feature_pdf" },
-  ];
-
   const generatingSteps = [
     t("premium_report.step_1"),
     t("premium_report.step_2"),
     t("premium_report.step_3"),
   ];
 
+  /** 랜딩 전용 문구 단축 헬퍼 */
+  const L = (key, opts) => t(`premium_report.landing.${key}`, opts);
+
   // ===== 뷰 =====
 
+  /**
+   * 인트로(랜딩) 뷰 — 구매 흐름 순서:
+   * 히어로 → (복귀 안내·에러) → (내 리포트 바로가기) → 사용자의 질문 → 알 수 있는 것 → 실제 구성
+   * → 샘플 미리보기 → 분석 방식 → 무료/AI 비교 → 가격 가치 → 후기 → 신청 박스(CTA) → FAQ → 내 리포트
+   */
   const renderIntro = () => (
-    <>
-      {/* 히어로 */}
-      <div className="text-center mb-8">
-        <p className="text-sm font-semibold tracking-widest mb-2" style={{ color: colors.primary }}>
-          PREMIUM REPORT
-        </p>
-        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-3">
-          {t("premium_report.title")}
-        </h1>
-        <p className="text-slate-300 text-sm sm:text-base leading-relaxed whitespace-pre-line">
-          {t("premium_report.subtitle")}
-        </p>
-      </div>
-
-      {/* 구성 안내 */}
-      <div className="p-5 sm:p-6 bg-[rgba(37,61,135,0.2)] border border-[#253D87] rounded-xl mb-6">
-        <p className="text-white font-semibold mb-4">{t("premium_report.features_title")}</p>
-        <ul className="space-y-3">
-          {features.map((f) => (
-            <li key={f.key} className="flex items-start gap-3">
-              <span
-                className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: "rgba(225, 172, 63, 0.12)" }}
-              >
-                <f.Icon
-                  className="w-[18px] h-[18px]"
-                  strokeWidth={1.75}
-                  style={{ color: colors.primary }}
-                  aria-hidden="true"
-                />
-              </span>
-              <span className="text-slate-200 text-sm leading-6 pt-1.5">
-                {t(`premium_report.${f.key}`)}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-5 pt-4 border-t border-slate-700 flex items-baseline justify-between">
-          <span className="text-slate-300 text-sm">{t("premium_report.price_label")}</span>
-          <span className="text-2xl font-bold" style={{ color: colors.primary }}>
-            {REPORT_PRICE.toLocaleString()}
-            {t("common.unit_won")}
-          </span>
-        </div>
-      </div>
+    // break-keep: 한국어 문장이 어절 단위로 줄바꿈되도록 (제목 끝 글자 한 자만 떨어지는 현상 방지)
+    <div className="break-keep">
+      <ReportHero
+        price={REPORT_PRICE}
+        onBuy={scrollToPurchase}
+        onSample={scrollToSample}
+        ctaRef={heroCtaRef}
+      />
 
       {/* 결제 후 로그인 세션이 유실된 채 복귀한 경우 */}
       {needsLoginToResume && (
@@ -902,67 +917,133 @@ function PremiumReport() {
         </div>
       )}
 
-      {/* 프로필 선택 */}
-      <div className="mb-5">
-        <p className="text-white font-medium mb-2">{t("premium_report.profile_label")}</p>
-        <ProfileSelector
-          profiles={profiles}
-          selectedProfile={selectedProfile}
-          onSelectProfile={selectProfile}
-          onCreateProfile={() => {
-            if (!user) {
-              setShowLoginModal(true);
-              return;
-            }
-            setShowProfileModal(true);
-          }}
-          onDeleteProfile={deleteProfile}
-          loading={!!user && profilesLoading}
-        />
-        <p className="text-xs text-slate-400 mt-2">{t("premium_report.profile_hint")}</p>
-      </div>
-
-      {/* 질문 입력 */}
-      <div className="mb-6">
-        <p className="text-white font-medium mb-2">
-          {t("premium_report.question_label")}{" "}
-          <span className="text-slate-400 text-sm font-normal">
-            ({t("premium_report.optional")})
+      {/* 이미 받은 리포트가 있는 분은 랜딩을 다 읽지 않고 바로 열람할 수 있게 */}
+      {user && myReports.length > 0 && (
+        <button
+          type="button"
+          onClick={() =>
+            document.getElementById("my-reports")?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-700 bg-slate-800/40 hover:border-slate-500 transition-colors text-left"
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <FileDown className="w-[18px] h-[18px] shrink-0" strokeWidth={1.75} style={{ color: colors.primary }} aria-hidden="true" />
+            <span className="text-sm text-slate-200 truncate">
+              {L("my_reports_strip", { count: myReports.length })}
+            </span>
           </span>
-        </p>
-        <textarea
-          value={question}
-          onChange={(e) => setQuestion(e.target.value.slice(0, QUESTION_MAX))}
-          placeholder={t("premium_report.question_placeholder")}
-          rows={4}
-          className="w-full px-4 py-3 bg-[#0F0F2B] border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none resize-none text-sm leading-relaxed"
-          style={{ caretColor: colors.primary }}
-          onFocus={(e) => (e.currentTarget.style.borderColor = colors.primary)}
-          onBlur={(e) => (e.currentTarget.style.borderColor = "")}
-        />
-        <p className="text-xs text-slate-400 text-right">
-          {question.length}/{QUESTION_MAX}
-        </p>
-      </div>
+          <span className="shrink-0 inline-flex items-center gap-0.5 text-xs font-semibold" style={{ color: colors.primary }}>
+            {L("my_reports_open")}
+            <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden="true" />
+          </span>
+        </button>
+      )}
 
-      {/* 결제 버튼 */}
-      <PrimaryButton type="button" variant="gold" fullWidth onClick={handlePurchaseClick}>
-        {t("premium_report.buy_button", { price: REPORT_PRICE.toLocaleString() })}
-      </PrimaryButton>
+      <ReportQuestions onPick={handlePickQuestion} />
+      <ReportOutcomes />
+      <ReportContents />
+      <ReportSamplePreview onBuy={scrollToPurchase} />
+      <ReportMethod />
+      <ReportComparison />
+      <ReportPricing price={REPORT_PRICE} onBuy={scrollToPurchase} />
+      <ReportTestimonials />
 
-      {/* 유의사항 */}
-      <div className="mt-5 p-4 rounded-lg bg-slate-800/40 border border-slate-700">
-        <ul className="text-xs text-slate-400 space-y-1.5 leading-relaxed list-disc list-inside">
-          <li>{t("premium_report.notice_time")}</li>
-          <li>{t("premium_report.notice_revisit")}</li>
-          <li>{t("premium_report.notice_birthtime")}</li>
-          <li>{t("premium_report.notice_refund")}</li>
-        </ul>
-      </div>
+      {/* 신청 박스 — 결제 CTA */}
+      <section ref={purchaseBoxRef} id="report-purchase" className="py-8 scroll-mt-20">
+        <div
+          className="rounded-2xl border p-5 sm:p-6"
+          style={{ borderColor: "rgba(225, 172, 63, 0.5)", backgroundColor: "rgba(37, 61, 135, 0.2)" }}
+        >
+          <div className="mb-5">
+            <p className="text-xs font-semibold tracking-[0.25em] mb-1.5" style={{ color: colors.primary }}>
+              PREMIUM REPORT
+            </p>
+            <h2 className="text-xl font-bold text-white mb-1">{L("purchase_title")}</h2>
+            <p className="text-sm text-slate-300 leading-relaxed">{L("purchase_sub")}</p>
+          </div>
+
+          {/* 프로필 선택 */}
+          <div className="mb-5">
+            <p className="text-white font-medium mb-2">{t("premium_report.profile_label")}</p>
+            <ProfileSelector
+              profiles={profiles}
+              selectedProfile={selectedProfile}
+              onSelectProfile={selectProfile}
+              onCreateProfile={() => {
+                if (!user) {
+                  setShowLoginModal(true);
+                  return;
+                }
+                setShowProfileModal(true);
+              }}
+              onDeleteProfile={deleteProfile}
+              loading={!!user && profilesLoading}
+            />
+            <p className="text-xs text-slate-400 mt-2">{t("premium_report.profile_hint")}</p>
+          </div>
+
+          {/* 질문 입력 */}
+          <div className="mb-5">
+            <p className="text-white font-medium mb-2">
+              {t("premium_report.question_label")}{" "}
+              <span className="text-slate-400 text-sm font-normal">
+                ({t("premium_report.optional")})
+              </span>
+            </p>
+            <textarea
+              ref={questionInputRef}
+              value={question}
+              onChange={(e) => setQuestion(e.target.value.slice(0, QUESTION_MAX))}
+              placeholder={t("premium_report.question_placeholder")}
+              rows={4}
+              className="w-full px-4 py-3 bg-[#0F0F2B] border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none resize-none text-sm leading-relaxed"
+              style={{ caretColor: colors.primary }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = colors.primary)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "")}
+            />
+            <div className="flex items-start justify-between gap-3 mt-1">
+              <p className="text-xs text-slate-400 leading-relaxed">{L("question_hint")}</p>
+              <p className="text-xs text-slate-400 shrink-0">
+                {question.length}/{QUESTION_MAX}
+              </p>
+            </div>
+          </div>
+
+          {/* 가격 요약 */}
+          <div className="flex items-baseline justify-between pt-4 mb-4 border-t border-slate-700">
+            <span className="text-sm text-slate-300">{L("purchase_price_label")}</span>
+            <span className="text-2xl font-bold" style={{ color: colors.primary }}>
+              {REPORT_PRICE.toLocaleString()}
+              {t("common.unit_won")}
+            </span>
+          </div>
+
+          {/* 결제 버튼 */}
+          <PrimaryButton type="button" variant="gold" fullWidth onClick={handlePurchaseClick}>
+            {t("premium_report.buy_button", { price: REPORT_PRICE.toLocaleString() })}
+          </PrimaryButton>
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center leading-relaxed">
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={2} style={{ color: colors.primary }} aria-hidden="true" />
+            {L("purchase_trust")}
+          </p>
+        </div>
+
+        {/* 유의사항 */}
+        <div className="mt-4 p-4 rounded-lg bg-slate-800/40 border border-slate-700">
+          <ul className="text-xs text-slate-400 space-y-1.5 leading-relaxed list-disc list-inside">
+            <li>{t("premium_report.notice_time")}</li>
+            <li>{t("premium_report.notice_revisit")}</li>
+            <li>{t("premium_report.notice_birthtime")}</li>
+            <li>{t("premium_report.notice_refund")}</li>
+          </ul>
+        </div>
+      </section>
+
+      <ReportFaq />
 
       {/* 내 리포트 목록 */}
       {user && myReports.length > 0 && (
-        <div className="mt-10">
+        <div id="my-reports" className="mt-6 scroll-mt-20">
           <h2 className="text-lg font-semibold text-white mb-4">
             {t("premium_report.my_reports_title")}
           </h2>
@@ -997,7 +1078,7 @@ function PremiumReport() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 
   const renderPaying = () => (
@@ -1197,7 +1278,7 @@ function PremiumReport() {
   };
 
   return (
-    <div className="min-h-screen py-8 px-4 pb-28">
+    <div className={`min-h-screen py-8 px-4 ${showStickyCta ? "pb-48" : "pb-28"}`}>
       <Helmet>
         <title>{PAGE_TITLE}</title>
         <meta name="description" content={PAGE_DESCRIPTION} />
@@ -1245,6 +1326,8 @@ function PremiumReport() {
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
       />
+      {/* 모바일 하단 고정 CTA — 히어로 CTA·신청 박스가 화면 밖일 때만 (하단 네비 위에 붙음) */}
+      <ReportStickyCta visible={showStickyCta} price={REPORT_PRICE} onBuy={scrollToPurchase} />
       <BottomNavigation />
     </div>
   );
