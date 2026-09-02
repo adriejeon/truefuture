@@ -69,7 +69,8 @@ function goldenKeysByType(ft: FortuneType): GoldenKey[] {
       return ["personality", "timing", "career", "love", "wealth", "general"];
     case FortuneType.DAILY:
     default:
-      return ["timing"];
+      // 데일리는 연 단위 timing 규칙 대신 TIMING_KB.dailyTransit(하루 단위 규칙)만 별도 주입
+      return [];
   }
 }
 
@@ -122,9 +123,88 @@ function dedup(arr: string[]): string[] {
  * 차트와 운세 타입에 맞춰 적용할 해석 규칙을 모아 프롬프트 섹션 문자열로 반환.
  * 주입할 규칙이 없으면 빈 문자열.
  */
+/** 타입별 추가 컨텍스트 (계산-게이팅: 실제 계산된 값이 있을 때만 규칙을 붙인다) */
+export interface KnowledgeContextOptions {
+  /** DAILY: 그날 연주(Lord of the Year)의 T-to-T 각 설명문과 연주–항성 회합 텍스트 */
+  daily?: {
+    lordOfTheYear?: string | null;
+    lordAspectDescriptions: string[];
+    lordStarText?: string | null;
+  };
+  /** CONSULTATION: 선택(또는 자동 판단)된 카테고리 — MONTHLY/YEARLY 면 솔라리턴 규칙 주입 */
+  consultationTopic?: string | null;
+}
+
+const PLANET_KO_TO_EN: Record<string, string> = {
+  "태양": "Sun", "달": "Moon", "수성": "Mercury", "금성": "Venus", "화성": "Mars",
+  "목성": "Jupiter", "토성": "Saturn", "천왕성": "Uranus", "해왕성": "Neptune", "명왕성": "Pluto",
+  "교점": "Node",
+};
+const STAR_KO_TO_EN: Record<string, string> = {
+  "벨라트릭스": "Bellatrix", "카펠라": "Capella", "엘나스": "El Nath", "리겔": "Rigel",
+  "카스토르": "Castor", "폴룩스": "Pollux", "프로키온": "Procyon", "알헤나": "Alhena",
+  "시리우스": "Sirius", "프레세페": "Praesepe", "알페라츠": "Alpheratz",
+};
+const ASPECT_KO_TO_EN: Record<string, string> = {
+  "회합": "Conjunction", "대립각": "Opposition", "사각": "Square", "삼각": "Trine", "육각": "Sextile",
+};
+
+/**
+ * 먼데인 트랜짓 쿡북(TIMING_KB.mundaneStars)에서 "오늘 실제로 성립한" 조합만 골라낸다.
+ * - 행성–행성 항목: 그날 연주의 T-to-T 각(설명문 "연주(Mercury) Opposition Transit Saturn …")과 대조
+ * - 행성–항성 항목: 연주 행성이 그 항성과 회합 중일 때만 (연주–항성 회합 텍스트의 "N. StarName (" 줄)
+ * 연주 기준 데이터만 있으므로 연주가 관여하지 않는 조합은 매칭되지 않는다(연주 척추 원칙과 일치).
+ */
+function matchMundaneCookbook(daily: NonNullable<KnowledgeContextOptions["daily"]>): string[] {
+  const lord = (daily.lordOfTheYear ?? "").trim();
+  // 연주 T-to-T 각 → { a, b, aspect } 집합
+  const pairs: Array<{ a: string; b: string; aspect: string }> = [];
+  for (const d of daily.lordAspectDescriptions ?? []) {
+    const m = String(d).match(
+      /연주(?:\s*행성)?\((\w+)\)\s+(Conjunction|Opposition|Square|Trine|Sextile)\s+Transit\s+(\w+)/i,
+    );
+    if (m) pairs.push({ a: m[1], b: m[3], aspect: m[2] });
+  }
+  // 연주–항성 회합 → 항성명 집합
+  const stars = new Set<string>();
+  for (const line of String(daily.lordStarText ?? "").split("\n")) {
+    const m = line.match(/^\s*\d+\.\s+([A-Za-z][A-Za-z' ()-]*?)\s+\(/);
+    if (m) stars.add(m[1].trim().toLowerCase());
+  }
+  if (pairs.length === 0 && stars.size === 0) return [];
+
+  const same = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
+  const out: string[] = [];
+  for (const entry of TIMING_KB.mundaneStars ?? []) {
+    const m = entry.when.match(/^(.+?)(?:이|가)\s+(.+?)(?:와|과)\s+(회합|대립각|사각|삼각|육각)$/);
+    if (!m) continue;
+    const planetA = PLANET_KO_TO_EN[m[1].trim()];
+    const targetKo = m[2].trim();
+    const aspectEn = ASPECT_KO_TO_EN[m[3]];
+    if (!planetA || !aspectEn) continue;
+
+    const targetPlanet = PLANET_KO_TO_EN[targetKo];
+    const targetStar = STAR_KO_TO_EN[targetKo];
+    let hit = false;
+    if (targetPlanet) {
+      hit = pairs.some(
+        (p) =>
+          same(p.aspect, aspectEn) &&
+          ((same(p.a, planetA) && same(p.b, targetPlanet)) ||
+            (same(p.a, targetPlanet) && same(p.b, planetA))),
+      );
+    } else if (targetStar && aspectEn === "Conjunction") {
+      hit = !!lord && same(lord, planetA) && stars.has(targetStar.toLowerCase());
+    }
+    if (hit) out.push(`· ${entry.when}: ${entry.effect}`);
+  }
+  return out;
+}
+
 export function buildKnowledgeContext(
   chartData: ChartData,
   fortuneType: FortuneType,
+  opts?: KnowledgeContextOptions,
 ): string {
   if (!chartData?.planets) return "";
 
@@ -213,20 +293,47 @@ export function buildKnowledgeContext(
   }
 
   // ── 5. 시기 해석 (데일리/연간/상담) ──
-  if (goldenKeys.includes("timing" as GoldenKey)) {
-    const timingLines: string[] = [];
+  const timingLines: string[] = [];
+  if (fortuneType === FortuneType.DAILY) {
+    // 데일리: 하루 단위로 작동하는 트랜짓 규칙만 (결혼·새턴리턴 나이·솔라리턴 결재 같은 연 단위 규칙 제외)
+    if (TIMING_KB.dailyTransit?.length) {
+      timingLines.push(...TIMING_KB.dailyTransit.map((r) => `· ${r}`));
+    }
+  } else if (goldenKeys.includes("timing" as GoldenKey)) {
     if (TIMING_KB.transit?.length) {
       timingLines.push(...TIMING_KB.transit.map((r) => `· ${r}`));
     }
-    // 피르다리아는 장기 시기 기법 → 자유상담에만 (데일리 제외, 분량 절약)
+    // 피르다리아는 장기 시기 기법 → 자유상담에만
     if (
       fortuneType === FortuneType.CONSULTATION &&
       TIMING_KB.firdaria?.length
     ) {
       timingLines.push(...TIMING_KB.firdaria.map((r) => `· ${r}`));
     }
-    if (timingLines.length) {
-      sections.push("■ 시기 해석 기준\n" + dedup(timingLines).join("\n"));
+  }
+  if (timingLines.length) {
+    sections.push("■ 시기 해석 기준\n" + dedup(timingLines).join("\n"));
+  }
+
+  // ── 5b. 솔라리턴 해석 기준 (상담소 월간·연간 카테고리에만) ──
+  const topicUpper = String(opts?.consultationTopic ?? "").trim().toUpperCase();
+  if (
+    fortuneType === FortuneType.CONSULTATION &&
+    (topicUpper === "MONTHLY" || topicUpper === "YEARLY") &&
+    TIMING_KB.solarReturn?.length
+  ) {
+    sections.push(
+      "■ 솔라리턴 해석 기준\n" + TIMING_KB.solarReturn.map((r) => `· ${r}`).join("\n"),
+    );
+  }
+
+  // ── 5c. 데일리 먼데인 쿡북 — 그날 실제 성립한 연주 조합만 (계산-게이팅) ──
+  if (fortuneType === FortuneType.DAILY && opts?.daily) {
+    const cookbook = matchMundaneCookbook(opts.daily);
+    if (cookbook.length) {
+      sections.push(
+        "■ 오늘 성립한 트랜짓 조합 해석 (먼데인 쿡북 — 연주 기준)\n" + cookbook.join("\n"),
+      );
     }
   }
 

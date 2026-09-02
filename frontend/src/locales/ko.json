@@ -480,7 +480,7 @@
   },
   "consultation": {
     "intro": "정통 고전 점성술 원리와 수천 년 검증된 천체 운행 데이터를 사용합니다. 태어난 시각·장소 기준 출생 차트(Natal Chart) 자동 계산과, 20년 경력 점성술 전문가 해석 로직을 AI로 구현한 서비스입니다. 자유 질문·궁합·데일리 운세 등 텍스트 질의에 맞춘 분석을 제공합니다.",
-    "select_category": "먼저 카테고리를 선택해주세요",
+    "select_category": "카테고리 (선택 사항 · ✨ 자동 판단으로 두면 질문을 읽고 알맞은 해석법을 적용해요)",
     "suggested_questions": "이런 질문은 어떠세요?",
     "question_input_label": "질문 입력",
     "question_placeholder": "구체적으로 질문할수록 더 정확한 답변을 받을 수 있어요. (예: 지금 만나는 사람과 내년에 결혼할 수 있을까요?)",
@@ -530,6 +530,7 @@
     "topic_monthly": "🗓️ 월간 운세",
     "topic_yearly": "📆 연간 운세",
     "topic_other": "🔮 기타",
+    "topic_auto": "✨ 자동 판단",
     "preset_love_1": "짝사랑 중인데 연인이 될 수 있을까요?",
     "preset_love_2": "저는 언제 결혼할까요?",
     "preset_love_3": "헤어진 연인과 재회할 가능성이 있을까요?",

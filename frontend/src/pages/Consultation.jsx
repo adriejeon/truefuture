@@ -199,6 +199,7 @@ function Consultation() {
   }, [freeQuestionJsonLd]);
 
   const TOPIC_OPTIONS = [
+    { id: "AUTO", label: t("consultation.topic_auto") },
     { id: "LOVE", label: t("consultation.topic_love") },
     { id: "MONEY", label: t("consultation.topic_money") },
     { id: "WORK", label: t("consultation.topic_work") },
@@ -283,8 +284,9 @@ function Consultation() {
 
   // UI 상태 (질문·토픽은 마운트 시 드래프트에서 복원)
   const [showProfileModal, setShowProfileModal] = useState(false);
+  // 기본값 AUTO: 카테고리를 고르지 않아도 서버가 질문을 읽고 카테고리를 자동 판단한다
   const [selectedTopic, setSelectedTopic] = useState(() =>
-    getTempConsultationState()?.topic ?? null
+    getTempConsultationState()?.topic ?? "AUTO"
   );
   const [userQuestion, setUserQuestion] = useState(() =>
     getTempConsultationState()?.question ?? ""

@@ -480,7 +480,7 @@
   },
   "consultation": {
     "intro": "True Future uses classical Western astrology principles and long-established ephemeris-style celestial data. It auto-computes a natal chart from birth time and place and implements interpretation logic from an astrologer with ~20 years of practice as automated responses. It supports free-form questions, compatibility, and daily readings.",
-    "select_category": "Choose a category to get started",
+    "select_category": "Category (optional · leave on Auto-detect and we'll pick the right method from your question)",
     "suggested_questions": "How about one of these?",
     "question_input_label": "Your Question",
     "question_placeholder": "The more specific you are, the more accurate your reading. (e.g., Will I be able to marry the person I'm seeing next year?)",
@@ -530,6 +530,7 @@
     "topic_monthly": "🗓️ This Month",
     "topic_yearly": "📆 This Year",
     "topic_other": "🔮 Other",
+    "topic_auto": "✨ Auto-detect",
     "preset_love_1": "I have a crush — could we end up together?",
     "preset_love_2": "When am I likely to get married?",
     "preset_love_3": "Is there a chance I'll reconnect with my ex?",
