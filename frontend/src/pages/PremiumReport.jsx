@@ -314,7 +314,7 @@ function PremiumReport() {
     const code = searchParams.get("code");
     const failMessage = searchParams.get("message");
     const paymentId = searchParams.get("paymentId");
-    const txId = searchParams.get("txId");
+    // 주의: 쿼리의 txId 는 PortOne 거래번호로, 결제 조회 API 의 결제 ID 가 아니다 (조회 시 404).
 
     let stored = null;
     try {
@@ -322,8 +322,11 @@ function PremiumReport() {
       if (raw) stored = JSON.parse(raw);
     } catch (_) {}
 
-    // 결제 실패/취소
+    // 결제 실패/취소 → 결제 컨텍스트 정리 (남겨두면 다음 방문 때 무의미한 복구 조회가 발생)
     if (code) {
+      try {
+        sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
+      } catch (_) {}
       setError(failMessage || t("premium_report.error_pay_cancelled"));
       setSearchParams({}, { replace: true });
       setView("intro");
@@ -342,7 +345,7 @@ function PremiumReport() {
     setSearchParams({}, { replace: true });
     completePurchase({
       merchantUid,
-      paymentId: txId || merchantUid,
+      paymentId: merchantUid, // PortOne V2 결제 ID = 우리가 생성한 merchantUid
       profileId,
       questionText: stored?.question || "",
     });
@@ -450,6 +453,10 @@ function PremiumReport() {
       });
 
       if (response?.code != null) {
+        // PG 단계 실패/취소: 승인된 결제가 없으므로 결제 컨텍스트를 정리
+        try {
+          sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
+        } catch (_) {}
         throw new Error(response.message || t("premium_report.error_pay_failed"));
       }
 

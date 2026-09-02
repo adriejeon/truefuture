@@ -426,18 +426,37 @@ async function handlePurchase(
     });
   }
 
-  let paymentId = impUid || merchantUid;
+  // 조회 ID 우선순위: 우리가 생성한 결제 ID(report_…) → 클라이언트가 보낸 imp_uid → merchant_uid.
+  // 모바일 리다이렉트 복귀 시 구버전 클라이언트가 PortOne 거래번호(txId)를 imp_uid 로 보내는데,
+  // 그 값으로 조회하면 PAYMENT_NOT_FOUND(404) 가 난다 → 404 이면 다음 후보로 재시도한다.
+  const lookupIds = [
+    ...new Set(
+      [merchantUid.startsWith("report_") ? merchantUid : "", impUid, merchantUid].filter(Boolean),
+    ),
+  ];
+  let paymentId = lookupIds[0];
   let paidAmount = REPORT_PRICE_KRW;
   try {
-    const paymentResponse = await fetch(
-      `https://api.portone.io/payments/${encodeURIComponent(paymentId)}`,
-      { method: "GET", headers: { Authorization: `PortOne ${portoneApiSecret}` } },
-    );
-    if (!paymentResponse.ok) {
+    let payment: any = null;
+    let lastLookupError = "";
+    for (const candidate of lookupIds) {
+      const paymentResponse = await fetch(
+        `https://api.portone.io/payments/${encodeURIComponent(candidate)}`,
+        { method: "GET", headers: { Authorization: `PortOne ${portoneApiSecret}` } },
+      );
+      if (paymentResponse.ok) {
+        payment = await paymentResponse.json();
+        paymentId = candidate;
+        break;
+      }
       const errorText = await paymentResponse.text();
-      throw new Error(`결제 정보 조회 실패 (${paymentResponse.status}): ${errorText.substring(0, 200)}`);
+      lastLookupError = `결제 정보 조회 실패 (${paymentResponse.status}): ${errorText.substring(0, 200)}`;
+      if (paymentResponse.status !== 404) break;
+      console.warn(`⚠️ PortOne 결제 조회 404 (id=${candidate}) — 다음 후보 ID로 재시도`);
     }
-    const payment = await paymentResponse.json();
+    if (!payment) {
+      throw new Error(lastLookupError || "결제 정보 조회 실패");
+    }
     if (payment.status !== "PAID") {
       return json(400, {
         success: false,
