@@ -377,9 +377,7 @@ function Consultation() {
   const [showFollowUpButton, setShowFollowUpButton] = useState(false);
   const [resultSectionInView, setResultSectionInView] = useState(false); // 결과 영역이 뷰포트에 들어왔는지
   const [showFollowUpInput, setShowFollowUpInput] = useState(false);
-  const [followUpQuestion, setFollowUpQuestion] = useState(() =>
-    getTempConsultationState()?.currentFollowUpInput ?? ""
-  );
+  const [followUpQuestion, setFollowUpQuestion] = useState("");
   const [loadingFollowUp, setLoadingFollowUp] = useState(false);
   const [followUpAnswers, setFollowUpAnswers] = useState([]); // 이전 대화 맥락용 (후속 질문 답변들)
   const consultationStateRestoredRef = useRef(false);
@@ -437,59 +435,26 @@ function Consultation() {
   const [historyView, setHistoryView] = useState(null); // { question, interpretation }
   const profileRestoredRef = useRef(false);
 
-  // 질문·토픽·프로필·답변·후속 맥락 임시 저장(Draft): 하나의 키에 JSON으로 저장
-  // 주의: 복원 effect 보다 먼저 실행되므로, 복원이 끝나기 전에는 저장하지 않는다
-  // (저장하면 answer:null 로 덮어써 새로고침 시 답변이 사라진다)
+  // 임시 저장(Draft)은 "아직 보내지 않은 질문 문구"와 선택 프로필만 남긴다.
+  // 완료된 답변·후속 대화는 저장하지 않는다 — 지난 대화는 히스토리(드로어)에서만 보고,
+  // 새로고침하면 항상 새 질문 화면이 나와야 한다.
   useEffect(() => {
     if (!draftHydrated) return;
     const state = {
       question: userQuestion,
       topic: selectedTopic,
       profileId: selectedProfile?.id ?? null,
-      answer: consultationAnswer ?? null,
-      followUpHistory: followUpAnswers ?? [],
-      currentFollowUpInput: followUpQuestion ?? "",
     };
     localStorage.setItem("temp_consultation_state", JSON.stringify(state));
-  }, [
-    draftHydrated,
-    userQuestion,
-    selectedTopic,
-    selectedProfile,
-    consultationAnswer,
-    followUpAnswers,
-    followUpQuestion,
-  ]);
+  }, [draftHydrated, userQuestion, selectedTopic, selectedProfile]);
 
-  // 마운트 시 저장된 상담 맥락 복원 (메인 상담소 뷰일 때만: 히스토리/공유 뷰가 아님)
+  // 마운트 시: 메인 상담소 뷰에서만 저장 게이트를 연다 (질문 문구는 useState 초기화자에서 이미 복원됨).
+  // 히스토리/공유 뷰(resultId 또는 ?id=)에서는 저장하지 않아 메인 뷰 드래프트를 덮어쓰지 않는다.
   useEffect(() => {
     if (consultationStateRestoredRef.current) return;
     const isHistoryOrSharedView = resultId || searchParams.get("id");
-    if (isHistoryOrSharedView) {
-      // 히스토리/공유 뷰에서는 복원도 저장도 하지 않는다.
-      // (저장 게이트를 열면 메인 뷰의 드래프트를 빈 값으로 덮어쓴다)
-      return;
-    }
-    const saved = getTempConsultationState();
-    if (!saved) {
-      setDraftHydrated(true);
-      return;
-    }
+    if (isHistoryOrSharedView) return;
     consultationStateRestoredRef.current = true;
-    if (saved.answer != null) {
-      setConsultationAnswer(saved.answer);
-    }
-    if (Array.isArray(saved.followUpHistory) && saved.followUpHistory.length > 0) {
-      setFollowUpAnswers(saved.followUpHistory);
-    }
-    if (saved.currentFollowUpInput != null && saved.currentFollowUpInput !== "") {
-      setFollowUpQuestion(saved.currentFollowUpInput);
-    }
-    const hasAnswer = saved.answer != null;
-    const followUpCount = Array.isArray(saved.followUpHistory) ? saved.followUpHistory.length : 0;
-    const hasCurrentInput = !!String(saved.currentFollowUpInput ?? "").trim();
-    setShowFollowUpButton(hasAnswer && followUpCount < 2 && !hasCurrentInput);
-    setShowFollowUpInput(hasCurrentInput);
     setDraftHydrated(true);
   }, [resultId, searchParams]);
 
