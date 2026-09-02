@@ -24,6 +24,8 @@ import LoginRequiredModal from "../components/LoginRequiredModal";
 import FortuneMarkdown from "../components/FortuneMarkdown";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { parseFnError, describeFnError, toUserFacingError } from "../utils/fnError";
+import { deliverPdfFile } from "../utils/pdfDelivery";
+import { detectInAppBrowser, redirectToExternalBrowser } from "../utils/inAppBrowserDetector";
 import { trackPurchase } from "../utils/analytics";
 import { colors } from "../constants/colors";
 import { SITE_ORIGIN } from "../constants/seoMeta";
@@ -119,6 +121,8 @@ function PremiumReport() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pdfSaving, setPdfSaving] = useState(false);
+  /** PDF 는 만들어졌지만 공유 시트를 열 사용자 제스처가 만료돼 재탭이 필요한 상태 (모바일) */
+  const [pdfReady, setPdfReady] = useState(false);
   /** 실패 화면에서 '이어서 생성하기'를 보여줄지 (CAPPED/SAFETY 는 숨김) */
   const [genRetryable, setGenRetryable] = useState(true);
   /** 실패 원인이 세션 만료라 다시 로그인해야 하는 경우 */
@@ -132,6 +136,8 @@ function PremiumReport() {
   const isMountedRef = useRef(true);
   const redirectHandledRef = useRef(false);
   const recoveryTriedRef = useRef(false);
+  /** 생성한 PDF Blob 캐시 { reportId, blob, filename } — 재탭 시 즉시 공유하기 위해 보관 */
+  const pdfCacheRef = useRef(null);
 
   const reportIdParam = searchParams.get("id");
 
@@ -703,9 +709,53 @@ function PremiumReport() {
 
   // ===== PDF 저장 =====
 
+  // 리포트가 바뀌면 PDF 캐시·재탭 상태 초기화
+  useEffect(() => {
+    pdfCacheRef.current = null;
+    setPdfReady(false);
+  }, [report?.id]);
+
+  /**
+   * 생성된 PDF 를 기기에 전달하고 결과에 따라 UI 를 갱신한다.
+   * 모바일은 공유 시트(파일에 저장), 데스크톱은 다운로드. 인앱 브라우저 등 저장 불가 환경은 외부 브라우저 안내.
+   */
+  const finishPdfDelivery = async (blob, filename) => {
+    const outcome = await deliverPdfFile(blob, filename);
+    if (outcome === "retap") {
+      // 사용자 제스처가 만료돼 공유 시트를 열지 못함 → 버튼을 "눌러서 저장" 상태로 바꿔 재탭 유도
+      setPdfReady(true);
+      return;
+    }
+    setPdfReady(false);
+    if (outcome === "unsupported") {
+      const { isInApp, appKey } = detectInAppBrowser();
+      if (isInApp) {
+        if (window.confirm(t("premium_report.pdf_inapp_confirm"))) {
+          const attempted = redirectToExternalBrowser(appKey, window.location.href);
+          if (!attempted) alert(t("premium_report.pdf_inapp_manual"));
+        }
+      } else {
+        alert(t("premium_report.pdf_unsupported"));
+      }
+    }
+  };
+
   // 텍스트 레이어를 가진 실제 PDF 생성 (@react-pdf/renderer + 한글 서브셋 폰트)
   const handleSavePdf = async () => {
     if (!report?.content || pdfSaving) return;
+
+    // 이미 만들어 둔 PDF 가 있으면(재탭) 비동기 작업 없이 곧바로 전달 — 공유 시트는 클릭 제스처 안에서만 열린다
+    const cached = pdfCacheRef.current;
+    if (cached && cached.reportId === report.id) {
+      try {
+        await finishPdfDelivery(cached.blob, cached.filename);
+      } catch (err) {
+        console.error("❌ PDF 저장 실패:", err);
+        alert(t("premium_report.pdf_error"));
+      }
+      return;
+    }
+
     setPdfSaving(true);
     try {
       const [{ pdf }, { registerReportFonts, buildReportPdfDocument }] = await Promise.all([
@@ -726,14 +776,8 @@ function PremiumReport() {
       const dateStr = (report.created_at || "").substring(0, 10).replace(/-/g, "");
       const filename = `진짜미래_상세리포트_${name}_${dateStr}.pdf`;
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      pdfCacheRef.current = { reportId: report.id, blob, filename };
+      await finishPdfDelivery(blob, filename);
     } catch (err) {
       console.error("❌ PDF 저장 실패:", err);
       alert(t("premium_report.pdf_error"));
@@ -1111,7 +1155,9 @@ function PremiumReport() {
               <FileDown className="w-4 h-4" strokeWidth={2} aria-hidden="true" />
               {pdfSaving
                 ? t("premium_report.pdf_saving")
-                : t("premium_report.pdf_button")}
+                : pdfReady
+                  ? t("premium_report.pdf_retap")
+                  : t("premium_report.pdf_button")}
             </button>
             <button
               type="button"
