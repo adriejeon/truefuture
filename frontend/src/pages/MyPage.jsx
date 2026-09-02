@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
 import BottomNavigation from "../components/BottomNavigation";
@@ -16,6 +17,7 @@ function MyPage() {
   const { t } = useTranslation();
   const { user, logout, loadingAuth } = useAuth();
   const { stars } = useStars();
+  const { isAdmin } = useIsAdmin();
   const navigate = useNavigate();
   const location = useLocation();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -147,6 +149,25 @@ function MyPage() {
   };
 
   const menuItems = [
+    // 관리자 전용: 후기 검수 페이지 (admin_users 등록 계정에만 노출, 실제 권한은 서버 RLS)
+    ...(isAdmin
+      ? [
+          {
+            id: "admin_reviews",
+            title: t("mypage.menu_admin_reviews"),
+            onClick: (e) => {
+              e?.preventDefault();
+              e?.stopPropagation();
+              navigate("/admin/reviews");
+            },
+            icon: (
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
     {
       id: "usage",
       title: t("mypage.menu_usage"),

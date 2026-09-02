@@ -17,6 +17,8 @@ import {
 import { colors } from "../constants/colors";
 import { getBrandImageAlt } from "../constants/seoMeta";
 import { WalletCards } from "lucide-react";
+import ReviewList from "../components/ReviewList";
+import { usePublishedReviews } from "../hooks/usePublishedReviews";
 
 function FavoriteStarIcon() {
   return (
@@ -40,6 +42,11 @@ function FavoriteStarIcon() {
 function Home() {
   const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
+  // 메인 후기 섹션: Supabase public_reviews(published) 에서 조회. 없으면 섹션 자체를 숨김
+  const { reviews: publishedReviews, summary: reviewSummary } = usePublishedReviews({
+    language: i18n.language,
+    limit: 6,
+  });
   const {
     profiles,
     loading: profilesLoading,
@@ -290,51 +297,29 @@ function Home() {
               </div>
             </section>
 
-            {/* 실제 구매자들 리뷰 섹션 */}
-            <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)]">
-              <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
-                <div
-                  className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
-                  aria-hidden="true"
-                >
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+            {/* 실제 이용자 후기 섹션: DB(published) 후기만 노출, 없으면 미표시 */}
+            {publishedReviews.length > 0 && (
+              <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)]">
+                <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
+                  <div
+                    className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
+                    aria-hidden="true"
+                  >
+                    <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+                    <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+                    <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
+                  </div>
+                  <h2 className="text-center font-noto text-[clamp(17px,4.5vw,24px)] font-medium leading-[1.5] tracking-[-0.02em] text-[#FFFFFF]">
+                    {t("home.buyer_title")}{" "}
+                    <span className="text-primary">{t("home.buyer_title_accent")}</span>
+                  </h2>
+                  <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
+                    {t("home.buyer_subtitle").replace(/\n+/g, " ")}
+                  </p>
+                  <ReviewList reviews={publishedReviews} summary={reviewSummary} />
                 </div>
-                <h2 className="text-center font-noto text-[clamp(17px,4.5vw,24px)] font-medium leading-[1.5] tracking-[-0.02em] text-[#FFFFFF]">
-                  {t("home.buyer_title")}{" "}
-                  <span className="text-primary">{t("home.buyer_title_accent")}</span>
-                </h2>
-                <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
-                  {t("home.buyer_subtitle").replace(/\n+/g, " ")}
-                </p>
-                <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
-                  {[
-                    { review: "buyer_review1", author: "buyer_review1_author" },
-                    { review: "buyer_review2", author: "buyer_review2_author" },
-                    { review: "buyer_review3", author: "buyer_review3_author" },
-                  ].map(({ review, author }) => (
-                    <blockquote key={review} className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
-                      <p
-                        className="flex items-center gap-1.5 mb-3 text-primary"
-                        aria-label="별점 5점"
-                      >
-                        <span className="flex gap-0.5">
-                          <FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon />
-                        </span>
-                        <span className="text-[clamp(12px,2.8vw,14px)] font-medium text-primary/95">5.0</span>
-                      </p>
-                      <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                        &ldquo;{t(`home.${review}`)}&rdquo;
-                      </p>
-                      <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                        {t(`home.${author}`)}
-                      </footer>
-                    </blockquote>
-                  ))}
-                </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             {/* JP Morgan 섹션 */}
             <section className="flex flex-col items-center gap-[clamp(18.67px,5.833vw,35px)] w-full">

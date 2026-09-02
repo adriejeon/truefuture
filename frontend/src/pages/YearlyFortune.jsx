@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
+import ReviewPrompt from "../components/ReviewPrompt";
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
@@ -1043,6 +1044,19 @@ function YearlyFortune() {
             />
           </div>
         )}
+        {/* 후기 유도: 데일리/종합운세 결과를 끝까지 받은 뒤에만 (스트리밍·복구 중 제외) */}
+        {!showLoadingCache &&
+          !showRestoring &&
+          shareId &&
+          interpretation &&
+          processStatus !== "waiting" &&
+          processStatus !== "streaming" && (
+            <ReviewPrompt
+              service={fortuneTab === "daily" ? "daily" : "lifetime"}
+              resultId={shareId}
+              className="mt-8"
+            />
+          )}
       </div>
       <BottomNavigation activeTab="yearly" />
 

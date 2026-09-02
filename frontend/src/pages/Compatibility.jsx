@@ -7,6 +7,7 @@ import { Helmet } from "react-helmet-async";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
+import ReviewPrompt from "../components/ReviewPrompt";
 import SocialLoginButtons from "../components/SocialLoginButtons";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
@@ -818,6 +819,15 @@ function Compatibility() {
             />
           </div>
         )}
+        {/* 후기 유도: 결과를 끝까지 받은 본인 결과에만 (공유 뷰·스트리밍 중 제외) */}
+        {!restoring &&
+          !isSharedFortune &&
+          shareId &&
+          interpretation &&
+          processStatus !== "waiting" &&
+          processStatus !== "streaming" && (
+            <ReviewPrompt service="compatibility" resultId={shareId} className="mt-8" />
+          )}
       </div>
       <BottomNavigation activeTab="compatibility" />
 

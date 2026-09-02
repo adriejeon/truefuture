@@ -2807,6 +2807,18 @@ function Consultation() {
                       </form>
                     </div>
                   )}
+
+                  {/* 후기 유도: 답변(및 후속 답변)을 끝까지 받은 뒤 결과 하단에 노출 */}
+                  {consultationAnswer.shareId &&
+                    processStatus !== "waiting" &&
+                    processStatus !== "streaming" &&
+                    !loadingFollowUp && (
+                      <ReviewPrompt
+                        service="consultation"
+                        resultId={consultationAnswer.shareId}
+                        className="mt-8"
+                      />
+                    )}
                   </div>
                 </div>
               )}

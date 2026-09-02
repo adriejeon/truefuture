@@ -25,6 +25,7 @@ import MyPage from "./pages/MyPage";
 import Contact from "./pages/Contact";
 import RefundInquiry from "./pages/RefundInquiry";
 import PremiumReport from "./pages/PremiumReport";
+import AdminReviews from "./pages/AdminReviews";
 import Footer from "./components/Footer";
 import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
@@ -137,6 +138,7 @@ function AppContent() {
           <Route path="/purchase/history" element={<PurchaseHistory />} />
           <Route path="/payment/complete" element={<PaymentComplete />} />
           <Route path="/mypage" element={<MyPage />} />
+          <Route path="/admin/reviews" element={<AdminReviews />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/refund-inquiry" element={<RefundInquiry />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />

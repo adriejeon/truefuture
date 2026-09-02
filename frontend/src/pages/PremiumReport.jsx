@@ -22,6 +22,7 @@ import PrimaryButton from "../components/PrimaryButton";
 import BottomNavigation from "../components/BottomNavigation";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import FortuneMarkdown from "../components/FortuneMarkdown";
+import ReviewPrompt from "../components/ReviewPrompt";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
 import { parseFnError, describeFnError, toUserFacingError } from "../utils/fnError";
 import { deliverPdfFile } from "../utils/pdfDelivery";
@@ -1189,6 +1190,8 @@ function PremiumReport() {
           </div>
         </div>
 
+        {/* 후기 유도: 완료(DONE)된 본인 리포트 하단. 구매 인증은 서버가 premium_reports 로 대조 */}
+        {report?.id && <ReviewPrompt service="report" reportId={report.id} className="mt-8" />}
       </div>
     );
   };
