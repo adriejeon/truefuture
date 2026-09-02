@@ -75,7 +75,7 @@ Rules:
 - Do not repeat a previous question verbatim; move the conversation forward (next step, timing, a related concern they implied).
 - Keep each under 90 characters, first person, natural spoken tone matching how the client writes.
 - No medical diagnosis, legal advice, or guarantees.
-Return JSON only: {"questions":["...","...","..."]}`;
+Output only a JSON object of the shape {"questions": [array of question strings]}. No preface, no code fence, no placeholder strings.`;
   }
   return `당신은 점성술 상담 서비스에서 재방문 내담자에게 "다음에 물어볼 만한 질문"을 제안하는 도우미입니다.
 내담자가 이 프로필로 이전에 던진 질문(최신순)과 마지막 답변의 요지를 받습니다.
@@ -85,7 +85,38 @@ Return JSON only: {"questions":["...","...","..."]}`;
 - 이전 질문을 그대로 반복하지 말고 대화를 한 걸음 진전시키세요(다음 단계, 시기, 이력에서 암시된 관련 고민).
 - 각 질문은 40자 이내, 1인칭, 내담자가 쓴 말투(반말/존댓말)를 따르는 자연스러운 구어체.
 - 의료 진단·법률 자문·결과 보장 표현 금지.
-JSON 만 출력: {"questions":["...","...","..."]}`;
+출력은 {"questions": [질문 문자열 배열]} 형태의 JSON 객체 하나만. 서문·코드 펜스·자리표시자("...") 금지.`;
+}
+
+
+/** 모델 출력에서 JSON 본문만 뽑아 questions 배열을 얻는다. 어떤 경로로도 파싱이 안 되면 []. */
+function extractQuestionList(raw: string): unknown[] {
+  const text = String(raw ?? "").replace(/```(?:json)?/gi, "").trim();
+  const candidates: string[] = [text];
+  const objStart = text.indexOf("{"), objEnd = text.lastIndexOf("}");
+  if (objStart >= 0 && objEnd > objStart) candidates.push(text.slice(objStart, objEnd + 1));
+  const arrStart = text.indexOf("["), arrEnd = text.lastIndexOf("]");
+  if (arrStart >= 0 && arrEnd > arrStart) candidates.push(text.slice(arrStart, arrEnd + 1));
+  for (const c of candidates) {
+    try {
+      const parsed = JSON.parse(c);
+      const list = Array.isArray(parsed) ? parsed : parsed?.questions;
+      if (Array.isArray(list)) return list;
+    } catch (_) {
+      // 다음 후보
+    }
+  }
+  return [];
+}
+
+/** 질문으로 볼 수 있는 문자열인지: 길이·글자 포함·자리표시자/서문 배제 */
+function isPlausibleQuestion(q: string, maxLen: number): boolean {
+  if (!q || q.length < 6 || q.length > maxLen) return false;
+  if (/^[\s.。…?!,\-·]+$/.test(q)) return false; // "..." 같은 자리표시자
+  if (/\.\.\.|…/.test(q) && q.replace(/[\s.…]/g, "").length < 6) return false;
+  if (/json|here is|here are|다음은|아래는|questions?\s*[:：]/i.test(q)) return false; // 서문·키 이름
+  const letters = (q.match(/[가-힣A-Za-z]/g) ?? []).length;
+  return letters >= 4;
 }
 
 async function generateSuggestions(
@@ -113,6 +144,13 @@ async function generateSuggestions(
         topP: 0.95,
         maxOutputTokens: 300,
         responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            questions: { type: "ARRAY", items: { type: "STRING" } },
+          },
+          required: ["questions"],
+        },
       },
     }),
   }).then(async (res) => {
@@ -127,21 +165,15 @@ async function generateSuggestions(
     .map((p: { text?: string }) => p?.text ?? "")
     .join("");
 
-  let list: unknown = [];
-  try {
-    const parsed = JSON.parse(text);
-    list = Array.isArray(parsed) ? parsed : parsed?.questions;
-  } catch (_) {
-    // 모델이 JSON 을 어긋나게 낸 경우: 줄 단위 폴백
-    list = text.split("\n").map((l) => l.replace(/^[\s\-\d.)"]+|["\s,]+$/g, ""));
-  }
+  // 모델이 서문("Here is the JSON") 이나 코드 펜스를 붙여도 JSON 본문만 추출. 실패하면 빈 배열(줄 단위 폴백 금지).
+  const list = extractQuestionList(text);
   const maxLen = language === "en" ? 110 : 60;
   const prev = new Set(questions.map((q) => q.replace(/\s+/g, "")));
   const out: string[] = [];
-  for (const item of Array.isArray(list) ? list : []) {
+  for (const item of list) {
     if (typeof item !== "string") continue;
-    const q = item.trim();
-    if (!q || q.length > maxLen) continue;
+    const q = item.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "");
+    if (!isPlausibleQuestion(q, maxLen)) continue;
     if (prev.has(q.replace(/\s+/g, ""))) continue; // 이전 질문 그대로 반복 금지
     if (out.some((o) => o === q)) continue;
     out.push(q);

@@ -285,7 +285,7 @@ function Consultation() {
   // 세션 캐시(프로필별, 10분)로 재호출을 줄이고, 새 답변이 완료되면 캐시를 지운다.
   const [personalChips, setPersonalChips] = useState([]);
   const SUGGEST_CACHE_TTL_MS = 10 * 60 * 1000;
-  const suggestCacheKey = (profileId) => `consult_suggest_${profileId}`;
+  const suggestCacheKey = (profileId) => `consult_suggest_v2_${profileId}`;
   useEffect(() => {
     const profileId = selectedProfile?.id;
     if (!user?.id || !profileId) {
@@ -311,7 +311,16 @@ function Consultation() {
         });
         if (cancelled || fnError) return;
         const questions = Array.isArray(data?.questions)
-          ? data.questions.filter((q) => typeof q === "string" && q.trim()).slice(0, 3)
+          ? data.questions
+              .filter(
+                (q) =>
+                  typeof q === "string" &&
+                  q.trim().length >= 6 &&
+                  !/^[\s.。…?!,\-·]+$/.test(q) &&
+                  !/json|here is|다음은|아래는/i.test(q)
+              )
+              .map((q) => q.trim())
+              .slice(0, 3)
           : [];
         setPersonalChips(questions);
         try {
@@ -330,10 +339,8 @@ function Consultation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, selectedProfile?.id, i18n.language]);
 
-  // 화면에 보일 칩: 개인화 추천(최대 3) 먼저, 그 뒤 일반 예시 2개
-  const suggestionChips = personalChips.length
-    ? [...personalChips, ...presetChips.filter((q) => !personalChips.includes(q)).slice(0, 2)]
-    : presetChips;
+  // 화면에 보일 칩: 개인화 추천이 있으면 그것만(2~3개), 이력이 없을 때만 일반 예시
+  const suggestionChips = personalChips.length ? personalChips : presetChips;
   const [userQuestion, setUserQuestion] = useState(() =>
     getTempConsultationState()?.question ?? ""
   );
@@ -915,7 +922,7 @@ function Consultation() {
           setStreamingInterpretation("");
           if (shareId) {
             try {
-              sessionStorage.removeItem(`consult_suggest_${selectedProfile?.id}`);
+              sessionStorage.removeItem(`consult_suggest_v2_${selectedProfile?.id}`);
             } catch (_) {}
             saveFortuneHistory(
               user.id,
