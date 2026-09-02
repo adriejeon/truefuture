@@ -14,7 +14,11 @@ import StarModal from "../components/StarModal";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
-import { fetchFortuneByResultId } from "../services/fortuneService";
+import {
+  fetchFortuneByResultId,
+  findFortuneResultIdSince,
+} from "../services/fortuneService";
+import { toUserFacingError } from "../utils/fnError";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
@@ -55,11 +59,22 @@ function Compatibility() {
   const [loading, setLoading] = useState(false);
   const [processStatus, setProcessStatus] = useState("idle"); // 'idle' | 'waiting' | 'streaming' | 'done'
   const [error, setError] = useState("");
+  /** 스트림이 끊겼지만 서버가 결과를 저장해 자동 복구했을 때의 안내 */
+  const [notice, setNotice] = useState("");
   const resultContainerRef = useRef(null);
   const firstChunkReceivedRef = useRef(false);
+  const isMountedRef = useRef(true);
   const hasRestoredProfile2Ref = useRef(false);
   // 내역 결과를 표시 중인 동안 프로필 복원으로 인한 cleanup을 막는 플래그
   const isViewingHistoryRef = useRef(false);
+
+  // SPA 이동 후에는 setState/알림을 하지 않는다 (서버 생성은 그대로 끝까지 진행된다)
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // 두 사람의 프로필 선택
   const [profile1, setProfile1] = useState(null);
@@ -255,7 +270,7 @@ function Compatibility() {
       setSharedUserInfo(data.userInfo);
     } catch (err) {
       console.error("❌ 공유된 궁합 조회 실패:", err);
-      setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
+      setError(toUserFacingError(err, t));
       setSearchParams({});
     } finally {
       setLoading(false);
@@ -288,7 +303,7 @@ function Compatibility() {
       setSearchParams({});
     } catch (err) {
       console.error("❌ 궁합 내역 조회 실패:", err);
-      setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
+      setError(toUserFacingError(err, t));
       setSearchParams({});
     } finally {
       setLoading(false);
@@ -441,7 +456,7 @@ function Compatibility() {
       });
       setShowStarModal(true);
     } catch (err) {
-      setError(err?.message || t("compatibility.error_balance"));
+      setError(toUserFacingError(err, t, "compatibility.error_balance"));
     }
   };
 
@@ -457,11 +472,13 @@ function Compatibility() {
 
     setLoading(true);
     setError("");
+    setNotice("");
     setProcessStatus("waiting");
     setInterpretation("");
     setStreamingInterpretation("");
     setShareId(null);
     firstChunkReceivedRef.current = false;
+    const requestStartedAt = new Date().toISOString();
 
     try {
       const requestBody = {
@@ -491,6 +508,7 @@ function Compatibility() {
           setStreamingInterpretation((prev) => prev + text);
         },
         onDone: async ({ shareId: sid, fullText, fullData, debug }) => {
+          if (!isMountedRef.current) return;
           setLoading(false);
           setProcessStatus("done");
           const data = fullData ?? debug;
@@ -515,14 +533,36 @@ function Compatibility() {
           }
         },
         onError: async (err) => {
-          setError(err?.message || t("compatibility.error_request"));
+          if (!isMountedRef.current) return;
           setLoading(false);
           setProcessStatus("idle");
-          alert(t("compatibility.error_generate"));
+
+          // 스트림만 끊기고 서버는 끝까지 저장했을 수 있으므로 잠시 뒤 재확인
+          await new Promise((r) => setTimeout(r, 3000));
+          const recoveredId = await findFortuneResultIdSince({
+            userId: user.id,
+            profileId: profile1.id,
+            fortuneType: "compatibility",
+            sinceIso: requestStartedAt,
+          });
+          const recovered = recoveredId ? await fetchFortuneByResultId(recoveredId) : null;
+          if (!isMountedRef.current) return;
+          if (recovered?.interpretation) {
+            setStreamingInterpretation("");
+            setInterpretation(recovered.interpretation);
+            setShareId(recovered.shareId || recoveredId);
+            setProcessStatus("done");
+            setError("");
+            setNotice(t("compatibility.recovered_notice"));
+            return;
+          }
+
+          setError(toUserFacingError(err, t, "compatibility.error_request"));
         },
       });
     } catch (err) {
-      setError(err.message || t("compatibility.error_request"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "compatibility.error_request"));
       setLoading(false);
       setProcessStatus("idle");
     }
@@ -746,6 +786,11 @@ function Compatibility() {
             document.body
           )}
 
+        {notice && (
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-emerald-900/40 border border-emerald-700 rounded-lg text-emerald-100 break-words">
+            {notice}
+          </div>
+        )}
         {error && (
           <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">
             {error}

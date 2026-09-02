@@ -12,6 +12,10 @@
 //   - APPLE_SHARED_SECRET                    : App Store Connect → Apps → App-Specific Shared Secret
 //   - GOOGLE_SERVICE_ACCOUNT_JSON            : Google Cloud Service Account 의 JSON 키 전체 문자열
 //   - GOOGLE_PACKAGE_NAME                    : Android applicationId (kr.truefuture.app)
+//
+// ⚠️ 배포 순서: add_wallet_stars RPC(20260906_add_wallet_stars.sql)와
+//    CHARGE 부분 UNIQUE 인덱스(20260905_star_transactions_charge_unique.sql)를 사용한다.
+//    마이그레이션을 먼저 적용한 뒤 배포할 것. (RPC 미존재 시에는 구방식으로 자동 폴백)
 
 declare global {
   const Deno: {
@@ -205,6 +209,8 @@ async function googleAccessToken(svc: GoogleSvcAccount): Promise<string> {
 
 interface GoogleVerifyResult {
   ok: boolean;
+  /** Google Play 주문 번호. 소비성 상품 재구매 시마다 새로 발급된다 */
+  orderId?: string;
   error?: string;
 }
 
@@ -247,7 +253,19 @@ async function verifyGooglePurchase(
   if (data.purchaseState !== 0) {
     return { ok: false, error: `purchaseState=${data.purchaseState}` };
   }
-  return { ok: true };
+  return {
+    ok: true,
+    orderId: typeof data.orderId === "string" && data.orderId ? data.orderId : undefined,
+  };
+}
+
+/** purchaseToken 의 SHA-256 앞 32자 (orderId 가 없을 때의 대체 식별자) */
+async function sha256Hex32(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .substring(0, 32);
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -314,7 +332,9 @@ serve(async (req) => {
       });
     }
 
-    // 3. 영수증 검증
+    // 3. 영수증 검증 — 중복 판정 키는 클라이언트 값이 아니라 스토어 검증 응답에서 얻는다
+    //    (클라이언트가 보낸 purchase_id 는 위변조 가능하고, 플랫폼/버전마다 값이 달라진다)
+    let storeTxnId = "";
     if (platform === "ios") {
       const r = await verifyAppleReceipt(
         receipt,
@@ -324,11 +344,14 @@ serve(async (req) => {
       if (!r.ok) {
         return json(400, { success: false, error: `apple: ${r.error}` });
       }
+      storeTxnId = r.transactionId ?? "";
     } else if (platform === "android") {
       const r = await verifyGooglePurchase(product_id, receipt);
       if (!r.ok) {
         return json(400, { success: false, error: `google: ${r.error}` });
       }
+      // orderId 가 없으면(구독 승격 등 일부 케이스) purchaseToken 해시로 대체
+      storeTxnId = r.orderId ?? `tok_${await sha256Hex32(String(receipt))}`;
     } else {
       return json(400, { success: false, error: `unknown platform: ${platform}` });
     }
@@ -336,12 +359,18 @@ serve(async (req) => {
     // 4. Admin 클라이언트로 DB 처리
     const admin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 중복 처리 방지
-    const relatedId = `iap_${platform}_${purchase_id}`;
+    // 중복 처리 방지: 새 키(스토어 식별자)로 먼저 조회하고, 없으면 구 키(클라이언트 purchase_id)로도 조회.
+    // 기록은 항상 새 키로 남긴다.
+    const relatedId = `iap_${platform}_${storeTxnId || purchase_id}`;
+    const legacyRelatedId = `iap_${platform}_${purchase_id}`;
+    const dedupeKeys = [...new Set([relatedId, legacyRelatedId])];
+
     const { data: dup } = await admin
       .from("star_transactions")
       .select("id")
-      .eq("related_item_id", relatedId)
+      .in("related_item_id", dedupeKeys)
+      .eq("type", "CHARGE")
+      .limit(1)
       .maybeSingle();
     if (dup) {
       return json(200, {
@@ -351,58 +380,103 @@ serve(async (req) => {
       });
     }
 
-    // 5. 지갑 업서트
-    const { data: wallet } = await admin
-      .from("user_wallets")
-      .select("paid_stars, bonus_stars, probe_stars")
-      .eq("user_id", user_id)
-      .maybeSingle();
-
-    const curPaid = wallet?.paid_stars ?? 0;
-    const curBonus = wallet?.bonus_stars ?? 0;
-    const curProbe = wallet?.probe_stars ?? 0;
-
-    const newPaid = curPaid + pkg.paid;
-    const newBonus = curBonus + pkg.bonus;
-    const newProbe = curProbe + pkg.probe;
-
-    const { error: walletErr } = await admin
-      .from("user_wallets")
-      .upsert(
-        {
-          user_id,
-          paid_stars: newPaid,
-          bonus_stars: newBonus,
-          probe_stars: newProbe,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
-    if (walletErr) {
-      console.error("wallet upsert failed", walletErr);
-      return json(500, { success: false, error: "wallet update failed" });
-    }
-
-    // 6. 트랜잭션 기록
+    // 5. 지급 — 원장(star_transactions) 먼저 기록해 멱등성을 확보한 뒤 지갑을 원자 증가시킨다.
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + STARS_EXPIRY_DAYS);
     const total = pkg.paid + pkg.bonus + pkg.probe;
 
-    const { error: txErr } = await admin.from("star_transactions").insert({
-      user_id,
-      amount: total,
-      type: "CHARGE",
-      description: `IAP 구매: ${pkg.name}`,
-      related_item_id: relatedId,
-      paid_amount: pkg.paid,
-      bonus_amount: pkg.bonus,
-      probe_amount: pkg.probe,
-      expires_at: expiresAt.toISOString(),
-      is_expired: false,
-    });
+    const { data: insertedTx, error: txErr } = await admin
+      .from("star_transactions")
+      .insert({
+        user_id,
+        amount: total,
+        type: "CHARGE",
+        description: `IAP 구매: ${pkg.name}`,
+        related_item_id: relatedId,
+        paid_amount: pkg.paid,
+        bonus_amount: pkg.bonus,
+        probe_amount: pkg.probe,
+        expires_at: expiresAt.toISOString(),
+        is_expired: false,
+      })
+      .select("id")
+      .single();
+
     if (txErr) {
+      // UNIQUE 위반 = 동시 요청/재전송 → 이미 처리된 결제
+      if (String((txErr as any).code) === "23505") {
+        return json(200, {
+          success: true,
+          already_processed: true,
+          message: "이미 처리된 결제",
+        });
+      }
       console.error("tx insert failed", txErr);
       return json(500, { success: false, error: "transaction log failed" });
+    }
+
+    // 6. 지갑 원자 증가 (실패 시 방금 넣은 원장 행을 삭제해 보상)
+    let newPaid = 0;
+    let newBonus = 0;
+    let newProbe = 0;
+    const { data: walletResult, error: walletRpcErr } = await admin.rpc("add_wallet_stars", {
+      p_user_id: user_id,
+      p_paid: pkg.paid,
+      p_bonus: pkg.bonus,
+      p_probe: pkg.probe,
+    });
+
+    if (walletRpcErr) {
+      const rpcMissing =
+        String((walletRpcErr as any).code) === "PGRST202" ||
+        String((walletRpcErr as any).code) === "42883" ||
+        /add_wallet_stars/.test(String((walletRpcErr as any).message ?? ""));
+
+      let fallbackOk = false;
+      if (rpcMissing) {
+        console.warn("add_wallet_stars RPC missing — falling back to upsert. apply migrations.");
+        const { data: wallet } = await admin
+          .from("user_wallets")
+          .select("paid_stars, bonus_stars, probe_stars")
+          .eq("user_id", user_id)
+          .maybeSingle();
+        newPaid = ((wallet as any)?.paid_stars ?? 0) + pkg.paid;
+        newBonus = ((wallet as any)?.bonus_stars ?? 0) + pkg.bonus;
+        newProbe = ((wallet as any)?.probe_stars ?? 0) + pkg.probe;
+        const { error: upsertErr } = await admin
+          .from("user_wallets")
+          .upsert(
+            {
+              user_id,
+              paid_stars: newPaid,
+              bonus_stars: newBonus,
+              probe_stars: newProbe,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" },
+          );
+        fallbackOk = !upsertErr;
+        if (upsertErr) console.error("wallet upsert fallback failed", upsertErr);
+      }
+
+      if (!fallbackOk) {
+        console.error("wallet update failed — compensating ledger row", walletRpcErr);
+        const { error: compErr } = await admin
+          .from("star_transactions")
+          .delete()
+          .eq("id", (insertedTx as any).id);
+        if (compErr) {
+          console.error("compensation delete failed — manual check needed", {
+            transactionId: (insertedTx as any).id,
+            compErr,
+          });
+        }
+        return json(500, { success: false, error: "wallet update failed" });
+      }
+    } else {
+      newPaid = (walletResult as any)?.paid_stars ?? 0;
+      newBonus = (walletResult as any)?.bonus_stars ?? 0;
+      newProbe = (walletResult as any)?.probe_stars ?? 0;
     }
 
     // 7. 추천인 보상

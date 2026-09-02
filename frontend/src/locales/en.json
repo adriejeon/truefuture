@@ -436,7 +436,8 @@
     "welcome_title": "Welcome!",
     "welcome_subtitle": "To view your fortune, please enter your birth date and time.",
     "register_profile": "Add Profile",
-    "do_it_later": "Maybe Later"
+    "do_it_later": "Maybe Later",
+    "recovered_notice": "The reading finished generating and has been loaded."
   },
   "compatibility": {
     "title": "Real Future Compatibility",
@@ -474,7 +475,8 @@
     "score_phrase_great": "You two just click — barely any friction!",
     "score_phrase_good": "You're pretty well-matched!",
     "score_phrase_okay": "A little give and take goes a long way.",
-    "score_phrase_try": "Understanding each other takes real effort."
+    "score_phrase_try": "Understanding each other takes real effort.",
+    "recovered_notice": "The reading finished generating and has been loaded."
   },
   "consultation": {
     "intro": "True Future uses classical Western astrology principles and long-established ephemeris-style celestial data. It auto-computes a natal chart from birth time and place and implements interpretation logic from an astrologer with ~20 years of practice as automated responses. It supports free-form questions, compatibility, and daily readings.",
@@ -558,7 +560,9 @@
     "preset_health_1": "I haven't been feeling well lately — when might I recover?",
     "preset_health_2": "What might be behind the chronic condition I'm dealing with?",
     "preset_health_3": "When will my mental health (anxiety/depression) start to stabilize?",
-    "preset_health_4": "What's the best timing for surgery or treatment?"
+    "preset_health_4": "What's the best timing for surgery or treatment?",
+    "checking_recovery": "Checking whether the answer was saved...",
+    "recovered_notice": "The answer finished generating and was saved to your conversation list."
   },
   "fortune_form": {
     "birth_date_label": "Date of Birth",
@@ -606,7 +610,7 @@
     "optional": "optional",
     "question_placeholder": "e.g. Should I stay at my current job, and if I move, when is a good time? / When is marriage likely to come for me?",
     "buy_button": "Pay ₩{{price}} and get the report",
-    "notice_time": "The report is generated in 3 parts after payment and takes about 5–10 minutes. You can close the page and resume from your purchase history.",
+    "notice_time": "The report is written in three parts after payment and takes about 5-10 minutes. If you close the page, generation pauses and resumes when you open it again.",
     "notice_revisit": "Finished reports remain available under 'My reports' on this page and in My Page > Premium Report.",
     "notice_birthtime": "Profiles without an exact birth time (noon default) will have less precise timing analysis.",
     "notice_refund": "As digital content, refunds may be limited once report generation has started. If something went wrong, contact us via My Page > Refund inquiry.",
@@ -619,7 +623,7 @@
     "paying_title": "Confirming your payment",
     "paying_desc": "Please wait a moment. Don't close this window.",
     "generating_title": "Writing your report",
-    "generating_desc": "We're carefully writing your answers and the next ten years of your timeline. This takes about 5–10 minutes.\nGeneration continues even if you close the page.",
+    "generating_desc": "We're carefully writing your answer and the next ten years. This takes about 5-10 minutes.\nIf you close the page, generation pauses and resumes when you open it again.",
     "step_1": "Part 1 — Answers to your question",
     "step_2": "Part 2 — The decade's flow and first years in detail",
     "step_3": "Part 3 — Later years in detail and closing",
@@ -641,6 +645,46 @@
     "error_purchase": "We couldn't confirm the payment. If you were charged, please contact support.",
     "error_pay_cancelled": "The payment was cancelled or failed.",
     "error_pay_failed": "Payment failed.",
-    "error_redirect_context": "We couldn't restore the payment context. If you were charged, check My Page > Purchase history or contact support."
+    "error_redirect_context": "We couldn't restore the payment context. If you were charged, check My Page > Purchase history or contact support.",
+    "error_failed_validation": "The draft failed our review checks repeatedly, so the report couldn't be finished. Please try again with the button below.",
+    "error_failed_safety": "Generation was stopped by our safety policy. Please adjust your question and start again, or contact support.",
+    "error_failed_capped": "Generation failed repeatedly. Your payment is safely on record - please open My Page > Refund inquiry and we'll help right away.",
+    "error_failed_generic": "Report generation stopped. You can resume it with the button below.",
+    "error_login_again": "Your session expired. Please sign in again and resume from \"My reports\".",
+    "contact_support": "Contact support",
+    "login_continue": "Sign in and continue"
+  },
+  "errors": {
+    "network": "The network connection seems unstable. Check your connection and try again.",
+    "timeout": "The response took too long, so the connection was closed. Please try again in a moment.",
+    "stream_interrupted": "The response was cut off before it finished. Please try again in a moment.",
+    "generic": "We couldn't complete the request. Please try again in a moment.",
+    "temporary": "A temporary error occurred. Please try again in a moment.",
+    "processing": "A previous request is still being processed. Please try again in a moment.",
+    "login_required": "You need to sign in. Please sign in again and continue.",
+    "payment_not_found": "We couldn't find your payment. If the payment went through, please contact support.",
+    "not_paid": "The payment hasn't been completed yet. Please finish the payment and try again.",
+    "amount_mismatch": "The paid amount doesn't match the order amount. Please contact support.",
+    "portone_unavailable": "We couldn't reach the payment provider. Please check again in a moment.",
+    "user_mismatch": "This payment belongs to a different account. Please sign in with the account used for the payment.",
+    "profile_not_found": "We couldn't find the selected profile. Please choose a profile again.",
+    "profile_incomplete": "Some profile details are missing. Please check the birth date, time and place."
+  },
+  "payment_complete": {
+    "processing_title": "Processing payment",
+    "success_title": "Payment complete",
+    "error_title": "Payment failed",
+    "redirecting": "Redirecting shortly...",
+    "back_to_purchase": "Back to the purchase page",
+    "checking_login": "Checking your sign-in status...",
+    "charging": "Completing the payment and adding your tickets...",
+    "success_body": "🎉 Your purchase is complete!\n\nTickets purchased: {{count}}\nNew balance: {{balance}}",
+    "already_processed": "🎉 Your purchase is complete!\n\nThis payment was already processed and your tickets were added.",
+    "error_login_missing": "We can't confirm your sign-in. Sign in and come back to this page, and the payment will be verified automatically.",
+    "error_payment_cancelled": "The payment was cancelled or failed.",
+    "error_payment_info_missing": "We couldn't find your payment details. Please contact support.",
+    "error_with_contact": "{{message}}\n\nYour payment went through, so please contact support.",
+    "retry_button": "Check again",
+    "login_button": "Sign in and continue"
   }
 }

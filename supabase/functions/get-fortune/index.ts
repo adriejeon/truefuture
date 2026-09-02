@@ -563,6 +563,43 @@ async function callGeminiAPI(
   throw new Error("Unexpected error in callGeminiAPI");
 }
 
+/** 차감/환불 대상 재화 종류 */
+type StarCurrency = "PAID" | "BONUS" | "PROBE";
+
+/**
+ * 운세 종류로 차감할 재화를 결정한다 (description 문자열 추론을 대체).
+ * 프론트 `frontend/src/utils/starConsumption.js` 의 description 관행과 동일한 결과:
+ *   - daily("오늘 운세 조회")        → BONUS (나침반)
+ *   - lifetime("종합운세 조회")       → PROBE (탐사선)
+ *   - 그 외(compatibility/consultation) → PAID  (망원경)
+ */
+function getCurrencyForFortuneType(fortuneType: FortuneType | string): StarCurrency {
+  if (fortuneType === FortuneType.DAILY) return "BONUS";
+  if (fortuneType === FortuneType.LIFETIME) return "PROBE";
+  return "PAID";
+}
+
+/**
+ * 응답이 끝난 뒤에도 완료되어야 하는 비동기 작업(환불·상태 확정 등)을 런타임에 맡긴다.
+ * Supabase Edge Runtime 은 응답 종료 시 워커를 회수할 수 있어, waitUntil 없이는
+ * 백그라운드 작업이 중간에 끊길 수 있다.
+ */
+function runInBackground(promise: Promise<unknown>, label: string): void {
+  const guarded = Promise.resolve(promise).catch((e) => {
+    console.error(`❌ 백그라운드 작업 실패 (${label}):`, e);
+  });
+  const rt = (globalThis as any).EdgeRuntime;
+  if (typeof rt !== "undefined" && typeof rt?.waitUntil === "function") {
+    try {
+      rt.waitUntil(guarded);
+      return;
+    } catch (e) {
+      console.warn("⚠️ EdgeRuntime.waitUntil 실패 — 그냥 실행합니다:", e);
+    }
+  }
+  void guarded;
+}
+
 /** SSE 응답 헤더 (Server-Sent Events 규격) */
 const sseHeaders = {
   ...corsHeaders,
@@ -587,7 +624,7 @@ async function* callGeminiAPIStream(
     "Content-Type": "application/json",
     "Authorization": `Bearer ${accessToken}`,
   };
-  const endpoint = buildVertexUrl(primaryModel, "streamGenerateContent");
+  let endpoint = buildVertexUrl(primaryModel, "streamGenerateContent");
 
   // Vertex는 contents[].role 이 "user"|"model" 이어야 함 → 항상 정규화 후 전송
   const normalizedBody = normalizeVertexRequest(requestBody);
@@ -596,30 +633,62 @@ async function* callGeminiAPIStream(
     method: "streamGenerateContent",
   });
 
-  let response: Response;
-  try {
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify(normalizedBody),
-    });
-  } catch (e: any) {
-    console.error("❌ Gemini stream fetch 실패:", e?.message);
-    throw e;
-  }
+  /** 소비하지 않은 응답 본문을 닫아 소켓 누수를 막는다 */
+  const discardBody = async (res: Response): Promise<void> => {
+    try {
+      await res.body?.cancel();
+    } catch (_) {
+      // 이미 닫힌 경우 무시
+    }
+  };
 
-  if (response.status === 503 && is503OrOverloaded(new Error("503"))) {
-    console.warn("⚠️ Gemini 스트림 503 → 폴백 모델로 재시도");
-    const fallbackEndpoint = buildVertexUrl(fallbackModel, "streamGenerateContent");
-    logVertexRequestShape(normalizedBody, {
-      model: fallbackModel,
-      method: "streamGenerateContent",
-    });
-    response = await fetch(fallbackEndpoint, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify(normalizedBody),
-    });
+  // 429(분당 쿼터 소진): 2 → 4 → 8초 백오프로 최대 3회 재시도.
+  // 그 사이 SSE 하트비트(: ping)가 클라이언트 연결을 유지한다.
+  const rateDelays = [2000, 4000, 8000];
+  let rateAttempt = 0;
+  let usedFallback = false;
+  let response: Response;
+
+  while (true) {
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify(normalizedBody),
+      });
+    } catch (e: any) {
+      console.error("❌ Gemini stream fetch 실패:", e?.message);
+      throw e;
+    }
+
+    if (!usedFallback && response.status === 503 && is503OrOverloaded(new Error("503"))) {
+      console.warn("⚠️ Gemini 스트림 503 → 폴백 모델로 재시도");
+      await discardBody(response);
+      usedFallback = true;
+      endpoint = buildVertexUrl(fallbackModel, "streamGenerateContent");
+      logVertexRequestShape(normalizedBody, {
+        model: fallbackModel,
+        method: "streamGenerateContent",
+      });
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify(normalizedBody),
+      });
+    }
+
+    if (response.status === 429 && rateAttempt < rateDelays.length) {
+      const wait = rateDelays[rateAttempt];
+      console.warn(
+        `⚠️ Gemini 스트림 429 (쿼터 소진). ${wait}ms 후 재시도... (${rateAttempt + 1}/${rateDelays.length})`,
+      );
+      await discardBody(response);
+      await new Promise((r) => setTimeout(r, wait));
+      rateAttempt++;
+      continue;
+    }
+
+    break;
   }
 
   if (!response.ok) {
@@ -685,7 +754,17 @@ async function* callGeminiAPIStream(
       }
     }
   } finally {
-    reader.releaseLock();
+    // 소비를 멈출 때 업스트림(Vertex) 연결을 먼저 끊어 토큰 낭비·소켓 누수를 막는다
+    try {
+      await reader.cancel();
+    } catch (_) {
+      // 이미 종료된 스트림
+    }
+    try {
+      reader.releaseLock();
+    } catch (_) {
+      // cancel 후 이미 해제된 경우
+    }
   }
 }
 
@@ -714,6 +793,10 @@ function createFortuneSSEStream(
     authUserId?: string | null;
     consumeAmount?: number;
     consumeDescription?: string;
+    /** 차감 시 실제로 사용한 재화 (환불에 그대로 사용). 없으면 description 추론 */
+    consumeCurrency?: StarCurrency | null;
+    /** CONSULTATION 인 경우 fortune_history.user_question 에 저장할 질문 원문 */
+    userQuestion?: string | null;
   },
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -721,6 +804,22 @@ function createFortuneSSEStream(
   const cancelledRef = { current: false };
   let completed = false;
   let refunded = false;
+  /** 마지막 청크 이후 결과 저장 단계에 진입했는지 — 이 시점의 cancel 은 환불 대상이 아니다 */
+  let finalizing = false;
+  /** controller 가 닫혔는지 (닫힌 뒤 enqueue/close 는 TypeError) */
+  let streamClosed = false;
+
+  // 하트비트: 첫 데이터 청크가 나가기 전까지 10초마다 SSE 주석(: ping)을 보내
+  // 프록시/클라이언트의 유휴 타임아웃을 방지한다.
+  // (SSE 규격상 ':' 로 시작하는 줄은 주석이며, 웹/앱 파서는 'data:' 로 시작하지 않는 줄을 무시한다)
+  const HEARTBEAT_INTERVAL_MS = 10_000;
+  let heartbeatTimer: number | undefined;
+  const stopHeartbeat = (): void => {
+    if (heartbeatTimer !== undefined) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = undefined;
+    }
+  };
 
   /**
    * 스트림이 정상 완료(completed)되지 않은 상태로 중단된 경우 차감분을 환불한다.
@@ -745,6 +844,7 @@ function createFortuneSSEStream(
       authUserId: options.authUserId,
       consumeAmount: options.consumeAmount,
       consumeDescription: options.consumeDescription ?? "",
+      consumeCurrency: options.consumeCurrency ?? null,
       consumeTransactionId: options.consumeTransactionId,
       reason,
     });
@@ -752,17 +852,46 @@ function createFortuneSSEStream(
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
+      /** 취소·종료 이후의 enqueue 는 TypeError 이므로 항상 가드한다 */
+      const safeEnqueue = (payload: string): boolean => {
+        if (streamClosed || cancelledRef.current) return false;
+        try {
+          controller.enqueue(encoder.encode(payload));
+          return true;
+        } catch (e) {
+          // 클라이언트가 이미 끊은 경우
+          streamClosed = true;
+          stopHeartbeat();
+          console.warn("⚠️ [스트림] enqueue 실패 (연결 종료 추정):", e);
+          return false;
+        }
+      };
+
       try {
+        // 첫 청크 전 즉시 1회 + 이후 10초 간격으로 하트비트 전송
+        safeEnqueue(": ping\n\n");
+        heartbeatTimer = setInterval(() => {
+          if (!safeEnqueue(": ping\n\n")) stopHeartbeat();
+        }, HEARTBEAT_INTERVAL_MS) as unknown as number;
+
         for await (const chunk of geminiStream) {
           if (cancelledRef.current) break;
+          // 첫 데이터 청크가 나가면 하트비트는 더 이상 필요 없다
+          stopHeartbeat();
           fullText += chunk;
           const sseData = `data: ${JSON.stringify({ text: chunk })}\n\n`;
-          controller.enqueue(encoder.encode(sseData));
+          if (!safeEnqueue(sseData)) break;
         }
+
+        stopHeartbeat();
 
         if (cancelledRef.current) {
           return;
         }
+
+        // 여기서부터는 결과 저장 단계 — 클라이언트가 끊어도 환불하지 않는다
+        // (운세는 이미 생성되었고 fortune_results 에 저장되므로 사용자는 결과를 조회할 수 있다)
+        finalizing = true;
 
         const normalizedFullText = fullText
           .trim()
@@ -795,6 +924,12 @@ function createFortuneSSEStream(
                 (typeof options?.fortuneDate === "string" && options.fortuneDate.trim())
                   ? options.fortuneDate.trim()
                   : new Date().toISOString().split("T")[0],
+              // 자유 질문은 목록에서 무엇을 물었는지 보여줘야 하므로 질문 원문을 함께 저장
+              ...(options.fortuneType === "consultation" &&
+              typeof options.userQuestion === "string" &&
+              options.userQuestion.trim()
+                ? { user_question: options.userQuestion.trim() }
+                : {}),
             });
           if (historyError) {
             console.error("❌ [스트림] fortune_history insert 실패:", historyError);
@@ -816,33 +951,48 @@ function createFortuneSSEStream(
         completed = true;
 
         const shareId = resultData?.id ?? null;
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              done: true,
-              share_id: shareId,
-            })}\n\n`,
-          ),
+        safeEnqueue("data: [DONE]\n\n");
+        safeEnqueue(
+          `data: ${JSON.stringify({
+            done: true,
+            share_id: shareId,
+          })}\n\n`,
         );
       } catch (e: any) {
         // 원문 에러(Vertex 400 등)는 서버 로그에만 남기고, 프론트에는 친화 메시지만 전달
         console.error("❌ [스트림] 에러:", e?.message);
         // 스트림이 정상 완료되지 못했으므로 차감분 자동 환불
+        // (결과 저장 실패도 여기로 오며, 이 경우는 환불이 맞다)
         await refundConsumed("운세 생성 실패(스트림 처리 오류)로 인한 자동 환불");
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({ error: USER_FACING_ERROR })}\n\n`,
-          ),
-        );
+        safeEnqueue(`data: ${JSON.stringify({ error: USER_FACING_ERROR })}\n\n`);
         throw e;
       } finally {
-        controller.close();
+        stopHeartbeat();
+        if (!streamClosed) {
+          streamClosed = true;
+          try {
+            controller.close();
+          } catch (_) {
+            // 이미 닫힌 컨트롤러
+          }
+        }
       }
     },
     cancel() {
       cancelledRef.current = true;
-      void refundConsumed("운세 생성 실패(클라이언트 연결 끊김)로 인한 자동 환불");
+      streamClosed = true;
+      stopHeartbeat();
+      // 결과 저장 단계에 이미 진입했다면 운세는 생성·저장되므로 환불하지 않는다.
+      // (저장이 실패하면 start()의 catch 가 환불한다)
+      if (finalizing) {
+        console.log("ℹ️ [스트림] 저장 단계 이후 연결 끊김 — 환불하지 않음");
+        return;
+      }
+      // 응답이 끝난 뒤에도 환불이 완료되도록 런타임에 맡긴다
+      runInBackground(
+        refundConsumed("운세 생성 실패(클라이언트 연결 끊김)로 인한 자동 환불"),
+        "스트림 cancel 환불",
+      );
     },
   });
 }
@@ -962,6 +1112,8 @@ async function getInterpretation(
       authUserId?: string | null;
       consumeAmount?: number;
       consumeDescription?: string;
+      consumeCurrency?: StarCurrency | null;
+      userQuestion?: string | null;
     };
   },
 ): Promise<any> {
@@ -1540,11 +1692,19 @@ async function autoRefundConsumed(params: {
   authUserId: string | null;
   consumeAmount: number;
   consumeDescription: string;
+  /** 차감 시 실제로 사용한 재화. 주어지면 description 추론보다 우선한다 */
+  consumeCurrency?: StarCurrency | null;
   consumeTransactionId: string | null;
   reason: string;
 }): Promise<void> {
-  const { authUserId, consumeAmount, consumeDescription, consumeTransactionId, reason } =
-    params;
+  const {
+    authUserId,
+    consumeAmount,
+    consumeDescription,
+    consumeCurrency,
+    consumeTransactionId,
+    reason,
+  } = params;
   if (!authUserId || !(consumeAmount > 0)) return;
   try {
     const refundUrl = Deno.env.get("SUPABASE_URL");
@@ -1554,7 +1714,11 @@ async function autoRefundConsumed(params: {
       return;
     }
     const supabaseRefund = createClient(refundUrl, refundKey);
-    const refundType = getRefundTypeFromDescription(consumeDescription);
+    // 차감 시 확정된 통화를 그대로 되돌린다 (description 추론은 구버전 호환용 폴백)
+    const refundType: StarCurrency =
+      consumeCurrency === "PAID" || consumeCurrency === "BONUS" || consumeCurrency === "PROBE"
+        ? consumeCurrency
+        : getRefundTypeFromDescription(consumeDescription);
     await supabaseRefund.rpc("refund_stars", {
       p_user_id: authUserId,
       p_amount: consumeAmount,
@@ -1584,8 +1748,34 @@ serve(async (req) => {
   let consumed = false;
   let consumeAmount = 0;
   let consumeDescription = "";
+  let consumeCurrency: StarCurrency | null = null;
   let consumeTransactionId: string | null = null;
   let authUserId: string | null = null;
+  /** 차감분을 이미 환불했는지 — 여러 실패 경로가 이 가드를 공유해 중복 환불을 막는다 */
+  let refunded = false;
+
+  /** 차감분을 (아직 안 했다면) 환불한다. 스트림 경로와는 별개의 가드를 사용한다. */
+  const refundConsumedOnce = async (reason: string): Promise<void> => {
+    if (!consumed || refunded) return;
+    refunded = true;
+    await autoRefundConsumed({
+      authUserId,
+      consumeAmount,
+      consumeDescription,
+      consumeCurrency,
+      consumeTransactionId,
+      reason,
+    });
+  };
+
+  /**
+   * 운세권을 차감한 이후의 실패 응답 전용 래퍼.
+   * 응답을 돌려주기 전에 반드시 차감분을 환불한다(중복 환불은 refunded 가드로 방지).
+   */
+  const failAfterConsume = async (res: Response): Promise<Response> => {
+    await refundConsumedOnce("운세 생성 실패(요청 처리 오류)로 인한 자동 환불");
+    return res;
+  };
 
   try {
     // Supabase 클라이언트 초기화
@@ -1848,11 +2038,34 @@ serve(async (req) => {
     const cost = Number(requestData?.cost) || 0;
     const description = typeof requestData?.description === "string" ? requestData.description.trim() : "";
     if (cost > 0 && description) {
-      const { data: consumeResult, error: consumeError } = await supabase.rpc("consume_stars", {
+      // 차감 재화는 표시용 description 문자열이 아니라 fortuneType 으로 결정한다
+      const requestedCurrency = getCurrencyForFortuneType(fortuneType);
+      let { data: consumeResult, error: consumeError } = await supabase.rpc("consume_stars", {
         p_user_id: user.id,
         p_amount: cost,
         p_description: description,
+        p_currency: requestedCurrency,
       });
+
+      // 구버전(3인자) consume_stars 가 아직 배포된 환경 대비 폴백
+      // (20260904_consume_stars_explicit_currency.sql 적용 전)
+      if (
+        consumeError &&
+        (String((consumeError as { code?: string }).code) === "PGRST202" ||
+          /p_currency|does not exist|could not find/i.test(
+            String((consumeError as { message?: string }).message ?? ""),
+          ))
+      ) {
+        console.warn("⚠️ consume_stars(p_currency) 미배포 — 3인자 호출로 폴백합니다.");
+        const legacy = await supabase.rpc("consume_stars", {
+          p_user_id: user.id,
+          p_amount: cost,
+          p_description: description,
+        });
+        consumeResult = legacy.data;
+        consumeError = legacy.error;
+      }
+
       if (consumeError) {
         console.error("❌ consume_stars RPC 오류:", consumeError);
         return new Response(
@@ -1878,6 +2091,12 @@ serve(async (req) => {
       consumed = true;
       consumeAmount = cost;
       consumeDescription = description;
+      // RPC 가 실제 차감 재화를 알려주면 그것을(구버전이면 요청값을) 환불 기준으로 삼는다
+      const returnedCurrency = (consumeResult as { currency?: string })?.currency;
+      consumeCurrency =
+        returnedCurrency === "PAID" || returnedCurrency === "BONUS" || returnedCurrency === "PROBE"
+          ? returnedCurrency
+          : requestedCurrency;
       const txId = (consumeResult as { transactionId?: string })?.transactionId;
       if (txId) consumeTransactionId = txId;
     }
@@ -1893,7 +2112,7 @@ serve(async (req) => {
         typeof userQuestion !== "string" ||
         userQuestion.trim() === ""
       ) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: "userQuestion is required and must be a non-empty string",
           }),
@@ -1901,16 +2120,16 @@ serve(async (req) => {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
       if (!birthDate || typeof lat !== "number" || typeof lng !== "number") {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({ error: "birthDate, lat, lng are required" }),
           {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       // 생년월일 Date 변환 (출생지 로컬 시각 → UTC)
@@ -1947,7 +2166,7 @@ serve(async (req) => {
           throw new Error("Invalid date");
         }
       } catch (error) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: "Invalid birthDate format. Use YYYY-MM-DDTHH:mm:ss",
           }),
@@ -1955,7 +2174,7 @@ serve(async (req) => {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       assertValidDate(birthDateTime, "CONSULTATION Natal");
@@ -1988,7 +2207,7 @@ serve(async (req) => {
         chartData = await calculateChart(birthDateTime, { lat, lng }, natalTzOffsetConsult);
       } catch (chartError: any) {
         console.error("❌ [CONSULTATION] 차트 계산 실패:", chartError);
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: `Chart calculation failed: ${chartError.message}`,
           }),
@@ -1996,7 +2215,7 @@ serve(async (req) => {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       // Neo4j 상담 컨텍스트: 주간/월간 운세에서는 Gemini 인풋에 넣지 않음
@@ -2491,13 +2710,13 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
       // 7. Gemini 호출
       const apiKey = Deno.env.get("GCP_SERVICE_ACCOUNT_JSON");
       if (!apiKey) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({ error: "Vertex 서비스 계정(GCP_SERVICE_ACCOUNT_JSON)이 설정되지 않았습니다" }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       // 후속 질문 여부를 먼저 판단 (시스템 프롬프트 선택에 사용)
@@ -2646,6 +2865,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           authUserId: authUserId ?? null,
           consumeAmount,
           consumeDescription: consumeDescription ?? "",
+          consumeCurrency,
+          userQuestion: typeof userQuestion === "string" ? userQuestion : null,
           debugPayload: {
             chart: chartData,
             userPrompt,
@@ -2676,7 +2897,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         typeof user1.lat !== "number" ||
         typeof user1.lng !== "number"
       ) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: "user1 data is required with birthDate, lat, lng",
           }),
@@ -2684,7 +2905,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       if (
@@ -2693,7 +2914,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         typeof user2.lat !== "number" ||
         typeof user2.lng !== "number"
       ) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: "user2 data is required with birthDate, lat, lng",
           }),
@@ -2701,7 +2922,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       // 두 명의 생년월일을 Date 객체로 변환 (각자의 출생지 로컬 시각 → UTC)
@@ -2766,7 +2987,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         }
 
       } catch (error) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error:
               "Invalid birthDate format. Use ISO format (YYYY-MM-DDTHH:mm:ss)",
@@ -2775,7 +2996,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       assertValidDate(birthDateTime1, "Compatibility User1");
@@ -2810,7 +3031,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         );
       } catch (chartError: any) {
         console.error("사용자1 차트 계산 실패:", chartError);
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: `Chart calculation failed for user1: ${
               chartError.message || "Unknown error"
@@ -2820,7 +3041,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       try {
@@ -2831,7 +3052,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         );
       } catch (chartError: any) {
         console.error("사용자2 차트 계산 실패:", chartError);
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: `Chart calculation failed for user2: ${
               chartError.message || "Unknown error"
@@ -2841,19 +3062,19 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       // AI 해석 요청 (궁합)
       const apiKey = Deno.env.get("GCP_SERVICE_ACCOUNT_JSON");
       if (!apiKey) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({ error: "Vertex 서비스 계정(GCP_SERVICE_ACCOUNT_JSON)이 설정되지 않았습니다" }),
           {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       // 궁합 분석 계산 (성별: 요청에 없으면 기본 M)
@@ -2939,6 +3160,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             authUserId: authUserId ?? null,
             consumeAmount,
             consumeDescription: consumeDescription ?? "",
+            consumeCurrency,
           },
         },
       );
@@ -2950,7 +3172,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         });
       }
       if (!interpretation.success || interpretation.error) {
-        return new Response(
+        return await failAfterConsume(new Response(
           JSON.stringify({
             error: `AI interpretation failed: ${
               interpretation.message || "Unknown error"
@@ -2961,7 +3183,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        ));
       }
 
       // 스트리밍이 아닌 경우(폴백): DB 저장 후 JSON 반환
@@ -3019,20 +3241,20 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
     // 필수 필드 검증
     if (!birthDate) {
-      return new Response(JSON.stringify({ error: "birthDate is required" }), {
+      return await failAfterConsume(new Response(JSON.stringify({ error: "birthDate is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      }));
     }
 
     if (typeof lat !== "number" || typeof lng !== "number") {
-      return new Response(
+      return await failAfterConsume(new Response(
         JSON.stringify({ error: "lat and lng must be numbers" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
-      );
+      ));
     }
 
     // 타임존 옵션 (출생지 기준 — DST 역사 반영)
@@ -3083,7 +3305,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       }
 
     } catch (error) {
-      return new Response(
+      return await failAfterConsume(new Response(
         JSON.stringify({
           error:
             "Invalid birthDate format. Use ISO format (YYYY-MM-DDTHH:mm:ss)",
@@ -3092,7 +3314,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
-      );
+      ));
     }
 
     assertValidDate(birthDateTime, "Natal");
@@ -3104,7 +3326,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       chartData = await calculateChart(birthDateTime, { lat, lng }, natalTzOffset);
     } catch (chartError: any) {
       console.error("차트 계산 실패:", chartError);
-      return new Response(
+      return await failAfterConsume(new Response(
         JSON.stringify({
           error: `Chart calculation failed: ${
             chartError.message || "Unknown error"
@@ -3114,7 +3336,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
-      );
+      ));
     }
 
     // DAILY 운세: 클라이언트 현지 시각 06:00 / 18:00 기준 트랜짓 차트
@@ -3373,13 +3595,13 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     // 2단계: AI 해석 요청
     const apiKey = Deno.env.get("GCP_SERVICE_ACCOUNT_JSON");
     if (!apiKey) {
-      return new Response(
+      return await failAfterConsume(new Response(
         JSON.stringify({ error: "Vertex 서비스 계정(GCP_SERVICE_ACCOUNT_JSON)이 설정되지 않았습니다" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
-      );
+      ));
     }
 
     const chartDataForDb =
@@ -3425,6 +3647,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         authUserId: authUserId ?? null,
         consumeAmount,
         consumeDescription: consumeDescription ?? "",
+        consumeCurrency,
       },
     };
 
@@ -3480,17 +3703,9 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
       // 비스트리밍 경로(예: LIFETIME)는 여기서 최상단 catch를 거치지 않고 즉시 반환되므로
       // 차감된 운세권을 이 지점에서 직접 환불한다.
-      if (consumed) {
-        await autoRefundConsumed({
-          authUserId,
-          consumeAmount,
-          consumeDescription,
-          consumeTransactionId,
-          reason: "운세 생성 실패(AI 해석 오류)로 인한 자동 환불",
-        });
-      }
+      await refundConsumedOnce("운세 생성 실패(AI 해석 오류)로 인한 자동 환불");
 
-      return new Response(
+      return await failAfterConsume(new Response(
         JSON.stringify({
           error: USER_FACING_ERROR,
           errorType: "AI_INTERPRETATION_FAILED",
@@ -3499,7 +3714,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
-      );
+      ));
     }
 
     // LIFETIME 등 스트리밍이 아닌 경우: Supabase에 운세 저장 후 JSON 반환
@@ -3587,15 +3802,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     console.error("=".repeat(60) + "\n");
 
     // 스트리밍 전 차감했던 경우 서버에서 자동 환불 (네트워크 단절 시에도 복구 가능)
-    if (consumed) {
-      await autoRefundConsumed({
-        authUserId,
-        consumeAmount,
-        consumeDescription,
-        consumeTransactionId,
-        reason: "운세 생성 실패(에러/타임아웃)로 인한 자동 환불",
-      });
-    }
+    // refunded 가드를 공유하므로 failAfterConsume 로 이미 환불했다면 중복 환불되지 않는다.
+    await refundConsumedOnce("운세 생성 실패(에러/타임아웃)로 인한 자동 환불");
 
     // 원문 에러는 위에서 로그로 남겼고, 프론트에는 친화 메시지만 노출한다.
     return new Response(

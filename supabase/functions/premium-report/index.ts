@@ -73,14 +73,40 @@ function json(status: number, payload: unknown) {
 
 // ===== Gemini (Vertex) 호출 =====
 
+/** 재생성해도 결과가 달라지지 않는 종료 사유 (안전성/저작권 차단 등) */
+const FATAL_FINISH_REASONS = new Set([
+  "SAFETY",
+  "RECITATION",
+  "PROHIBITED_CONTENT",
+  "BLOCKLIST",
+  "SPII",
+  "IMAGE_SAFETY",
+]);
+
+/** MAX_TOKENS 로 잘린 원고에 붙일 교정 지시 */
+const MAX_TOKENS_FIX =
+  "직전 원고가 최대 길이 제한에 걸려 마무리 소제목까지 도달하지 못하고 중간에서 끊겼습니다 — 분량을 줄이고 마무리 소제목까지 완결할 것";
+
 function parseGeminiResponse(apiResponse: any): string {
   if (!apiResponse?.candidates?.length) {
-    throw new Error("Invalid API response: no candidates returned.");
+    // 안전성 차단 등으로 후보 자체가 비어 온 경우 → 재생성이 무의미
+    const blockReason = apiResponse?.promptFeedback?.blockReason;
+    throw new Error(
+      `FATAL: Invalid API response: no candidates returned.${
+        blockReason ? ` (blockReason=${blockReason})` : ""
+      }`,
+    );
   }
   const candidate = apiResponse.candidates[0];
   if (candidate.finishReason === "MAX_TOKENS") {
-    console.warn("⚠️ Response truncated due to MAX_TOKENS limit.");
-  } else if (candidate.finishReason && candidate.finishReason !== "STOP") {
+    // 잘린 원고를 통과시키면 마무리 없는 리포트가 저장된다 → 교정 재생성 1회를 태운다
+    console.warn("⚠️ Response truncated due to MAX_TOKENS limit — 교정 재생성으로 처리합니다.");
+    throw new Error(`VALIDATION:${JSON.stringify([MAX_TOKENS_FIX])}`);
+  }
+  if (candidate.finishReason && FATAL_FINISH_REASONS.has(String(candidate.finishReason))) {
+    throw new Error(`FATAL: API response finished with reason: ${candidate.finishReason}`);
+  }
+  if (candidate.finishReason && candidate.finishReason !== "STOP") {
     throw new Error(`API response finished with reason: ${candidate.finishReason}`);
   }
   const parts = candidate.content?.parts;
@@ -374,21 +400,22 @@ async function handlePurchase(
 ): Promise<Response> {
   const merchantUid = typeof body.merchant_uid === "string" ? body.merchant_uid.trim() : "";
   const impUid = typeof body.imp_uid === "string" ? body.imp_uid.trim() : "";
-  const profileId = typeof body.profile_id === "string" ? body.profile_id.trim() : "";
+  let profileId = typeof body.profile_id === "string" ? body.profile_id.trim() : "";
   let question =
     typeof body.question === "string" ? body.question.trim() : "";
-  if (question.length > QUESTION_MAX_LENGTH) {
-    question = question.substring(0, QUESTION_MAX_LENGTH);
-  }
-  // 프롬프트 구분자 오염 방지
-  question = question.replace(/"""/g, '"');
+
+  /** 질문 문자열 정규화 (길이 제한 + 프롬프트 구분자 오염 방지) */
+  const sanitizeQuestion = (q: string): string => {
+    let out = q.trim();
+    if (out.length > QUESTION_MAX_LENGTH) out = out.substring(0, QUESTION_MAX_LENGTH);
+    return out.replace(/"""/g, '"');
+  };
+  question = sanitizeQuestion(question);
 
   if (!merchantUid && !impUid) {
     return json(400, { success: false, error: "결제 식별자(merchant_uid)가 필요합니다." });
   }
-  if (!profileId) {
-    return json(400, { success: false, error: "profile_id는 필수입니다." });
-  }
+  // profile_id 는 결제 조회 후 customData 로도 복원할 수 있으므로 여기서 막지 않는다.
 
   // 결제 ID 형식 검증 (report_/order_ 접두사 또는 UUID)
   const isUuid = (id: string) =>
@@ -436,9 +463,10 @@ async function handlePurchase(
   ];
   let paymentId = lookupIds[0];
   let paidAmount = REPORT_PRICE_KRW;
+  let payment: any = null;
   try {
-    let payment: any = null;
     let lastLookupError = "";
+    let allNotFound = true;
     for (const candidate of lookupIds) {
       const paymentResponse = await fetch(
         `https://api.portone.io/payments/${encodeURIComponent(candidate)}`,
@@ -451,15 +479,34 @@ async function handlePurchase(
       }
       const errorText = await paymentResponse.text();
       lastLookupError = `결제 정보 조회 실패 (${paymentResponse.status}): ${errorText.substring(0, 200)}`;
-      if (paymentResponse.status !== 404) break;
+      if (paymentResponse.status !== 404) {
+        allNotFound = false;
+        break;
+      }
       console.warn(`⚠️ PortOne 결제 조회 404 (id=${candidate}) — 다음 후보 ID로 재시도`);
     }
     if (!payment) {
-      throw new Error(lastLookupError || "결제 정보 조회 실패");
+      // 모든 후보가 404 → 결제 자체가 없음(사용자 오조회/결제 미생성)
+      if (allNotFound) {
+        console.warn("⚠️ PortOne 결제 정보 없음:", lookupIds.join(", "));
+        return json(404, {
+          success: false,
+          code: "PAYMENT_NOT_FOUND",
+          error: "결제 정보를 찾을 수 없습니다. 결제가 되었다면 고객센터로 문의해 주세요.",
+        });
+      }
+      // 그 외(5xx/네트워크 등) → PortOne 일시 장애
+      console.error("❌ PortOne 결제 조회 실패:", lastLookupError);
+      return json(502, {
+        success: false,
+        code: "PORTONE_UNAVAILABLE",
+        error: `결제 정보 확인에 실패했습니다. ${lastLookupError}`,
+      });
     }
     if (payment.status !== "PAID") {
       return json(400, {
         success: false,
+        code: "NOT_PAID",
         error: `결제가 완료되지 않았습니다. (상태: ${payment.status})`,
       });
     }
@@ -492,6 +539,8 @@ async function handlePurchase(
       }
       return json(400, {
         success: false,
+        code: "AMOUNT_MISMATCH",
+        cancelled,
         error: cancelled
           ? "결제 금액이 현재 상품 가격과 달라 결제를 자동 취소했습니다. 페이지를 새로고침한 뒤 다시 결제해 주세요."
           : "결제 금액이 상품 가격과 일치하지 않습니다. 결제가 되었다면 자동 환불 처리되며, 문제가 지속되면 고객센터로 문의해 주세요.",
@@ -511,10 +560,46 @@ async function handlePurchase(
     if (payment.id) paymentId = payment.id;
   } catch (err) {
     console.error("❌ PortOne 결제 검증 실패:", err);
-    return json(500, {
+    return json(502, {
       success: false,
+      code: "PORTONE_UNAVAILABLE",
       error: `결제 정보 확인에 실패했습니다. ${err instanceof Error ? err.message : ""}`,
     });
+  }
+
+  // 결제 시 심어둔 customData 로 누락된 신청 정보 복원
+  // (모바일 리다이렉트 복귀 등으로 클라이언트 상태가 날아간 경우 대비)
+  //   customData = '{"k":"report","u":"<user_id>","p":"<profile_id>","q":"<question>"}'
+  try {
+    const raw = payment?.customData;
+    if ((typeof raw === "string" && raw.trim()) || (raw && typeof raw === "object")) {
+      // SDK 가 객체를 직렬화해 보내지만, 클라이언트가 문자열을 넘겨 이중 인코딩된 경우도 방어
+      let custom: any = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (typeof custom === "string") custom = JSON.parse(custom);
+      if (typeof custom?.u === "string" && custom.u && custom.u !== userId) {
+        console.error(`❌ customData 사용자 불일치: custom=${custom.u}, jwt=${userId}`);
+        return json(403, {
+          success: false,
+          code: "USER_MISMATCH",
+          error: "이미 다른 계정에서 결제된 건입니다.",
+        });
+      }
+      if (!profileId && typeof custom?.p === "string" && custom.p.trim()) {
+        profileId = custom.p.trim();
+        console.log("ℹ️ customData 에서 profile_id 복원");
+      }
+      if (!question && typeof custom?.q === "string" && custom.q.trim()) {
+        question = sanitizeQuestion(custom.q);
+        console.log("ℹ️ customData 에서 question 복원");
+      }
+    }
+  } catch (customErr) {
+    // 파싱 실패는 무시하고 아래 필수값 검증 흐름으로 넘어간다
+    console.warn("⚠️ customData 파싱 실패 (무시):", customErr);
+  }
+
+  if (!profileId) {
+    return json(400, { success: false, error: "profile_id는 필수입니다." });
   }
 
   // 프로필 조회 (소유자 검증 포함) → 스냅샷
@@ -525,10 +610,18 @@ async function handlePurchase(
     .eq("user_id", userId)
     .maybeSingle();
   if (profileError || !profile) {
-    return json(404, { success: false, error: "프로필을 찾을 수 없습니다." });
+    return json(404, {
+      success: false,
+      code: "PROFILE_NOT_FOUND",
+      error: "프로필을 찾을 수 없습니다.",
+    });
   }
   if (!profile.birth_date || profile.lat == null || profile.lng == null) {
-    return json(400, { success: false, error: "프로필에 출생 정보가 부족합니다." });
+    return json(400, {
+      success: false,
+      code: "PROFILE_INCOMPLETE",
+      error: "프로필에 출생 정보가 부족합니다.",
+    });
   }
 
   const snapshot: ProfileSnapshot = {
@@ -636,9 +729,15 @@ async function handleGenerate(
         generation_lock_at: null,
       })
       .eq("id", reportId);
-    return json(500, {
+    // 결제는 이미 완료된 건이므로 HTTP 오류가 아니라 "실패 상태"로 알린다 (클라이언트가 안내만 표시)
+    return json(200, {
       success: false,
+      failed: true,
+      retryable: false,
+      code: "CAPPED",
       error: "리포트 생성이 반복 실패했습니다. 고객센터에 문의해 주시면 확인 후 처리해 드리겠습니다.",
+      sectionsDone: report.sections_done,
+      sectionsTotal: report.sections_total,
     });
   }
 
@@ -662,9 +761,21 @@ async function handleGenerate(
     return json(500, { success: false, error: "리포트 생성 준비에 실패했습니다." });
   }
   if (!locked) {
+    // 남은 락 TTL(초) — 클라이언트가 재시도 간격을 정하는 데 사용
+    const lockedAtMs = report.generation_lock_at
+      ? new Date(report.generation_lock_at).getTime()
+      : NaN;
+    const remainMs = Number.isFinite(lockedAtMs)
+      ? lockedAtMs + GENERATION_LOCK_TTL_MS - Date.now()
+      : GENERATION_LOCK_TTL_MS;
+    const lockedForSeconds = Math.max(
+      0,
+      Math.min(Math.ceil(GENERATION_LOCK_TTL_MS / 1000), Math.ceil(remainMs / 1000)),
+    );
     return json(409, {
       success: false,
       locked: true,
+      lockedForSeconds,
       error: "이미 리포트를 생성하는 중입니다. 잠시 후 자동으로 이어집니다.",
     });
   }
@@ -732,7 +843,9 @@ async function handleGenerate(
     const newSectionsDone = sectionIndex + 1;
     const isDone = newSectionsDone >= report.sections_total;
 
-    const { error: updateError } = await supabaseAdmin
+    // 내가 잡은 락이 그대로일 때에만 저장한다.
+    // (TTL 초과로 죽은 락 취급되어 다른 요청이 이미 이어받았다면 이 결과는 버린다 — 섹션 중복 방지)
+    const { data: saved, error: updateError } = await supabaseAdmin
       .from("premium_reports")
       .update({
         content: newContent,
@@ -742,11 +855,31 @@ async function handleGenerate(
         pending_fix: null,
         generation_lock_at: null,
       })
-      .eq("id", reportId);
+      .eq("id", reportId)
+      .eq("generation_lock_at", nowIso)
+      .select("id");
 
     if (updateError) {
       console.error("❌ 리포트 저장 실패:", updateError);
       throw new Error("생성된 리포트 저장에 실패했습니다.");
+    }
+
+    if (!Array.isArray(saved) || saved.length === 0) {
+      console.warn(
+        JSON.stringify({
+          logType: "PREMIUM_REPORT_STALE_LOCK_DISCARD",
+          reportId,
+          sectionIndex,
+          note: "락이 이미 다른 요청에 넘어가 이번 결과는 저장하지 않음",
+        }),
+      );
+      return json(200, {
+        success: true,
+        done: false,
+        stale: true,
+        sectionsDone: sectionIndex,
+        sectionsTotal: report.sections_total,
+      });
     }
 
     console.log(
@@ -770,12 +903,30 @@ async function handleGenerate(
   } catch (err) {
     const message = err instanceof Error ? err.message : "알 수 없는 오류";
 
+    /** FAILED 로 마킹 (무료 재시도가 다시 2회 기회를 갖도록 pending_fix 는 비운다) */
+    const markFailed = async () => {
+      await supabaseAdmin
+        .from("premium_reports")
+        .update({
+          status: "FAILED",
+          error_message: message.substring(0, 500),
+          generation_lock_at: null,
+          pending_fix: null,
+        })
+        .eq("id", reportId);
+    };
+
     // ① 일시 오류 (쿼터·과부하): 상태 유지, 락 해제 → 클라이언트 루프가 잠시 후 재호출
+    //    시도 횟수도 되감아 일시 오류가 상한(15회)을 소모하지 않게 한다.
     if (message.startsWith("TRANSIENT:")) {
       console.warn(`⏳ 리포트 섹션 ${sectionIndex} 일시 오류 — 다음 요청에서 재시도:`, message);
       await supabaseAdmin
         .from("premium_reports")
-        .update({ status: "GENERATING", generation_lock_at: null })
+        .update({
+          status: "GENERATING",
+          generation_lock_at: null,
+          generation_attempts: attempts,
+        })
         .eq("id", reportId);
       return json(200, {
         success: true,
@@ -787,9 +938,34 @@ async function handleGenerate(
       });
     }
 
-    // ② 원고 검증 실패: 문제 목록 저장 → 다음 요청이 교정 지시를 붙여 재생성
+    // ② 재생성이 무의미한 차단 (안전성/저작권 등): 즉시 실패 확정
+    if (message.startsWith("FATAL:")) {
+      console.error(
+        JSON.stringify({
+          logType: "PREMIUM_REPORT_FATAL_BLOCK",
+          reportId,
+          sectionIndex,
+          message: message.substring(0, 300),
+        }),
+      );
+      await markFailed();
+      return json(200, {
+        success: false,
+        failed: true,
+        retryable: false,
+        code: "SAFETY",
+        error:
+          "입력하신 질문 내용 때문에 리포트를 생성할 수 없습니다. 고객센터로 문의해 주시면 확인 후 처리해 드리겠습니다.",
+        sectionsDone: sectionIndex,
+        sectionsTotal: report.sections_total,
+      });
+    }
+
+    // ③ 원고 검증 실패: 문제 목록 저장 → 다음 요청이 교정 지시를 붙여 재생성
     //    (직전 시도도 교정 재생성이었으면 이 섹션은 2회 연속 실패 → FAILED)
+    let failCode: "GENERATION" | "VALIDATION" = "GENERATION";
     if (message.startsWith("VALIDATION:")) {
+      failCode = "VALIDATION";
       let problems: string[] = [];
       try {
         problems = JSON.parse(message.substring("VALIDATION:".length));
@@ -822,19 +998,19 @@ async function handleGenerate(
       // 교정 재생성까지 실패 → FAILED (무료 재시도 시 pending_fix 를 갖고 다시 시도)
     }
 
+    // ④ 최종 실패: 결제는 이미 완료된 건이므로 HTTP 500 이 아니라 "실패 상태"로 알린다.
+    //    status 는 FAILED 로 기록되고 사용자는 무료로 다시 시도할 수 있다.
     console.error(`❌ 리포트 섹션 ${sectionIndex} 생성 실패:`, err);
-    await supabaseAdmin
-      .from("premium_reports")
-      .update({
-        status: "FAILED",
-        error_message: message.substring(0, 500),
-        generation_lock_at: null,
-      })
-      .eq("id", reportId);
-    return json(500, {
+    await markFailed();
+    return json(200, {
       success: false,
+      failed: true,
+      retryable: true,
+      code: failCode,
       error:
         "리포트 생성 중 일시적인 오류가 발생했습니다. 결제는 안전하게 처리되었으니, 잠시 후 '이어서 생성하기'를 눌러 주세요.",
+      sectionsDone: sectionIndex,
+      sectionsTotal: report.sections_total,
     });
   }
 }

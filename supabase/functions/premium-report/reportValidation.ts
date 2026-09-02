@@ -108,7 +108,11 @@ export function validateSection(
   ctx: SectionValidationContext,
 ): ValidationResult {
   const problems: string[] = [];
-  checkCommon(text, problems);
+  // 질문 소제목 줄("### 질문 N. …")은 사용자가 쓴 질문 원문을 그대로 옮긴 것이라
+  // 전문 용어·금지 표현이 들어 있어도 모델의 잘못이 아니다 → 공통 표현 검사에서만 제외한다.
+  // (소제목 존재 여부·분량 검사는 아래에서 원문 text 로 그대로 수행)
+  const textForCommonChecks = text.replace(/^###\s*질문\s*\d+\..*$/gm, "");
+  checkCommon(textForCommonChecks, problems);
 
   const minChars = SECTION_MIN_CHARS[ctx.sectionIndex] ?? 3000;
   if (text.trim().length < minChars) {

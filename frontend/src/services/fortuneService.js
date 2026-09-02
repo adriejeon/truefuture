@@ -525,3 +525,76 @@ export async function restoreFortuneIfExists(
     return null;
   }
 }
+
+/**
+ * 특정 시각 이후에 저장된 운세 결과의 result_id 를 찾는다.
+ * 스트림이 끊겨 클라이언트는 실패로 보였지만 서버는 끝까지 생성·저장한 경우의 자동 복구용.
+ *
+ * @param {{userId?: string|null, profileId?: string|null, fortuneType: string, sinceIso: string, fortuneDate?: string|null}} params
+ * @returns {Promise<string|null>} result_id 또는 null
+ */
+export async function findFortuneResultIdSince({
+  userId = null,
+  profileId = null,
+  fortuneType,
+  sinceIso,
+  fortuneDate = null,
+}) {
+  if (!fortuneType || !sinceIso) return null;
+  if (!userId && !profileId) return null;
+
+  try {
+    let query = supabase
+      .from("fortune_history")
+      .select("result_id, created_at")
+      .eq("fortune_type", fortuneType)
+      .not("result_id", "is", null)
+      .gte("created_at", sinceIso);
+
+    if (userId) query = query.eq("user_id", userId);
+    if (profileId) query = query.eq("profile_id", profileId);
+    if (fortuneDate) query = query.eq("fortune_date", fortuneDate);
+
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data?.result_id) return null;
+    return data.result_id;
+  } catch (err) {
+    console.error("❌ [복구] 최근 운세 결과 조회 실패:", err);
+    return null;
+  }
+}
+
+/**
+ * 특정 부모 결과에 달린 후속 답변 중 sinceIso 이후에 저장된 것을 찾는다. (상담 후속 질문 복구용)
+ *
+ * @param {string} parentResultId
+ * @param {string} sinceIso
+ * @returns {Promise<{id: string, interpretation: string, userQuestion: string|null}|null>}
+ */
+export async function findFollowUpResultSince(parentResultId, sinceIso) {
+  if (!parentResultId || !sinceIso) return null;
+  try {
+    const { data, error } = await supabase
+      .from("fortune_results")
+      .select("id, fortune_text, user_info, created_at")
+      .eq("parent_result_id", parentResultId)
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data?.fortune_text) return null;
+    return {
+      id: data.id,
+      interpretation: data.fortune_text,
+      userQuestion: data.user_info?.userQuestion ?? null,
+    };
+  } catch (err) {
+    console.error("❌ [복구] 후속 답변 조회 실패:", err);
+    return null;
+  }
+}

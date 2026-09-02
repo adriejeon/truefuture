@@ -407,3 +407,10 @@ enabled = true
 # 게이트웨이 JWT 검증을 끈다. (verify_jwt=true면 앱 요청이 401 → 하드코딩 폴백)
 verify_jwt = false
 entrypoint = "./functions/daily-tarot/index.ts"
+
+[functions.portone-webhook]
+enabled = true
+# PortOne 서버가 호출하는 웹훅이라 Supabase JWT 가 없다 → 게이트웨이 검증을 끄고,
+# 함수 내부에서 Standard Webhooks 서명(webhook-signature)으로 발신자를 검증한다.
+verify_jwt = false
+entrypoint = "./functions/portone-webhook/index.ts"

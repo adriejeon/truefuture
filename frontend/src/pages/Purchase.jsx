@@ -11,6 +11,12 @@ import EquipmentGuidePanel from "../components/EquipmentGuidePanel";
 import BottomNavigation from "../components/BottomNavigation";
 import * as PortOne from "@portone/browser-sdk/v2";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
+import {
+  parseFnError,
+  describeFnError,
+  toUserFacingError,
+  isAlreadyProcessedResponse,
+} from "../utils/fnError";
 import { colors } from "../constants/colors";
 import { TelescopeIcon, CompassIcon, ProbeIcon } from "../components/EquipmentIcons";
 import { trackPurchase } from "../utils/analytics";
@@ -182,19 +188,34 @@ function Purchase() {
         },
       );
 
-      if (purchaseError) throw purchaseError;
-
-      if (!data?.success) {
-        throw new Error(data?.error || t("purchase.charge_failed"));
+      // 이미 처리된 결제(신버전 200 already_processed / 구버전 400 문구)는 성공으로 간주
+      let alreadyProcessed = data?.already_processed === true;
+      if (purchaseError) {
+        const parsed = await parseFnError(purchaseError);
+        if (isAlreadyProcessedResponse(parsed.code, parsed.message)) {
+          alreadyProcessed = true;
+        } else {
+          throw new Error(describeFnError(parsed, t));
+        }
+      } else if (!data?.success) {
+        if (isAlreadyProcessedResponse(data?.code, data?.error)) {
+          alreadyProcessed = true;
+        } else {
+          throw new Error(data?.error || t("purchase.charge_failed"));
+        }
       }
 
       setShowOrderModal(false);
       const totalBought = (pkg.paid ?? 0) + (pkg.bonus ?? 0) + (pkg.probe ?? 0);
       const newTotal =
-        (data.data.new_balance?.paid_stars ?? 0) +
-        (data.data.new_balance?.bonus_stars ?? 0) +
-        (data.data.new_balance?.probe_stars ?? 0);
-      alert(t("purchase.purchase_success", { count: totalBought, balance: newTotal }));
+        (data?.data?.new_balance?.paid_stars ?? 0) +
+        (data?.data?.new_balance?.bonus_stars ?? 0) +
+        (data?.data?.new_balance?.probe_stars ?? 0);
+      alert(
+        alreadyProcessed && !data?.data?.new_balance
+          ? t("payment_complete.already_processed")
+          : t("purchase.purchase_success", { count: totalBought, balance: newTotal })
+      );
       await refetchStars();
 
       setTimeout(() => {
@@ -216,7 +237,7 @@ function Purchase() {
       }, 0);
     } catch (err) {
       console.error("결제 처리 오류:", err);
-      setError(err.message || t("purchase.payment_error"));
+      setError(toUserFacingError(err, t, "purchase.payment_error"));
       setShowOrderModal(false);
     } finally {
       setLoading(false);
@@ -260,6 +281,13 @@ function Purchase() {
         totalAmount: Math.round(paymentAmount * 100),
         currency: "CURRENCY_USD",
         country: "US",
+        // 서버가 sessionStorage 없이도 결제 맥락을 복원할 수 있도록 결제에 실어 보낸다
+        customData: {
+          k: "stars",
+          u: user.id,
+          pkg: pkg.id,
+          cur: "USD",
+        },
         bypass: {
           paypal_v2: {
             application_context: {
@@ -336,6 +364,13 @@ function Purchase() {
           phoneNumber: "010-0000-0000",
           email: prepareBuyerEmail(user),
         },
+        // 서버가 sessionStorage 없이도 결제 맥락을 복원할 수 있도록 결제에 실어 보낸다
+        customData: {
+          k: "stars",
+          u: user.id,
+          pkg: selectedPackage.id,
+          cur: "KRW",
+        },
         redirectUrl: redirectUrl,
       });
 
@@ -346,7 +381,7 @@ function Purchase() {
       await handlePaymentSuccess(merchantUid, paymentAmount, "KRW", selectedPackage, response?.paymentId || merchantUid);
     } catch (err) {
       console.error("결제 오류:", err);
-      setError(err.message || t("purchase.payment_error"));
+      setError(toUserFacingError(err, t, "purchase.payment_error"));
       setShowOrderModal(false);
       setLoading(false);
     }

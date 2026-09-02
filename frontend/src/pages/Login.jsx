@@ -34,7 +34,11 @@ function Login() {
             supabase?.auth.signOut();
             return;
           }
-          const from = location.state?.from?.pathname;
+          // 로그인 전 보던 URL 로 복귀 — 결제 검증처럼 쿼리에 정보가 실린 화면도 그대로 되살린다
+          const fromState = location.state?.from;
+          const from = fromState?.pathname
+            ? `${fromState.pathname}${fromState.search || ""}${fromState.hash || ""}`
+            : null;
           navigate(from || "/", { replace: true });
         })
         .catch(() => {
@@ -44,7 +48,7 @@ function Login() {
         cancelled = true;
       };
     }
-  }, [loadingAuth, user, navigate, location.state?.from?.pathname, verifying]);
+  }, [loadingAuth, user, navigate, location.state?.from, verifying]);
 
   if (loadingAuth || (user && verifying)) {
     return (

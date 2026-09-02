@@ -15,7 +15,13 @@ import { useAuth } from "../hooks/useAuth";
 import { useStars } from "../hooks/useStars";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
-import { restoreFortuneIfExists, getLocalTodayDate, fetchDrawnDailyDates } from "../services/fortuneService";
+import {
+  restoreFortuneIfExists,
+  getLocalTodayDate,
+  fetchDrawnDailyDates,
+  fetchFortuneByResultId,
+} from "../services/fortuneService";
+import { toUserFacingError } from "../utils/fnError";
 import { loadSharedFortune } from "../utils/sharedFortune";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
 import {
@@ -56,8 +62,11 @@ function YearlyFortune() {
   const [loading, setLoading] = useState(false);
   const [processStatus, setProcessStatus] = useState("idle"); // 'idle' | 'waiting' | 'streaming' | 'done'
   const [error, setError] = useState("");
+  /** 스트림이 끊겼지만 서버가 결과를 저장해 자동 복구했을 때의 안내 */
+  const [notice, setNotice] = useState("");
   const resultContainerRef = useRef(null);
   const firstChunkReceivedRef = useRef(false);
+  const isMountedRef = useRef(true);
   const [shareId, setShareId] = useState(null);
   const [isSharedFortune, setIsSharedFortune] = useState(false);
   const [sharedUserInfo, setSharedUserInfo] = useState(null);
@@ -75,6 +84,14 @@ function YearlyFortune() {
   const [dailyTargetDate, setDailyTargetDate] = useState("");
   // 어느 profileId에 대해 이미 날짜 초기화를 완료했는지 추적 (중복 초기화 방지)
   const dateInitProfileRef = useRef(null);
+
+  // SPA 이동 후에는 setState/알림을 하지 않는다 (서버 생성은 그대로 끝까지 진행된다)
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // 조회 가능 여부 (null: 미확인, true: 조회 가능, false: 이미 사용함)
   const [fortuneAvailability, setFortuneAvailability] = useState({
@@ -207,7 +224,7 @@ function YearlyFortune() {
       setSharedFortuneType(data.fortuneType || null);
     } catch (err) {
       console.error("❌ 공유된 1년 운세 조회 실패:", err);
-      setError(err.message || "운세를 불러오는 중 오류가 발생했습니다.");
+      setError(toUserFacingError(err, t));
       setSearchParams({});
     } finally {
       setLoading(false);
@@ -344,7 +361,7 @@ function YearlyFortune() {
           setShareId(null);
         }
       } catch (err) {
-        if (!cancelled) setError(err.message || t("yearly_fortune.error_restore"));
+        if (!cancelled) setError(toUserFacingError(err, t, "yearly_fortune.error_restore"));
       } finally {
         if (!cancelled) setRestoring(false);
       }
@@ -464,7 +481,7 @@ function YearlyFortune() {
     });
     setShowStarModalDaily(true);
     } catch (err) {
-      setError(err?.message || t("yearly_fortune.error_balance"));
+      setError(toUserFacingError(err, t, "yearly_fortune.error_balance"));
     }
   };
 
@@ -479,6 +496,7 @@ function YearlyFortune() {
 
     setLoading(true);
     setError("");
+    setNotice("");
     setProcessStatus("waiting");
     setInterpretation("");
     setStreamingInterpretation("");
@@ -546,14 +564,54 @@ function YearlyFortune() {
           }
         },
         onError: async (err) => {
-          setError(err?.message || t("yearly_fortune.error_request"));
+          if (!isMountedRef.current) return;
           setLoading(false);
           setProcessStatus("idle");
-          alert(t("yearly_fortune.error_generate"));
+
+          // 서버가 409로 "이미 생성됨"을 알려주면 그 result_id 로 기존 결과를 그대로 보여준다
+          const conflictResultId = err?.status === 409 ? err?.body?.result_id : null;
+          let recovered = null;
+          if (conflictResultId) {
+            recovered = await fetchFortuneByResultId(conflictResultId);
+          } else {
+            // 스트림만 끊기고 서버는 끝까지 저장했을 수 있으므로 잠시 뒤 재확인
+            await new Promise((r) => setTimeout(r, 3000));
+            recovered = await restoreFortuneIfExists(selectedProfile.id, "daily", targetDate);
+          }
+          if (!isMountedRef.current) return;
+
+          if (recovered?.interpretation) {
+            const sid = recovered.shareId || conflictResultId || null;
+            setStreamingInterpretation("");
+            setInterpretation(recovered.interpretation);
+            setShareId(sid);
+            setFromCache(true);
+            setFortuneDate(targetDate);
+            setFortuneAvailability((prev) => ({ ...prev, daily: false }));
+            saveDailyFortuneToStorage(selectedProfile.id, targetDate, {
+              interpretation: recovered.interpretation,
+              chart: recovered.chart,
+              transitChart: recovered.transitChart,
+              aspects: recovered.aspects,
+              transitMoonHouse: recovered.transitMoonHouse,
+              shareId: sid,
+            });
+            setProcessStatus("done");
+            setError("");
+            setNotice(
+              conflictResultId
+                ? t("yearly_fortune.error_already_viewed")
+                : t("yearly_fortune.recovered_notice")
+            );
+            return;
+          }
+
+          setError(toUserFacingError(err, t, "yearly_fortune.error_request"));
         },
       });
     } catch (err) {
-      setError(err.message || t("yearly_fortune.error_request"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "yearly_fortune.error_request"));
       setLoading(false);
       setProcessStatus("idle");
     }
@@ -622,6 +680,7 @@ function YearlyFortune() {
 
     setLoading(true);
     setError("");
+    setNotice("");
     setProcessStatus("waiting");
     setInterpretation("");
     setShareId(null);
@@ -640,17 +699,23 @@ function YearlyFortune() {
       };
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
-        onDone: async ({ fullData, debug }) => {
+        onDone: async ({ shareId: currentShareId, fullText, fullData, debug }) => {
           const data = fullData ?? debug;
+          if (!isMountedRef.current) return;
           setLoading(false);
           setProcessStatus("done");
-          if (data?.interpretation && typeof data.interpretation === "string") {
-            setInterpretation(data.interpretation);
-            setShareId(data.share_id || null);
+          const text =
+            (typeof fullText === "string" && fullText) ||
+            (typeof data?.interpretation === "string" ? data.interpretation : "");
+          if (text) {
+            // onDone 첫 인자의 shareId 가 SSE done 이벤트의 share_id 다 (여기서 놓치면 공유 링크가 사라진다)
+            const sid = currentShareId ?? data?.share_id ?? null;
+            setInterpretation(text);
+            setShareId(sid);
             await saveFortuneHistory(
               selectedProfile.id,
               "lifetime",
-              data.share_id ?? undefined
+              sid ?? undefined
             );
             setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
             requestAnimationFrame(() => {
@@ -661,14 +726,29 @@ function YearlyFortune() {
           }
         },
         onError: async (err) => {
-          setError(err?.message || t("yearly_fortune.error_request"));
+          if (!isMountedRef.current) return;
           setLoading(false);
           setProcessStatus("idle");
-          alert(t("yearly_fortune.error_generate"));
+
+          // 스트림만 끊기고 서버는 저장을 마쳤을 수 있으므로 잠시 뒤 재확인
+          await new Promise((r) => setTimeout(r, 3000));
+          const recovered = await restoreFortuneIfExists(selectedProfile.id, "lifetime");
+          if (!isMountedRef.current) return;
+          if (recovered?.interpretation) {
+            setInterpretation(recovered.interpretation);
+            setShareId(recovered.shareId || null);
+            setFortuneAvailability((prev) => ({ ...prev, lifetime: false }));
+            setProcessStatus("done");
+            setError("");
+            setNotice(t("yearly_fortune.recovered_notice"));
+            return;
+          }
+          setError(toUserFacingError(err, t, "yearly_fortune.error_request"));
         },
       });
     } catch (err) {
-      setError(err.message || t("yearly_fortune.error_request"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "yearly_fortune.error_request"));
       setLoading(false);
       setProcessStatus("idle");
     }
@@ -929,6 +1009,11 @@ function YearlyFortune() {
             document.body
           )}
 
+        {notice && (
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-emerald-900/40 border border-emerald-700 rounded-lg text-emerald-100 break-words">
+            {notice}
+          </div>
+        )}
         {error && (
           <div className="mb-4 sm:mb-6 p-3 sm:p-4 text-sm sm:text-base bg-red-900/50 border border-red-700 rounded-lg text-red-200 break-words">
             {error}

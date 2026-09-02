@@ -6,7 +6,13 @@ import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
-import { saveFortuneHistory } from "../services/fortuneService";
+import {
+  saveFortuneHistory,
+  fetchFortuneByResultId,
+  findFortuneResultIdSince,
+  findFollowUpResultSince,
+} from "../services/fortuneService";
+import { toUserFacingError } from "../utils/fnError";
 import ProfileSelector from "../components/ProfileSelector";
 import ProfileModal from "../components/ProfileModal";
 import BottomNavigation from "../components/BottomNavigation";
@@ -284,10 +290,14 @@ function Consultation() {
     getTempConsultationState()?.question ?? ""
   );
   const [error, setError] = useState("");
+  /** 스트림이 끊겼지만 서버가 결과를 저장해 자동 복구했을 때의 안내 */
+  const [notice, setNotice] = useState("");
   const [loadingConsultation, setLoadingConsultation] = useState(false);
   /** idle | waiting(API 호출~첫 청크 전) | streaming(첫 청크~스트림 중) | done(완료) */
   const [processStatus, setProcessStatus] = useState("idle");
   const [consultationAnswer, setConsultationAnswer] = useState(null);
+  /** 드래프트 복원이 끝나기 전에는 저장 effect 가 localStorage 를 덮어쓰지 않게 하는 게이트 */
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const [streamingInterpretation, setStreamingInterpretation] = useState("");
   const [streamingFollowUpInterpretation, setStreamingFollowUpInterpretation] = useState("");
   const [selectedChipIndex, setSelectedChipIndex] = useState(null);
@@ -298,6 +308,15 @@ function Consultation() {
   const resultSectionRef = useRef(null);
   const followUpInputRef = useRef(null); // 후속 질문 입력창 스크롤용
   const firstChunkReceivedRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  // SPA 이동 후에는 setState/알림을 하지 않는다 (서버 생성은 그대로 끝까지 진행된다)
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   
   // 후속 질문 관련 상태 (currentFollowUpInput은 드래프트에서 복원)
   const [showFollowUpButton, setShowFollowUpButton] = useState(false);
@@ -335,6 +354,22 @@ function Consultation() {
   });
   const requiredStars = FORTUNE_STAR_COSTS.consultation;
 
+  /** 인라인 안내/오류 메시지 (alert 대신 화면에 남겨 두는 용도) */
+  const inlineMessages = (
+    <>
+      {notice && (
+        <div className="mt-4 p-3 bg-emerald-900/40 border border-emerald-700 rounded-lg text-emerald-100 text-sm">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
+          {error}
+        </div>
+      )}
+    </>
+  );
+
   // 공유 링크로 들어온 경우
   const [searchParams, setSearchParams] = useSearchParams();
   const [sharedConsultation, setSharedConsultation] = useState(null);
@@ -348,7 +383,10 @@ function Consultation() {
   const profileRestoredRef = useRef(false);
 
   // 질문·토픽·프로필·답변·후속 맥락 임시 저장(Draft): 하나의 키에 JSON으로 저장
+  // 주의: 복원 effect 보다 먼저 실행되므로, 복원이 끝나기 전에는 저장하지 않는다
+  // (저장하면 answer:null 로 덮어써 새로고침 시 답변이 사라진다)
   useEffect(() => {
+    if (!draftHydrated) return;
     const state = {
       question: userQuestion,
       topic: selectedTopic,
@@ -358,15 +396,30 @@ function Consultation() {
       currentFollowUpInput: followUpQuestion ?? "",
     };
     localStorage.setItem("temp_consultation_state", JSON.stringify(state));
-  }, [userQuestion, selectedTopic, selectedProfile, consultationAnswer, followUpAnswers, followUpQuestion]);
+  }, [
+    draftHydrated,
+    userQuestion,
+    selectedTopic,
+    selectedProfile,
+    consultationAnswer,
+    followUpAnswers,
+    followUpQuestion,
+  ]);
 
   // 마운트 시 저장된 상담 맥락 복원 (메인 상담소 뷰일 때만: 히스토리/공유 뷰가 아님)
   useEffect(() => {
     if (consultationStateRestoredRef.current) return;
     const isHistoryOrSharedView = resultId || searchParams.get("id");
-    if (isHistoryOrSharedView) return;
+    if (isHistoryOrSharedView) {
+      // 히스토리/공유 뷰에서는 복원도 저장도 하지 않는다.
+      // (저장 게이트를 열면 메인 뷰의 드래프트를 빈 값으로 덮어쓴다)
+      return;
+    }
     const saved = getTempConsultationState();
-    if (!saved) return;
+    if (!saved) {
+      setDraftHydrated(true);
+      return;
+    }
     consultationStateRestoredRef.current = true;
     if (saved.answer != null) {
       setConsultationAnswer(saved.answer);
@@ -382,6 +435,7 @@ function Consultation() {
     const hasCurrentInput = !!String(saved.currentFollowUpInput ?? "").trim();
     setShowFollowUpButton(hasAnswer && followUpCount < 2 && !hasCurrentInput);
     setShowFollowUpInput(hasCurrentInput);
+    setDraftHydrated(true);
   }, [resultId, searchParams]);
 
   // 마운트 후 프로필 목록 로드 시 저장된 profileId로 프로필 복원 (1회만)
@@ -759,7 +813,7 @@ function Consultation() {
           setShowStarModal(true);
         }
       } catch (err) {
-        setError(err?.message || t("consultation.error_balance"));
+        setError(toUserFacingError(err, t, "consultation.error_balance"));
       }
     },
     [selectedProfile, userQuestion, user, requiredStars, t]
@@ -774,6 +828,7 @@ function Consultation() {
 
     setLoadingConsultation(true);
     setError("");
+    setNotice("");
     setProcessStatus("waiting");
     setConsultationAnswer(null);
     setStreamingInterpretation("");
@@ -781,6 +836,8 @@ function Consultation() {
     setShowFollowUpInput(false);
     setFollowUpQuestion("");
     firstChunkReceivedRef.current = false;
+    const askedQuestion = userQuestion.trim();
+    const requestStartedAt = new Date().toISOString();
 
     try {
       const requestBody = buildFirstQuestionRequestBody();
@@ -823,14 +880,48 @@ function Consultation() {
           setTimeout(() => setShowFollowUpButton(true), 500);
         },
         onError: async (err) => {
-          setError(err?.message || t("consultation.error_request"));
+          if (!isMountedRef.current) return;
           setLoadingConsultation(false);
           setProcessStatus("idle");
-          alert(t("consultation.error_generate"));
+
+          // 스트림만 끊겼고 서버는 끝까지 생성·저장했을 수 있으므로 잠시 뒤 재확인
+          setNotice(t("consultation.checking_recovery"));
+          await new Promise((r) => setTimeout(r, 3000));
+          const recoveredId = await findFortuneResultIdSince({
+            userId: user.id,
+            fortuneType: "consultation",
+            sinceIso: requestStartedAt,
+          });
+          const recovered = recoveredId ? await fetchFortuneByResultId(recoveredId) : null;
+          if (!isMountedRef.current) return;
+
+          if (recovered?.interpretation) {
+            const interpretation = recovered.interpretation;
+            setConsultationAnswer({
+              question: askedQuestion,
+              topic: selectedTopic,
+              interpretation,
+              parsedData: parseFortuneResult(interpretation),
+              debugInfo: {},
+              shareId: recovered.shareId || recoveredId,
+            });
+            setStreamingInterpretation("");
+            setUserQuestion("");
+            setSelectedChipIndex(null);
+            setProcessStatus("done");
+            setError("");
+            setNotice(t("consultation.recovered_notice"));
+            setTimeout(() => setShowFollowUpButton(true), 500);
+            return;
+          }
+
+          setNotice("");
+          setError(toUserFacingError(err, t, "consultation.error_request"));
         },
       });
     } catch (err) {
-      setError(err?.message || t("consultation.error_request"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "consultation.error_request"));
       setLoadingConsultation(false);
       setProcessStatus("idle");
     }
@@ -849,6 +940,8 @@ function Consultation() {
   const clearConsultationDraft = useCallback(() => {
     localStorage.removeItem("temp_consultation_state");
     setProcessStatus("idle");
+    setError("");
+    setNotice("");
     setConsultationAnswer(null);
     setStreamingInterpretation("");
     setFollowUpAnswers([]);
@@ -914,7 +1007,7 @@ function Consultation() {
         setShowStarModal(true);
       }
     } catch (err) {
-      setError(err?.message || "별 잔액 조회 중 오류가 발생했습니다.");
+      setError(toUserFacingError(err, t, "consultation.error_balance"));
     }
   };
 
@@ -951,7 +1044,7 @@ function Consultation() {
       setStarModalMode("historyFollowUp");
       setShowStarModal(true);
     } catch (err) {
-      setError(err?.message || t("consultation.error_balance"));
+      setError(toUserFacingError(err, t, "consultation.error_balance"));
     }
   };
 
@@ -961,9 +1054,12 @@ function Consultation() {
 
     setLoadingFollowUp(true);
     setError("");
+    setNotice("");
     setStreamingFollowUpInterpretation("");
     setProcessStatus("waiting");
     firstChunkReceivedRef.current = false;
+    const askedFollowUp = followUpQuestion.trim();
+    const followUpStartedAt = new Date().toISOString();
 
     try {
       const previousConversation = [
@@ -1027,14 +1123,49 @@ function Consultation() {
           setStreamingFollowUpInterpretation("");
         },
         onError: async (err) => {
-          setError(err?.message || t("consultation.error_followup"));
+          if (!isMountedRef.current) return;
           setLoadingFollowUp(false);
           setProcessStatus("idle");
-          alert(t("consultation.error_generate"));
+
+          setNotice(t("consultation.checking_recovery"));
+          await new Promise((r) => setTimeout(r, 3000));
+          const recovered = await findFollowUpResultSince(
+            consultationAnswer.shareId,
+            followUpStartedAt
+          );
+          if (!isMountedRef.current) return;
+
+          if (recovered?.interpretation) {
+            const answer = {
+              question: askedFollowUp,
+              topic: selectedTopic,
+              interpretation: recovered.interpretation,
+              parsedData: parseFortuneResult(recovered.interpretation),
+              debugInfo: {},
+              shareId: consultationAnswer.shareId,
+              isFollowUp: true,
+            };
+            setFollowUpAnswers((prev) => {
+              const next = [...prev, answer];
+              setShowFollowUpButton(next.length < 2);
+              return next;
+            });
+            setFollowUpQuestion("");
+            setShowFollowUpInput(false);
+            setStreamingFollowUpInterpretation("");
+            setProcessStatus("done");
+            setError("");
+            setNotice(t("consultation.recovered_notice"));
+            return;
+          }
+
+          setNotice("");
+          setError(toUserFacingError(err, t, "consultation.error_followup"));
         },
       });
     } catch (err) {
-      setError(err?.message || t("consultation.error_followup"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "consultation.error_followup"));
       setLoadingFollowUp(false);
       setProcessStatus("idle");
     }
@@ -1056,8 +1187,10 @@ function Consultation() {
 
     setHistoryLoadingFollowUp(true);
     setError("");
+    setNotice("");
     setProcessStatus("waiting");
     firstChunkReceivedRef.current = false;
+    const historyFollowUpStartedAt = new Date().toISOString();
 
     try {
       const previousConversation = [
@@ -1113,16 +1246,41 @@ function Consultation() {
           await loadHistoryItem();
         },
         onError: async (err) => {
-          setError(err?.message || t("consultation.error_followup"));
+          if (!isMountedRef.current) return;
           setProcessStatus("idle");
-          alert(t("consultation.error_generate"));
+
+          // 스트림만 끊겼고 서버는 저장을 마쳤을 수 있으므로 잠시 뒤 재확인
+          setNotice(t("consultation.checking_recovery"));
+          await new Promise((r) => setTimeout(r, 3000));
+          const recovered = await findFollowUpResultSince(
+            historyView.shareId,
+            historyFollowUpStartedAt
+          );
+          if (!isMountedRef.current) return;
+
+          if (recovered?.interpretation) {
+            setShowStarModal(false);
+            localStorage.removeItem("temp_consultation_history_followup");
+            setHistoryFollowUpQuestion("");
+            setHistoryShowFollowUpInput(false);
+            await loadHistoryItem();
+            if (!isMountedRef.current) return;
+            setProcessStatus("done");
+            setError("");
+            setNotice(t("consultation.recovered_notice"));
+            return;
+          }
+
+          setNotice("");
+          setError(toUserFacingError(err, t, "consultation.error_followup"));
         },
       });
     } catch (err) {
-      setError(err?.message || t("consultation.error_followup"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "consultation.error_followup"));
       setProcessStatus("idle");
     } finally {
-      setHistoryLoadingFollowUp(false);
+      if (isMountedRef.current) setHistoryLoadingFollowUp(false);
     }
   }, [
     user,
@@ -1160,7 +1318,7 @@ function Consultation() {
       setStarModalMode("sharedFollowUp");
       setShowStarModal(true);
     } catch (err) {
-      setError(err?.message || t("consultation.error_balance"));
+      setError(toUserFacingError(err, t, "consultation.error_balance"));
     }
   };
 
@@ -1173,6 +1331,8 @@ function Consultation() {
 
     setSharedLoadingFollowUp(true);
     setError("");
+    setNotice("");
+    const sharedFollowUpStartedAt = new Date().toISOString();
 
     try {
       const previousConversation = [
@@ -1222,14 +1382,37 @@ function Consultation() {
           await loadSharedConsultation(sharedConsultation.shareId);
         },
         onError: async (err) => {
-          setError(err?.message || t("consultation.error_followup"));
-          alert(t("consultation.error_generate"));
+          if (!isMountedRef.current) return;
+
+          setNotice(t("consultation.checking_recovery"));
+          await new Promise((r) => setTimeout(r, 3000));
+          const recovered = await findFollowUpResultSince(
+            sharedConsultation.shareId,
+            sharedFollowUpStartedAt
+          );
+          if (!isMountedRef.current) return;
+
+          if (recovered?.interpretation) {
+            setShowStarModal(false);
+            localStorage.removeItem("temp_consultation_shared_followup");
+            setSharedFollowUpQuestion("");
+            setSharedShowFollowUpInput(false);
+            await loadSharedConsultation(sharedConsultation.shareId);
+            if (!isMountedRef.current) return;
+            setError("");
+            setNotice(t("consultation.recovered_notice"));
+            return;
+          }
+
+          setNotice("");
+          setError(toUserFacingError(err, t, "consultation.error_followup"));
         },
       });
     } catch (err) {
-      setError(err?.message || t("consultation.error_followup"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "consultation.error_followup"));
     } finally {
-      setSharedLoadingFollowUp(false);
+      if (isMountedRef.current) setSharedLoadingFollowUp(false);
     }
   }, [
     user,
@@ -1492,6 +1675,8 @@ function Consultation() {
                 ))}
               </div>
             )}
+
+            {inlineMessages}
 
             {/* 방문자 유입 CTA: 홈과 동일 스타일 */}
             <div className="mt-10 flex justify-center">
@@ -1905,6 +2090,8 @@ function Consultation() {
               ))}
 
             {/* 이전 대화에서 후속 질문 가능 (질문 1개당 2회까지: 2개 있으면 버튼 숨김) */}
+            {inlineMessages}
+
             {historyView.followUpAnswers?.length < 2 && (
               <div className="mt-8 pt-8 border-t border-slate-600/50">
                 {!historyShowFollowUpInput ? (
@@ -2168,11 +2355,7 @@ function Consultation() {
                   </span>
                 </div>
 
-                {error && (
-                  <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
-                    {error}
-                  </div>
-                )}
+                {inlineMessages}
 
                 <PrimaryButton
                   type="submit"

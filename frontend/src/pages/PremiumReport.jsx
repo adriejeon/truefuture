@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import * as PortOne from "@portone/browser-sdk/v2";
@@ -23,6 +23,7 @@ import BottomNavigation from "../components/BottomNavigation";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import FortuneMarkdown from "../components/FortuneMarkdown";
 import { prepareBuyerEmail } from "../utils/paymentUtils";
+import { parseFnError, describeFnError, toUserFacingError } from "../utils/fnError";
 import { trackPurchase } from "../utils/analytics";
 import { colors } from "../constants/colors";
 import { SITE_ORIGIN } from "../constants/seoMeta";
@@ -35,26 +36,68 @@ const PAGE_TITLE = "프리미엄 상세 리포트 | 진짜미래 - 질문 상담
 const PAGE_DESCRIPTION =
   "궁금한 질문에 먼저 답하고, 출생 시각 기반으로 앞으로 10년의 흐름을 연도별로 풀어드리는 서면 상담 리포트. 완성본은 텍스트 PDF로 기기에 저장해 소장할 수 있습니다.";
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** 생성 루프 전체 시간 예산 (섹션 3개 + 락 대기/재검증 여유) */
+const GENERATION_BUDGET_MS = 25 * 60 * 1000;
+/** 서버가 lockedForSeconds 를 안 줄 때의 락 대기 기본값 */
+const DEFAULT_LOCK_WAIT_SECONDS = 8;
 
-/** supabase.functions.invoke 에러에서 서버 메시지/상태코드 추출 */
-async function parseFnError(error) {
-  let status = null;
-  let message = "";
-  try {
-    status = error?.context?.status ?? null;
-  } catch (_) {}
-  try {
-    const detail = await error?.context?.json?.();
-    message = detail?.error || "";
-    if (detail?.locked) return { status: 409, message, locked: true };
-  } catch (_) {}
-  return { status, message: message || error?.message || "", locked: status === 409 };
+/** signal 로 중단 가능한 sleep. 중단되면 false 를 돌려준다. */
+function sleep(ms, signal) {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener?.("abort", onAbort);
+      resolve(true);
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      resolve(false);
+    }
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * 서버가 남긴 내부 오류 문자열(error_message / code)을 사용자 문구로 분류.
+ * 원문은 노출하지 않고 console 에만 남긴다.
+ *
+ * @returns {{text: string, retryable: boolean}}
+ */
+function classifyReportFailure(rawMessage, code, t) {
+  const raw = String(rawMessage || "");
+  if (code === "VALIDATION" || /^VALIDATION:/i.test(raw)) {
+    return { text: t("premium_report.error_failed_validation"), retryable: true };
+  }
+  if (code === "SAFETY" || /^FATAL:/i.test(raw) || /SAFETY/i.test(raw)) {
+    return { text: t("premium_report.error_failed_safety"), retryable: false };
+  }
+  if (code === "CAPPED" || raw.includes("상한") || raw.includes("반복 실패")) {
+    return { text: t("premium_report.error_failed_capped"), retryable: false };
+  }
+  return { text: t("premium_report.error_failed_generic"), retryable: true };
+}
+
+/**
+ * 구버전 서버가 최종 실패를 500 으로 내려주던 경우인지 판별.
+ * (신버전은 200 + {failed:true} 로 내려준다)
+ */
+function isLegacyFinalFailure(status, message) {
+  if (status !== 500) return false;
+  const msg = String(message || "");
+  return (
+    msg.includes("리포트 생성이 반복 실패했습니다") ||
+    msg.includes("일시적인 오류가 발생했습니다. 결제는 안전하게")
+  );
 }
 
 function PremiumReport() {
   const { t, i18n } = useTranslation();
   const isEnglish = i18n.language?.startsWith("en");
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, loadingAuth } = useAuth();
   const {
     profiles,
@@ -76,11 +119,41 @@ function PremiumReport() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pdfSaving, setPdfSaving] = useState(false);
+  /** 실패 화면에서 '이어서 생성하기'를 보여줄지 (CAPPED/SAFETY 는 숨김) */
+  const [genRetryable, setGenRetryable] = useState(true);
+  /** 실패 원인이 세션 만료라 다시 로그인해야 하는 경우 */
+  const [genNeedsLogin, setGenNeedsLogin] = useState(false);
+  /** 로그인하지 않은 채 결제 리다이렉트로 돌아온 경우 */
+  const [needsLoginToResume, setNeedsLoginToResume] = useState(false);
   const genLoopRef = useRef(false);
+  const genAbortRef = useRef(null);
+  const reportIdRef = useRef(null);
+  const consecutiveErrorsRef = useRef(0);
+  const isMountedRef = useRef(true);
   const redirectHandledRef = useRef(false);
   const recoveryTriedRef = useRef(false);
 
   const reportIdParam = searchParams.get("id");
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // 언마운트 시 대기·재호출만 중단한다 (진행 중인 서버 요청은 그대로 완료된다)
+      try {
+        genAbortRef.current?.abort();
+      } catch (_) {}
+    };
+  }, []);
+
+  // 탭이 다시 보이면 백그라운드에서 누적된 일시 오류 카운트를 초기화해 이어서 시도한다
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") consecutiveErrorsRef.current = 0;
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   // ===== 데이터 조회 =====
 
@@ -117,25 +190,55 @@ function PremiumReport() {
 
   // ===== 리포트 생성 루프 (섹션 순차 생성, 재진입/재시도 안전) =====
 
+  /** 실패 화면 전환 (언마운트/중단 후에는 아무것도 하지 않는다) */
+  const showFailed = useCallback((text, options = {}) => {
+    if (!isMountedRef.current) return;
+    setGenError(text);
+    setGenRetryable(options.retryable !== false);
+    setGenNeedsLogin(!!options.needsLogin);
+    setView("failed");
+  }, []);
+
   const runGenerationLoop = useCallback(
-    async (reportId) => {
-      if (genLoopRef.current) return;
+    async (reportId, controller) => {
+      const signal = controller.signal;
+      const alive = () => isMountedRef.current && !signal.aborted;
+
       genLoopRef.current = true;
+      consecutiveErrorsRef.current = 0;
       setGenError("");
+      setGenRetryable(true);
+      setGenNeedsLogin(false);
       setView("generating");
+
+      let refreshedSession = false;
+      let iteration = 0;
+      const deadline = Date.now() + GENERATION_BUDGET_MS;
+
       try {
-        // 최대 45회 반복 (섹션 3개 + 일시 오류·검증 재생성·락 대기 여유분)
-        let consecutiveErrors = 0;
-        for (let attempt = 0; attempt < 45; attempt++) {
+        // 반복 횟수가 아니라 시간 예산으로 종료를 판단한다 (락 대기·재검증이 횟수를 잡아먹지 않도록)
+        while (Date.now() < deadline) {
+          if (!alive()) return;
+          iteration += 1;
+
           let row = null;
           try {
             row = await fetchReportRow(reportId);
           } catch (_) {}
+          if (!alive()) return;
           if (row) {
             setReport(row);
             if (row.status === "DONE") {
               setView("done");
               fetchMyReports();
+              return;
+            }
+            // 첫 번째 순회에서는 FAILED 를 종료 조건으로 보지 않는다
+            // (재시도 버튼으로 들어오면 행이 아직 FAILED 인 상태라 generate 를 한 번도 못 부르게 된다)
+            if (row.status === "FAILED" && iteration > 1) {
+              console.error("❌ 리포트 생성 실패(행 상태):", row.error_message);
+              const failure = classifyReportFailure(row.error_message, null, t);
+              showFailed(failure.text, { retryable: failure.retryable });
               return;
             }
           }
@@ -144,43 +247,87 @@ function PremiumReport() {
             "premium-report",
             { body: { action: "generate", report_id: reportId } }
           );
+          if (!alive()) return;
 
           if (fnError) {
             const parsed = await parseFnError(fnError);
-            if (parsed.locked) {
-              // 다른 요청이 생성 중 → 대기 후 상태 재확인
-              await sleep(8000);
+
+            // 다른 요청이 생성 중 → 안내된 시간만큼 대기하고 재확인 (오류로 카운트하지 않음)
+            if (parsed.locked || parsed.status === 409) {
+              const waitSeconds =
+                Number(parsed.details?.lockedForSeconds) || DEFAULT_LOCK_WAIT_SECONDS;
+              await sleep(waitSeconds * 1000, signal);
               continue;
             }
+
+            // 세션 만료 → 1회 갱신 후 재시도
+            if (parsed.status === 401 || parsed.code === "UNAUTHORIZED") {
+              if (!refreshedSession) {
+                refreshedSession = true;
+                try {
+                  await supabase.auth.refreshSession();
+                } catch (_) {}
+                continue;
+              }
+              showFailed(t("premium_report.error_login_again"), {
+                retryable: false,
+                needsLogin: true,
+              });
+              return;
+            }
+
+            // 구버전 서버: 최종 실패를 500 으로 내려주던 경우 → 재시도하지 않는다
+            if (isLegacyFinalFailure(parsed.status, parsed.message)) {
+              console.error("❌ 리포트 생성 최종 실패(구버전 500):", parsed.message);
+              const failure = classifyReportFailure(parsed.message, null, t);
+              showFailed(failure.text, { retryable: failure.retryable });
+              return;
+            }
+
             // 서버/워커 일시 장애(5xx·네트워크)는 잠시 후 이어서 재시도
             const isTransientHttp =
               parsed.status == null || parsed.status >= 500 || parsed.status === 429;
-            if (isTransientHttp && consecutiveErrors < 5) {
-              consecutiveErrors += 1;
-              await sleep(15000);
+            if (isTransientHttp && consecutiveErrorsRef.current < 5) {
+              consecutiveErrorsRef.current += 1;
+              await sleep(15000, signal);
               continue;
             }
-            throw new Error(parsed.message || t("premium_report.error_generate"));
+            console.error("❌ 리포트 생성 호출 실패:", parsed);
+            showFailed(describeFnError(parsed, t));
+            return;
+          }
+
+          // 서버가 200 으로 알려주는 최종 실패
+          if (data?.success === false && data?.failed) {
+            console.error("❌ 리포트 생성 최종 실패:", data.code, data.error);
+            const failure = classifyReportFailure(data.error, data.code, t);
+            const retryable = data.retryable === false ? false : failure.retryable;
+            showFailed(failure.text, { retryable });
+            return;
           }
           if (!data?.success) {
-            throw new Error(data?.error || t("premium_report.error_generate"));
+            console.error("❌ 리포트 생성 응답 오류:", data);
+            showFailed(t("premium_report.error_failed_generic"));
+            return;
           }
-          consecutiveErrors = 0;
+          consecutiveErrorsRef.current = 0;
 
           // 서버가 일시 오류(쿼터 등)로 이번 호출을 건너뜀 → 잠시 후 재호출
           if (data.transient) {
-            await sleep((Number(data.waitSeconds) || 20) * 1000);
+            await sleep((Number(data.waitSeconds) || 20) * 1000, signal);
             continue;
           }
-          // 원고 검증 실패 → 교정 지시가 저장됐으니 즉시 재호출해 재생성
+          // 원고 검증 실패 → 교정 지시가 저장됐으니 곧바로 재호출해 재생성 (핫루프 방지용 최소 간격)
           if (data.revalidate) {
+            await sleep(1000, signal);
             continue;
           }
 
           try {
             const updated = await fetchReportRow(reportId);
-            if (updated) setReport(updated);
+            if (updated && alive()) setReport(updated);
           } catch (_) {}
+          if (!alive()) return;
 
           if (data.done) {
             setView("done");
@@ -188,16 +335,32 @@ function PremiumReport() {
             return;
           }
         }
-        throw new Error(t("premium_report.error_timeout"));
+        if (alive()) showFailed(t("premium_report.error_timeout"));
       } catch (err) {
         console.error("❌ 리포트 생성 실패:", err);
-        setGenError(err.message || t("premium_report.error_generate"));
-        setView("failed");
+        showFailed(toUserFacingError(err, t, "premium_report.error_generate"));
       } finally {
-        genLoopRef.current = false;
+        // 이미 다른 루프로 교체됐다면 그 루프의 플래그를 건드리지 않는다
+        if (genAbortRef.current === controller) genLoopRef.current = false;
       }
     },
-    [fetchReportRow, fetchMyReports, t]
+    [fetchReportRow, fetchMyReports, showFailed, t]
+  );
+
+  /** 같은 리포트면 중복 루프를 막고, 다른 리포트면 이전 루프를 중단하고 새로 시작한다 */
+  const startGenerationLoop = useCallback(
+    (reportId) => {
+      if (!reportId) return;
+      if (genLoopRef.current && reportIdRef.current === reportId) return;
+      try {
+        genAbortRef.current?.abort();
+      } catch (_) {}
+      const controller = new AbortController();
+      genAbortRef.current = controller;
+      reportIdRef.current = reportId;
+      runGenerationLoop(reportId, controller);
+    },
+    [runGenerationLoop]
   );
 
   // ===== URL ?id= 로 기존 리포트 열람/재개 =====
@@ -205,6 +368,13 @@ function PremiumReport() {
   useEffect(() => {
     if (!reportIdParam || loadingAuth) return;
     if (!user) return; // RLS 로 어차피 본인 것만 조회됨
+    // 다른 리포트로 이동하면 이전 생성 루프의 대기·재호출을 중단한다
+    if (reportIdRef.current && reportIdRef.current !== reportIdParam) {
+      try {
+        genAbortRef.current?.abort();
+      } catch (_) {}
+      genLoopRef.current = false;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -219,15 +389,20 @@ function PremiumReport() {
         if (row.status === "DONE") {
           setView("done");
         } else if (row.status === "FAILED") {
-          setGenError(row.error_message || "");
+          // 내부 오류 원문은 콘솔에만 남기고, 화면에는 분류된 안내 문구를 보여준다
+          console.error("❌ 리포트 실패 원문:", row.error_message);
+          const failure = classifyReportFailure(row.error_message, null, t);
+          setGenError(failure.text);
+          setGenRetryable(failure.retryable);
+          setGenNeedsLogin(false);
           setView("failed");
         } else {
           // PAID / GENERATING → 이어서 생성
-          runGenerationLoop(row.id);
+          startGenerationLoop(row.id);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || t("premium_report.error_load"));
+          setError(toUserFacingError(err, t, "premium_report.error_load"));
           setView("intro");
         }
       }
@@ -259,7 +434,7 @@ function PremiumReport() {
         );
         if (fnError) {
           const parsed = await parseFnError(fnError);
-          throw new Error(parsed.message || t("premium_report.error_purchase"));
+          throw new Error(describeFnError(parsed, t));
         }
         if (!data?.success || !data?.reportId) {
           throw new Error(data?.error || t("premium_report.error_purchase"));
@@ -292,23 +467,31 @@ function PremiumReport() {
 
         // URL에 리포트 ID 반영 (새로고침해도 이어서 생성/열람 가능)
         setSearchParams({ id: data.reportId }, { replace: true });
-        runGenerationLoop(data.reportId);
+        startGenerationLoop(data.reportId);
       } catch (err) {
         console.error("❌ 리포트 구매 처리 실패:", err);
-        setError(err.message || t("premium_report.error_purchase"));
+        if (!isMountedRef.current) return;
+        setError(toUserFacingError(err, t, "premium_report.error_purchase"));
         setView("intro");
       }
     },
-    [runGenerationLoop, setSearchParams, t]
+    [startGenerationLoop, setSearchParams, t]
   );
 
   // ===== 모바일 결제 리다이렉트 복귀 처리 =====
 
   useEffect(() => {
     if (redirectHandledRef.current) return;
-    if (loadingAuth || !user) return;
+    if (loadingAuth) return;
     const isPayRedirect = searchParams.get("pay_redirect") === "1";
     if (!isPayRedirect) return;
+    // 로그인 세션이 유실된 채 복귀한 경우: 결제 쿼리를 버리지 않고 로그인 후 이 URL 로 되돌아오게 한다
+    if (!user) {
+      setNeedsLoginToResume(true);
+      setView("intro");
+      return;
+    }
+    setNeedsLoginToResume(false);
     redirectHandledRef.current = true;
 
     const code = searchParams.get("code");
@@ -334,8 +517,9 @@ function PremiumReport() {
     }
 
     const merchantUid = paymentId || stored?.merchantUid;
-    const profileId = stored?.profileId;
-    if (!merchantUid || !profileId) {
+    // sessionStorage 가 유실돼도 redirectUrl 에 실어 보낸 profile_id 로 복원한다
+    const profileId = stored?.profileId || searchParams.get("profile_id");
+    if (!merchantUid) {
       setError(t("premium_report.error_redirect_context"));
       setSearchParams({}, { replace: true });
       setView("intro");
@@ -346,7 +530,7 @@ function PremiumReport() {
     completePurchase({
       merchantUid,
       paymentId: merchantUid, // PortOne V2 결제 ID = 우리가 생성한 merchantUid
-      profileId,
+      profileId: profileId || null,
       questionText: stored?.question || "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -365,7 +549,7 @@ function PremiumReport() {
     try {
       stored = JSON.parse(sessionStorage.getItem(CHECKOUT_STORAGE_KEY) || "null");
     } catch (_) {}
-    if (!stored?.merchantUid || !stored?.profileId) return;
+    if (!stored?.merchantUid) return;
 
     (async () => {
       setView("paying");
@@ -375,7 +559,7 @@ function PremiumReport() {
             action: "purchase",
             merchant_uid: stored.merchantUid,
             imp_uid: stored.merchantUid,
-            profile_id: stored.profileId,
+            profile_id: stored.profileId || null,
             question: stored.question || "",
           },
         });
@@ -384,26 +568,37 @@ function PremiumReport() {
             sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
           } catch (_) {}
           setSearchParams({ id: data.reportId }, { replace: true });
-          runGenerationLoop(data.reportId);
+          startGenerationLoop(data.reportId);
           return;
         }
-        const parsed = fnError ? await parseFnError(fnError) : { message: data?.error || "" };
+        const parsed = fnError
+          ? await parseFnError(fnError)
+          : { status: null, code: data?.code ?? null, message: data?.error || "" };
         const msg = parsed.message || "";
-        // 결제 자체가 없거나 미완료였던 컨텍스트 → 조용히 정리하고 일반 화면으로
-        const notPaid =
-          /완료되지 않았습니다|찾을 수 없|조회 실패|PgProviderError|PAY_PROCESS/i.test(msg);
-        if (notPaid || !msg) {
+        // "조회 실패"(503 등)·"찾을 수 없"(프로필 404)은 결제 없음이 아니므로 컨텍스트를 지우지 않는다
+        const isLookupFailure = /조회 실패|찾을 수 없/.test(msg);
+        let shouldClearContext;
+        if (parsed.code) {
+          shouldClearContext =
+            parsed.code === "PAYMENT_NOT_FOUND" || parsed.code === "NOT_PAID";
+        } else {
+          shouldClearContext =
+            !isLookupFailure && (parsed.status === 404 || msg.includes("완료되지 않았습니다"));
+        }
+
+        if (shouldClearContext) {
+          // 결제 자체가 없거나 미완료였던 컨텍스트 → 조용히 정리하고 일반 화면으로
           try {
             sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
           } catch (_) {}
-        } else {
+        } else if (msg || parsed.code) {
           // 결제가 잡혀 있을 수 있는 실패 → 컨텍스트 유지 + 안내
-          setError(msg);
+          setError(describeFnError(parsed, t));
         }
       } catch (_) {
         // 네트워크 등 일시 오류 — 다음 방문 때 다시 시도할 수 있게 컨텍스트 유지
       } finally {
-        setView((v) => (v === "paying" ? "intro" : v));
+        if (isMountedRef.current) setView((v) => (v === "paying" ? "intro" : v));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -434,7 +629,10 @@ function PremiumReport() {
 
     setView("paying");
     try {
-      const redirectUrl = `${window.location.origin}/report?pay_redirect=1`;
+      // sessionStorage 가 유실돼도 복귀 처리에서 프로필을 알 수 있도록 쿼리에 실어 보낸다
+      const redirectUrl = `${window.location.origin}/report?pay_redirect=1&profile_id=${encodeURIComponent(
+        selectedProfile.id
+      )}`;
       const response = await PortOne.requestPayment({
         storeId: import.meta.env.VITE_PORTONE_STORE_ID,
         channelKey: import.meta.env.VITE_PORTONE_CHANNEL_KEY,
@@ -448,6 +646,13 @@ function PremiumReport() {
           fullName: "우주탐험가",
           phoneNumber: "010-0000-0000",
           email: prepareBuyerEmail(user),
+        },
+        // 서버가 sessionStorage 없이도 결제 맥락(프로필·질문)을 복원할 수 있게 결제에 실어 보낸다
+        customData: {
+          k: "report",
+          u: user.id,
+          p: selectedProfile.id,
+          q: question.trim().slice(0, 500),
         },
         redirectUrl,
       });
@@ -468,15 +673,28 @@ function PremiumReport() {
       });
     } catch (err) {
       console.error("❌ 결제 오류:", err);
-      setError(err.message || t("premium_report.error_pay_failed"));
+      if (!isMountedRef.current) return;
+      setError(toUserFacingError(err, t, "premium_report.error_pay_failed"));
       setView("intro");
     }
   };
 
   const handleRetryGenerate = () => {
-    if (report?.id) {
-      runGenerationLoop(report.id);
-    }
+    // 루프에 넘겼던 id 를 우선 사용 (report 상태가 아직 갱신되지 않았을 수 있음)
+    const targetId = reportIdRef.current || reportIdParam || report?.id;
+    if (targetId) startGenerationLoop(targetId);
+  };
+
+  const handleGoLogin = () => {
+    navigate("/login", {
+      state: {
+        from: {
+          pathname: location.pathname,
+          search: location.search,
+          hash: location.hash,
+        },
+      },
+    });
   };
 
   const handleCreateProfile = async (profileData) => {
@@ -619,6 +837,18 @@ function PremiumReport() {
           </span>
         </div>
       </div>
+
+      {/* 결제 후 로그인 세션이 유실된 채 복귀한 경우 */}
+      {needsLoginToResume && (
+        <div className="bg-amber-500/15 border border-amber-500/40 rounded-lg p-4 mb-6">
+          <p className="text-amber-100 text-sm mb-3 whitespace-pre-line">
+            {t("errors.login_required")}
+          </p>
+          <PrimaryButton type="button" variant="gold" fullWidth onClick={handleGoLogin}>
+            {t("premium_report.login_continue")}
+          </PrimaryButton>
+        </div>
+      )}
 
       {/* 에러 */}
       {error && (
@@ -819,12 +1049,29 @@ function PremiumReport() {
         {t("premium_report.failed_title")}
       </h2>
       <p className="text-slate-300 text-sm mb-2 whitespace-pre-line">
-        {t("premium_report.failed_desc")}
+        {genRetryable ? t("premium_report.failed_desc") : genError}
       </p>
-      {genError && <p className="text-xs text-slate-500 mb-6 break-all">{genError}</p>}
-      <PrimaryButton type="button" variant="gold" fullWidth onClick={handleRetryGenerate}>
-        {t("premium_report.retry_button")}
-      </PrimaryButton>
+      {genRetryable && genError && (
+        <p className="text-sm text-slate-400 mb-6 whitespace-pre-line">{genError}</p>
+      )}
+      {genRetryable ? (
+        <PrimaryButton type="button" variant="gold" fullWidth onClick={handleRetryGenerate}>
+          {t("premium_report.retry_button")}
+        </PrimaryButton>
+      ) : genNeedsLogin ? (
+        <PrimaryButton type="button" variant="gold" fullWidth onClick={handleGoLogin}>
+          {t("premium_report.login_continue")}
+        </PrimaryButton>
+      ) : (
+        <PrimaryButton
+          type="button"
+          variant="gold"
+          fullWidth
+          onClick={() => navigate("/refund-inquiry")}
+        >
+          {t("premium_report.contact_support")}
+        </PrimaryButton>
+      )}
       <button
         type="button"
         onClick={() => {
