@@ -20,25 +20,6 @@ import { WalletCards } from "lucide-react";
 import ReviewList from "../components/ReviewList";
 import { usePublishedReviews } from "../hooks/usePublishedReviews";
 
-function FavoriteStarIcon() {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-block shrink-0"
-      style={{
-        width: "0.875rem",
-        height: "0.875rem",
-        maskImage: "url(/assets/favorite.svg)",
-        WebkitMaskImage: "url(/assets/favorite.svg)",
-        maskSize: "contain",
-        maskRepeat: "no-repeat",
-        maskPosition: "center",
-        backgroundColor: colors.primary,
-      }}
-    />
-  );
-}
-
 function Home() {
   const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
@@ -246,60 +227,9 @@ function Home() {
               </div>
             </section>
 
-            {/* 현직 전문가 소셜 프루프 섹션 */}
-            <section className="flex flex-col items-center w-full pt-[clamp(56px,12vw,96px)] pb-[clamp(28px,6vw,48px)]">
-              <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
-                <div
-                  className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
-                  aria-hidden="true"
-                >
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
-                  <span className="font-noto text-[clamp(10px,2.2vw,14px)]">✦</span>
-                </div>
-                <h2 className="text-center font-noto text-[clamp(17px,4.5vw,24px)] font-medium leading-[1.5] tracking-[-0.02em] text-[#FFFFFF]">
-                  {t("home.expert_title")}{" "}
-                  <span className="text-primary">{t("home.expert_title_accent")}</span>
-                </h2>
-                <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
-                  {t("home.expert_subtitle").replace(/\n+/g, " ")}
-                </p>
-                <div className="flex flex-col gap-[clamp(16px,3.5vw,22px)] w-full">
-                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
-                    <p
-                      className="flex gap-0.5 mb-3 text-primary"
-                      aria-label="별점 5점"
-                    >
-                      <FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon />
-                    </p>
-                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                      &ldquo;{t("home.expert_review1")}&rdquo;
-                    </p>
-                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                      {t("home.expert_review1_author")}
-                    </footer>
-                  </blockquote>
-                  <blockquote className="font-noto text-left rounded-xl p-[clamp(18px,4vw,24px)] bg-[#1E1E3A]/90 border border-[#2A2A4A]/80 shadow-lg">
-                    <p
-                      className="flex gap-0.5 mb-3 text-primary"
-                      aria-label="별점 5점"
-                    >
-                      <FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon /><FavoriteStarIcon />
-                    </p>
-                    <p className="text-[#F5F0E8] text-[clamp(14px,3.2vw,16px)] font-light leading-[1.65] tracking-[-0.01em]">
-                      &ldquo;{t("home.expert_review2")}&rdquo;
-                    </p>
-                    <footer className="mt-3 text-[clamp(12px,2.8vw,14px)] text-primary/95 font-medium">
-                      {t("home.expert_review2_author")}
-                    </footer>
-                  </blockquote>
-                </div>
-              </div>
-            </section>
-
             {/* 실제 이용자 후기 섹션: DB(published) 후기만 노출, 없으면 미표시 */}
             {publishedReviews.length > 0 && (
-              <section className="flex flex-col items-center w-full pt-[clamp(28px,6vw,48px)] pb-[clamp(28px,6vw,48px)]">
+              <section className="flex flex-col items-center w-full pt-[clamp(56px,12vw,96px)] pb-[clamp(28px,6vw,48px)]">
                 <div className="w-full flex flex-col items-center gap-[clamp(20px,4vw,28px)]">
                   <div
                     className="flex flex-wrap justify-center gap-x-1.5 text-primary/90 mb-0.5"
@@ -313,8 +243,13 @@ function Home() {
                     {t("home.buyer_title")}{" "}
                     <span className="text-primary">{t("home.buyer_title_accent")}</span>
                   </h2>
-                  <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8]">
-                    {t("home.buyer_subtitle").replace(/\n+/g, " ")}
+                  <p className="text-center font-noto text-[clamp(12px,3vw,15px)] font-light leading-[1.6] text-[#9CA3B8] break-keep">
+                    {t("home.buyer_subtitle").split("\n").map((line, i, arr) => (
+                      <span key={i}>
+                        {line}
+                        {i < arr.length - 1 && <br />}
+                      </span>
+                    ))}
                   </p>
                   <ReviewList reviews={publishedReviews} summary={reviewSummary} />
                 </div>

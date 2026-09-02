@@ -25,11 +25,14 @@ export function usePublishedReviews({ service = null, language = null, limit = 6
 
     (async () => {
       try {
+        let usedLang = lang;
         let list = await fetchPublishedReviews({ service, language: lang, limit });
         if (list.length === 0 && lang) {
+          usedLang = null;
           list = await fetchPublishedReviews({ service, language: null, limit });
         }
-        const sum = await fetchReviewSummary({ service, language: null }).catch(() => ({
+        // 요약(개수·평균)은 화면에 보이는 후기와 같은 언어 범위로 계산해 숫자가 어긋나지 않게 한다
+        const sum = await fetchReviewSummary({ service, language: usedLang }).catch(() => ({
           count: list.length,
           avg: list.length
             ? Math.round((list.reduce((a, r) => a + (r.rating || 0), 0) / list.length) * 10) / 10

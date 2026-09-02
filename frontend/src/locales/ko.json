@@ -68,13 +68,6 @@
     "future_change": "더 좋은 미래로 바꿀 수 있습니다.",
     "price_highlight": "단돈 1,000원,",
     "price_cta": "진짜 미래를 확인하고 내일을 바꾸세요.",
-    "expert_title": "점성술·명리·타로 현업에서 쓰는",
-    "expert_title_accent": "출생 차트 기반 분석",
-    "expert_subtitle": "점성술, 타로, 명리학 등 운명학 및 영성 분야의 전문가들이\n이제는 '진짜미래'로 미래를 설계하고 있습니다.",
-    "expert_review1": "기존 대형 앱들보다 디테일과 정확도가 훨씬 뛰어납니다. 아주 사소한 질문도 상세히 알 수 있어서 너무 좋아요. 매일 매일 사용하게 됩니다.",
-    "expert_review1_author": "10년 차 타로·점성술 마스터",
-    "expert_review2": "단순한 키워드 조합이 아니라, 전문가가 옆에서 짚어주는 듯한 구체적인 해석이에요.",
-    "expert_review2_author": "현업 명리학·사주 상담가",
     "buyer_title": "실제 이용자가 남긴",
     "buyer_title_accent": "실사용 후기",
     "buyer_subtitle": "국내 대형 상담 플랫폼 경험을 바탕으로 한 상담 로직을 시스템에 반영했습니다.\n아래는 검수를 거쳐 게시된 실제 이용자 후기입니다.",
@@ -899,6 +892,9 @@
       "forbidden": "관리자만 접근할 수 있는 페이지입니다.",
       "action_delete": "영구 삭제",
       "delete_confirm": "이 후기를 영구 삭제할까요? 되돌릴 수 없습니다."
-    }
+    },
+    "carousel_aria": "이용자 후기",
+    "carousel_prev": "이전 후기",
+    "carousel_next": "다음 후기"
   }
 }

@@ -68,13 +68,6 @@
     "future_change": "lets you shape it into something better.",
     "price_highlight": "Starting at just $2.99 —",
     "price_cta": "Unlock your True Future and rewrite tomorrow.",
-    "expert_title": "Classical birth-chart analysis",
-    "expert_title_accent": "used by working practitioners",
-    "expert_subtitle": "Experts in astrology, tarot, and Eastern metaphysics\nnow rely on True Future to map their own destiny.",
-    "expert_review1": "Far more detailed and accurate than any major app I've tried. Even the smallest questions get thorough answers. I come back every single day.",
-    "expert_review1_author": "10-Year Tarot & Astrology Master",
-    "expert_review2": "It's not just keyword combinations — the readings are concrete, like having an expert walk through the chart beside you.",
-    "expert_review2_author": "Practicing BaZi & Destiny Consultant",
     "buyer_title": "Reviews from",
     "buyer_title_accent": "real users",
     "buyer_subtitle": "Consultation logic refined on Korea's largest reading platforms is built into the system.\nBelow are reviews from real users, published after moderation.",
@@ -899,6 +892,9 @@
       "forbidden": "This page is for administrators only.",
       "action_delete": "Delete permanently",
       "delete_confirm": "Permanently delete this review? This cannot be undone."
-    }
+    },
+    "carousel_aria": "User reviews",
+    "carousel_prev": "Previous review",
+    "carousel_next": "Next review"
   }
 }
