@@ -202,6 +202,7 @@ const GEMINI_PRO_MODEL = "gemini-3.1-pro-preview"; // 플래그십 심층 리딩
 const GEMINI_FALLBACK_MODEL = "gemini-3.5-flash"; // 503/과부하 시 폴백
 const GEMINI_CONSULTATION_FIRST_MODEL = "gemini-3.1-pro-preview"; // 자유 상담소 첫 질문 전용
 const GEMINI_CONSULTATION_FOLLOWUP_MODEL = "gemini-3.5-flash"; // 자유 상담소 후속 질문
+const GEMINI_UTILITY_MODEL = "gemini-2.5-flash-lite"; // 분류·판단 등 유틸 호출 전용 (최저가)
 // 엔드포인트는 Vertex AI 헬퍼(buildVertexUrl)가 프로젝트/리전 기반으로 구성한다.
 
 /** 503 또는 Overloaded 관련 에러인지 판별 (폴백 트리거용) */
@@ -612,7 +613,7 @@ async function classifyTopicWithGemini(question: string): Promise<ConsultationTo
   };
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
   const call = (async () => {
-    const res = await callGeminiAPI(GEMINI_CONSULTATION_FOLLOWUP_MODEL, "", body);
+    const res = await callGeminiAPI(GEMINI_UTILITY_MODEL, "", body);
     const text: string = (res?.candidates?.[0]?.content?.parts ?? [])
       .map((p: { text?: string }) => p?.text ?? "")
       .join("");
@@ -867,6 +868,8 @@ function createFortuneSSEStream(
     consumeCurrency?: StarCurrency | null;
     /** CONSULTATION 인 경우 fortune_history.user_question 에 저장할 질문 원문 */
     userQuestion?: string | null;
+    /** fortune_history.result_id 로 쓸 대화 루트 ID (상담 후속 질문은 부모 결과 ID 로 묶어 드로어에서 한 대화로 보이게) */
+    historyResultId?: string | null;
   },
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -988,7 +991,8 @@ function createFortuneSSEStream(
             .insert({
               user_id: options.userId,
               profile_id: options.profileId ?? null,
-              result_id: shareId,
+              // 후속 질문은 부모(루트) 결과 ID 로 묶는다 — 클라이언트 드로어의 그룹 규칙과 동일
+              result_id: options.historyResultId || shareId,
               fortune_type: options.fortuneType,
               fortune_date:
                 (typeof options?.fortuneDate === "string" && options.fortuneDate.trim())
@@ -1184,6 +1188,8 @@ async function getInterpretation(
       consumeDescription?: string;
       consumeCurrency?: StarCurrency | null;
       userQuestion?: string | null;
+    /** fortune_history.result_id 로 쓸 대화 루트 ID (상담 후속 질문은 부모 결과 ID 로 묶어 드로어에서 한 대화로 보이게) */
+    historyResultId?: string | null;
     };
   },
 ): Promise<any> {
@@ -2975,6 +2981,10 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           consumeDescription: consumeDescription ?? "",
           consumeCurrency,
           userQuestion: typeof userQuestion === "string" ? userQuestion : null,
+          historyResultId:
+            typeof requestData.parentResultId === "string" && requestData.parentResultId.trim()
+              ? requestData.parentResultId.trim()
+              : null,
           debugPayload: {
             chart: chartData,
             userPrompt,

@@ -18,7 +18,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getVertexAccessToken, buildVertexUrl } from "../_shared/vertex.ts";
 
-const SUGGEST_MODEL = "gemini-3.5-flash";
+const SUGGEST_MODEL = "gemini-2.5-flash-lite"; // 판단용 호출은 최저가 모델
 const MAX_QUESTIONS = 3;
 const MODEL_TIMEOUT_MS = 8000;
 

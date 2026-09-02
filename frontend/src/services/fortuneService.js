@@ -129,7 +129,7 @@ export async function fetchConsultationHistory(userId) {
     
     if (!data || data.length === 0) return [];
 
-    // result_id별로 그룹화
+    // result_id별로 그룹화. 같은 대화에 같은 질문이 두 번 기록된 행(서버·클라이언트 이중 저장)은 하나로 본다.
     const grouped = data.reduce((acc, item) => {
       if (!item.result_id) return acc;
       
@@ -140,6 +140,14 @@ export async function fetchConsultationHistory(userId) {
           latest_created_at: item.created_at,
         };
       }
+
+      const normalized = String(item.user_question ?? "").replace(/\s+/g, "");
+      const isDuplicate = acc[item.result_id].questions.some(
+        (q) =>
+          String(q.user_question ?? "").replace(/\s+/g, "") === normalized &&
+          Math.abs(new Date(q.created_at) - new Date(item.created_at)) < 5 * 60 * 1000
+      );
+      if (isDuplicate) return acc;
       
       acc[item.result_id].questions.push({
         id: item.id,

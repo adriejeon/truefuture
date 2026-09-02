@@ -7,7 +7,6 @@ import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
 import {
-  saveFortuneHistory,
   fetchFortuneByResultId,
   findFortuneResultIdSince,
   findFollowUpResultSince,
@@ -285,7 +284,7 @@ function Consultation() {
   // 세션 캐시(프로필별, 10분)로 재호출을 줄이고, 새 답변이 완료되면 캐시를 지운다.
   const [personalChips, setPersonalChips] = useState([]);
   const SUGGEST_CACHE_TTL_MS = 10 * 60 * 1000;
-  const suggestCacheKey = (profileId) => `consult_suggest_v2_${profileId}`;
+  const suggestCacheKey = (profileId) => `consult_suggest_v3_${profileId}`;
   useEffect(() => {
     const profileId = selectedProfile?.id;
     if (!user?.id || !profileId) {
@@ -887,16 +886,9 @@ function Consultation() {
           setStreamingInterpretation("");
           if (shareId) {
             try {
-              sessionStorage.removeItem(`consult_suggest_v2_${selectedProfile?.id}`);
+              sessionStorage.removeItem(`consult_suggest_v3_${selectedProfile?.id}`);
             } catch (_) {}
-            saveFortuneHistory(
-              user.id,
-              selectedProfile.id,
-              "consultation",
-              shareId,
-              null,
-              userQuestion.trim()
-            );
+            // 상담 기록은 서버가 스트림 완료 시 저장(user_question 포함) → 클라이언트 중복 저장 제거
           }
           setUserQuestion("");
           setSelectedChipIndex(null);
@@ -955,7 +947,6 @@ function Consultation() {
     selectedTopic,
     selectedProfile,
     buildFirstQuestionRequestBody,
-    saveFortuneHistory,
     t,
   ]);
 
@@ -1128,14 +1119,7 @@ function Consultation() {
             shareId: consultationAnswer.shareId,
             isFollowUp: true,
           };
-          saveFortuneHistory(
-            user.id,
-            selectedProfile.id,
-            "consultation",
-            consultationAnswer.shareId,
-            null,
-            followUpQuestion.trim()
-          );
+          // 상담 기록은 서버가 스트림 완료 시 저장(user_question 포함) → 클라이언트 중복 저장 제거
           setFollowUpAnswers((prev) => {
             const next = [...prev, answer];
             setShowFollowUpButton(next.length < 2);
@@ -1200,7 +1184,6 @@ function Consultation() {
     followUpAnswers,
     selectedProfile,
     selectedTopic,
-    saveFortuneHistory,
     t,
   ]);
 
@@ -1254,14 +1237,7 @@ function Consultation() {
         },
         onDone: async () => {
           setProcessStatus("done");
-          await saveFortuneHistory(
-            user.id,
-            selectedProfile.id,
-            "consultation",
-            historyView.shareId,
-            null,
-            historyFollowUpQuestion.trim()
-          );
+          // 상담 기록은 서버가 스트림 완료 시 저장(user_question 포함) → 클라이언트 중복 저장 제거
           setShowStarModal(false);
           localStorage.removeItem("temp_consultation_history_followup");
           setHistoryFollowUpQuestion("");
@@ -1390,14 +1366,7 @@ function Consultation() {
       await invokeGetFortuneStream(supabase, requestBody, {
         onChunk: () => {},
         onDone: async () => {
-          await saveFortuneHistory(
-            user.id,
-            selectedProfile.id,
-            "consultation",
-            sharedConsultation.shareId,
-            null,
-            sharedFollowUpQuestion.trim()
-          );
+          // 상담 기록은 서버가 스트림 완료 시 저장(user_question 포함) → 클라이언트 중복 저장 제거
           setShowStarModal(false);
           localStorage.removeItem("temp_consultation_shared_followup");
           setSharedFollowUpQuestion("");
