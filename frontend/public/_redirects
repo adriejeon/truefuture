@@ -1,1 +1,20 @@
-/* /index.html 200
+# SPA 폴백.
+# 프리렌더된 경로(/, /report, /consultation, /compatibility, /yearly, /faq, /purchase,
+# /daily-tarot, /blog, /blog/<slug>)는 정적 파일이 그대로 서빙되도록 규칙을 두지 않는다.
+# 여기 나열한 "클라이언트에서만 동작하는" 경로만 셸(dist/app/index.html)로 rewrite 한다.
+# 그 밖의 없는 경로는 dist/404.html(같은 셸)이 404 상태로 응답한다.
+#
+# 주의: rewrite 대상이 .html 이면 Cloudflare Pages 가 확장자를 떼는 308 을 다시 태운다.
+#       반드시 디렉터리 형태(/app/)로 둘 것.
+
+/login              /app/ 200
+/auth/callback      /app/ 200
+/consultation/*     /app/ 200
+/purchase/history   /app/ 200
+/payment/complete   /app/ 200
+/mypage             /app/ 200
+/admin/reviews      /app/ 200
+/contact            /app/ 200
+/refund-inquiry     /app/ 200
+/privacy-policy     /app/ 200
+/terms              /app/ 200

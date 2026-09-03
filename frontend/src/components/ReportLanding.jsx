@@ -44,11 +44,12 @@ import {
   SAMPLE_OVERVIEW,
   SAMPLE_YEAR_DETAIL,
 } from "../constants/reportSample";
+import { LEGACY_WRITTEN_ANALYSIS_PRICE, REPORT_YEAR_COUNT } from "../constants/pricing";
+import { REPORT_FAQ_KEYS } from "../constants/faqItems";
 
-/** 기존 1:1 서면 분석 기준 가격 (정가·할인가가 아닌 '기준' 표기용) */
-export const LEGACY_CONSULT_PRICE = 100000;
-/** 리포트가 다루는 연도 수 (부분 연도 포함 11개) */
-export const REPORT_YEAR_COUNT = 11;
+// 가격·연도 수는 constants/pricing.js 가 단일 소스 (구조화 데이터·프리렌더와 같은 값)
+export const LEGACY_CONSULT_PRICE = LEGACY_WRITTEN_ANALYSIS_PRICE;
+export { REPORT_YEAR_COUNT };
 
 const GOLD_BG_SOFT = "rgba(225, 172, 63, 0.12)";
 
@@ -254,6 +255,8 @@ export function ReportContents() {
         <div className="px-5 pt-5 pb-4 border-b border-[#253D87] text-center">
           <p className="font-noto text-lg text-white font-medium">{L("toc_doc_title")}</p>
           <p className="text-xs text-slate-400 mt-0.5">{L("toc_doc_sub")}</p>
+          {/* 기간 표현 통일: 한국어 화면·메타·JSON-LD 가 같은 문장(constants/siteSeo.REPORT_SPAN_SENTENCE)을 쓴다 */}
+          <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">{L("span_note")}</p>
         </div>
         <ol className="px-5 py-4 space-y-4">
           {parts.map((p) => (
@@ -659,7 +662,8 @@ export function ReportTestimonials({
 
 export function ReportFaq() {
   const L = useLanding();
-  const items = ["faq_1", "faq_2", "faq_3", "faq_4"];
+  // FAQPage 구조화 데이터와 같은 키 목록 (constants/faqItems.js)
+  const items = REPORT_FAQ_KEYS;
   return (
     <section className="py-8">
       <SectionHeading title={L("faq_title")} accent={L("faq_title_accent")} />

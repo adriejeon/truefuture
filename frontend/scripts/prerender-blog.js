@@ -1,10 +1,11 @@
 /**
  * 블로그 라우트 프리렌더(SSG).
  *
- * vite build 이후 실행된다. Supabase에서 글 목록을 가져와,
- *   - dist/blog/index.html            (목록)
- *   - dist/blog/<slug>/index.html     (각 글)
- * 정적 HTML을 생성한다. 각 HTML의 <head>에 글별 title/description/canonical/OG와
+ * vite build → prerender-pages 이후 실행된다. Supabase에서 글 목록을 가져와,
+ *   - dist/blog.html            (목록,      /blog 로 서빙)
+ *   - dist/blog/<slug>.html     (각 글, /blog/<slug> 로 서빙)
+ * 정적 HTML을 생성한다. (Cloudflare Pages 는 <경로>.html 을 후행 슬래시 없이 200 으로 준다 —
+ *  디렉터리+index.html 로 두면 /blog/<slug> → /blog/<slug>/ 로 308 되어 canonical·sitemap 과 어긋난다.) 각 HTML의 <head>에 글별 title/description/canonical/OG와
  * JSON-LD(BlogPosting + FAQPage, 목록은 Blog)를 미리 박아 넣고, #root 안에 본문을
  * 서버 렌더된 HTML로 채운다.
  *
@@ -14,10 +15,17 @@
  *
  * Supabase 환경변수가 없거나 fetch가 실패하면 graceful하게 건너뛴다(빌드는 깨지지 않음).
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { marked } from 'marked';
+import {
+  applyPageMeta,
+  escapeHtml,
+  injectJsonLd,
+  injectRoot,
+  writeHtml,
+} from './lib/prerender.js';
 import {
   buildPostMeta,
   buildArticleJsonLd,
@@ -31,7 +39,9 @@ const __dirname = dirname(__filename);
 
 const SITE_ORIGIN = 'https://truefuture.kr';
 const distDir = join(__dirname, '..', 'dist');
-const templatePath = join(distDir, 'index.html');
+// 공통 JSON-LD 가 들어간 SPA 셸(dist/app/index.html)을 템플릿으로 쓴다.
+// dist/index.html 은 메인 프리렌더 결과라 본문이 들어 있어 템플릿으로 쓸 수 없다.
+const templatePath = join(distDir, 'app', 'index.html');
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -62,15 +72,6 @@ async function fetchPosts() {
   }
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function normalizeTags(tags) {
   if (Array.isArray(tags)) return tags.filter(Boolean);
   if (typeof tags === 'string')
@@ -89,62 +90,6 @@ function formatDate(iso) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}.${m}.${day}`;
-}
-
-/** <title> 교체 */
-function setTitle(html, title) {
-  const tag = `<title>${escapeHtml(title)}</title>`;
-  if (/<title>[\s\S]*?<\/title>/i.test(html)) {
-    return html.replace(/<title>[\s\S]*?<\/title>/i, tag);
-  }
-  return html.replace(/<\/head>/i, `    ${tag}\n  </head>`);
-}
-
-/** name=/property= 메타의 content 교체(없으면 head에 추가). [^>] 은 개행도 포함하므로 멀티라인 메타도 매칭. */
-function setMeta(html, attr, key, value) {
-  const re = new RegExp(`<meta[^>]*${attr}=["']${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>`, 'i');
-  const tag = `<meta ${attr}="${key}" content="${escapeHtml(value)}" />`;
-  if (re.test(html)) return html.replace(re, tag);
-  return html.replace(/<\/head>/i, `    ${tag}\n  </head>`);
-}
-
-function setCanonical(html, url) {
-  const tag = `<link rel="canonical" href="${escapeHtml(url)}" />`;
-  if (/<link[^>]*rel=["']canonical["'][^>]*>/i.test(html)) {
-    return html.replace(/<link[^>]*rel=["']canonical["'][^>]*>/i, tag);
-  }
-  return html.replace(/<\/head>/i, `    ${tag}\n  </head>`);
-}
-
-function injectJsonLd(html, objects) {
-  const scripts = objects
-    .filter(Boolean)
-    .map((o) => `    <script type="application/ld+json" data-rh="true">${JSON.stringify(o)}</script>`) // data-rh: 클라이언트 Helmet 이 인계(중복 삽입 방지)
-    .join('\n');
-  if (!scripts) return html;
-  return html.replace(/<\/head>/i, `${scripts}\n  </head>`);
-}
-
-function injectRoot(html, contentHtml) {
-  if (/<div id="root">\s*<\/div>/i.test(html)) {
-    return html.replace(/<div id="root">\s*<\/div>/i, `<div id="root">${contentHtml}</div>`);
-  }
-  // vite가 self-closing으로 둔 경우 등 대비
-  return html.replace(/<div id="root"[^>]*>\s*<\/div>/i, `<div id="root">${contentHtml}</div>`);
-}
-
-function applyCommonMeta(html, { title, description, url, ogType }) {
-  let out = html;
-  out = setTitle(out, title);
-  out = setMeta(out, 'name', 'description', description);
-  out = setCanonical(out, url);
-  out = setMeta(out, 'property', 'og:type', ogType);
-  out = setMeta(out, 'property', 'og:title', title);
-  out = setMeta(out, 'property', 'og:description', description);
-  out = setMeta(out, 'property', 'og:url', url);
-  out = setMeta(out, 'name', 'twitter:title', title);
-  out = setMeta(out, 'name', 'twitter:description', description);
-  return out;
 }
 
 function renderPostBody(post, tags) {
@@ -193,12 +138,6 @@ function renderListBody(posts) {
   return `<main class="w-full flex-1 bg-white blog-scope min-h-screen"><div class="mx-auto w-full max-w-3xl px-5 pb-10 pt-6 sm:px-6 sm:pb-12"><section class="space-y-4"><div class="border-b border-gray-100 pb-8"><h1 class="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">블로그</h1><p class="mt-2 max-w-xl text-sm leading-relaxed text-gray-600">점성술·사주·타로 등 운세에 대해 자주 묻는 질문을 질문과 답변 형식으로 풀어 주는 진짜미래 블로그입니다.</p></div><div class="grid gap-4">${cards}</div></section></div></main>`;
 }
 
-function writeHtml(relPath, html) {
-  const outPath = join(distDir, relPath);
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, html, 'utf-8');
-}
-
 async function main() {
   let template;
   try {
@@ -216,15 +155,15 @@ async function main() {
 
   // 1) 목록 페이지: dist/blog/index.html
   {
-    let html = applyCommonMeta(template, {
+    let html = applyPageMeta(template, {
       title: BLOG_LIST_META.title,
       description: BLOG_LIST_META.description,
       url: BLOG_LIST_META.url,
       ogType: 'website',
     });
-    html = injectJsonLd(html, [buildBlogListJsonLd(posts)]);
+    html = injectJsonLd(html, [{ data: buildBlogListJsonLd(posts), rh: true }]);
     html = injectRoot(html, renderListBody(posts));
-    writeHtml(join('blog', 'index.html'), html);
+    writeHtml(distDir, 'blog.html', html);
   }
 
   // 2) 각 글: dist/blog/<slug>/index.html
@@ -233,15 +172,18 @@ async function main() {
     try {
       const meta = buildPostMeta(post);
       const tags = normalizeTags(post.tags);
-      let html = applyCommonMeta(template, {
+      let html = applyPageMeta(template, {
         title: meta.title,
         description: meta.description,
         url: meta.url,
         ogType: 'article',
       });
-      html = injectJsonLd(html, [buildArticleJsonLd(post), buildFaqJsonLd(post)]);
+      html = injectJsonLd(html, [
+        { data: buildArticleJsonLd(post), rh: true },
+        { data: buildFaqJsonLd(post), rh: true },
+      ]);
       html = injectRoot(html, renderPostBody(post, tags));
-      writeHtml(join('blog', post.slug, 'index.html'), html);
+      writeHtml(distDir, join('blog', `${post.slug}.html`), html);
       count += 1;
     } catch (error) {
       console.warn(`[prerender] slug=${post.slug} 생성 실패:`, error?.message || error);

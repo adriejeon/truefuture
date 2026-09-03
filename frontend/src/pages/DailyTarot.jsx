@@ -2,22 +2,22 @@ import { useState, useEffect, useCallback } from "react";
 import { getSeoLanguage } from "../i18n";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Helmet } from "react-helmet-async";
 import BottomNavigation from "../components/BottomNavigation";
 import PrimaryButton from "../components/PrimaryButton";
 import { colors } from "../constants/colors";
 import { TAROT_CARDS, ORACLE_CARDS, randomCard } from "../constants/tarotCards";
 import { supabase } from "../lib/supabaseClient";
+import PageSeo from "../components/PageSeo";
+import { buildDailyTarotGraph } from "../utils/pageJsonLd";
 
-const DAILY_TAROT_JSON_LD_ID = "daily-tarot-ld-json";
-const DAILY_TAROT_URL = "https://truefuture.kr/daily-tarot";
+const DAILY_TAROT_PATH = "/daily-tarot";
 
 /**
  * 데일리 타로 페이지용 JSON-LD.
  * Helmet 메타(meta_title/meta_desc)·화면 텍스트와 동기화하기 위해
  * i18n 번역값을 받아 로케일에 맞는 스키마를 생성한다.
  */
-function buildDailyTarotJsonLd({ isKo, name, description }) {
+function buildDailyTarotNodes({ isKo, name, description }) {
   const aboutItems = isKo
     ? [
         {
@@ -48,38 +48,12 @@ function buildDailyTarotJsonLd({ isKo, name, description }) {
         },
       ];
 
-  return {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    "@id": `${DAILY_TAROT_URL}#webpage`,
-    name,
+  return buildDailyTarotGraph({
+    title: name,
     description,
-    url: DAILY_TAROT_URL,
-    inLanguage: isKo ? "ko" : "en",
-    isPartOf: {
-      "@type": "WebSite",
-      name: "진짜미래",
-      url: "https://truefuture.kr",
-    },
     about: aboutItems,
-    offers: {
-      "@type": "Offer",
-      name: isKo
-        ? "무료 데일리 타로·오라클 카드 뽑기"
-        : "Free Daily Tarot & Oracle Card Draw",
-      price: "0",
-      priceCurrency: "KRW",
-      description: isKo
-        ? "하루 1회 무료로 타로 또는 오라클 카드를 뽑고 AI 기반 카드 해석을 받을 수 있습니다."
-        : "Draw one tarot or oracle card for free each day and receive an AI-generated card reading.",
-      availability: "https://schema.org/InStock",
-    },
-    provider: {
-      "@type": "Organization",
-      name: "진짜미래",
-      url: "https://truefuture.kr",
-    },
-  };
+    inLanguage: isKo ? "ko" : "en",
+  });
 }
 
 // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD)
@@ -105,28 +79,12 @@ function DailyTarot() {
   const [loading, setLoading] = useState(false);
   const [alreadyDrawn, setAlreadyDrawn] = useState(false);
 
-  // JSON-LD 삽입 (Helmet 메타/i18n과 동기화)
-  useEffect(() => {
-    const jsonLd = buildDailyTarotJsonLd({
-      isKo: seoLang === "ko",
-      name: tSeo("daily_tarot.meta_title"),
-      description: tSeo("daily_tarot.meta_desc"),
-    });
-
-    const existing = document.getElementById(DAILY_TAROT_JSON_LD_ID);
-    if (existing) existing.remove();
-
-    const script = document.createElement("script");
-    script.id = DAILY_TAROT_JSON_LD_ID;
-    script.type = "application/ld+json";
-    script.textContent = JSON.stringify(jsonLd);
-    document.head.appendChild(script);
-
-    return () => {
-      const el = document.getElementById(DAILY_TAROT_JSON_LD_ID);
-      if (el) el.remove();
-    };
-  }, [isKo, t]);
+  // 구조화 데이터: 화면 문구(meta_title/meta_desc)와 같은 i18n 값을 쓴다
+  const dailyTarotNodes = buildDailyTarotNodes({
+    isKo: seoLang === "ko",
+    name: tSeo("daily_tarot.meta_title"),
+    description: tSeo("daily_tarot.meta_desc"),
+  });
 
   // 오늘 이미 뽑았는지 복원
   useEffect(() => {
@@ -214,10 +172,13 @@ function DailyTarot() {
 
   return (
     <div className="w-full py-8 sm:py-12" style={{ position: "relative", zIndex: 1 }}>
-      <Helmet>
-        <title>{tSeo("daily_tarot.meta_title")}</title>
-        <meta name="description" content={tSeo("daily_tarot.meta_desc")} />
-      </Helmet>
+      <PageSeo
+        path={DAILY_TAROT_PATH}
+        title={tSeo("daily_tarot.meta_title")}
+        description={tSeo("daily_tarot.meta_desc")}
+        locale={seoLang === "en" ? "en_US" : "ko_KR"}
+        nodes={dailyTarotNodes}
+      />
 
       <div className="w-full max-w-[600px] mx-auto px-4 pb-24 sm:pb-28">
         {/* 헤더 */}

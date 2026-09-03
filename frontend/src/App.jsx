@@ -7,7 +7,6 @@ import {
   useLocation,
   Outlet,
 } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
 import Compatibility from "./pages/Compatibility";
 import YearlyFortune from "./pages/YearlyFortune";
 import DailyTarot from "./pages/DailyTarot";
@@ -30,7 +29,14 @@ import Footer from "./components/Footer";
 import GNB from "./components/GNB";
 import { useAuth } from "./hooks/useAuth";
 import { useTranslation } from "react-i18next";
-import { DEFAULT_META, SITE_ORIGIN, getBrandImageAlt } from "./constants/seoMeta";
+import { DEFAULT_META, getBrandImageAlt } from "./constants/seoMeta";
+import PageSeo from "./components/PageSeo";
+import { COMMON_GRAPH } from "./constants/siteSeo";
+import { buildGraph } from "./utils/pageJsonLd";
+import { useJsonLd } from "./hooks/useJsonLd";
+
+/** 모든 경로에 공통으로 들어가는 Organization + WebSite (빌드 시 정적 주입분을 같은 id 로 교체) */
+const COMMON_JSON_LD_ID = "common-ld-json";
 import BlogList from "./pages/BlogList";
 import BlogPost from "./pages/BlogPost";
 import BlogLayout from "./layouts/BlogLayout";
@@ -75,8 +81,8 @@ function AppContent() {
   // 메인 페이지(/)에서만 Footer 표시
   const showFooter = location.pathname === "/";
   const isBlogRoute = location.pathname === "/blog" || location.pathname.startsWith("/blog/");
-  const canonicalUrl = `${SITE_ORIGIN}${location.pathname}`;
   const shareImageAlt = getBrandImageAlt(i18n.language);
+  useJsonLd(COMMON_JSON_LD_ID, buildGraph(COMMON_GRAPH));
 
   // 인앱 브라우저 감지 → 진입 시 1회 안내 모달 노출 (sessionStorage로 dismiss 추적)
   const [inAppInfo, setInAppInfo] = useState(null);
@@ -101,22 +107,13 @@ function AppContent() {
 
   return (
     <div className="min-h-screen text-white flex flex-col" style={{ colorScheme: "dark light" }}>
-      {/* 기본 SEO: 점성술 페이지가 아닌 라우트에서 사용. 점성술 페이지는 각 페이지 Helmet으로 덮어씀 */}
-      <Helmet>
-        <title>{DEFAULT_META.title}</title>
-        <meta name="description" content={DEFAULT_META.description} />
-        <meta name="keywords" content={DEFAULT_META.keywords} />
-        <link rel="canonical" href={canonicalUrl} />
-        <meta property="og:site_name" content={DEFAULT_META.siteName} />
-        <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:title" content={DEFAULT_META.title} />
-        <meta property="og:description" content={DEFAULT_META.description} />
-        <meta property="og:image:alt" content={shareImageAlt} />
-        <meta name="twitter:url" content={canonicalUrl} />
-        <meta name="twitter:title" content={DEFAULT_META.title} />
-        <meta name="twitter:description" content={DEFAULT_META.description} />
-        <meta name="twitter:image:alt" content={shareImageAlt} />
-      </Helmet>
+      {/* 앱 전역 기본 SEO. 자체 PageSeo 를 가진 페이지가 같은 태그를 덮어쓴다(Helmet 이 태그 단위로 중복 제거) */}
+      <PageSeo
+        path={location.pathname}
+        title={DEFAULT_META.title}
+        description={DEFAULT_META.description}
+        imageAlt={shareImageAlt}
+      />
       {!isBlogRoute ? <GNB /> : null}
       <Routes>
         <Route path="/blog" element={<BlogLayout />}>

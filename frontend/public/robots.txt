@@ -1,32 +1,80 @@
-# 진짜미래 (truefuture.kr) - 검색 엔진 및 AI 크롤러 접근 허용
+# 진짜미래 (truefuture.kr)
+# 정책: 검색 노출과 AI 답변 인용은 허용, 모델 학습용 수집은 비허용.
+# 같은 user-agent 에 Allow 와 Disallow 를 중복 선언하지 않는다.
+#
+# 주의: Cloudflare 의 Managed robots.txt 가 켜져 있으면 이 파일 앞에 관리형 규칙이 덧붙는다.
+#       아래 학습용 크롤러 차단 목록은 관리형 규칙과 같은 판단으로 맞춰 두었다(충돌 없음).
+#       단 Google-Extended 는 관리형이 Disallow, 여기서는 Allow 이므로 규칙이 엇갈린다.
+#       AI Overviews·Gemini 인용을 받으려면 Cloudflare 대시보드에서 Managed robots.txt 를 끄거나
+#       학습 차단 설정을 해제해야 한다 (Cloudflare > 도메인 > AI Crawl Control).
 
 User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no, use=reference
 Allow: /
 
-# AI/LLM 크롤러 명시적 허용 (사이트 인덱싱 및 이해 권장)
-User-agent: GPTBot
+# ── 검색 엔진 ──
+User-agent: Googlebot
+Allow: /
+
+User-agent: bingbot
+Allow: /
+
+User-agent: Yeti
+Allow: /
+
+User-agent: Daumoa
+Allow: /
+
+# ── AI 검색·답변(인용) 크롤러 ──
+# Google Gemini/AI Overviews 그라운딩
+User-agent: Google-Extended
+Allow: /
+
+# OpenAI: 검색 인덱스 / 사용자가 직접 요청해 가져가는 트래픽
+User-agent: OAI-SearchBot
 Allow: /
 
 User-agent: ChatGPT-User
 Allow: /
 
-User-agent: Google-Extended
+# Anthropic: 검색 인덱스 / 사용자가 직접 요청해 가져가는 트래픽
+User-agent: Claude-SearchBot
 Allow: /
 
+User-agent: Claude-User
+Allow: /
+
+# Perplexity
 User-agent: PerplexityBot
 Allow: /
 
+User-agent: Perplexity-User
+Allow: /
+
+# Apple 검색
+User-agent: Applebot
+Allow: /
+
+# ── 모델 학습 전용 크롤러(검색 노출과 무관) ──
+User-agent: GPTBot
+Disallow: /
+
 User-agent: ClaudeBot
-Allow: /
+Disallow: /
 
-User-agent: anthropic-ai
-Allow: /
+User-agent: Applebot-Extended
+Disallow: /
 
-User-agent: omgili
-Allow: /
+User-agent: CCBot
+Disallow: /
 
-User-agent: omgilibot
-Allow: /
+User-agent: Bytespider
+Disallow: /
 
-# 사이트맵
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
 Sitemap: https://truefuture.kr/sitemap.xml

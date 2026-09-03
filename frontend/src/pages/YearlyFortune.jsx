@@ -31,8 +31,10 @@ import {
   fetchUserStars,
   checkStarBalance,
 } from "../utils/starConsumption";
-import AstrologyPageHelmet from "../components/AstrologyPageHelmet";
+import PageSeo from "../components/PageSeo";
 import { getBrandImageAlt } from "../constants/seoMeta";
+import { PAGE_SEO } from "../constants/siteSeo";
+import { buildYearlyGraph } from "../utils/pageJsonLd";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import {
   getProfileModalDismissed,
@@ -849,7 +851,17 @@ function YearlyFortune() {
       className="w-full py-8 sm:py-12"
       style={{ position: "relative", zIndex: 1 }}
     >
-      <AstrologyPageHelmet />
+      <PageSeo
+        path={PAGE_SEO.yearly.path}
+        title={PAGE_SEO.yearly.title}
+        description={PAGE_SEO.yearly.description}
+        ogType={PAGE_SEO.yearly.ogType}
+        imageAlt={getBrandImageAlt(i18n.language)}
+        nodes={buildYearlyGraph({
+          title: PAGE_SEO.yearly.title,
+          description: PAGE_SEO.yearly.description,
+        })}
+      />
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}

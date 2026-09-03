@@ -3,7 +3,6 @@ import { getSeoLanguage } from "../i18n";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Helmet } from "react-helmet-async";
 import BirthInputForm from "../components/BirthInputForm";
 import BottomNavigation from "../components/BottomNavigation";
 import FortuneResult from "../components/FortuneResult";
@@ -29,7 +28,10 @@ import {
   fetchUserStars,
   checkStarBalance,
 } from "../utils/starConsumption";
-import { DEFAULT_OG_IMAGE, SITE_ORIGIN, getBrandImageAlt } from "../constants/seoMeta";
+import { getBrandImageAlt } from "../constants/seoMeta";
+import { PAGE_SEO } from "../constants/siteSeo";
+import { buildCompatibilityGraph } from "../utils/pageJsonLd";
+import PageSeo from "../components/PageSeo";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import {
   getProfileModalDismissed,
@@ -39,7 +41,6 @@ import {
 
 const COMPATIBILITY_TITLE_KEY = "compatibility.title";
 const COMPATIBILITY_DESCRIPTION_KEY = "compatibility.description";
-const COMPATIBILITY_JSON_LD_SCRIPT_ID = "compatibility-ld-json";
 
 function Compatibility() {
   const { t, i18n } = useTranslation();
@@ -116,7 +117,6 @@ function Compatibility() {
 
   const COMPAT_PROFILE2_KEY = "compatibility_profile2_id";
 
-  const canonicalUrl = `${SITE_ORIGIN}/compatibility`;
   const shareImageAlt = getBrandImageAlt(i18n.language);
 
   // SEO/GEO: 화면 상단 안내문(About)과 메타/JSON-LD의 title/description을 1:1로 동기화
@@ -126,64 +126,11 @@ function Compatibility() {
   const pageTitle = tSeo(COMPATIBILITY_TITLE_KEY);
   const pageDescription = tSeo(COMPATIBILITY_DESCRIPTION_KEY);
 
-  const compatibilityJsonLd = useMemo(() => {
-    const isEn = seoLang === "en";
-    return {
-      "@context": "https://schema.org",
-      "@type": "WebPage",
-      "@id": `${canonicalUrl}#webpage`,
-      url: canonicalUrl,
-      name: pageTitle,
-      description: pageDescription,
-      inLanguage: isEn ? "en" : "ko",
-      isPartOf: {
-        "@type": "WebSite",
-        name: "진짜미래",
-        url: SITE_ORIGIN,
-      },
-      mainEntity: {
-        "@type": "Service",
-        name: isEn
-          ? "True Future Astrology Compatibility Analysis"
-          : "진짜미래 점성술 궁합 분석",
-        serviceType: isEn
-          ? "Astrology synastry compatibility analysis"
-          : "고전 점성술 시너스트리 궁합 분석",
-        description: pageDescription,
-        provider: {
-          "@type": "Organization",
-          name: "진짜미래",
-          url: SITE_ORIGIN,
-        },
-        areaServed: { "@type": "Country", name: "KR" },
-        offers: {
-          "@type": "Offer",
-          priceCurrency: "KRW",
-          price: "1900",
-          description: isEn
-            ? "Compatibility analysis using compass credits."
-            : "나침반 이용권으로 이용하는 궁합 분석.",
-          availability: "https://schema.org/InStock",
-        },
-      },
-    };
-  }, [canonicalUrl, i18n.language, pageDescription, pageTitle]);
-
-  useEffect(() => {
-    const existing = document.getElementById(COMPATIBILITY_JSON_LD_SCRIPT_ID);
-    if (existing) existing.remove();
-
-    const script = document.createElement("script");
-    script.id = COMPATIBILITY_JSON_LD_SCRIPT_ID;
-    script.type = "application/ld+json";
-    script.textContent = JSON.stringify(compatibilityJsonLd);
-    document.head.appendChild(script);
-
-    return () => {
-      const el = document.getElementById(COMPATIBILITY_JSON_LD_SCRIPT_ID);
-      if (el) el.remove();
-    };
-  }, [compatibilityJsonLd]);
+  // 궁합 서비스·오퍼 구조화 데이터 (망원경 1개 소비 → 가격은 이용권 상품표에서 파생)
+  const compatibilityNodes = useMemo(
+    () => buildCompatibilityGraph({ title: pageTitle, description: pageDescription }),
+    [pageTitle, pageDescription]
+  );
 
   // 프로필이 변경되면 첫 번째 프로필 자동 선택
   useEffect(() => {
@@ -627,26 +574,14 @@ function Compatibility() {
       className="w-full py-8 sm:py-12"
       style={{ position: "relative", zIndex: 1 }}
     >
-      <Helmet>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
-        <link rel="canonical" href={canonicalUrl} />
-
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="진짜미래" />
-        <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-        <meta property="og:image:alt" content={shareImageAlt} />
-
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:url" content={canonicalUrl} />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={pageDescription} />
-        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
-        <meta name="twitter:image:alt" content={shareImageAlt} />
-      </Helmet>
+      <PageSeo
+        path={PAGE_SEO.compatibility.path}
+        title={pageTitle}
+        description={pageDescription}
+        ogType={PAGE_SEO.compatibility.ogType}
+        imageAlt={shareImageAlt}
+        nodes={compatibilityNodes}
+      />
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}

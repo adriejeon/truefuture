@@ -3,7 +3,6 @@ import { getSeoLanguage } from "../i18n";
 import { useSearchParams, useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
-import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import { useProfiles } from "../hooks/useProfiles";
 import { supabase } from "../lib/supabaseClient";
@@ -30,7 +29,10 @@ import {
   checkStarBalance,
 } from "../utils/starConsumption";
 import LoginRequiredModal from "../components/LoginRequiredModal";
-import { DEFAULT_OG_IMAGE, SITE_ORIGIN, getBrandImageAlt } from "../constants/seoMeta";
+import { getBrandImageAlt } from "../constants/seoMeta";
+import { PAGE_SEO } from "../constants/siteSeo";
+import { buildConsultationGraph } from "../utils/pageJsonLd";
+import PageSeo from "../components/PageSeo";
 
 
 /**
@@ -59,7 +61,6 @@ const isFollowUpData = (data) => data && typeof data.answer === "object";
 
 const FREE_QUESTION_TITLE_KEY = "free_question.title";
 const FREE_QUESTION_DESCRIPTION_KEY = "free_question.description";
-const FREE_QUESTION_JSON_LD_SCRIPT_ID = "free-question-ld-json";
 
 /** 후속 질문용 심플 컨설팅 카드 (header, answer, action_tip, critical_date) */
 function FollowUpConsultationCard({ parsedData }) {
@@ -133,7 +134,6 @@ function FollowUpConsultationCard({ parsedData }) {
 function Consultation() {
   const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
-  const canonicalUrl = `${SITE_ORIGIN}/consultation`;
   const shareImageAlt = getBrandImageAlt(i18n.language);
 
   // SEO/GEO: 화면 상단 안내문(About)과 메타/JSON-LD의 title/description을 1:1로 동기화
@@ -143,64 +143,11 @@ function Consultation() {
   const pageTitle = tSeo(FREE_QUESTION_TITLE_KEY);
   const pageDescription = tSeo(FREE_QUESTION_DESCRIPTION_KEY);
 
-  const freeQuestionJsonLd = useMemo(() => {
-    const isEn = seoLang === "en";
-    return {
-      "@context": "https://schema.org",
-      "@type": "WebPage",
-      "@id": `${canonicalUrl}#webpage`,
-      url: canonicalUrl,
-      name: pageTitle,
-      description: pageDescription,
-      inLanguage: isEn ? "en" : "ko",
-      isPartOf: {
-        "@type": "WebSite",
-        name: "진짜미래",
-        url: SITE_ORIGIN,
-      },
-      mainEntity: {
-        "@type": "Service",
-        name: isEn
-          ? "True Future Astrology 1:1 Free Question Consultation"
-          : "진짜미래 점성술 1:1 자유 질문 상담",
-        serviceType: isEn
-          ? "Personalized astrology consultation"
-          : "고전 점성술 출생 차트 기반 1:1 맞춤 상담",
-        description: pageDescription,
-        provider: {
-          "@type": "Organization",
-          name: "진짜미래",
-          url: SITE_ORIGIN,
-        },
-        areaServed: { "@type": "Country", name: "KR" },
-        offers: {
-          "@type": "Offer",
-          priceCurrency: "KRW",
-          price: "1000",
-          description: isEn
-            ? "1:1 question analysis using telescope credits."
-            : "망원경 이용권으로 이용하는 1:1 질문 분석.",
-          availability: "https://schema.org/InStock",
-        },
-      },
-    };
-  }, [canonicalUrl, i18n.language, pageDescription, pageTitle]);
-
-  useEffect(() => {
-    const existing = document.getElementById(FREE_QUESTION_JSON_LD_SCRIPT_ID);
-    if (existing) existing.remove();
-
-    const script = document.createElement("script");
-    script.id = FREE_QUESTION_JSON_LD_SCRIPT_ID;
-    script.type = "application/ld+json";
-    script.textContent = JSON.stringify(freeQuestionJsonLd);
-    document.head.appendChild(script);
-
-    return () => {
-      const el = document.getElementById(FREE_QUESTION_JSON_LD_SCRIPT_ID);
-      if (el) el.remove();
-    };
-  }, [freeQuestionJsonLd]);
+  // 상담 서비스·오퍼 구조화 데이터 (가격은 이용권 상품표에서 파생)
+  const consultationNodes = useMemo(
+    () => buildConsultationGraph({ title: pageTitle, description: pageDescription }),
+    [pageTitle, pageDescription]
+  );
 
   // 카테고리 선택 UI 는 폐지 — 서버가 질문 내용으로 카테고리를 자동 판단한다 (selectedTopic 은 항상 AUTO)
 
@@ -2209,26 +2156,14 @@ function Consultation() {
 
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
-      <Helmet>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
-        <link rel="canonical" href={canonicalUrl} />
-
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="진짜미래" />
-        <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-        <meta property="og:image:alt" content={shareImageAlt} />
-
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:url" content={canonicalUrl} />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={pageDescription} />
-        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
-        <meta name="twitter:image:alt" content={shareImageAlt} />
-      </Helmet>
+      <PageSeo
+        path={PAGE_SEO.consultation.path}
+        title={pageTitle}
+        description={pageDescription}
+        ogType={PAGE_SEO.consultation.ogType}
+        imageAlt={shareImageAlt}
+        nodes={consultationNodes}
+      />
       <LoginRequiredModal
         isOpen={showLoginRequiredModal}
         onClose={() => setShowLoginRequiredModal(false)}

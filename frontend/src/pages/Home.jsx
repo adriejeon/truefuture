@@ -19,12 +19,10 @@ import { getBrandImageAlt } from "../constants/seoMeta";
 import { WalletCards } from "lucide-react";
 import ReviewList from "../components/ReviewList";
 import { usePublishedReviews } from "../hooks/usePublishedReviews";
-import { useJsonLd } from "../hooks/useJsonLd";
-import { withReviewsJsonLd } from "../utils/reviewJsonLd";
-import { ASTROLOGY_PRODUCT_JSON_LD } from "../constants/packageOffers";
-
-/** 홈 후기 평점 JSON-LD script id */
-const HOME_REVIEWS_JSON_LD_ID = "home-product-reviews-ld-json";
+import PageSeo from "../components/PageSeo";
+import { getSeoLanguage } from "../i18n";
+import { PAGE_SEO } from "../constants/siteSeo";
+import { buildHomeGraph, HOME_REVIEW_PAGE_SIZE } from "../utils/pageJsonLd";
 
 function Home() {
   const { t, i18n } = useTranslation();
@@ -39,7 +37,7 @@ function Home() {
     loadMore: loadMoreReviews,
   } = usePublishedReviews({
     language: i18n.language,
-    pageSize: 12,
+    pageSize: HOME_REVIEW_PAGE_SIZE,
   });
   const {
     profiles,
@@ -60,15 +58,18 @@ function Home() {
   const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
     useState(getProfileModalDismissed);
 
-  // 구조화 데이터: 화면의 후기 섹션과 같은 후기·요약으로 Product(#product-tickets)에 평점·리뷰를 얹는다.
+  // 구조화 데이터: 화면의 후기 섹션과 같은 후기·요약으로 대표 서비스(#service)에 평점·리뷰를 얹는다.
   // 후기 섹션이 보이지 않는 상태(후기 0건, 운세 결과 표시 중)에서는 넣지 않는다 — 마크업과 화면 불일치 방지.
-  const homeProductJsonLd = useMemo(
-    () => withReviewsJsonLd(ASTROLOGY_PRODUCT_JSON_LD, { reviews: publishedReviews, summary: reviewSummary }),
-    [publishedReviews, reviewSummary]
-  );
-  useJsonLd(
-    HOME_REVIEWS_JSON_LD_ID,
-    !interpretation && publishedReviews.length > 0 ? homeProductJsonLd : null
+  const seoT = i18n.getFixedT(getSeoLanguage());
+  const reviewSectionVisible = !interpretation && publishedReviews.length > 0;
+  const homeNodes = useMemo(
+    () =>
+      buildHomeGraph({
+        reviews: reviewSectionVisible ? publishedReviews : [],
+        summary: reviewSectionVisible ? reviewSummary : null,
+        consultationDescription: seoT("free_question.description"),
+      }),
+    [reviewSectionVisible, publishedReviews, reviewSummary, seoT]
   );
 
   useEffect(() => {
@@ -160,6 +161,14 @@ function Home() {
 
   return (
     <div className="w-full" style={{ position: "relative", zIndex: 1 }}>
+      <PageSeo
+        path={PAGE_SEO.home.path}
+        title={PAGE_SEO.home.title}
+        description={PAGE_SEO.home.description}
+        ogType={PAGE_SEO.home.ogType}
+        imageAlt={getBrandImageAlt(i18n.language)}
+        nodes={homeNodes}
+      />
       <div
         className={`w-full max-w-[600px] mx-auto px-4 pb-20 sm:pb-24`}
         style={{ position: "relative", zIndex: 1 }}

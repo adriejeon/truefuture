@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Helmet } from "react-helmet-async";
 import * as PortOne from "@portone/browser-sdk/v2";
 import { FileDown, Telescope, CircleAlert, Check, ShieldCheck, ChevronRight } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -14,9 +13,8 @@ import BottomNavigation from "../components/BottomNavigation";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import FortuneMarkdown from "../components/FortuneMarkdown";
 import ReviewPrompt from "../components/ReviewPrompt";
+import PageSeo from "../components/PageSeo";
 import { usePublishedReviews } from "../hooks/usePublishedReviews";
-import { useJsonLd } from "../hooks/useJsonLd";
-import { withReviewsJsonLd } from "../utils/reviewJsonLd";
 import {
   ReportHero,
   ReportQuestions,
@@ -36,44 +34,14 @@ import { deliverPdfFile } from "../utils/pdfDelivery";
 import { detectInAppBrowser, redirectToExternalBrowser } from "../utils/inAppBrowserDetector";
 import { trackPurchase } from "../utils/analytics";
 import { colors } from "../constants/colors";
-import { SITE_ORIGIN, DEFAULT_OG_IMAGE } from "../constants/seoMeta";
-import { PRICE_VALID_UNTIL } from "../constants/packageOffers";
+import { getBrandImageAlt } from "../constants/seoMeta";
+import { PAGE_SEO } from "../constants/siteSeo";
+import { REPORT_PRICE } from "../constants/pricing";
+import { REPORT_FAQ_KEYS } from "../constants/faqItems";
+import { buildReportGraph, REPORT_REVIEW_PAGE_SIZE } from "../utils/pageJsonLd";
 
-const REPORT_PRICE = 18000;
 const QUESTION_MAX = 300;
 const CHECKOUT_STORAGE_KEY = "premium_report_checkout";
-
-const PAGE_TITLE = "프리미엄 상세 리포트 | 진짜미래 - 질문 상담과 10년 시기 리포트";
-const PAGE_DESCRIPTION =
-  "궁금한 질문에 먼저 답하고, 출생 시각 기반으로 앞으로 10년의 흐름을 연도별로 풀어드리는 서면 상담 리포트. 완성본은 텍스트 PDF로 기기에 저장해 소장할 수 있습니다.";
-
-/** 리포트 상품 JSON-LD script id */
-const REPORT_PRODUCT_JSON_LD_ID = "report-product-ld-json";
-/**
- * 단건 결제 상품(프리미엄 상세 리포트)의 Product 스키마. 이용권 Product(#product-tickets)와 별개 개체.
- * 평점·리뷰(aggregateRating·review)는 랜딩 후기 섹션과 같은 데이터로 렌더 시점에 얹는다.
- * 기준가(10만 원) 비교는 정가·할인 표기 금지 방침에 따라 마크업에 넣지 않는다.
- */
-const REPORT_PRODUCT_JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "Product",
-  "@id": `${SITE_ORIGIN}/#product-report`,
-  name: "프리미엄 상세 리포트",
-  url: `${SITE_ORIGIN}/report`,
-  image: [DEFAULT_OG_IMAGE],
-  description: PAGE_DESCRIPTION,
-  category: "Astrology Consultation Service > Written Natal Chart Report (운세 > 서양 점성술 > 서면 리포트)",
-  brand: { "@type": "Brand", name: "진짜미래" },
-  offers: {
-    "@type": "Offer",
-    url: `${SITE_ORIGIN}/report`,
-    priceCurrency: "KRW",
-    price: REPORT_PRICE,
-    priceValidUntil: PRICE_VALID_UNTIL,
-    availability: "https://schema.org/InStock",
-    seller: { "@type": "Organization", "@id": `${SITE_ORIGIN}/#organization`, name: "진짜미래" },
-  },
-};
 
 /** 생성 루프 전체 시간 예산 (섹션 3개 + 락 대기/재검증 여유) */
 const GENERATION_BUDGET_MS = 25 * 60 * 1000;
@@ -159,17 +127,32 @@ function PremiumReport() {
     hasMore: reportReviewsHasMore,
     loadingMore: reportReviewsLoadingMore,
     loadMore: loadMoreReportReviews,
-  } = usePublishedReviews({ service: "report", language: i18n.language, pageSize: 8 });
+  } = usePublishedReviews({
+    service: "report",
+    language: i18n.language,
+    pageSize: REPORT_REVIEW_PAGE_SIZE,
+  });
 
-  // Product JSON-LD: 후기 섹션이 보이는 intro 뷰에서만 평점·리뷰를 얹는다(마크업↔화면 일치)
-  const reportProductJsonLd = useMemo(
+  // 랜딩 FAQ(펼침형)와 FAQPage 구조화 데이터가 같은 i18n 키를 쓴다 — 화면에 없는 답변이 마크업에 들어가지 않도록
+  const reportFaqItems = useMemo(
     () =>
-      view === "intro"
-        ? withReviewsJsonLd(REPORT_PRODUCT_JSON_LD, { reviews: reportReviews, summary: reportReviewSummary })
-        : REPORT_PRODUCT_JSON_LD,
-    [view, reportReviews, reportReviewSummary]
+      REPORT_FAQ_KEYS.map((key) => ({
+        title: t(`premium_report.landing.${key}_q`),
+        content: t(`premium_report.landing.${key}_a`),
+      })),
+    [t]
   );
-  useJsonLd(REPORT_PRODUCT_JSON_LD_ID, reportProductJsonLd);
+
+  // Product JSON-LD: 후기·FAQ 섹션이 보이는 intro 뷰에서만 평점·리뷰·FAQ 를 얹는다(마크업↔화면 일치)
+  const reportNodes = useMemo(
+    () =>
+      buildReportGraph(
+        view === "intro"
+          ? { reviews: reportReviews, summary: reportReviewSummary, faqItems: reportFaqItems }
+          : {}
+      ),
+    [view, reportReviews, reportReviewSummary, reportFaqItems]
+  );
   const [question, setQuestion] = useState("");
   const [report, setReport] = useState(null); // premium_reports row
   const [myReports, setMyReports] = useState([]);
@@ -1335,20 +1318,14 @@ function PremiumReport() {
 
   return (
     <div className={`min-h-screen py-8 px-4 ${showStickyCta ? "pb-48" : "pb-28"}`}>
-      <Helmet>
-        <title>{PAGE_TITLE}</title>
-        <meta name="description" content={PAGE_DESCRIPTION} />
-        <link rel="canonical" href={`${SITE_ORIGIN}/report`} />
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="진짜미래" />
-        <meta property="og:url" content={`${SITE_ORIGIN}/report`} />
-        <meta property="og:title" content={PAGE_TITLE} />
-        <meta property="og:description" content={PAGE_DESCRIPTION} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={PAGE_TITLE} />
-        <meta name="twitter:description" content={PAGE_DESCRIPTION} />
-        {/* Product JSON-LD(평점·리뷰 포함)는 useJsonLd 로 head 에 직접 삽입 — REPORT_PRODUCT_JSON_LD 참고 */}
-      </Helmet>
+      <PageSeo
+        path={PAGE_SEO.report.path}
+        title={PAGE_SEO.report.title}
+        description={PAGE_SEO.report.description}
+        ogType={PAGE_SEO.report.ogType}
+        imageAlt={getBrandImageAlt(i18n.language)}
+        nodes={reportNodes}
+      />
 
       <div className="max-w-[600px] mx-auto">
         {view === "intro" && renderIntro()}

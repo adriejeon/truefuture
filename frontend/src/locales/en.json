@@ -592,7 +592,7 @@
       "hero_chips_label": "What the report includes",
       "hero_chip_0": "20 years of structural interpretation",
       "hero_chip_1": "Direct answers per question",
-      "hero_chip_2": "11 calendar years in detail",
+      "hero_chip_2": "11 year-segments in detail (about 10 years)",
       "hero_chip_3": "About 15 A4 pages",
       "hero_chip_4": "Text PDF to keep",
       "hero_price_note": "Same structure as the hand-written 1:1 analysis (reference ₩100,000)",
@@ -729,7 +729,8 @@
       "faq_4_q": "Can I get a refund?",
       "faq_4_a": "As digital content, refunds may be limited once generation has started. If generation stops you can resume for free; if it fails repeatedly, contact us via My Page > Refund inquiry.",
       "sticky_label": "Premium Report · your question + 10 years",
-      "sticky_cta": "Get report"
+      "sticky_cta": "Get report",
+      "span_note": "Covers roughly the next 10 years from today — 11 calendar-year segments in total, including the partial first and last years."
     },
     "title": "Premium In-Depth Report",
     "subtitle": "We answer your question first, then walk through the next ten years of your life year by year, based on your birth time.\nA calm, consultation-style written report you can revisit anytime and save as a PDF.\n(The report text is currently written in Korean.)",
