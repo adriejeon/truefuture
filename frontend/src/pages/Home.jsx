@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import SocialLoginButtons from "../components/SocialLoginButtons";
@@ -19,6 +19,12 @@ import { getBrandImageAlt } from "../constants/seoMeta";
 import { WalletCards } from "lucide-react";
 import ReviewList from "../components/ReviewList";
 import { usePublishedReviews } from "../hooks/usePublishedReviews";
+import { useJsonLd } from "../hooks/useJsonLd";
+import { withReviewsJsonLd } from "../utils/reviewJsonLd";
+import { ASTROLOGY_PRODUCT_JSON_LD } from "../constants/packageOffers";
+
+/** 홈 후기 평점 JSON-LD script id */
+const HOME_REVIEWS_JSON_LD_ID = "home-product-reviews-ld-json";
 
 function Home() {
   const { t, i18n } = useTranslation();
@@ -53,6 +59,17 @@ function Home() {
   const [showNoProfileModal, setShowNoProfileModal] = useState(false);
   const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
     useState(getProfileModalDismissed);
+
+  // 구조화 데이터: 화면의 후기 섹션과 같은 후기·요약으로 Product(#product-tickets)에 평점·리뷰를 얹는다.
+  // 후기 섹션이 보이지 않는 상태(후기 0건, 운세 결과 표시 중)에서는 넣지 않는다 — 마크업과 화면 불일치 방지.
+  const homeProductJsonLd = useMemo(
+    () => withReviewsJsonLd(ASTROLOGY_PRODUCT_JSON_LD, { reviews: publishedReviews, summary: reviewSummary }),
+    [publishedReviews, reviewSummary]
+  );
+  useJsonLd(
+    HOME_REVIEWS_JSON_LD_ID,
+    !interpretation && publishedReviews.length > 0 ? homeProductJsonLd : null
+  );
 
   useEffect(() => {
     if (

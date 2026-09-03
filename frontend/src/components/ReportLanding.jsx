@@ -35,7 +35,6 @@ import {
 import PrimaryButton from "./PrimaryButton";
 import FortuneMarkdown from "./FortuneMarkdown";
 import ReviewList from "./ReviewList";
-import { usePublishedReviews } from "../hooks/usePublishedReviews";
 import { colors } from "../constants/colors";
 import {
   SAMPLE_META,
@@ -620,16 +619,21 @@ export function ReportPricing({ price, onBuy }) {
 
 // ===== 9. 후기 (리뷰 시스템 연동: 리포트(service="report") 구매 후기만) =====
 
-export function ReportTestimonials() {
+/**
+ * 리포트 페이지에는 리포트 구매자 후기만 노출한다. 게시된 리포트 후기가 없으면 섹션을 숨긴다.
+ * (다른 서비스·이관 후기로 대체하지 않음 — 구매 인증 배지는 ReviewList 가 붙인다)
+ * 데이터는 PremiumReport 가 usePublishedReviews({service:"report"}) 로 받아 내려준다 —
+ * 같은 후기·요약을 Product JSON-LD(aggregateRating·review)에도 써서 화면과 마크업이 어긋나지 않게 한다.
+ */
+export function ReportTestimonials({
+  reviews = [],
+  summary = null,
+  loading = false,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore = null,
+}) {
   const L = useLanding();
-  const { i18n } = useTranslation();
-  // 리포트 페이지에는 리포트 구매자 후기만 노출한다. 게시된 리포트 후기가 없으면 섹션을 숨긴다.
-  // (다른 서비스·이관 후기로 대체하지 않음 — 구매 인증 배지는 ReviewList 가 붙인다)
-  const { reviews, summary, loading, hasMore, loadingMore, loadMore } = usePublishedReviews({
-    service: "report",
-    language: i18n.language,
-    pageSize: 8,
-  });
 
   if (loading || reviews.length === 0) return null;
 
@@ -645,7 +649,7 @@ export function ReportTestimonials() {
         summary={summary}
         hasMore={hasMore}
         loadingMore={loadingMore}
-        onLoadMore={loadMore}
+        onLoadMore={onLoadMore}
       />
     </section>
   );
