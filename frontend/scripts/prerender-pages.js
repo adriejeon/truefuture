@@ -26,6 +26,9 @@
  *   · 후기   : Supabase public_reviews / get_review_summary (published 만, 화면 훅과 같은 필터)
  *   · JSON-LD: src/utils/pageJsonLd.js (React 페이지와 같은 빌더)
  *
+ * 본문 끝의 '이 페이지 안내' 아코디언은 components/PageIntro 를 react-dom/server 로 렌더한 결과라
+ * hydration 후 화면과 텍스트·구조가 같다. 크롤러에게만 보이는 소개 문단은 두지 않는다.
+ *
  * 개인정보(프로필·질문·결제·상담 내역)는 절대 포함하지 않는다 — 공개 데이터만 읽는다.
  * Supabase 환경변수가 없으면 후기 없이 나머지만 생성한다(빌드는 깨지지 않음).
  */
@@ -67,6 +70,8 @@ import {
   buildReportGraph,
   buildYearlyGraph,
 } from "../src/utils/pageJsonLd.js";
+// 화면과 같은 React 컴포넌트를 서버에서 그대로 렌더한다 (vite build --ssr 결과물)
+import { renderPageIntro } from "../dist-ssr/entry.js";
 import {
   applyPageMeta,
   escapeHtml,
@@ -195,22 +200,20 @@ const H2_STYLE = "font-size:17px;font-weight:600;color:#fff;margin:28px 0 8px;";
 const P_STYLE = "font-size:14px;color:#C7C7D9;margin:0 0 10px;";
 const LI_STYLE = "font-size:14px;color:#C7C7D9;margin:0 0 6px;";
 
+/** 화면 하단 내비게이션(components/BottomNavigation)과 같은 4개 탭 — 라벨은 같은 i18n 키 */
 const NAV_LINKS = [
-  ["/", "메인"],
-  ["/consultation", "자유 질문 상담"],
-  ["/compatibility", "궁합"],
-  ["/yearly", "데일리·종합 운세"],
-  ["/report", "프리미엄 상세 리포트"],
-  ["/purchase", "이용권 구매"],
-  ["/faq", "자주 묻는 질문"],
-  ["/blog", "점성학 칼럼"],
+  ["/consultation", "bottom_nav.consultation"],
+  ["/compatibility", "bottom_nav.compatibility"],
+  ["/yearly", "bottom_nav.yearly"],
+  ["/report", "bottom_nav.report"],
 ];
 
-function navHtml(current) {
-  const items = NAV_LINKS.filter(([href]) => href !== current)
-    .map(([href, label]) => `<li style="${LI_STYLE}"><a href="${href}" style="color:#E1AC3F;">${escapeHtml(label)}</a></li>`)
-    .join("");
-  return `<nav style="margin-top:32px;"><h2 style="${H2_STYLE}">진짜미래 바로가기</h2><ul style="list-style:none;padding:0;margin:0;">${items}</ul></nav>`;
+function navHtml() {
+  const items = NAV_LINKS.map(
+    ([href, key]) =>
+      `<li style="${LI_STYLE};display:inline-block;margin-right:16px;"><a href="${href}" style="color:#E1AC3F;">${escapeHtml(t(key))}</a></li>`
+  ).join("");
+  return `<nav aria-label="하단 메뉴" style="margin-top:24px;"><ul style="list-style:none;padding:0;margin:0;">${items}</ul></nav>`;
 }
 
 function section(title, innerHtml) {
@@ -265,12 +268,20 @@ function reviewsHtml({ reviews, summary, heading }) {
   return section(heading, summaryLine + cards);
 }
 
-function pageBody({ path, h1, lead, sections }) {
+/**
+ * 페이지 본문 골격. intro 는 { pageKey, description } — 화면의 PageIntro 와 같은 컴포넌트를 렌더한다.
+ * (약관·문의처럼 안내 아코디언이 없는 페이지는 intro 를 넘기지 않는다)
+ */
+function pageBody({ path, h1, lead, sections, intro = null }) {
+  const introHtml = intro
+    ? renderPageIntro({ pageKey: intro.pageKey, lang: "ko", description: intro.description })
+    : "";
   return (
     `<main style="${SHELL_STYLE}"><div style="${WRAP_STYLE}">` +
     `<h1 style="${H1_STYLE}">${escapeHtml(h1)}</h1>` +
     paragraphs(lead) +
     sections.filter(Boolean).join("") +
+    introHtml +
     navHtml(path) +
     `</div></main>`
   );
@@ -289,18 +300,13 @@ function homeBody({ reviews, summary }) {
       `${t("home.price_highlight")} ${t("home.price_cta")}`,
     ],
     sections: [
-      section("진짜미래가 제공하는 것", bullets([
-        `${t("free_question.title")} — ${t("free_question.description")}`,
-        `${t("compatibility.title")} — ${t("compatibility.description")}`,
-        `${PAGE_SEO.yearly.title} — ${PAGE_SEO.yearly.description}`,
-        `${L("toc_doc_title")} — ${PAGE_SEO.report.description}`,
-      ])),
       reviewsHtml({
         reviews,
         summary,
         heading: `${t("home.buyer_title")} ${t("home.buyer_title_accent")}`,
       }),
     ],
+    intro: { pageKey: "home", description: PAGE_SEO.home.description },
   });
 }
 
@@ -358,11 +364,12 @@ function reportBody({ reviews, summary, faqItems }) {
       }),
       section(`${L("faq_title")} ${L("faq_title_accent")}`, faqHtml(faqItems)),
     ],
+    intro: { pageKey: "report", description: PAGE_SEO.report.description },
   });
 }
 
-function simpleBody({ path, title, description, sections = [] }) {
-  return pageBody({ path, h1: title, lead: [description], sections });
+function simpleBody({ path, title, description, sections = [], intro = null }) {
+  return pageBody({ path, h1: title, lead: [description], sections, intro });
 }
 
 function purchaseBody() {
@@ -378,6 +385,7 @@ function purchaseBody() {
         )
       ),
     ],
+    intro: { pageKey: "purchase", description: PURCHASE_PAGE_DESCRIPTION },
   });
 }
 
@@ -507,6 +515,7 @@ async function main() {
             ])
           ),
         ],
+        intro: { pageKey: "consultation", description: t("free_question.description") },
       }),
     },
     {
@@ -534,6 +543,7 @@ async function main() {
             ])
           ),
         ],
+        intro: { pageKey: "compatibility", description: t("compatibility.description") },
       }),
     },
     {
@@ -559,6 +569,7 @@ async function main() {
             paragraphs([t("yearly_fortune.lifetime_title"), t("yearly_fortune.lifetime_desc")])
           ),
         ],
+        intro: { pageKey: "yearly", description: PAGE_SEO.yearly.description },
       }),
     },
     {
@@ -655,6 +666,7 @@ async function main() {
         path: "/daily-tarot",
         title: t("daily_tarot.meta_title"),
         description: t("daily_tarot.meta_desc"),
+        intro: { pageKey: "dailyTarot", description: t("daily_tarot.meta_desc") },
       }),
     },
   ];

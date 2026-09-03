@@ -27,6 +27,7 @@ import {
 import { TICKET_PACKAGES } from "../constants/packages";
 import { buildPurchaseGraph } from "../utils/pageJsonLd";
 import PageSeo from "../components/PageSeo";
+import PageIntro from "../components/PageIntro";
 
 // 가격·구성은 constants/packages.js 가 단일 소스 (구조화 데이터·프리렌더와 같은 표를 쓴다)
 const PACKAGE_BASE = TICKET_PACKAGES;
@@ -442,6 +443,14 @@ function Purchase() {
         isPaypal={isEnglish}
         paypalReady={paypalReady}
       />
+      {/* 이 페이지 안내 (프리렌더 HTML 과 동일 컴포넌트, 기본 접힘) */}
+      <div className="max-w-5xl mx-auto">
+        <PageIntro
+          pageKey="purchase"
+          lang={isEnglish ? "en" : "ko"}
+          description={isEnglish ? null : PURCHASE_PAGE_DESCRIPTION}
+        />
+      </div>
       {user && <BottomNavigation />}
     </div>
   );

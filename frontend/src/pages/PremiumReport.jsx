@@ -14,6 +14,7 @@ import LoginRequiredModal from "../components/LoginRequiredModal";
 import FortuneMarkdown from "../components/FortuneMarkdown";
 import ReviewPrompt from "../components/ReviewPrompt";
 import PageSeo from "../components/PageSeo";
+import PageIntro from "../components/PageIntro";
 import { usePublishedReviews } from "../hooks/usePublishedReviews";
 import {
   ReportHero,
@@ -1117,6 +1118,13 @@ function PremiumReport() {
           </div>
         </div>
       )}
+
+      {/* 이 페이지 안내 (프리렌더 HTML 과 동일 컴포넌트, 기본 접힘) */}
+      <PageIntro
+        pageKey="report"
+        lang={isEnglish ? "en" : "ko"}
+        description={isEnglish ? null : PAGE_SEO.report.description}
+      />
     </div>
   );
 

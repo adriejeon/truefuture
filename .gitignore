@@ -27,4 +27,5 @@ __pycache__/
 
 # Build outputs
 frontend/dist/
+dist-ssr/
 dist/

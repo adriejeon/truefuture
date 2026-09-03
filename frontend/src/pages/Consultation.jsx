@@ -33,6 +33,7 @@ import { getBrandImageAlt } from "../constants/seoMeta";
 import { PAGE_SEO } from "../constants/siteSeo";
 import { buildConsultationGraph } from "../utils/pageJsonLd";
 import PageSeo from "../components/PageSeo";
+import PageIntro from "../components/PageIntro";
 
 
 /**
@@ -2808,6 +2809,17 @@ function Consultation() {
             </div>
           </div>
         )}
+
+      {/* 이 페이지 안내 — 개인 결과가 표시되는 동안은 숨긴다 */}
+      {!consultationAnswer && !streamingInterpretation && !loadingConsultation && (
+        <div className="w-full max-w-[600px] mx-auto px-4 pb-24 sm:pb-28">
+          <PageIntro
+            pageKey="consultation"
+            lang={i18n.language?.startsWith("en") ? "en" : "ko"}
+            description={t("free_question.description")}
+          />
+        </div>
+      )}
 
       <BottomNavigation />
 

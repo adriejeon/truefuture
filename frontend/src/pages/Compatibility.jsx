@@ -32,6 +32,7 @@ import { getBrandImageAlt } from "../constants/seoMeta";
 import { PAGE_SEO } from "../constants/siteSeo";
 import { buildCompatibilityGraph } from "../utils/pageJsonLd";
 import PageSeo from "../components/PageSeo";
+import PageIntro from "../components/PageIntro";
 import LoginRequiredModal from "../components/LoginRequiredModal";
 import {
   getProfileModalDismissed,
@@ -762,6 +763,14 @@ function Compatibility() {
           processStatus !== "streaming" && (
             <ReviewPrompt service="compatibility" resultId={shareId} className="mt-8" />
           )}
+        {/* 이 페이지 안내 — 개인 결과가 표시되는 동안은 숨긴다 */}
+        {!interpretation && !streamingInterpretation && !isSharedFortune && !restoring && (
+          <PageIntro
+            pageKey="compatibility"
+            lang={i18n.language?.startsWith("en") ? "en" : "ko"}
+            description={t("compatibility.description")}
+          />
+        )}
       </div>
       <BottomNavigation activeTab="compatibility" />
 

@@ -32,6 +32,7 @@ import {
   checkStarBalance,
 } from "../utils/starConsumption";
 import PageSeo from "../components/PageSeo";
+import PageIntro from "../components/PageIntro";
 import { getBrandImageAlt } from "../constants/seoMeta";
 import { PAGE_SEO } from "../constants/siteSeo";
 import { buildYearlyGraph } from "../utils/pageJsonLd";
@@ -1069,6 +1070,14 @@ function YearlyFortune() {
               className="mt-8"
             />
           )}
+        {/* 이 페이지 안내 — 개인 결과가 표시되는 동안은 숨긴다 */}
+        {!interpretation && !streamingInterpretation && !isSharedFortune && !restoring && (
+          <PageIntro
+            pageKey="yearly"
+            lang={i18n.language?.startsWith("en") ? "en" : "ko"}
+            description={i18n.language?.startsWith("en") ? null : PAGE_SEO.yearly.description}
+          />
+        )}
       </div>
       <BottomNavigation activeTab="yearly" />
 

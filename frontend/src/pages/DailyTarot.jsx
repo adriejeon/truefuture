@@ -8,6 +8,7 @@ import { colors } from "../constants/colors";
 import { TAROT_CARDS, ORACLE_CARDS, randomCard } from "../constants/tarotCards";
 import { supabase } from "../lib/supabaseClient";
 import PageSeo from "../components/PageSeo";
+import PageIntro from "../components/PageIntro";
 import { buildDailyTarotGraph } from "../utils/pageJsonLd";
 
 const DAILY_TAROT_PATH = "/daily-tarot";
@@ -348,6 +349,13 @@ function DailyTarot() {
             {t("daily_tarot.come_back_tomorrow")}
           </p>
         )}
+
+        {/* 이 페이지 안내 (프리렌더 HTML 과 동일 컴포넌트, 기본 접힘) */}
+        <PageIntro
+          pageKey="dailyTarot"
+          lang={isKo ? "ko" : "en"}
+          description={t("daily_tarot.meta_desc")}
+        />
       </div>
 
       <BottomNavigation />

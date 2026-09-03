@@ -20,6 +20,7 @@ import { WalletCards } from "lucide-react";
 import ReviewList from "../components/ReviewList";
 import { usePublishedReviews } from "../hooks/usePublishedReviews";
 import PageSeo from "../components/PageSeo";
+import PageIntro from "../components/PageIntro";
 import { getSeoLanguage } from "../i18n";
 import { PAGE_SEO } from "../constants/siteSeo";
 import { buildHomeGraph, HOME_REVIEW_PAGE_SIZE } from "../utils/pageJsonLd";
@@ -61,6 +62,7 @@ function Home() {
   // 구조화 데이터: 화면의 후기 섹션과 같은 후기·요약으로 대표 서비스(#service)에 평점·리뷰를 얹는다.
   // 후기 섹션이 보이지 않는 상태(후기 0건, 운세 결과 표시 중)에서는 넣지 않는다 — 마크업과 화면 불일치 방지.
   const seoT = i18n.getFixedT(getSeoLanguage());
+  const uiLang = i18n.language?.startsWith("en") ? "en" : "ko";
   const reviewSectionVisible = !interpretation && publishedReviews.length > 0;
   const homeNodes = useMemo(
     () =>
@@ -415,6 +417,13 @@ function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </Link>
+
+            {/* 이 페이지 안내 (프리렌더 HTML 과 동일 컴포넌트, 기본 접힘) */}
+            <PageIntro
+              pageKey="home"
+              lang={uiLang}
+              description={uiLang === "ko" ? PAGE_SEO.home.description : null}
+            />
           </div>
         )}
 
