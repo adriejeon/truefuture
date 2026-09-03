@@ -625,10 +625,10 @@ export function ReportTestimonials() {
   const { i18n } = useTranslation();
   // 리포트 페이지에는 리포트 구매자 후기만 노출한다. 게시된 리포트 후기가 없으면 섹션을 숨긴다.
   // (다른 서비스·이관 후기로 대체하지 않음 — 구매 인증 배지는 ReviewList 가 붙인다)
-  const { reviews, summary, loading } = usePublishedReviews({
+  const { reviews, summary, loading, hasMore, loadingMore, loadMore } = usePublishedReviews({
     service: "report",
     language: i18n.language,
-    limit: 4,
+    pageSize: 8,
   });
 
   if (loading || reviews.length === 0) return null;
@@ -640,7 +640,13 @@ export function ReportTestimonials() {
         accent={L("review_title_report_accent")}
         sub={L("review_sub_report")}
       />
-      <ReviewList reviews={reviews} summary={summary} />
+      <ReviewList
+        reviews={reviews}
+        summary={summary}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={loadMore}
+      />
     </section>
   );
 }

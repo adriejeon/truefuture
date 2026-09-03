@@ -28,13 +28,24 @@ export function toReviewLanguage(lng) {
 
 /* ───────────────────────── 공개 조회 ───────────────────────── */
 
-export async function fetchPublishedReviews({ service = null, language = null, limit = 6 } = {}) {
+/**
+ * 공개 후기 페이지 조회.
+ * offset 을 넘기면 이어붙이기(무한 스크롤)용 다음 페이지를 가져온다.
+ * published_at 이 같은 행이 있어도 페이지 경계에서 누락·중복이 없도록 id 로 2차 정렬한다.
+ */
+export async function fetchPublishedReviews({
+  service = null,
+  language = null,
+  limit = 6,
+  offset = 0,
+} = {}) {
   const client = requireSupabase();
   let query = client
     .from("public_reviews")
     .select(PUBLIC_FIELDS)
     .order("published_at", { ascending: false })
-    .limit(limit);
+    .order("id", { ascending: false })
+    .range(offset, offset + limit - 1);
   if (service) query = query.eq("service", service);
   if (language) query = query.eq("language", language);
   const { data, error } = await query;

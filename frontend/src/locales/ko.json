@@ -895,6 +895,8 @@
       "delete_confirm": "이 후기를 영구 삭제할까요? 되돌릴 수 없습니다.",
       "usage_count": "누적 이용 {{count}}회"
     },
+    "expand": "모두 보기",
+    "collapse": "접기",
     "carousel_aria": "이용자 후기",
     "carousel_prev": "이전 후기",
     "carousel_next": "다음 후기",

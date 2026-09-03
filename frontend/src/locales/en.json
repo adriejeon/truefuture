@@ -895,6 +895,8 @@
       "delete_confirm": "Permanently delete this review? This cannot be undone.",
       "usage_count": "{{count}} uses so far"
     },
+    "expand": "Read more",
+    "collapse": "Show less",
     "carousel_aria": "User reviews",
     "carousel_prev": "Previous review",
     "carousel_next": "Next review",

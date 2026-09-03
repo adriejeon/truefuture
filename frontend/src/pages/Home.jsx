@@ -24,9 +24,16 @@ function Home() {
   const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
   // 메인 후기 섹션: Supabase public_reviews(published) 에서 조회. 없으면 섹션 자체를 숨김
-  const { reviews: publishedReviews, summary: reviewSummary } = usePublishedReviews({
+  // 개수 제한 없이 가로로 계속 스크롤되며(끝에 닿으면 다음 페이지) 공개 후기를 전부 볼 수 있다
+  const {
+    reviews: publishedReviews,
+    summary: reviewSummary,
+    hasMore: reviewsHasMore,
+    loadingMore: reviewsLoadingMore,
+    loadMore: loadMoreReviews,
+  } = usePublishedReviews({
     language: i18n.language,
-    limit: 6,
+    pageSize: 12,
   });
   const {
     profiles,
@@ -251,7 +258,13 @@ function Home() {
                       </span>
                     ))}
                   </p>
-                  <ReviewList reviews={publishedReviews} summary={reviewSummary} />
+                  <ReviewList
+                    reviews={publishedReviews}
+                    summary={reviewSummary}
+                    hasMore={reviewsHasMore}
+                    loadingMore={reviewsLoadingMore}
+                    onLoadMore={loadMoreReviews}
+                  />
                 </div>
               </section>
             )}
