@@ -16,6 +16,9 @@
  *   dist/faq.html            /faq
  *   dist/purchase.html       /purchase
  *   dist/daily-tarot.html    /daily-tarot
+ *   dist/terms.html          /terms
+ *   dist/privacy-policy.html /privacy-policy
+ *   dist/contact.html        /contact
  *
  * 데이터 출처(화면과 동일)
  *   · 문구   : src/locales/ko.json (화면이 쓰는 i18n 값 그대로)
@@ -54,10 +57,12 @@ import {
   REPORT_REVIEW_PAGE_SIZE,
   buildCompatibilityGraph,
   buildConsultationGraph,
+  buildContactPageGraph,
   buildDailyTarotGraph,
   buildFaqPageGraph,
   buildGraph,
   buildHomeGraph,
+  buildLegalPageGraph,
   buildPurchaseGraph,
   buildReportGraph,
   buildYearlyGraph,
@@ -145,6 +150,37 @@ async function fetchSummary({ service = null }) {
     return { count: Number(row.review_count ?? 0), avg: Number(row.avg_rating ?? 0) };
   } catch (error) {
     console.warn("[prerender-pages] 후기 요약 예외:", error?.message || error);
+    return null;
+  }
+}
+
+/**
+ * 약관·개인정보처리방침 본문. 화면(services/termsService.fetchTermsContent)과 같은 테이블·같은 조건이다.
+ * (type/language 로 고르고, 시행일이 지난 것 중 최신 버전 1건)
+ */
+async function fetchLegalDoc(type) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  const params = new URLSearchParams({
+    select: "version,effective_at,content",
+    type: `eq.${type}`,
+    language: "eq.ko",
+    effective_at: `lte.${new Date().toISOString()}`,
+    order: "version.desc,effective_at.desc",
+    limit: "1",
+  });
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/terms_definitions?${params}`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!res.ok) {
+      console.warn(`[prerender-pages] ${type} 조회 실패: HTTP ${res.status}`);
+      return null;
+    }
+    const rows = await res.json();
+    return Array.isArray(rows) && rows[0] ? rows[0] : null;
+  } catch (error) {
+    console.warn(`[prerender-pages] ${type} 조회 예외:`, error?.message || error);
     return null;
   }
 }
@@ -345,6 +381,23 @@ function purchaseBody() {
   });
 }
 
+/**
+ * 약관·방침 본문. 운영자가 작성해 DB에 저장한 HTML 을 그대로 싣는다(화면과 동일한 내용).
+ * 스크립트·스타일 태그만 방어적으로 제거한다.
+ */
+function legalBody({ path, title, description, doc }) {
+  const raw = String(doc?.content ?? "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "");
+  const meta = doc?.effective_at
+    ? `<p style="${P_STYLE}">시행일 ${escapeHtml(String(doc.effective_at).slice(0, 10))} · 버전 ${escapeHtml(String(doc.version ?? ""))}</p>`
+    : "";
+  const article = raw
+    ? `<div style="font-size:14px;color:#C7C7D9;">${raw}</div>`
+    : paragraphs([description]);
+  return pageBody({ path, h1: title, lead: [], sections: [meta + article] });
+}
+
 /* ───────────────────────── 실행 ───────────────────────── */
 
 function baseTemplate() {
@@ -388,12 +441,15 @@ async function main() {
     writeHtml(distDir, "404.html", shell);
   }
 
-  const [homeReviews, homeSummary, reportReviews, reportSummary] = await Promise.all([
-    fetchReviews({ limit: HOME_REVIEW_PAGE_SIZE }),
-    fetchSummary({}),
-    fetchReviews({ service: "report", limit: REPORT_REVIEW_PAGE_SIZE }),
-    fetchSummary({ service: "report" }),
-  ]);
+  const [homeReviews, homeSummary, reportReviews, reportSummary, termsDoc, privacyDoc] =
+    await Promise.all([
+      fetchReviews({ limit: HOME_REVIEW_PAGE_SIZE }),
+      fetchSummary({}),
+      fetchReviews({ service: "report", limit: REPORT_REVIEW_PAGE_SIZE }),
+      fetchSummary({ service: "report" }),
+      fetchLegalDoc("terms"),
+      fetchLegalDoc("privacy"),
+    ]);
 
   const reportFaqItems = REPORT_FAQ_KEYS.map((key) => ({
     title: L(`${key}_q`),
@@ -528,6 +584,63 @@ async function main() {
         description: PURCHASE_PAGE_DESCRIPTION,
       }),
       body: purchaseBody(),
+    },
+    {
+      file: "terms.html",
+      path: PAGE_SEO.terms.path,
+      title: PAGE_SEO.terms.title,
+      description: PAGE_SEO.terms.description,
+      nodes: buildLegalPageGraph({
+        path: PAGE_SEO.terms.path,
+        title: PAGE_SEO.terms.title,
+        description: PAGE_SEO.terms.description,
+        datePublished: termsDoc?.effective_at ?? null,
+      }),
+      body: legalBody({
+        path: PAGE_SEO.terms.path,
+        title: t("terms_pages.terms_title"),
+        description: PAGE_SEO.terms.description,
+        doc: termsDoc,
+      }),
+    },
+    {
+      file: "privacy-policy.html",
+      path: PAGE_SEO.privacy.path,
+      title: PAGE_SEO.privacy.title,
+      description: PAGE_SEO.privacy.description,
+      nodes: buildLegalPageGraph({
+        path: PAGE_SEO.privacy.path,
+        title: PAGE_SEO.privacy.title,
+        description: PAGE_SEO.privacy.description,
+        datePublished: privacyDoc?.effective_at ?? null,
+      }),
+      body: legalBody({
+        path: PAGE_SEO.privacy.path,
+        title: t("terms_pages.privacy_title"),
+        description: PAGE_SEO.privacy.description,
+        doc: privacyDoc,
+      }),
+    },
+    {
+      file: "contact.html",
+      path: PAGE_SEO.contact.path,
+      title: PAGE_SEO.contact.title,
+      description: PAGE_SEO.contact.description,
+      nodes: buildContactPageGraph({
+        title: PAGE_SEO.contact.title,
+        description: PAGE_SEO.contact.description,
+      }),
+      body: simpleBody({
+        path: PAGE_SEO.contact.path,
+        title: t("contact.title"),
+        description: t("contact.subtitle"),
+        sections: [
+          section(
+            "문의 시 남기는 정보",
+            bullets([t("contact.email_label"), t("contact.subject_label"), t("contact.message_label")])
+          ),
+        ],
+      }),
     },
     {
       file: "daily-tarot.html",

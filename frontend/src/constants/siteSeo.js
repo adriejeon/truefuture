@@ -135,6 +135,8 @@ export const FAQ_PAGE_DESCRIPTION =
 /**
  * 페이지별 title/description 출처.
  *   titleKey/descriptionKey : i18n 키 (ko/en 모두 제공되는 페이지)
+ *   *_seo_title 은 검색·AI 결과용 제목이라 화면 헤딩(free_question.title 등)과 분리해 둔다 —
+ *   화면은 짧은 제목을, 검색 결과는 무엇을 하는 페이지인지 드러나는 제목을 쓴다.
  *   title/description       : 리터럴 (한국어 전용 페이지)
  * PageSeo 와 프리렌더 스크립트가 같은 표를 읽는다.
  */
@@ -153,13 +155,13 @@ export const PAGE_SEO = Object.freeze({
   },
   consultation: {
     path: "/consultation",
-    titleKey: "free_question.title",
+    titleKey: "free_question.seo_title",
     descriptionKey: "free_question.description",
     ogType: "website",
   },
   compatibility: {
     path: "/compatibility",
-    titleKey: "compatibility.title",
+    titleKey: "compatibility.seo_title",
     descriptionKey: "compatibility.description",
     ogType: "website",
   },
@@ -172,11 +174,33 @@ export const PAGE_SEO = Object.freeze({
   },
   faq: {
     path: "/faq",
-    titleKey: "faq.title",
+    titleKey: "faq.seo_title",
     description: FAQ_PAGE_DESCRIPTION,
     ogType: "website",
   },
+  terms: {
+    path: "/terms",
+    title: "이용약관 | 진짜미래",
+    description:
+      "진짜미래 서비스 이용약관입니다. 운세 교환권(망원경·나침반·탐사선)의 구매와 이용, 청약철회와 환불, 교환권의 유효기간과 소멸, AI 서비스의 특성과 면책, 회원의 의무를 조항별로 안내합니다.",
+    ogType: "website",
+  },
+  privacy: {
+    path: "/privacy-policy",
+    title: "개인정보처리방침 | 진짜미래",
+    description:
+      "진짜미래 개인정보처리방침입니다. 출생 정보를 포함한 수집 항목과 이용 목적, 보유·이용 기간, 제3자 제공과 국외 이전, 파기 절차, 이용자의 권리 행사 방법과 개인정보 보호책임자를 안내합니다.",
+    ogType: "website",
+  },
+  contact: {
+    path: "/contact",
+    title: "문의하기 | 진짜미래 고객센터",
+    description:
+      "진짜미래 고객센터 문의 페이지입니다. 답변 받을 이메일과 제목, 문의 내용을 남기면 운영자가 확인 후 회신합니다. 결제·리포트·계정 관련 문의를 접수합니다.",
+    ogType: "website",
+  },
 });
+
 
 /** i18n 키가 있으면 t()로, 없으면 리터럴로 해석한다 (t 는 i18n 의 t 또는 프리렌더의 ko.json 조회 함수) */
 export function resolvePageSeo(key, t) {

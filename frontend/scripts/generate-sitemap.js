@@ -25,6 +25,7 @@ const routes = [
   { url: 'https://truefuture.kr/purchase',      changefreq: 'monthly', priority: 0.6, sources: ['src/pages/Purchase.jsx', 'src/constants/packages.js'] },
   { url: 'https://truefuture.kr/faq',           changefreq: 'monthly', priority: 0.4, sources: ['src/pages/FAQ.jsx', 'src/constants/faqItems.js'] },
   { url: 'https://truefuture.kr/blog',          changefreq: 'daily',   priority: 0.7, sources: ['src/pages/BlogList.jsx'] },
+  { url: 'https://truefuture.kr/contact',       changefreq: 'monthly', priority: 0.4, sources: ['src/pages/Contact.jsx'] },
   { url: 'https://truefuture.kr/privacy-policy', changefreq: 'monthly', priority: 0.3, sources: ['src/pages/PrivacyPolicy.jsx'] },
   { url: 'https://truefuture.kr/terms',         changefreq: 'monthly', priority: 0.3, sources: ['src/pages/Terms.jsx'] },
 ];

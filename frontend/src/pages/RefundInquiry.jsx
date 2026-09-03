@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
+import useNoIndex from "../hooks/useNoIndex";
+import { REFUND_WINDOW_DAYS } from "../constants/pricing";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -24,6 +26,8 @@ function resolvePaymentChannel(relatedItemId) {
 function RefundInquiry() {
   const { t, i18n } = useTranslation();
   const { user, loadingAuth } = useAuth();
+  // 로그인해야 볼 수 있는 화면(본인 결제 내역 기반) — 검색·AI 색인에서 제외
+  useNoIndex();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -377,7 +381,7 @@ function RefundInquiry() {
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>{t("refund_inquiry.policy_3", { days: 7 })}</span>
+              <span>{t("refund_inquiry.policy_3", { days: REFUND_WINDOW_DAYS })}</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>

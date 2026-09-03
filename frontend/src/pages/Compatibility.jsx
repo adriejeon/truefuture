@@ -39,7 +39,6 @@ import {
   clearProfileModalDismissed,
 } from "../utils/profileModalStorage";
 
-const COMPATIBILITY_TITLE_KEY = "compatibility.title";
 const COMPATIBILITY_DESCRIPTION_KEY = "compatibility.description";
 
 function Compatibility() {
@@ -123,7 +122,7 @@ function Compatibility() {
   // SEO 문구는 사용자가 직접 고른 언어가 없으면 한국어(크롤러 대응) — UI 언어(t)와 분리
   const seoLang = getSeoLanguage();
   const tSeo = i18n.getFixedT(seoLang);
-  const pageTitle = tSeo(COMPATIBILITY_TITLE_KEY);
+  const pageTitle = tSeo(PAGE_SEO.compatibility.titleKey);
   const pageDescription = tSeo(COMPATIBILITY_DESCRIPTION_KEY);
 
   // 궁합 서비스·오퍼 구조화 데이터 (망원경 1개 소비 → 가격은 이용권 상품표에서 파생)

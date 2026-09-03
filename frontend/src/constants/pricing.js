@@ -27,6 +27,9 @@ export const COMPATIBILITY_PRICE = packagePrice("ticket_1");
 /** 종합운세 1회 = 탐사선 1대 (get-fortune: lifetime → PROBE 1) */
 export const LIFETIME_PRICE = packagePrice("probe_1");
 
+/** 결제 후 환불을 신청할 수 있는 기간(일). 화면 안내와 프리렌더가 같은 값을 쓴다 */
+export const REFUND_WINDOW_DAYS = 7;
+
 /** 오늘의 운세 1회 = 나침반 1개. 나침반은 개별 판매가 없어 최소 구성(7개 묶음) 가격을 함께 표기한다 */
 export const DAILY_PACK_ID = "daily_7";
 export const DAILY_PACK_PRICE = packagePrice(DAILY_PACK_ID);

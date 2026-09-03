@@ -14,6 +14,7 @@ import {
   BRAND_NAME,
   DEFAULT_OG_IMAGE,
   FAQ_PAGE_DESCRIPTION,
+  CONTACT,
   PAGE_SEO,
   REPORT_DESCRIPTION,
   REPORT_PRODUCT_NAME,
@@ -344,3 +345,31 @@ export function buildDailyTarotGraph({ title, description, about = [], inLanguag
     },
   ];
 }
+
+/** `/terms`, `/privacy-policy` — 법적 고지 문서 페이지 */
+export function buildLegalPageGraph({ path, title, description, datePublished = null }) {
+  const page = buildWebPage({ path, name: title, description });
+  return [datePublished ? { ...page, dateModified: datePublished } : page];
+}
+
+/** `/contact` — 고객 문의 창구 (schema.org ContactPage) */
+export function buildContactPageGraph({ title, description }) {
+  return [
+    buildWebPage({
+      path: "/contact",
+      name: title,
+      description,
+      type: "ContactPage",
+      extra: {
+        mainEntity: {
+          "@type": "ContactPoint",
+          contactType: "customer support",
+          email: CONTACT.email,
+          telephone: CONTACT.phoneE164,
+          availableLanguage: "ko",
+        },
+      },
+    }),
+  ];
+}
+

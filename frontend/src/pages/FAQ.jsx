@@ -8,7 +8,6 @@ import { buildFaqPageGraph } from "../utils/pageJsonLd";
 import PageSeo from "../components/PageSeo";
 import BottomNavigation from "../components/BottomNavigation";
 
-const FAQ_PAGE_TITLE_KEY = "faq.title";
 
 function FAQ() {
   const { t, i18n } = useTranslation();
@@ -18,7 +17,7 @@ function FAQ() {
   // 화면(UI)과 FAQPage 구조화 데이터가 같은 배열을 쓴다 — constants/faqItems.js 가 단일 소스
   const FAQ_ITEMS = SITE_FAQ_ITEMS;
   const faqNodes = useMemo(
-    () => buildFaqPageGraph({ title: tSeo(FAQ_PAGE_TITLE_KEY), items: FAQ_ITEMS }),
+    () => buildFaqPageGraph({ title: tSeo(PAGE_SEO.faq.titleKey), items: FAQ_ITEMS }),
     [FAQ_ITEMS, tSeo]
   );
 
@@ -39,7 +38,7 @@ function FAQ() {
     <>
       <PageSeo
         path={PAGE_SEO.faq.path}
-        title={tSeo(FAQ_PAGE_TITLE_KEY)}
+        title={tSeo(PAGE_SEO.faq.titleKey)}
         description={FAQ_PAGE_DESCRIPTION}
         ogType={PAGE_SEO.faq.ogType}
         nodes={faqNodes}

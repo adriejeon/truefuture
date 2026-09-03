@@ -59,7 +59,6 @@ const parseFortuneResult = (text) => {
 /** 후속 질문 응답 여부: answer 객체가 있으면 후속 질문용 스키마(header/answer/action_tip/critical_date) */
 const isFollowUpData = (data) => data && typeof data.answer === "object";
 
-const FREE_QUESTION_TITLE_KEY = "free_question.title";
 const FREE_QUESTION_DESCRIPTION_KEY = "free_question.description";
 
 /** 후속 질문용 심플 컨설팅 카드 (header, answer, action_tip, critical_date) */
@@ -140,7 +139,7 @@ function Consultation() {
   // SEO 문구는 사용자가 직접 고른 언어가 없으면 한국어(크롤러 대응) — UI 언어(t)와 분리
   const seoLang = getSeoLanguage();
   const tSeo = i18n.getFixedT(seoLang);
-  const pageTitle = tSeo(FREE_QUESTION_TITLE_KEY);
+  const pageTitle = tSeo(PAGE_SEO.consultation.titleKey);
   const pageDescription = tSeo(FREE_QUESTION_DESCRIPTION_KEY);
 
   // 상담 서비스·오퍼 구조화 데이터 (가격은 이용권 상품표에서 파생)

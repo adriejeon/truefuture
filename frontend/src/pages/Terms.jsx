@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import PageSeo from "../components/PageSeo";
+import { PAGE_SEO } from "../constants/siteSeo";
+import { buildLegalPageGraph } from "../utils/pageJsonLd";
 import { fetchTermsContent } from "../services/termsService";
 
 function Terms() {
@@ -110,6 +113,16 @@ function Terms() {
           </svg>
           {t("terms_pages.back_home")}
         </Link>
+        <PageSeo
+          path={PAGE_SEO.terms.path}
+          title={PAGE_SEO.terms.title}
+          description={PAGE_SEO.terms.description}
+          nodes={buildLegalPageGraph({
+            path: PAGE_SEO.terms.path,
+            title: PAGE_SEO.terms.title,
+            description: PAGE_SEO.terms.description,
+          })}
+        />
         <h1 className="text-3xl sm:text-4xl font-bold mb-6 sm:mb-8 text-primary">
           {t("terms_pages.terms_title")}
         </h1>

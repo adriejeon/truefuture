@@ -32,7 +32,7 @@
   },
   "daily_tarot": {
     "meta_title": "Daily Tarot - True Future",
-    "meta_desc": "Check your daily fortune for free with tarot and oracle cards.",
+    "meta_desc": "Draw one tarot or oracle card once a day for free and read what the card means for you today, with an AI-written interpretation.",
     "title": "Daily Tarot",
     "free_badge": "FREE",
     "subtitle": "Check today's energy with a tarot or oracle card. Draw one card for free every day, no login required.",
@@ -267,11 +267,13 @@
     "q4_title": "How is this different from regular BaZi or tarot apps like Jeomshin?",
     "q4_content": "We don't only show fixed horoscope blurbs. True Future computes a natal chart from birth time and place and supports free-form text questions. Published reviews and user feedback are available for reference; repeat-visit and reuse metrics are tracked as operational data.",
     "q5_title": "When I ask a free question, does a real person answer?",
-    "q5_content": "No. Responses are generated automatically from interpretation logic derived from professional consulting practice. There is no human consultant in the loop for the same question; answers are produced immediately."
+    "q5_content": "No. Responses are generated automatically from interpretation logic derived from professional consulting practice. There is no human consultant in the loop for the same question; answers are produced immediately.",
+    "seo_title": "FAQ | True Future Classical Astrology AI Consultation"
   },
   "free_question": {
     "title": "Real Future Free Question",
-    "description": "Not a generic free horoscope. Real Future Free Question offers 1:1, consult-style answers for complex concerns (love, career, money) using a personalized natal chart analysis aligned with the same interpretation logic used by offline classical astrologers — available through a reasonable micro-payment."
+    "description": "Not a generic free horoscope. Real Future Free Question offers 1:1, consult-style answers for complex concerns (love, career, money) using a personalized natal chart analysis aligned with the same interpretation logic used by offline classical astrologers — available through a reasonable micro-payment.",
+    "seo_title": "Free-form Question Consultation | True Future Classical Astrology"
   },
   "profile_modal": {
     "title_edit": "Edit Profile",
@@ -464,7 +466,8 @@
     "score_phrase_good": "You're pretty well-matched!",
     "score_phrase_okay": "A little give and take goes a long way.",
     "score_phrase_try": "Understanding each other takes real effort.",
-    "recovered_notice": "The reading finished generating and has been loaded."
+    "recovered_notice": "The reading finished generating and has been loaded.",
+    "seo_title": "Compatibility Analysis | True Future Astrology Synastry"
   },
   "consultation": {
     "intro": "True Future uses classical Western astrology principles and long-established ephemeris-style celestial data. It auto-computes a natal chart from birth time and place and implements interpretation logic from an astrologer with ~20 years of practice as automated responses. It supports free-form questions, compatibility, and daily readings.",

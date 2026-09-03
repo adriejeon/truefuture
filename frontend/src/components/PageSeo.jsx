@@ -12,6 +12,7 @@ import { buildGraph } from "../utils/pageJsonLd";
  *   → hydration 후 title/description/canonical/OG 가 두 벌로 남지 않는다.
  * · JSON-LD 는 프리렌더 HTML 과 동일한 id(PAGE_JSON_LD_ID)를 사용해 교체된다.
  * · nodes 를 주지 않으면 JSON-LD 를 건드리지 않는다(앱 전역 기본 SEO 용).
+ * · 색인 제외(noindex)는 hooks/useNoIndex 가 담당한다 — 로그인 뒤 화면·결제 중간 화면에서 쓴다.
  */
 export const PAGE_JSON_LD_ID = "page-ld-json";
 

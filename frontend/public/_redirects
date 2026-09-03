@@ -1,6 +1,7 @@
 # SPA 폴백.
 # 프리렌더된 경로(/, /report, /consultation, /compatibility, /yearly, /faq, /purchase,
-# /daily-tarot, /blog, /blog/<slug>)는 정적 파일이 그대로 서빙되도록 규칙을 두지 않는다.
+# /daily-tarot, /terms, /privacy-policy, /contact, /blog, /blog/<slug>)는
+# 정적 파일이 그대로 서빙되도록 규칙을 두지 않는다.
 # 여기 나열한 "클라이언트에서만 동작하는" 경로만 셸(dist/app/index.html)로 rewrite 한다.
 # 그 밖의 없는 경로는 dist/404.html(같은 셸)이 404 상태로 응답한다.
 #
@@ -14,7 +15,4 @@
 /payment/complete   /app/ 200
 /mypage             /app/ 200
 /admin/reviews      /app/ 200
-/contact            /app/ 200
 /refund-inquiry     /app/ 200
-/privacy-policy     /app/ 200
-/terms              /app/ 200

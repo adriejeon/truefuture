@@ -4,6 +4,9 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabaseClient";
 import PrimaryButton from "../components/PrimaryButton";
+import PageSeo from "../components/PageSeo";
+import { PAGE_SEO } from "../constants/siteSeo";
+import { buildContactPageGraph } from "../utils/pageJsonLd";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -85,6 +88,15 @@ function Contact() {
             </svg>
             {t("contact.back")}
           </button>
+          <PageSeo
+            path={PAGE_SEO.contact.path}
+            title={PAGE_SEO.contact.title}
+            description={PAGE_SEO.contact.description}
+            nodes={buildContactPageGraph({
+              title: PAGE_SEO.contact.title,
+              description: PAGE_SEO.contact.description,
+            })}
+          />
           <h1 className="text-2xl font-bold text-white mb-2">{t("contact.title")}</h1>
           <p className="text-slate-300 text-sm">
             {t("contact.subtitle")}
