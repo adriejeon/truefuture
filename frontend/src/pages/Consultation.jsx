@@ -2145,6 +2145,14 @@ function Consultation() {
               </div>
             )}
 
+            {/* 후기 유도: 대화 목록에서 과거 상담을 다시 볼 때도 남길 수 있게 (historyView 는 본인 이력만 로드됨) */}
+            {historyView.shareId &&
+              !historyLoadingFollowUp &&
+              processStatus !== "waiting" &&
+              processStatus !== "streaming" && (
+                <ReviewPrompt service="consultation" resultId={historyView.shareId} className="mt-8" />
+              )}
+
             {/* 친구에게 공유 */}
             {historyView.shareId && (
               <div className="mt-6 pt-6 border-t border-slate-600/50">
