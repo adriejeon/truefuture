@@ -5,16 +5,17 @@ import { PAID_PRODUCT_SERVICES, reviewServiceLabelKey } from "../constants/revie
 
 /**
  * 후기 카드 하단 칩: 재구매 고객 · 이용/구매 인증 · 이용 서비스
- *  - is_repeat  : 작성 시점 누적 이용 2회 이상 (이관 후기는 true)
- *  - is_verified: 본인 이용/구매 기록과 대조됨 (이관 후기는 표시하지 않음)
+ *  - is_repeat  : 작성 시점 누적 이용 2회 이상
+ *  - is_verified: 이용/구매 기록과 대조됨 (사이트 작성분은 트리거가, 이관분은 운영자가 확인)
  *  - service    : 어떤 서비스를 이용한 고객의 후기인지
+ * 이관 후기도 사이트 작성 후기와 같은 칩 구성으로 보이도록 source 로 구분하지 않는다.
  */
 export function reviewBadges(review, t) {
   const badges = [];
   if (review.is_repeat) {
     badges.push({ key: "repeat", text: t("reviews.badge_repeat") });
   }
-  if (review.is_verified && review.source !== "imported") {
+  if (review.is_verified) {
     badges.push({
       key: "verified",
       text: PAID_PRODUCT_SERVICES.includes(review.service)
