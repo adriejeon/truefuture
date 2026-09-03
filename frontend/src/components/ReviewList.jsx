@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import StarRating from "./StarRating";
-import { PAID_PRODUCT_SERVICES, reviewServiceLabelKey } from "../constants/reviewServices";
+import { reviewServiceLabelKey } from "../constants/reviewServices";
 
 /**
  * 후기 카드 하단 칩: 재구매 고객 · 이용/구매 인증 · 이용 서비스
@@ -16,12 +16,8 @@ export function reviewBadges(review, t) {
     badges.push({ key: "repeat", text: t("reviews.badge_repeat") });
   }
   if (review.is_verified) {
-    badges.push({
-      key: "verified",
-      text: PAID_PRODUCT_SERVICES.includes(review.service)
-        ? t("reviews.badge_verified_buyer")
-        : t("reviews.badge_verified_user"),
-    });
+    // 상품 종류와 무관하게 같은 문구로 통일 (어떤 상품인지는 서비스 칩이 보여준다)
+    badges.push({ key: "verified", text: t("reviews.badge_verified_user") });
   }
   const labelKey = reviewServiceLabelKey(review.service);
   if (labelKey) badges.push({ key: "service", text: t("reviews.badge_service_used", { service: t(labelKey) }), muted: true });
