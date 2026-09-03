@@ -486,10 +486,10 @@ async function main() {
     {
       file: "consultation.html",
       path: "/consultation",
-      title: t("free_question.title"),
+      title: t(PAGE_SEO.consultation.titleKey),
       description: t("free_question.description"),
       nodes: buildConsultationGraph({
-        title: t("free_question.title"),
+        title: t(PAGE_SEO.consultation.titleKey),
         description: t("free_question.description"),
       }),
       body: simpleBody({
@@ -512,10 +512,10 @@ async function main() {
     {
       file: "compatibility.html",
       path: "/compatibility",
-      title: t("compatibility.title"),
+      title: t(PAGE_SEO.compatibility.titleKey),
       description: t("compatibility.description"),
       nodes: buildCompatibilityGraph({
-        title: t("compatibility.title"),
+        title: t(PAGE_SEO.compatibility.titleKey),
         description: t("compatibility.description"),
       }),
       body: simpleBody({
@@ -564,9 +564,9 @@ async function main() {
     {
       file: "faq.html",
       path: "/faq",
-      title: t("faq.title"),
+      title: t(PAGE_SEO.faq.titleKey),
       description: PAGE_SEO.faq.description,
-      nodes: buildFaqPageGraph({ title: t("faq.title"), items: SITE_FAQ_ITEMS }),
+      nodes: buildFaqPageGraph({ title: t(PAGE_SEO.faq.titleKey), items: SITE_FAQ_ITEMS }),
       body: simpleBody({
         path: "/faq",
         title: t("faq.title"),
