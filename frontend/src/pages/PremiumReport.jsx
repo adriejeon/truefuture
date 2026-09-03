@@ -955,9 +955,6 @@ function PremiumReport() {
           style={{ borderColor: "rgba(225, 172, 63, 0.5)", backgroundColor: "rgba(37, 61, 135, 0.2)" }}
         >
           <div className="mb-5">
-            <p className="text-xs font-semibold tracking-[0.25em] mb-1.5" style={{ color: colors.primary }}>
-              PREMIUM REPORT
-            </p>
             <h2 className="text-xl font-bold text-white mb-1">{L("purchase_title")}</h2>
             <p className="text-sm text-slate-300 leading-relaxed">{L("purchase_sub")}</p>
           </div>

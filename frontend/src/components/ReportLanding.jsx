@@ -113,12 +113,9 @@ function OutlineCta({ children, onClick }) {
 export function ReportHero({ price, onBuy, onSample, ctaRef }) {
   const L = useLanding();
   const { t } = useTranslation();
-  const chips = ["hero_chip_1", "hero_chip_2", "hero_chip_3", "hero_chip_4"];
+  const chips = ["hero_chip_0", "hero_chip_1", "hero_chip_2", "hero_chip_3", "hero_chip_4"];
   return (
-    <section className="text-center pt-2 pb-8">
-      <p className="text-xs font-semibold tracking-[0.25em] mb-3" style={{ color: colors.primary }}>
-        {L("hero_eyebrow")}
-      </p>
+    <section className="text-center pt-4 pb-8">
       <h1 className="font-noto text-[clamp(22px,6vw,32px)] font-medium leading-[1.4] tracking-[-0.02em] text-white mb-4">
         {L("hero_title_1")}
         <br />
@@ -256,7 +253,6 @@ export function ReportContents() {
       >
         {/* 문서 표지 느낌의 헤더 */}
         <div className="px-5 pt-5 pb-4 border-b border-[#253D87] text-center">
-          <p className="text-[10px] tracking-[0.35em] text-slate-400 mb-1">{L("toc_brand")}</p>
           <p className="font-noto text-lg text-white font-medium">{L("toc_doc_title")}</p>
           <p className="text-xs text-slate-400 mt-0.5">{L("toc_doc_sub")}</p>
         </div>
@@ -264,8 +260,8 @@ export function ReportContents() {
           {parts.map((p) => (
             <li key={p.num}>
               <div className="flex items-baseline gap-2 mb-1.5">
-                <span className="text-[11px] font-semibold tracking-widest" style={{ color: colors.primary }}>
-                  PART {p.num}
+                <span className="text-[11px] font-semibold tracking-wide" style={{ color: colors.primary }}>
+                  {L("toc_part", { num: p.num })}
                 </span>
                 <span className="text-white font-semibold text-sm">{p.title}</span>
               </div>
@@ -354,7 +350,7 @@ export function ReportSamplePreview({ onBuy }) {
 
       <div className="rounded-xl border border-slate-700 bg-slate-800/40 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2 border-b border-slate-700">
-          <span className="text-[10px] tracking-[0.3em] text-slate-400">{L("toc_brand")} · {L("toc_doc_title")}</span>
+          <span className="text-[11px] text-slate-400">{L("toc_doc_title")}</span>
           <span
             className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-black"
             style={{ backgroundColor: colors.primary }}
@@ -425,7 +421,9 @@ export function ReportSamplePreview({ onBuy }) {
 
 export function ReportMethod() {
   const L = useLanding();
-  const steps = ["m_1", "m_2", "m_3", "m_4"];
+  /** 3단계(20년 상담·역추적 기반 구조 해석)가 이 상품의 핵심 — 골드 테두리 + '핵심' 배지로 강조 */
+  const steps = ["m_1", "m_2", "m_3", "m_4", "m_5"];
+  const CORE_STEP = "m_3";
   const chips = [
     { key: "method_chip_1", Icon: BadgeCheck },
     { key: "method_chip_2", Icon: Sparkles },
@@ -435,21 +433,41 @@ export function ReportMethod() {
     <section className="py-8">
       <SectionHeading title={L("method_title")} accent={L("method_title_accent")} sub={L("method_sub")} />
       <ol className="relative space-y-3">
-        {steps.map((k, idx) => (
-          <li key={k} className="flex gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-            <span
-              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-black"
-              style={{ backgroundColor: colors.primary }}
-              aria-hidden="true"
+        {steps.map((k, idx) => {
+          const isCore = k === CORE_STEP;
+          return (
+            <li
+              key={k}
+              className={`flex gap-3 rounded-xl border p-4 ${
+                isCore ? "border-[#E1AC3F]/60 bg-[rgba(225,172,63,0.08)]" : "border-slate-700 bg-slate-800/40"
+              }`}
             >
-              {idx + 1}
-            </span>
-            <div className="min-w-0">
-              <p className="text-white font-semibold text-sm mb-1">{L(`${k}_t`)}</p>
-              <p className="text-slate-300 text-xs leading-relaxed">{L(`${k}_d`)}</p>
-            </div>
-          </li>
-        ))}
+              <span
+                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-black"
+                style={{ backgroundColor: colors.primary }}
+                aria-hidden="true"
+              >
+                {idx + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="text-white font-semibold text-sm mb-1 flex items-center gap-2 flex-wrap">
+                  {L(`${k}_t`)}
+                  {isCore && (
+                    <span
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-black"
+                      style={{ backgroundColor: colors.primary }}
+                    >
+                      {L("method_core_badge")}
+                    </span>
+                  )}
+                </p>
+                <p className={`text-xs leading-relaxed ${isCore ? "text-slate-100" : "text-slate-300"}`}>
+                  {L(`${k}_d`)}
+                </p>
+              </div>
+            </li>
+          );
+        })}
       </ol>
       <ul className="mt-4 flex flex-wrap justify-center gap-2">
         {chips.map(({ key, Icon }) => (
@@ -470,7 +488,8 @@ export function ReportMethod() {
 
 export function ReportComparison() {
   const L = useLanding();
-  const rows = ["cmp_r1", "cmp_r2", "cmp_r3", "cmp_r4", "cmp_r5"];
+  // 근거 → 해석(20년 상담·역추적 노하우) → 시기 → 질문 → 분량 → 소장
+  const rows = ["cmp_r1", "cmp_r6", "cmp_r2", "cmp_r3", "cmp_r4", "cmp_r5"];
   return (
     <section className="py-8">
       <SectionHeading title={L("cmp_title")} accent={L("cmp_title_accent")} />
