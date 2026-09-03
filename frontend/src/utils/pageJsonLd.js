@@ -93,12 +93,16 @@ function consultationServiceNode(description) {
   };
 }
 
-/** 자유 질문 1회 = 망원경 1개. 가격은 상품표에서 파생된다 */
+/**
+ * 자유 질문 1회 = 망원경 1개. 가격은 상품표에서 파생된다.
+ * url 은 결제가 이루어지고 가격이 화면에 표시되는 /purchase 를 가리킨다 —
+ * /consultation 은 이용 화면이라 가격을 표시하지 않으므로, 구조화 데이터의 가격도 그 쪽을 가리키게 둔다.
+ * (궁합·연간 오퍼도 같은 규칙: ticketOffer 의 기본 url 이 /purchase)
+ */
 function consultationOfferNode() {
   return ticketOffer("ticket_1", {
     nodeId: CONSULTATION_OFFER_ID,
     name: `자유 질문 상담 1회 (망원경 1개, ${CONSULTATION_PRICE.toLocaleString("ko-KR")}원)`,
-    url: absoluteUrl("/consultation"),
     itemOffered: { "@id": CONSULTATION_SERVICE_ID },
   });
 }
