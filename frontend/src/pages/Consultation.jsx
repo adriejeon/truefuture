@@ -19,6 +19,7 @@ import BottomNavigation from "../components/BottomNavigation";
 import TypewriterLoader from "../components/TypewriterLoader";
 import PrimaryButton from "../components/PrimaryButton";
 import StarModal from "../components/StarModal";
+import ReviewPrompt from "../components/ReviewPrompt";
 import ReactMarkdown from "../components/FortuneMarkdown";
 import { colors } from "../constants/colors";
 import { invokeGetFortuneStream } from "../utils/getFortuneStream";
