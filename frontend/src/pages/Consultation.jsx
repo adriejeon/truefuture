@@ -362,12 +362,18 @@ function Consultation() {
   const inlineMessages = (
     <>
       {notice && (
-        <div className="mt-4 p-3 bg-emerald-900/40 border border-emerald-700 rounded-lg text-emerald-100 text-sm">
+        <div
+          data-testid="consultation-notice"
+          className="mt-4 p-3 bg-emerald-900/40 border border-emerald-700 rounded-lg text-emerald-100 text-sm"
+        >
           {notice}
         </div>
       )}
       {error && (
-        <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
+        <div
+          data-testid="consultation-error"
+          className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm"
+        >
           {error}
         </div>
       )}

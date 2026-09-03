@@ -38,6 +38,10 @@ export default defineConfig({
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+
+    /* 한국어 서비스이므로 테스트도 한국어 UI 로 실행 (셀렉터가 한국어 문구를 쓴다) */
+    locale: 'ko-KR',
+    timezoneId: 'Asia/Seoul',
   },
 
   /* Configure projects for major browsers */

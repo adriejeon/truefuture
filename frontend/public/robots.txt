@@ -2,11 +2,9 @@
 # 정책: 검색 노출과 AI 답변 인용은 허용, 모델 학습용 수집은 비허용.
 # 같은 user-agent 에 Allow 와 Disallow 를 중복 선언하지 않는다.
 #
-# 주의: Cloudflare 의 Managed robots.txt 가 켜져 있으면 이 파일 앞에 관리형 규칙이 덧붙는다.
-#       아래 학습용 크롤러 차단 목록은 관리형 규칙과 같은 판단으로 맞춰 두었다(충돌 없음).
-#       단 Google-Extended 는 관리형이 Disallow, 여기서는 Allow 이므로 규칙이 엇갈린다.
-#       AI Overviews·Gemini 인용을 받으려면 Cloudflare 대시보드에서 Managed robots.txt 를 끄거나
-#       학습 차단 설정을 해제해야 한다 (Cloudflare > 도메인 > AI Crawl Control).
+# 2026-09-03: Cloudflare 의 Managed robots.txt 를 껐다. 이제 이 파일이 그대로 서빙된다.
+#       (켜면 관리형 규칙이 앞에 덧붙어 Google-Extended 가 Disallow 로 뒤집히고,
+#        AI Overviews·Gemini 인용이 막힌다. Cloudflare > 도메인 > AI Crawl Control 에서 확인)
 
 User-agent: *
 Content-Signal: search=yes, ai-input=yes, ai-train=no, use=reference
