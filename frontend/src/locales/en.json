@@ -70,7 +70,7 @@
     "price_cta": "Unlock your True Future and rewrite tomorrow.",
     "buyer_title": "Reviews from",
     "buyer_title_accent": "real users",
-    "buyer_subtitle": "Consultation logic refined on Korea's largest reading platforms is built into the system.\nBelow are reviews from real users, published after moderation.",
+    "buyer_subtitle": "Reviews written by real users.",
     "jp_quote": "\"Millionaires don't use astrology,\nbillionaires do.\"",
     "jp_name": "J.P. Morgan",
     "jp_text1": "J.P. Morgan, the father of American finance,",
@@ -843,8 +843,6 @@
     "rating_5": "Excellent",
     "content_label": "Review",
     "content_placeholder": "What did you like? What turned out to be accurate? ({{min}} characters or more)",
-    "nickname_label": "Display name",
-    "nickname_hint": "Shown next to your review. Please don't include your real name or contact details.",
     "anonymous": "Anonymous",
     "submit": "Submit review",
     "submitting": "Submitting...",
@@ -866,7 +864,6 @@
     "service_report": "Premium Report",
     "badge_verified_user": "Verified user",
     "badge_verified_buyer": "Verified purchase",
-    "badge_imported": "Returning customer",
     "summary": "{{count}} reviews · {{avg}} average",
     "admin": {
       "title": "Review Moderation",
@@ -898,10 +895,14 @@
       "refresh": "Refresh",
       "forbidden": "This page is for administrators only.",
       "action_delete": "Delete permanently",
-      "delete_confirm": "Permanently delete this review? This cannot be undone."
+      "delete_confirm": "Permanently delete this review? This cannot be undone.",
+      "usage_count": "{{count}} uses so far"
     },
     "carousel_aria": "User reviews",
     "carousel_prev": "Previous review",
-    "carousel_next": "Next review"
+    "carousel_next": "Next review",
+    "display_hint": "Your display name is anonymized from the profile you used, e.g. 'K** (34)'. Please don't include your real name or contact details.",
+    "badge_repeat": "Returning customer",
+    "badge_service_used": "{{service}}"
   }
 }

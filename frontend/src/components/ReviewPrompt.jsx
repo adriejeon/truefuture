@@ -31,21 +31,6 @@ function writeDismissed(key) {
   }
 }
 
-/** 소셜 로그인 이름/이메일에서 '달리***' 형태의 기본 표시 이름 생성 */
-function defaultNickname(user) {
-  const meta = user?.user_metadata || {};
-  const raw =
-    (typeof meta.full_name === "string" && meta.full_name.trim()) ||
-    (typeof meta.name === "string" && meta.name.trim()) ||
-    (typeof meta.nickname === "string" && meta.nickname.trim()) ||
-    (typeof user?.email === "string" && user.email.split("@")[0]) ||
-    "";
-  const cleaned = raw.replace(/\s+/g, "");
-  if (!cleaned) return "";
-  const head = Array.from(cleaned).slice(0, 2).join("");
-  return `${head}***`;
-}
-
 /**
  * 결과 화면 하단에 붙는 후기 작성 카드.
  * - 결과를 다 본 로그인 사용자에게만 노출 ("결과는 어떠셨나요?")
@@ -68,7 +53,6 @@ export default function ReviewPrompt({ service, resultId = null, reportId = null
   const [dismissed, setDismissed] = useState(false);
   const [rating, setRating] = useState(0);
   const [content, setContent] = useState("");
-  const [nickname, setNickname] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -102,11 +86,6 @@ export default function ReviewPrompt({ service, resultId = null, reportId = null
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRender, service, targetId, user?.id]);
-
-  // 로그인 계정이 바뀔 때만 기본 표시 이름을 채움 (사용자가 지운 값을 되살리지 않도록)
-  useEffect(() => {
-    setNickname(user ? defaultNickname(user) : "");
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trimmedLen = useMemo(() => content.trim().length, [content]);
   const contentTooShort = trimmedLen < REVIEW_CONTENT_MIN;
@@ -160,7 +139,6 @@ export default function ReviewPrompt({ service, resultId = null, reportId = null
       setError(t("reviews.error_content_short", { min: REVIEW_CONTENT_MIN }));
       return;
     }
-    const name = nickname.trim() || defaultNickname(user) || t("reviews.anonymous");
     setSubmitting(true);
     try {
       await submitReview({
@@ -168,7 +146,8 @@ export default function ReviewPrompt({ service, resultId = null, reportId = null
         service,
         rating,
         content,
-        displayName: name.slice(0, REVIEW_NICKNAME_MAX),
+        // 서버가 결과를 본 프로필로 "김** (만 34세)" 형태를 생성. 프로필을 못 찾을 때만 이 값이 남는다
+        displayName: t("reviews.anonymous").slice(0, REVIEW_NICKNAME_MAX),
         resultId,
         reportId,
         language: i18n.language,
@@ -250,21 +229,7 @@ export default function ReviewPrompt({ service, resultId = null, reportId = null
             </div>
           </div>
 
-          <div>
-            <label htmlFor="review-nickname" className="block text-sm font-medium text-slate-300 mb-2">
-              {t("reviews.nickname_label")}
-            </label>
-            <input
-              id="review-nickname"
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value.slice(0, REVIEW_NICKNAME_MAX))}
-              maxLength={REVIEW_NICKNAME_MAX}
-              autoComplete="off"
-              className="w-full px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-lg text-white text-[15px] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
-            <p className="mt-1.5 text-xs text-slate-400">{t("reviews.nickname_hint")}</p>
-          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">{t("reviews.display_hint")}</p>
 
           {error && (
             <p className="text-sm text-red-300 bg-red-900/30 border border-red-700/60 rounded-lg px-3 py-2" role="alert">

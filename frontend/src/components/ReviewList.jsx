@@ -3,12 +3,18 @@ import { useTranslation } from "react-i18next";
 import StarRating from "./StarRating";
 import { PAID_PRODUCT_SERVICES, reviewServiceLabelKey } from "../constants/reviewServices";
 
-/** 후기 카드 하단 라벨: 이용/구매 인증 · 재구매 고객(이관) · 서비스명 */
+/**
+ * 후기 카드 하단 칩: 재구매 고객 · 이용/구매 인증 · 이용 서비스
+ *  - is_repeat  : 작성 시점 누적 이용 2회 이상 (이관 후기는 true)
+ *  - is_verified: 본인 이용/구매 기록과 대조됨 (이관 후기는 표시하지 않음)
+ *  - service    : 어떤 서비스를 이용한 고객의 후기인지
+ */
 export function reviewBadges(review, t) {
   const badges = [];
-  if (review.source === "imported") {
-    badges.push({ key: "imported", text: t("reviews.badge_imported") });
-  } else if (review.is_verified) {
+  if (review.is_repeat) {
+    badges.push({ key: "repeat", text: t("reviews.badge_repeat") });
+  }
+  if (review.is_verified && review.source !== "imported") {
     badges.push({
       key: "verified",
       text: PAID_PRODUCT_SERVICES.includes(review.service)
@@ -17,7 +23,7 @@ export function reviewBadges(review, t) {
     });
   }
   const labelKey = reviewServiceLabelKey(review.service);
-  if (labelKey) badges.push({ key: "service", text: t(labelKey), muted: true });
+  if (labelKey) badges.push({ key: "service", text: t("reviews.badge_service_used", { service: t(labelKey) }), muted: true });
   return badges;
 }
 

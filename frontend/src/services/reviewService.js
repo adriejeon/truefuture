@@ -8,10 +8,10 @@ import { supabase } from "../lib/supabaseClient";
  */
 
 const PUBLIC_FIELDS =
-  "id,service,rating,content,display_name,is_verified,source,language,published_at,created_at";
+  "id,service,rating,content,display_name,is_verified,is_repeat,source,language,published_at,created_at";
 
 const ADMIN_FIELDS =
-  "id,user_id,service,rating,content,display_name,result_id,report_id,is_verified,source,language,status,admin_note,reviewed_at,published_at,created_at";
+  "id,user_id,profile_id,service,rating,content,display_name,result_id,report_id,is_verified,is_repeat,usage_count,source,language,status,admin_note,reviewed_at,published_at,created_at";
 
 function requireSupabase() {
   if (!supabase) {
@@ -75,6 +75,8 @@ export async function fetchMyReviewForTarget({ resultId = null, reportId = null 
 
 /**
  * 후기 등록. status 는 서버 트리거가 항상 pending 으로 강제한다.
+ * display_name 은 서버가 결과를 본 프로필로부터 '김** (만 34세)' 형태로 생성하며,
+ * 여기서 보내는 값은 프로필을 찾지 못했을 때의 폴백(익명)이다.
  * @returns {{id: string, status: string}}
  */
 export async function submitReview({

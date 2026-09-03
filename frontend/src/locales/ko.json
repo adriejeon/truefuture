@@ -70,7 +70,7 @@
     "price_cta": "진짜 미래를 확인하고 내일을 바꾸세요.",
     "buyer_title": "실제 이용자가 남긴",
     "buyer_title_accent": "실사용 후기",
-    "buyer_subtitle": "국내 대형 상담 플랫폼 경험을 바탕으로 한 상담 로직을 시스템에 반영했습니다.\n아래는 검수를 거쳐 게시된 실제 이용자 후기입니다.",
+    "buyer_subtitle": "실제 사용자가 남긴 후기입니다.",
     "jp_quote": "\"백만장자는 점성술을 안 믿지만,\n억만장자는 믿는다.\"",
     "jp_name": "JP 모건",
     "jp_text1": "미국 금융의 아버지 JP 모건,",
@@ -843,8 +843,6 @@
     "rating_5": "최고예요",
     "content_label": "후기",
     "content_placeholder": "어떤 점이 좋았는지, 어떤 내용이 맞았는지 자유롭게 적어주세요. ({{min}}자 이상)",
-    "nickname_label": "표시 이름",
-    "nickname_hint": "후기와 함께 이렇게 표시됩니다. 실명·연락처는 넣지 마세요.",
     "anonymous": "익명",
     "submit": "후기 남기기",
     "submitting": "등록 중...",
@@ -866,7 +864,6 @@
     "service_report": "상세 리포트",
     "badge_verified_user": "이용 인증",
     "badge_verified_buyer": "구매 인증",
-    "badge_imported": "재구매 고객",
     "summary": "후기 {{count}}개 · 평균 {{avg}}점",
     "admin": {
       "title": "리뷰 관리",
@@ -898,10 +895,14 @@
       "refresh": "새로고침",
       "forbidden": "관리자만 접근할 수 있는 페이지입니다.",
       "action_delete": "영구 삭제",
-      "delete_confirm": "이 후기를 영구 삭제할까요? 되돌릴 수 없습니다."
+      "delete_confirm": "이 후기를 영구 삭제할까요? 되돌릴 수 없습니다.",
+      "usage_count": "누적 이용 {{count}}회"
     },
     "carousel_aria": "이용자 후기",
     "carousel_prev": "이전 후기",
-    "carousel_next": "다음 후기"
+    "carousel_next": "다음 후기",
+    "display_hint": "표시 이름은 운세를 본 프로필 기준으로 '김** (만 34세)' 형태로 익명 처리되며, 본문에 실명·연락처는 넣지 마세요.",
+    "badge_repeat": "재구매 고객",
+    "badge_service_used": "{{service}} 이용"
   }
 }

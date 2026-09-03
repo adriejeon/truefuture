@@ -71,6 +71,16 @@ function ReviewAdminCard({ review, onChangeStatus, onDelete, busy }) {
             {t("reviews.admin.unverified")}
           </span>
         )}
+        {review.is_repeat && (
+          <span className="inline-flex items-center rounded-full border border-slate-600 px-2 py-0.5 text-slate-200">
+            {t("reviews.badge_repeat")}
+          </span>
+        )}
+        {review.source !== "imported" && (
+          <span className="inline-flex items-center rounded-full border border-slate-700 px-2 py-0.5 text-slate-400">
+            {t("reviews.admin.usage_count", { count: review.usage_count ?? 0 })}
+          </span>
+        )}
         <span className="inline-flex items-center rounded-full border border-slate-700 px-2 py-0.5 text-slate-400 uppercase">
           {review.language}
         </span>
@@ -93,6 +103,8 @@ function ReviewAdminCard({ review, onChangeStatus, onDelete, busy }) {
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px] text-slate-500 font-mono break-all">
         <dt>{t("reviews.admin.user_label")}</dt>
         <dd>{review.user_id || "—"}</dd>
+        <dt>profile</dt>
+        <dd>{review.profile_id || "—"}</dd>
         <dt>result</dt>
         <dd>{review.result_id || "—"}</dd>
         <dt>report</dt>
