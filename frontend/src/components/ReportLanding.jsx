@@ -618,29 +618,29 @@ export function ReportPricing({ price, onBuy }) {
   );
 }
 
-// ===== 9. 후기 (리뷰 시스템 연동: 리포트 구매 후기 우선, 없으면 전체 게시 후기로 폴백) =====
+// ===== 9. 후기 (리뷰 시스템 연동: 리포트(service="report") 구매 후기만) =====
 
 export function ReportTestimonials() {
   const L = useLanding();
   const { i18n } = useTranslation();
-  // 리포트(service="report") 후기만 우선 노출 — 구매 인증 배지는 ReviewList 가 붙인다
-  const reportRv = usePublishedReviews({ service: "report", language: i18n.language, limit: 4 });
-  // 리포트 후기가 아직 없을 때: 검수를 거쳐 게시된 전체 후기(이관 1:1 상담 후기 포함)로 폴백
-  const allRv = usePublishedReviews({ service: null, language: i18n.language, limit: 3 });
+  // 리포트 페이지에는 리포트 구매자 후기만 노출한다. 게시된 리포트 후기가 없으면 섹션을 숨긴다.
+  // (다른 서비스·이관 후기로 대체하지 않음 — 구매 인증 배지는 ReviewList 가 붙인다)
+  const { reviews, summary, loading } = usePublishedReviews({
+    service: "report",
+    language: i18n.language,
+    limit: 4,
+  });
 
-  if (reportRv.loading && allRv.loading) return null;
-  const hasReportReviews = reportRv.reviews.length > 0;
-  const list = hasReportReviews ? reportRv.reviews : allRv.reviews;
-  if (!list.length) return null;
+  if (loading || reviews.length === 0) return null;
 
   return (
     <section className="py-8">
       <SectionHeading
-        title={L(hasReportReviews ? "review_title_report" : "review_title")}
-        accent={L(hasReportReviews ? "review_title_report_accent" : "review_title_accent")}
-        sub={L(hasReportReviews ? "review_sub_report" : "review_sub")}
+        title={L("review_title_report")}
+        accent={L("review_title_report_accent")}
+        sub={L("review_sub_report")}
       />
-      <ReviewList reviews={list} summary={hasReportReviews ? reportRv.summary : null} />
+      <ReviewList reviews={reviews} summary={summary} />
     </section>
   );
 }
