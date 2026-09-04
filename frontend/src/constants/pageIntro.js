@@ -29,10 +29,10 @@ const won = (n) => `${Number(n).toLocaleString("ko-KR")}원`;
 const usdish = (n) => `₩${Number(n).toLocaleString("en-US")}`;
 const eta = `${REPORT_ETA_MINUTES.min}~${REPORT_ETA_MINUTES.max}`;
 
-/** 아코디언 헤딩·항목 제목 */
+/** 아코디언 토글 문구(summary)·항목 제목 */
 export const PAGE_INTRO_LABELS = Object.freeze({
   ko: {
-    heading: "이 페이지 안내",
+    toggle: "페이지 설명 보기",
     purpose: "페이지 목적",
     provides: "제공 내용",
     inputs: "입력 정보",
@@ -40,7 +40,7 @@ export const PAGE_INTRO_LABELS = Object.freeze({
     pricing: "가격·제공 기간",
   },
   en: {
-    heading: "About this page",
+    toggle: "View page details",
     purpose: "Purpose",
     provides: "What you get",
     inputs: "What you enter",
@@ -281,7 +281,7 @@ export const PAGE_INTRO_KEYS = Object.freeze(Object.keys(CONTENT));
  * @param {keyof typeof CONTENT} pageKey
  * @param {"ko"|"en"} lang
  * @param {{ description?: string }} [opts]  description: 그 페이지의 meta description (purpose 본문으로 그대로 사용)
- * @returns {{ heading: string, items: { key: string, title: string, body: string | string[] }[] }}
+ * @returns {{ toggle: string, items: { key: string, title: string, body: string | string[] }[] }}
  */
 export function getPageIntro(pageKey, lang = "ko", { description = null } = {}) {
   const page = CONTENT[pageKey];
@@ -296,5 +296,5 @@ export function getPageIntro(pageKey, lang = "ko", { description = null } = {}) 
     { key: "output", title: labels.output, body: c.output },
     { key: "pricing", title: labels.pricing, body: c.pricing },
   ];
-  return { heading: labels.heading, items };
+  return { toggle: labels.toggle, items };
 }

@@ -2,8 +2,10 @@ import { ChevronDown } from "lucide-react";
 import { getPageIntro } from "../constants/pageIntro.js";
 
 /**
- * 공개 서비스 페이지 하단 '이 페이지 안내' 아코디언.
+ * 공개 서비스 페이지 하단 '페이지 설명 보기' 아코디언.
  *
+ * · 아코디언은 하나다. 접었을 때는 토글 한 줄만 보이고, 펼치면 목적·제공 내용·입력 정보·
+ *   결과물·가격이 한 번에 나온다.
  * · 내용은 constants/pageIntro.js 가 단일 소스. 빌드 시 프리렌더(src/prerender/entry.jsx)가
  *   이 컴포넌트를 react-dom/server 로 그대로 렌더해 최초 HTML 에 넣으므로,
  *   hydration 후 DOM 과 텍스트·구조가 같다.
@@ -16,40 +18,40 @@ import { getPageIntro } from "../constants/pageIntro.js";
  *   description: 그 페이지의 meta description — '페이지 목적' 본문으로 그대로 쓰여 본문·meta·JSON-LD 가 일치한다
  */
 function PageIntro({ pageKey, lang = "ko", description = null, className = "" }) {
-  const { heading, items } = getPageIntro(pageKey, lang, { description });
+  const { toggle, items } = getPageIntro(pageKey, lang, { description });
   const headingId = `page-intro-${pageKey}`;
 
   return (
     <section aria-labelledby={headingId} className={`w-full py-8 ${className}`} data-page-intro={pageKey}>
-      <h2 id={headingId} className="text-sm font-semibold text-slate-300 mb-3 text-left">
-        {heading}
-      </h2>
-      <div className="space-y-2">
-        {items.map((item) => (
-          <details
-            key={item.key}
-            className="group rounded-xl border border-slate-700 bg-slate-800/30 open:bg-slate-800/50"
-          >
-            <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none text-sm text-white [&::-webkit-details-marker]:hidden">
-              <span>{item.title}</span>
-              <ChevronDown
-                className="w-4 h-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </summary>
-            {Array.isArray(item.body) ? (
-              <ul className="px-4 pb-4 pl-8 text-xs text-slate-300 leading-relaxed list-disc space-y-1 text-left">
-                {item.body.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="px-4 pb-4 text-xs text-slate-300 leading-relaxed text-left">{item.body}</p>
-            )}
-          </details>
-        ))}
-      </div>
+      <details className="group rounded-xl border border-slate-700 bg-slate-800/30 open:bg-slate-800/50">
+        <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <h2 id={headingId} className="text-sm font-semibold text-white m-0">
+            {toggle}
+          </h2>
+          <ChevronDown
+            className="w-4 h-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+        </summary>
+
+        <div className="px-4 pb-4 pt-1 border-t border-slate-700 space-y-4">
+          {items.map((item) => (
+            <div key={item.key}>
+              <h3 className="text-xs font-semibold text-slate-200 mt-3 mb-1.5 text-left">{item.title}</h3>
+              {Array.isArray(item.body) ? (
+                <ul className="pl-4 text-xs text-slate-300 leading-relaxed list-disc space-y-1 text-left">
+                  {item.body.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-slate-300 leading-relaxed text-left">{item.body}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </details>
     </section>
   );
 }
