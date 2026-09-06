@@ -112,19 +112,29 @@ function consultationOfferNode() {
 
 /**
  * 메인 `/`.
- * 대표 서비스(#service)에 메인 화면에 표시되는 공개 후기 평점을 연결한다.
+ * 서비스 전체를 대표하는 엄브렐라 개체(#service)에 메인 화면에 표시되는 공개 후기 평점을 연결한다.
  * 후기 섹션이 보이지 않을 때(후기 0건)는 평점을 붙이지 않는다.
+ *
+ * @type 은 Service 가 아니라 Product 로 둔다.
+ *   · 구글 리뷰 스니펫은 aggregateRating/review 가 붙는 개체 유형을 REVIEWABLE_TYPES(reviewJsonLd.js) 17종으로
+ *     제한하며 Service 는 그 목록에 없다. Service 에 평점을 달았을 때 서치 콘솔이
+ *     "입력란의 개체 유형이 잘못되었습니다" 로 리치 결과에서 제외했다(2026-09-07 통지).
+ *   · Organization 은 운영자가 후기를 직접 수집·검수하는 구조라 self-serving 정책상 별점 부적격.
+ *   · schema.org 의 Product 정의는 "Any offered product or service" 로 서비스를 포함한다.
+ *   Product 에는 serviceType/provider/areaServed 속성이 없으므로 category/brand 로 옮기고,
+ *   운영 주체와의 연결은 Offer.seller(→ #organization) 가 담당한다.
  */
 export function buildHomeGraph({ reviews = [], summary = null, consultationDescription = "" } = {}) {
   const service = withReviewsJsonLd(
     {
-      "@type": "Service",
+      "@type": "Product",
       "@id": SITE_SERVICE_ID,
       name: "진짜미래 AI 점성술 상담",
-      serviceType: "고전 점성술 출생 차트 분석 및 1:1 질문 상담",
+      url: absoluteUrl("/"),
+      image: [DEFAULT_OG_IMAGE],
       description: SITE_DESCRIPTION,
-      provider: organizationRef(),
-      areaServed: KR,
+      category: "고전 점성술 출생 차트 분석 및 1:1 질문 상담",
+      brand: { "@type": "Brand", name: BRAND_NAME },
       offers: [{ "@id": CONSULTATION_OFFER_ID }],
     },
     { reviews, summary, max: HOME_REVIEW_PAGE_SIZE }

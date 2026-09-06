@@ -59,7 +59,7 @@ function Home() {
   const [userDismissedNoProfileModal, setUserDismissedNoProfileModal] =
     useState(getProfileModalDismissed);
 
-  // 구조화 데이터: 화면의 후기 섹션과 같은 후기·요약으로 대표 서비스(#service)에 평점·리뷰를 얹는다.
+  // 구조화 데이터: 화면의 후기 섹션과 같은 후기·요약으로 대표 개체(#service, @type Product)에 평점·리뷰를 얹는다.
   // 후기 섹션이 보이지 않는 상태(후기 0건, 운세 결과 표시 중)에서는 넣지 않는다 — 마크업과 화면 불일치 방지.
   const seoT = i18n.getFixedT(getSeoLanguage());
   const uiLang = i18n.language?.startsWith("en") ? "en" : "ko";

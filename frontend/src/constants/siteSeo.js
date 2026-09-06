@@ -52,7 +52,10 @@ export const SITE_DISAMBIGUATION =
 
 export const ORGANIZATION_ID = `${SITE_ORIGIN}/#organization`;
 export const WEBSITE_ID = `${SITE_ORIGIN}/#website`;
-/** 메인이 대표하는 서비스 전체(엄브렐라). 리포트 상품(#product)과 같은 개체로 취급하지 않는다 */
+/**
+ * 메인이 대표하는 서비스 전체(엄브렐라). 리포트 상품(#product)과 같은 개체로 취급하지 않는다.
+ * @type 은 Product — 구글 리뷰 스니펫이 평점을 인정하는 유형이어야 해서 Service 를 쓰지 않는다(pageJsonLd.buildHomeGraph 참고).
+ */
 export const SITE_SERVICE_ID = `${SITE_ORIGIN}/#service`;
 
 export const organizationRef = () => ({ "@id": ORGANIZATION_ID });
