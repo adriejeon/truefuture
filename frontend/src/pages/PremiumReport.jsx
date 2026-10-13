@@ -41,6 +41,7 @@ import { REPORT_PRICE } from "../constants/pricing";
 import { REPORT_FAQ_KEYS } from "../constants/faqItems";
 import { buildReportGraph, REPORT_REVIEW_PAGE_SIZE } from "../utils/pageJsonLd";
 import { withLlmTestProvider } from "../utils/llmTestProvider";
+import { encodeTextForCustomData } from "../utils/paymentCustomData";
 
 const QUESTION_MAX = 300;
 const CHECKOUT_STORAGE_KEY = "premium_report_checkout";
@@ -743,12 +744,13 @@ function PremiumReport() {
           phoneNumber: "010-0000-0000",
           email: prepareBuyerEmail(user),
         },
-        // 서버가 sessionStorage 없이도 결제 맥락(프로필·질문)을 복원할 수 있게 결제에 실어 보낸다
+        // 서버가 sessionStorage 없이도 결제 맥락(프로필·질문)을 복원할 수 있게 결제에 실어 보낸다.
+        // 질문은 한글이 섞이므로 base64url 로 인코딩 (이니시스 merchantData 는 한글 불가 — V023)
         customData: {
           k: "report",
           u: user.id,
           p: selectedProfile.id,
-          q: question.trim().slice(0, 500),
+          qe: encodeTextForCustomData(question.trim().slice(0, QUESTION_MAX)),
         },
         redirectUrl,
       });

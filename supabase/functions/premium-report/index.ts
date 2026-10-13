@@ -54,6 +54,7 @@ import {
   sanitizeErrorMessage,
 } from "../_shared/llm.ts";
 import type { LlmRouting, LlmRun, LlmErrorKind } from "../_shared/llm.ts";
+import { decodeCustomQuestion } from "../_shared/customData.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -733,7 +734,8 @@ async function handlePurchase(
 
   // 결제 시 심어둔 customData 로 누락된 신청 정보 복원
   // (모바일 리다이렉트 복귀 등으로 클라이언트 상태가 날아간 경우 대비)
-  //   customData = '{"k":"report","u":"<user_id>","p":"<profile_id>","q":"<question>"}'
+  //   customData = '{"k":"report","u":"<user_id>","p":"<profile_id>","qe":"<base64url 질문>"}'
+  //   (구버전 결제는 평문 "q" — decodeCustomQuestion 이 둘 다 처리)
   try {
     const raw = payment?.customData;
     if ((typeof raw === "string" && raw.trim()) || (raw && typeof raw === "object")) {
@@ -752,9 +754,12 @@ async function handlePurchase(
         profileId = custom.p.trim();
         console.log("ℹ️ customData 에서 profile_id 복원");
       }
-      if (!question && typeof custom?.q === "string" && custom.q.trim()) {
-        question = sanitizeQuestion(custom.q);
-        console.log("ℹ️ customData 에서 question 복원");
+      if (!question) {
+        const restored = decodeCustomQuestion(custom);
+        if (restored) {
+          question = sanitizeQuestion(restored);
+          console.log("ℹ️ customData 에서 question 복원");
+        }
       }
     }
   } catch (customErr) {
