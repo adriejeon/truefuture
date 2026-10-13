@@ -29,3 +29,7 @@ __pycache__/
 frontend/dist/
 dist-ssr/
 dist/
+
+# LLM 비교 테스트 (결과 원문·테스트 케이스에는 출생 정보가 들어 있음)
+scripts/llm-compare/out/
+scripts/llm-compare/cases.json

@@ -95,6 +95,34 @@ import {
   normalizeVertexRequest,
   logVertexRequestShape,
 } from "../_shared/vertex.ts";
+// LLM 공급자 라우팅 (OpenAI 비교 테스트 · Gemini 폴백 · 사용량 기록)
+import {
+  OPENAI_MODEL,
+  OPENAI_TIER_CONFIG,
+  GEMINI_LIGHT_FALLBACK_MODEL,
+  GEMINI_DEEP_FALLBACK_MODEL,
+  LlmError,
+  LlmRun,
+  LlmSession,
+  resolveLlmRouting,
+  groundingGuard,
+  appendToGeminiSystem,
+  geminiBodyToOpenAI,
+  hashGeminiBody,
+  sha256Hex,
+  usageFromGemini,
+  streamOpenAIText,
+  callOpenAIText,
+  streamWithFallback,
+  textWithFallback,
+  sanitizeErrorMessage,
+} from "../_shared/llm.ts";
+import type {
+  AttemptHandle,
+  LlmTier,
+  StreamStep,
+  TextStep,
+} from "../_shared/llm.ts";
 
 // ========== CORS 헤더 설정 ==========
 const corsHeaders = {
@@ -689,6 +717,11 @@ async function* callGeminiAPIStream(
   fallbackModel: string,
   _apiKey: string,
   requestBody: any,
+  /** 사용량 기록용 훅 (LLM 라우팅 경로에서만 사용) */
+  hooks?: {
+    onSwitch?: (toModel: string) => void;
+    onChunkMeta?: (usageMetadata: unknown, finishReason: string | undefined) => void;
+  },
 ): AsyncGenerator<string, void, unknown> {
   const accessToken = await getVertexAccessToken();
   const authHeaders = {
@@ -732,10 +765,13 @@ async function* callGeminiAPIStream(
       throw e;
     }
 
-    if (!usedFallback && response.status === 503 && is503OrOverloaded(new Error("503"))) {
+    // 라우팅 경로(hooks)에서 같은 모델로의 "전환"은 하지 않는다 (재시도·폴백 횟수 제한). 운영 경로는 기존 그대로
+    const skipSameModelSwitch = !!hooks && fallbackModel === primaryModel;
+    if (!usedFallback && !skipSameModelSwitch && response.status === 503 && is503OrOverloaded(new Error("503"))) {
       console.warn("⚠️ Gemini 스트림 503 → 폴백 모델로 재시도");
       await discardBody(response);
       usedFallback = true;
+      hooks?.onSwitch?.(fallbackModel);
       endpoint = buildVertexUrl(fallbackModel, "streamGenerateContent");
       logVertexRequestShape(normalizedBody, {
         model: fallbackModel,
@@ -798,15 +834,20 @@ async function* callGeminiAPIStream(
         if (!trimmed || !trimmed.startsWith("data:")) continue;
         const jsonStr = trimmed.slice(5).trim();
         if (jsonStr === "[DONE]" || jsonStr === "") continue;
+        let data: any;
         try {
-          const data = JSON.parse(jsonStr);
-          const text =
-            data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-          if (typeof text === "string" && text) {
-            yield text;
-          }
+          data = JSON.parse(jsonStr);
         } catch (_) {
           // JSON 파싱 실패 시 해당 라인 스킵
+          continue;
+        }
+        if (hooks?.onChunkMeta && (data?.usageMetadata || data?.candidates?.[0]?.finishReason)) {
+          hooks.onChunkMeta(data?.usageMetadata, data?.candidates?.[0]?.finishReason);
+        }
+        const text =
+          data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        if (typeof text === "string" && text) {
+          yield text;
         }
       }
     }
@@ -815,12 +856,18 @@ async function* callGeminiAPIStream(
       if (trimmed.startsWith("data:")) {
         const jsonStr = trimmed.slice(5).trim();
         if (jsonStr && jsonStr !== "[DONE]") {
+          let data: any = null;
           try {
-            const data = JSON.parse(jsonStr);
+            data = JSON.parse(jsonStr);
+          } catch (_) {}
+          if (data) {
+            if (hooks?.onChunkMeta && (data?.usageMetadata || data?.candidates?.[0]?.finishReason)) {
+              hooks.onChunkMeta(data?.usageMetadata, data?.candidates?.[0]?.finishReason);
+            }
             const text =
               data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
             if (typeof text === "string" && text) yield text;
-          } catch (_) {}
+          }
         }
       }
     }
@@ -870,6 +917,10 @@ function createFortuneSSEStream(
     userQuestion?: string | null;
     /** fortune_history.result_id 로 쓸 대화 루트 ID (상담 후속 질문은 부모 결과 ID 로 묶어 드로어에서 한 대화로 보이게) */
     historyResultId?: string | null;
+    /** 스트림 종료 시 1회 호출 (LLM 사용량 기록 등). 실패해도 스트림에는 영향 없음 */
+    onSettled?: (shareId: string | null, outcome: "saved" | "failed" | "cancelled") => Promise<void>;
+    /** done 이벤트에 덧붙일 필드 (테스트 사용자용 LLM 메타) */
+    doneExtra?: () => Record<string, unknown> | null;
   },
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -959,6 +1010,10 @@ function createFortuneSSEStream(
         stopHeartbeat();
 
         if (cancelledRef.current) {
+          // 생성기가 실제로 멈춘 뒤에 기록해야 시도별 사용량·상태가 정확하다
+          if (options?.onSettled) {
+            runInBackground(options.onSettled(null, "cancelled"), "LLM 기록(cancelled)");
+          }
           return;
         }
 
@@ -1025,16 +1080,23 @@ function createFortuneSSEStream(
         completed = true;
 
         const shareId = resultData?.id ?? null;
+        if (options?.onSettled) {
+          runInBackground(options.onSettled(shareId, "saved"), "LLM 기록(saved)");
+        }
         safeEnqueue("data: [DONE]\n\n");
         safeEnqueue(
           `data: ${JSON.stringify({
             done: true,
             share_id: shareId,
+            ...(options?.doneExtra?.() ?? {}),
           })}\n\n`,
         );
       } catch (e: any) {
         // 원문 에러(Vertex 400 등)는 서버 로그에만 남기고, 프론트에는 친화 메시지만 전달
         console.error("❌ [스트림] 에러:", e?.message);
+        if (options?.onSettled) {
+          runInBackground(options.onSettled(null, "failed"), "LLM 기록(failed)");
+        }
         // 스트림이 정상 완료되지 못했으므로 차감분 자동 환불
         // (결과 저장 실패도 여기로 오며, 이 경우는 환불이 맞다)
         await refundConsumed("운세 생성 실패(스트림 처리 오류)로 인한 자동 환불");
@@ -1138,6 +1200,266 @@ function logGeminiPromptDebug(
   );
 }
 
+// ========== LLM 공급자 라우팅 (테스트 모드 · OpenAI 운영 전환 시에만 사용) ==========
+// 운영 기본값(Gemini, 비테스트)은 위의 기존 Gemini 경로를 그대로 탄다.
+
+/** 기능별 OpenAI 출력 상한 (추론 토큰 + 본문). 기존 Gemini 본문 상한 + 추론 여유분 */
+const OPENAI_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  daily: 20000, // 본문 9k + low 추론
+  compatibility: 24000, // 본문 15k + low 추론
+  consultation_followup: 16000, // 본문 8k + low 추론
+  consultation_first: 40000, // 본문 10k + medium 추론
+  lifetime: 40000, // 파트당 본문 10k + medium 추론
+};
+
+/** OpenAI 타임아웃 (엣지 워커 실행 한도 안에서 Gemini 폴백까지 끝낼 수 있게 잡는다) */
+const OPENAI_STREAM_TIMEOUTS: Record<LlmTier, { firstTokenMs: number; totalMs: number }> = {
+  light: { firstTokenMs: 90_000, totalMs: 240_000 },
+  deep: { firstTokenMs: 150_000, totalMs: 300_000 },
+};
+const OPENAI_LIFETIME_PART_TIMEOUT_MS = 150_000;
+/**
+ * 종합운: 이 시간이 지난 뒤 실패한 파트는 Gemini 폴백을 시도하지 않는다.
+ * OpenAI(최대 150초) + Gemini Pro 폴백이 엣지 워커 실행 한도 안에서 끝나도록 잡은 값.
+ */
+const LIFETIME_FALLBACK_DEADLINE_MS = 160_000;
+
+/** Gemini 안전 차단 사유 — 폴백으로 우회하지 않는다 */
+const GEMINI_BLOCK_FINISH_REASONS = new Set([
+  "SAFETY",
+  "RECITATION",
+  "PROHIBITED_CONTENT",
+  "BLOCKLIST",
+  "SPII",
+]);
+
+function isRoutedSession(llm: LlmSession | null | undefined): llm is LlmSession {
+  return !!llm && (llm.routing.isTest || llm.routing.variant !== "gemini");
+}
+
+function toLlmErr(e: unknown): LlmError {
+  if (e instanceof LlmError) return e;
+  const msg = (e as Error)?.message ?? String(e);
+  return new LlmError("api", sanitizeErrorMessage(msg), {
+    status: /\b503\b/.test(msg) ? 503 : /\b429\b/.test(msg) ? 429 : undefined,
+  });
+}
+
+/**
+ * Gemini 스트림 단계. 내부 503 → overloadFallbackModel 전환이 일어나면
+ * 기존 시도를 실패로 닫고 새 시도를 열어 실제 모델이 정확히 기록되게 한다.
+ */
+function geminiStreamStep(
+  run: LlmRun,
+  model: string,
+  overloadFallbackModel: string,
+  body: any,
+): StreamStep {
+  return {
+    provider: "gemini",
+    model,
+    open: async function* (attempt: AttemptHandle) {
+      let current = attempt;
+      let lastFinish: string | undefined;
+      let emitted = false;
+      const gen = callGeminiAPIStream(model, overloadFallbackModel, "", body, {
+        onSwitch: (to) => {
+          current.fail(new LlmError("api", "Gemini 503 overloaded", { status: 503 }));
+          run.fallbackReason ??= "api";
+          current = run.begin("gemini", to);
+        },
+        onChunkMeta: (u, finish) => {
+          if (u) current.setUsage(usageFromGemini(u));
+          if (finish) {
+            lastFinish = finish;
+            current.setFinish(finish);
+          }
+        },
+      });
+      try {
+        for await (const chunk of gen) {
+          current.markFirstToken();
+          emitted = true;
+          yield chunk;
+        }
+        if (!emitted && lastFinish && GEMINI_BLOCK_FINISH_REASONS.has(lastFinish)) {
+          throw new LlmError("refusal", `Gemini 안전 차단(${lastFinish})`);
+        }
+        if (current !== attempt) current.succeed();
+      } catch (e) {
+        if (current !== attempt) current.fail(toLlmErr(e));
+        throw toLlmErr(e);
+      } finally {
+        // 클라이언트가 끊어 소비가 멈춘 경우 (pending 일 때만 효과)
+        if (current !== attempt) current.cancel();
+      }
+    },
+  };
+}
+
+/** Gemini 비스트리밍 단계 (503 시 overloadFallbackModel 로 1회 전환, 기록 포함) */
+function geminiTextStep(
+  run: LlmRun,
+  model: string,
+  overloadFallbackModel: string,
+  body: any,
+): TextStep {
+  const callOnce = async (m: string, attempt: AttemptHandle): Promise<string> => {
+    const res = await callGeminiAPI(m, "", body);
+    attempt.setUsage(usageFromGemini(res?.usageMetadata));
+    const finish = res?.candidates?.[0]?.finishReason;
+    attempt.setFinish(finish);
+    const blockReason = res?.promptFeedback?.blockReason;
+    if (blockReason || (finish && GEMINI_BLOCK_FINISH_REASONS.has(String(finish)))) {
+      throw new LlmError("refusal", `Gemini 안전 차단(${blockReason ?? finish})`);
+    }
+    return parseGeminiResponse(res);
+  };
+  return {
+    provider: "gemini",
+    model,
+    call: async (attempt: AttemptHandle) => {
+      try {
+        return await callOnce(model, attempt);
+      } catch (e) {
+        if (overloadFallbackModel === model || !is503OrOverloaded(e)) throw toLlmErr(e);
+        attempt.fail(new LlmError("api", "Gemini 503 overloaded", { status: 503 }));
+        run.fallbackReason ??= "api";
+        // 새 시도의 성공/실패는 textWithFallback 이 마지막 시도 기준으로 기록한다
+        const next = run.begin("gemini", overloadFallbackModel);
+        try {
+          return await callOnce(overloadFallbackModel, next);
+        } catch (e2) {
+          throw toLlmErr(e2);
+        }
+      }
+    },
+  };
+}
+
+async function openaiOptionsFor(
+  llm: LlmSession,
+  feature: string,
+  tier: LlmTier,
+  body: any,
+) {
+  return {
+    model: OPENAI_MODEL,
+    prompt: geminiBodyToOpenAI(body),
+    effort: OPENAI_TIER_CONFIG[tier].effort,
+    maxOutputTokens: OPENAI_MAX_OUTPUT_TOKENS[feature] ?? 24000,
+    promptCacheKey: `truefuture:${feature}`,
+    safetyIdentifier: llm.userId ? (await sha256Hex(`tf:${llm.userId}`)).substring(0, 32) : undefined,
+  };
+}
+
+/**
+ * 라우팅된 스트림 생성 (데일리·궁합·자유 상담).
+ * - openai     : gpt-6.1-sol → (본문 전송 전 실패 시) Gemini 폴백 1회
+ * - gemini     : 운영 Gemini 구성 그대로 (테스트 기록만 추가)
+ * - gemini-3.8 : 가벼운 호출만 gemini-3.8-flash
+ */
+async function buildRoutedStream(
+  llm: LlmSession,
+  feature: string,
+  tier: LlmTier,
+  requestBody: any,
+  prodGeminiModel: string,
+  language: string | undefined,
+): Promise<AsyncGenerator<string, void, unknown>> {
+  const body = appendToGeminiSystem(requestBody, groundingGuard(language));
+  const run = llm.newRun(feature);
+  run.promptHash = await hashGeminiBody(body);
+  const variant = llm.routing.variant;
+
+  if (variant === "openai") {
+    const opts = await openaiOptionsFor(llm, feature, tier, body);
+    const t = OPENAI_STREAM_TIMEOUTS[tier];
+    const fbModel = tier === "light" ? GEMINI_LIGHT_FALLBACK_MODEL : GEMINI_DEEP_FALLBACK_MODEL;
+    return streamWithFallback(
+      run,
+      {
+        provider: "openai",
+        model: OPENAI_MODEL,
+        effort: opts.effort,
+        open: (attempt) =>
+          streamOpenAIText(
+            { ...opts, timeoutMs: t.totalMs, firstTokenTimeoutMs: t.firstTokenMs },
+            attempt,
+          ),
+      },
+      // 폴백 Gemini 는 모델 고정 (추가 모델 전환 없음 → 재시도·폴백 횟수 제한)
+      geminiStreamStep(run, fbModel, fbModel, body),
+    );
+  }
+
+  if (variant === "gemini-3.8") {
+    const model = tier === "light" ? GEMINI_LIGHT_FALLBACK_MODEL : prodGeminiModel;
+    return streamWithFallback(run, geminiStreamStep(run, model, GEMINI_LIGHT_FALLBACK_MODEL, body), null);
+  }
+
+  return streamWithFallback(run, geminiStreamStep(run, prodGeminiModel, GEMINI_FALLBACK_MODEL, body), null);
+}
+
+/** 라우팅된 비스트리밍 생성 (종합운 파트) */
+async function generateRoutedText(
+  llm: LlmSession,
+  feature: string,
+  part: string,
+  tier: LlmTier,
+  requestBody: any,
+  prodGeminiModel: string,
+  language: string | undefined,
+  fallbackDeadline: number,
+): Promise<string> {
+  const body = appendToGeminiSystem(requestBody, groundingGuard(language));
+  const run = llm.newRun(feature, part);
+  run.promptHash = await hashGeminiBody(body);
+  const variant = llm.routing.variant;
+
+  if (variant === "openai") {
+    const opts = await openaiOptionsFor(llm, feature, tier, body);
+    const fbModel = tier === "light" ? GEMINI_LIGHT_FALLBACK_MODEL : GEMINI_DEEP_FALLBACK_MODEL;
+    return await textWithFallback(
+      run,
+      {
+        provider: "openai",
+        model: OPENAI_MODEL,
+        effort: opts.effort,
+        call: (attempt) =>
+          callOpenAIText({ ...opts, timeoutMs: OPENAI_LIFETIME_PART_TIMEOUT_MS }, attempt),
+      },
+      geminiTextStep(run, fbModel, fbModel, body),
+      { fallbackDeadline },
+    );
+  }
+  if (variant === "gemini-3.8") {
+    const model = tier === "light" ? GEMINI_LIGHT_FALLBACK_MODEL : prodGeminiModel;
+    return await textWithFallback(run, geminiTextStep(run, model, GEMINI_LIGHT_FALLBACK_MODEL, body), null);
+  }
+  return await textWithFallback(run, geminiTextStep(run, prodGeminiModel, GEMINI_FALLBACK_MODEL, body), null);
+}
+
+/** createFortuneSSEStream 에 넘길 LLM 기록 훅 */
+function llmStreamHooks(
+  llm: LlmSession | null | undefined,
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+): {
+  onSettled?: (shareId: string | null, outcome: "saved" | "failed" | "cancelled") => Promise<void>;
+  doneExtra?: () => Record<string, unknown> | null;
+} {
+  if (!isRoutedSession(llm)) return {};
+  return {
+    onSettled: (shareId, outcome) =>
+      llm.persist(supabase, { fortuneResultId: shareId, outcome }),
+    doneExtra: () => {
+      const s = llm.publicSummary();
+      return s ? { llm: s } : null;
+    },
+  };
+}
+
 async function getInterpretation(
   chartData: any,
   fortuneType: FortuneType,
@@ -1192,12 +1514,45 @@ async function getInterpretation(
     historyResultId?: string | null;
     };
   },
+  /** LLM 라우팅 세션 (테스트 모드 · OpenAI 운영 전환 시). 없으면 기존 Gemini 경로 */
+  llm?: LlmSession | null,
 ): Promise<any> {
   try {
     if (!apiKey) {
       throw new Error(
         "Missing GCP_SERVICE_ACCOUNT_JSON environment variable (Vertex AI 서비스 계정 키).",
       );
+    }
+
+    // LIFETIME + LLM 라우팅: 스트림을 먼저 열어 생성하는 동안 하트비트(: ping)를 보낸다.
+    // (GPT 실패 → Gemini 폴백까지 가면 클라이언트 첫 바이트 한도(180초)를 넘길 수 있으므로)
+    if (fortuneType === FortuneType.LIFETIME && streamOptions && isRoutedSession(llm)) {
+      async function* routedLifetimeGenerator(): AsyncGenerator<string, void, unknown> {
+        const result = await generateLifetimeFortune(
+          chartData,
+          apiKey,
+          gender,
+          birthDate,
+          location,
+          compatibilityChartData,
+          transitChartData,
+          aspects,
+          transitMoonHouse,
+          language,
+          llm,
+        );
+        if (result.error || !result.success) {
+          throw new Error(result.message || "Lifetime 생성 실패");
+        }
+        yield result.interpretation ?? "";
+      }
+      const stream = createFortuneSSEStream(
+        routedLifetimeGenerator(),
+        streamOptions.insertPayloadBuilder,
+        streamOptions.supabase,
+        { ...streamOptions.opts, ...llmStreamHooks(llm, streamOptions.supabase) },
+      );
+      return { stream };
     }
 
     // LIFETIME 운세: streamOptions가 있으면 스트리밍 응답(SSE)으로 통일 (4개 병렬 호출 후 한 번에 전송)
@@ -1213,6 +1568,7 @@ async function getInterpretation(
         aspects,
         transitMoonHouse,
         language,
+        llm,
       );
       if (result.error || !result.success) {
         return result;
@@ -1231,7 +1587,7 @@ async function getInterpretation(
         lifetimeChunkGenerator(),
         streamOptions.insertPayloadBuilder,
         streamOptions.supabase,
-        { ...streamOptions.opts, debugPayload },
+        { ...streamOptions.opts, debugPayload, ...llmStreamHooks(llm, streamOptions.supabase) },
       );
       return { stream };
     }
@@ -1388,18 +1744,28 @@ async function getInterpretation(
       if (transitMoonHouse != null) debugPayload.transitMoonHouse = transitMoonHouse;
 
       // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON)
-      logGeminiPromptDebug(fortuneType, systemInstructionText, userPrompt);
-      const geminiStream = callGeminiAPIStream(
-        modelName,
-        GEMINI_FALLBACK_MODEL,
-        apiKey,
-        requestBody,
-      );
+      // LLM 라우팅 경로는 프롬프트 원문(개인정보 포함)을 로그에 남기지 않는다
+      if (!isRoutedSession(llm)) logGeminiPromptDebug(fortuneType, systemInstructionText, userPrompt);
+      const geminiStream = isRoutedSession(llm)
+        ? await buildRoutedStream(
+          llm,
+          fortuneType === FortuneType.COMPATIBILITY ? "compatibility" : "daily",
+          "light",
+          requestBody,
+          modelName,
+          language,
+        )
+        : callGeminiAPIStream(
+          modelName,
+          GEMINI_FALLBACK_MODEL,
+          apiKey,
+          requestBody,
+        );
       const stream = createFortuneSSEStream(
         geminiStream,
         streamOptions.insertPayloadBuilder,
         streamOptions.supabase,
-        { ...streamOptions.opts, debugPayload },
+        { ...streamOptions.opts, debugPayload, ...llmStreamHooks(llm, streamOptions.supabase) },
       );
       return { stream };
     }
@@ -1454,6 +1820,7 @@ async function generateLifetimeFortune(
   aspects?: any[],
   transitMoonHouse?: number,
   language?: string,
+  llm?: LlmSession | null,
 ): Promise<any> {
   try {
     const isDayChart = isDayChartFromSun(chartData?.planets ?? null);
@@ -1695,12 +2062,37 @@ async function generateLifetimeFortune(
     // Lifetime 운세는 flash 모델 사용
     const modelName = getGeminiModel(FortuneType.LIFETIME);
 
-    // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON)
-    logGeminiPromptDebug(
+    // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON) — LLM 라우팅 경로는 남기지 않는다
+    if (!isRoutedSession(llm)) logGeminiPromptDebug(
       FortuneType.LIFETIME,
       `${natureSystemText}\n\n${loveSystemText}\n\n${moneyCareerSystemText}\n\n${healthTotalSystemText}`,
       userPrompt,
     );
+
+    // LLM 라우팅 경로 (테스트 모드 · OpenAI): 파트별로 공급자·폴백·사용량을 기록
+    if (isRoutedSession(llm)) {
+      const fallbackDeadline = Date.now() + LIFETIME_FALLBACK_DEADLINE_MS;
+      const parts: Array<[string, any]> = [
+        ["nature", requestBodyNature],
+        ["love", requestBodyLove],
+        ["money_career", requestBodyMoneyCareer],
+        ["health_total", requestBodyHealthTotal],
+      ];
+      // allSettled: 한 파트가 실패해도 나머지 파트의 사용량·비용까지 기록된 뒤에 실패 처리한다
+      const settled = await Promise.allSettled(
+        parts.map(([part, body]) =>
+          generateRoutedText(llm, "lifetime", part, "deep", body, modelName, language, fallbackDeadline)
+        ),
+      );
+      const rejected = settled.find((s) => s.status === "rejected") as PromiseRejectedResult | undefined;
+      if (rejected) throw rejected.reason;
+      const texts = settled.map((s) => (s as PromiseFulfilledResult<string>).value);
+      return {
+        success: true,
+        fortuneType: FortuneType.LIFETIME,
+        interpretation: texts.join("\n\n"),
+      };
+    }
 
     // 병렬 호출로 속도 최적화 (4배 빠름!)
     const [resultNature, resultLove, resultMoneyCareer, resultHealthTotal] =
@@ -1842,6 +2234,10 @@ serve(async (req) => {
   let consumeCurrency: StarCurrency | null = null;
   let consumeTransactionId: string | null = null;
   let authUserId: string | null = null;
+  /** LLM 라우팅 세션 (테스트 모드 · OpenAI 운영 전환 시에만 생성) */
+  let llmSession: LlmSession | null = null;
+  // deno-lint-ignore no-explicit-any
+  let llmSupabase: any = null;
   /** 차감분을 이미 환불했는지 — 여러 실패 경로가 이 가드를 공유해 중복 환불을 막는다 */
   let refunded = false;
 
@@ -2042,6 +2438,16 @@ serve(async (req) => {
 
     // 요청 본문 파싱
     const requestData = await req.json();
+
+    // LLM 공급자 라우팅: 관리자만 llmProvider 로 테스트 변형을 고를 수 있다.
+    // 운영 기본값이 gemini 이고 테스트가 아니면 세션을 만들지 않아 기존 경로를 그대로 탄다.
+    {
+      const routing = await resolveLlmRouting(supabase, user.id, requestData?.llmProvider);
+      if (routing.isTest || routing.variant !== "gemini") {
+        llmSession = new LlmSession(routing, user.id);
+        llmSupabase = supabase;
+      }
+    }
 
     // language 파라미터 추출 ('ko' 기본값, 'en' 지원)
     const requestLanguage: string =
@@ -2926,17 +3332,27 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
 
       // 스트리밍: generateContentStream → SSE → 스트림 종료 시 DB insert 후 [DONE]
       // Gemini API 호출 직전 (서버 로그 전용, 한 줄 JSON)
-      logGeminiPromptDebug(
+      // LLM 라우팅 경로는 프롬프트 원문(개인정보 포함)을 로그에 남기지 않는다
+      if (!isRoutedSession(llmSession)) logGeminiPromptDebug(
         fortuneType,
         systemInstruction.parts?.[0]?.text ?? "",
         userPrompt,
       );
-      const geminiStream = callGeminiAPIStream(
-        modelName,
-        GEMINI_FALLBACK_MODEL,
-        apiKey,
-        requestBody,
-      );
+      const geminiStream = isRoutedSession(llmSession)
+        ? await buildRoutedStream(
+          llmSession,
+          isFollowUp ? "consultation_followup" : "consultation_first",
+          isFollowUp ? "light" : "deep",
+          requestBody,
+          modelName,
+          requestLanguage,
+        )
+        : callGeminiAPIStream(
+          modelName,
+          GEMINI_FALLBACK_MODEL,
+          apiKey,
+          requestBody,
+        );
       const insertPayloadBuilder = (fullText: string) => ({
         user_id: currentUserId,
         user_info: {
@@ -2985,6 +3401,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             typeof requestData.parentResultId === "string" && requestData.parentResultId.trim()
               ? requestData.parentResultId.trim()
               : null,
+          ...llmStreamHooks(llmSession, supabase),
           debugPayload: {
             chart: chartData,
             userPrompt,
@@ -3281,6 +3698,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
             consumeCurrency,
           },
         },
+        llmSession,
       );
 
       if (interpretation.stream) {
@@ -3290,6 +3708,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         });
       }
       if (!interpretation.success || interpretation.error) {
+        if (llmSession && llmSupabase) await llmSession.persist(llmSupabase, { outcome: "failed" });
         return await failAfterConsume(new Response(
           JSON.stringify({
             error: `AI interpretation failed: ${
@@ -3801,6 +4220,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       undefined, // category (일반 운세 케이스에서는 사용하지 않음)
       requestLanguage, // language
       streamOptions,
+      llmSession,
     );
 
     if (interpretation.stream) {
@@ -3822,6 +4242,7 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       // 비스트리밍 경로(예: LIFETIME)는 여기서 최상단 catch를 거치지 않고 즉시 반환되므로
       // 차감된 운세권을 이 지점에서 직접 환불한다.
       await refundConsumedOnce("운세 생성 실패(AI 해석 오류)로 인한 자동 환불");
+      if (llmSession && llmSupabase) await llmSession.persist(llmSupabase, { outcome: "failed" });
 
       return await failAfterConsume(new Response(
         JSON.stringify({
@@ -3892,6 +4313,11 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       fortuneType: fortuneType,
       share_id: shareId || null,
     };
+    if (llmSession && llmSupabase) {
+      await llmSession.persist(llmSupabase, { fortuneResultId: shareId ?? null, outcome: "saved" });
+      const llmMeta = llmSession.publicSummary();
+      if (llmMeta) responseData.llm = llmMeta;
+    }
 
     // 재화 차감 건을 SUCCESS로 확정 (PENDING → SUCCESS)
     if (consumeTransactionId) {
@@ -3922,6 +4348,11 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
     // 스트리밍 전 차감했던 경우 서버에서 자동 환불 (네트워크 단절 시에도 복구 가능)
     // refunded 가드를 공유하므로 failAfterConsume 로 이미 환불했다면 중복 환불되지 않는다.
     await refundConsumedOnce("운세 생성 실패(에러/타임아웃)로 인한 자동 환불");
+    if (llmSession && llmSupabase) {
+      try {
+        await llmSession.persist(llmSupabase, { outcome: "failed" });
+      } catch (_) { /* 기록 실패는 무시 */ }
+    }
 
     // 원문 에러는 위에서 로그로 남겼고, 프론트에는 친화 메시지만 노출한다.
     return new Response(

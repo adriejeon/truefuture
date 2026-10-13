@@ -1,4 +1,5 @@
 import i18n from "../i18n";
+import { withLlmTestProvider } from "./llmTestProvider";
 
 /**
  * get-fortune 엣지 함수를 fetch + SSE 스트리밍으로 호출합니다.
@@ -113,7 +114,7 @@ export async function invokeGetFortuneStream(supabase, requestBody, callbacks) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(withLlmTestProvider(requestBody)),
       signal: controller.signal,
     });
 
