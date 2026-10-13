@@ -40,6 +40,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decodeCustomQuestion } from "../_shared/customData.ts";
 
 // ───────────────────────────────────────────────────────────────────────────
 // 상품 정의 — purchase-stars / premium-report 와 동일한 값을 복사해 둔다.
@@ -324,7 +325,7 @@ async function handleReportPayment(
   admin: any,
   payment: any,
   paymentId: string,
-  custom: { u?: string; p?: string; q?: string },
+  custom: { u?: string; p?: string; q?: string; qe?: string },
 ): Promise<Response> {
   const userId = typeof custom.u === "string" ? custom.u.trim() : "";
   const profileId = typeof custom.p === "string" ? custom.p.trim() : "";
@@ -371,7 +372,8 @@ async function handleReportPayment(
     return json(200, { ok: true, skipped: "profile incomplete" });
   }
 
-  let question = typeof custom.q === "string" ? custom.q.trim() : "";
+  // qe(base64url) 우선, 구버전 결제는 평문 q
+  let question = decodeCustomQuestion(custom);
   if (question.length > QUESTION_MAX_LENGTH) {
     question = question.substring(0, QUESTION_MAX_LENGTH);
   }
