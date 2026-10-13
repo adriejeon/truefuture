@@ -21,7 +21,12 @@
 
 // ========== 모델 / 설정 ==========
 
-export const OPENAI_MODEL = "gpt-6.1-sol";
+/** 심층 호출(종합운·첫 상담·리포트 본문) OpenAI 모델 */
+export const OPENAI_DEEP_MODEL = "gpt-6.1-sol";
+/** 가벼운 호출(데일리·궁합·후속 상담) OpenAI 모델 — Sol 대비 단가 1/20 */
+export const OPENAI_LIGHT_MODEL = "gpt-6-luna";
+/** 리포트 등 심층 전용 호출부 호환용 별칭 */
+export const OPENAI_MODEL = OPENAI_DEEP_MODEL;
 /** 가벼운 호출(데일리·궁합·후속 상담)의 Gemini 폴백 */
 export const GEMINI_LIGHT_FALLBACK_MODEL = "gemini-3.8-flash";
 /** 심층 호출(종합운·첫 상담·리포트 본문)의 Gemini 폴백 */
@@ -44,9 +49,9 @@ export function isLlmVariant(v: unknown): v is LlmVariant {
  * 기존 Gemini 본문 상한(데일리 9k·궁합 15k·첫 상담 10k·후속 8k·종합운 파트 10k·리포트 섹션 32k)에
  * 추론 여유분(low ≈ +8k, medium ≈ +20~30k)을 더했다. 상한은 과금 기준이 아니라 실제 사용량만 과금된다.
  */
-export const OPENAI_TIER_CONFIG: Record<LlmTier, { effort: ReasoningEffort }> = {
-  light: { effort: "low" },
-  deep: { effort: "medium" },
+export const OPENAI_TIER_CONFIG: Record<LlmTier, { model: string; effort: ReasoningEffort }> = {
+  light: { model: OPENAI_LIGHT_MODEL, effort: "low" },
+  deep: { model: OPENAI_DEEP_MODEL, effort: "medium" },
 };
 
 // ========== 오류 분류 ==========
@@ -150,6 +155,7 @@ interface PriceEntry {
 /**
  * 기본 단가표 (Standard 처리, 2026-10-13 확인).
  * - gpt-6.1-sol: OpenAI 공식 모델 페이지. 272K 입력 초과 시 할증은 이 서비스 프롬프트 규모에서 해당 없음.
+ * - gpt-6-luna: OpenAI 공식 모델 페이지 $0.1/$0.01/$0.5. 캐시 쓰기($0.125)는 usage 에 따로 안 잡혀 미반영.
  * - gemini-3.8-flash: global 엔드포인트 도입가 $0.75/$3.75 (2026-12-31까지), 2027-01-01부터 $1.5/$7.5.
  *   캐시 단가는 입력의 10%로 가정.
  * - 나머지 Gemini 단가는 공식 단가표 본문을 직접 확인하지 못해 unverified 로 표시한다.
@@ -159,6 +165,8 @@ function defaultPrice(model: string, at: Date, vertexLocation: string): PriceEnt
   switch (model) {
     case "gpt-6.1-sol":
       return { input: 2, cachedInput: 0.1, output: 10, source: "official" };
+    case "gpt-6-luna":
+      return { input: 0.1, cachedInput: 0.01, output: 0.5, source: "official" };
     case "gemini-3.8-flash": {
       const promo = at.getTime() < Date.UTC(2027, 0, 1) && vertexLocation === "global";
       return promo

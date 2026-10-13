@@ -8,6 +8,7 @@ import {
   LlmError,
   LlmRun,
   LlmSession,
+  OPENAI_TIER_CONFIG,
   streamOpenAIText,
   streamWithFallback,
   textWithFallback,
@@ -320,6 +321,14 @@ Deno.test("비용: gemini-3.8-flash 도입가(2026) / 정가(2027)", () => {
   assertEquals(estimateCostUsd("gemini-3.8-flash", u, new Date("2026-10-13")).usd, 4.5);
   assertEquals(estimateCostUsd("gemini-3.8-flash", u, new Date("2027-01-02")).usd, 9);
   assertEquals(estimateCostUsd("unknown-model", u).usd, null);
+});
+
+Deno.test("OpenAI tier: 가벼운 호출 gpt-6-luna(low) / 심층 호출 gpt-6.1-sol(medium)", () => {
+  assertEquals(OPENAI_TIER_CONFIG.light, { model: "gpt-6-luna", effort: "low" });
+  assertEquals(OPENAI_TIER_CONFIG.deep, { model: "gpt-6.1-sol", effort: "medium" });
+  const u = { inputTokens: 1_000_000, cachedInputTokens: 0, outputTokens: 1_000_000, reasoningTokens: 0 };
+  assertEquals(estimateCostUsd("gpt-6-luna", u).usd, 0.6);
+  assertEquals(estimateCostUsd("gpt-6.1-sol", u).usd, 12);
 });
 
 Deno.test("기록/요약에 API 키가 남지 않는다", async () => {

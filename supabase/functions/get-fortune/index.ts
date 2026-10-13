@@ -97,7 +97,6 @@ import {
 } from "../_shared/vertex.ts";
 // LLM 공급자 라우팅 (OpenAI 비교 테스트 · Gemini 폴백 · 사용량 기록)
 import {
-  OPENAI_MODEL,
   OPENAI_TIER_CONFIG,
   GEMINI_LIGHT_FALLBACK_MODEL,
   GEMINI_DEEP_FALLBACK_MODEL,
@@ -1344,7 +1343,7 @@ async function openaiOptionsFor(
   body: any,
 ) {
   return {
-    model: OPENAI_MODEL,
+    model: OPENAI_TIER_CONFIG[tier].model,
     prompt: geminiBodyToOpenAI(body),
     effort: OPENAI_TIER_CONFIG[tier].effort,
     maxOutputTokens: OPENAI_MAX_OUTPUT_TOKENS[feature] ?? 24000,
@@ -1355,7 +1354,7 @@ async function openaiOptionsFor(
 
 /**
  * 라우팅된 스트림 생성 (데일리·궁합·자유 상담).
- * - openai     : gpt-6.1-sol → (본문 전송 전 실패 시) Gemini 폴백 1회
+ * - openai     : 가벼운 호출 gpt-6-luna / 심층 호출 gpt-6.1-sol → (본문 전송 전 실패 시) Gemini 폴백 1회
  * - gemini     : 운영 Gemini 구성 그대로 (테스트 기록만 추가)
  * - gemini-3.8 : 가벼운 호출만 gemini-3.8-flash
  */
@@ -1380,7 +1379,7 @@ async function buildRoutedStream(
       run,
       {
         provider: "openai",
-        model: OPENAI_MODEL,
+        model: opts.model,
         effort: opts.effort,
         open: (attempt) =>
           streamOpenAIText(
@@ -1424,7 +1423,7 @@ async function generateRoutedText(
       run,
       {
         provider: "openai",
-        model: OPENAI_MODEL,
+        model: opts.model,
         effort: opts.effort,
         call: (attempt) =>
           callOpenAIText({ ...opts, timeoutMs: OPENAI_LIFETIME_PART_TIMEOUT_MS }, attempt),
