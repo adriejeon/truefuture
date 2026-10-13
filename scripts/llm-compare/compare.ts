@@ -333,7 +333,7 @@ for (const c of cases) {
     if (c.question) {
       const d = await callReport("test_decompose", {
         question: c.question,
-        models: c.decomposeModels ?? ["gemini-3.5-flash", "gemini-2.5-flash-lite"],
+        models: c.decomposeModels ?? ["gemini-3.5-flash", "gemini-3.8-flash"],
       });
       decomposeResults.push({ caseId: c.id, ...d });
       console.log(`[${c.id}] 질문 나누기 비교 완료`);

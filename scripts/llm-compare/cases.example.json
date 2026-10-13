@@ -58,6 +58,6 @@
     "profileId": "00000000-0000-0000-0000-000000000000",
     "question": "앞으로 3년 안에 독립해서 제 사업을 해도 될지, 그리고 결혼 시기는 언제쯤일지 궁금합니다.",
     "sections": [0, 1, 2],
-    "decomposeModels": ["gemini-3.5-flash", "gemini-2.5-flash-lite", "gemini-3.1-flash-lite"]
+    "decomposeModels": ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
   }
 ]

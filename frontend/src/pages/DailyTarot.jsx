@@ -6,7 +6,7 @@ import BottomNavigation from "../components/BottomNavigation";
 import PrimaryButton from "../components/PrimaryButton";
 import { colors } from "../constants/colors";
 import { TAROT_CARDS, ORACLE_CARDS, randomCard } from "../constants/tarotCards";
-import { supabase } from "../lib/supabaseClient";
+import { buildDailyTarotReading } from "../utils/dailyTarotReading";
 import PageSeo from "../components/PageSeo";
 import PageIntro from "../components/PageIntro";
 import { buildDailyTarotGraph } from "../utils/pageJsonLd";
@@ -77,7 +77,6 @@ function DailyTarot() {
   const [card, setCard] = useState(null);
   const [flipped, setFlipped] = useState(false);
   const [interpretation, setInterpretation] = useState("");
-  const [loading, setLoading] = useState(false);
   const [alreadyDrawn, setAlreadyDrawn] = useState(false);
 
   // 구조화 데이터: 화면 문구(meta_title/meta_desc)와 같은 i18n 값을 쓴다
@@ -101,7 +100,14 @@ function DailyTarot() {
           setDeck(found.deck);
           setFlipped(true);
           setAlreadyDrawn(true);
-          setInterpretation(rec.interpretation || "");
+          // 룰 기반이라 즉시 다시 만들 수 있다 — 현재 언어로 생성 (저장 문장은 폴백)
+          let text = "";
+          try {
+            text = buildDailyTarotReading(found, { language: isKo ? "ko" : "en", date: rec.date });
+          } catch (_) {
+            text = "";
+          }
+          setInterpretation(text || rec.interpretation || found.description || "");
         }
       }
     } catch (_) {
@@ -109,45 +115,26 @@ function DailyTarot() {
     }
   }, []);
 
-  // 키워드만 daily-tarot(Gemini Flash-Lite) 엣지 함수에 넘겨 '오늘의 흐름 힌트'를 생성.
-  // AI 호출 실패 시에는 카드의 고정 description을 폴백으로 사용해 화면이 비지 않게 한다.
-  const fetchInterpretation = useCallback(
-    async (picked) => {
-      setLoading(true);
+  // '오늘의 흐름 힌트'는 룰 기반으로 즉시 만든다 (모델 호출 없음 — 2026-10-13, utils/dailyTarotReading.js).
+  // 카드의 고정 해석 + 날짜·카드로 정해지는 마무리 문장. 실패하면 고정 해석만 보여 화면이 비지 않게 한다.
+  const buildInterpretation = useCallback(
+    (picked) => {
+      const date = getKoreanDate();
+      let text = "";
       try {
-        const lang = isKo ? "ko" : "en";
-        const body = {
-          cardId: picked.id,
-          cardName: isKo ? picked.nameKo : picked.nameEn,
-          keywords: isKo ? picked.keywords : picked.keywordsEn,
-          cardType: picked.deck,
-          isPositive: picked.isPositive,
-          language: lang,
-        };
-
-        let text = "";
-        if (supabase) {
-          const { data, error } = await supabase.functions.invoke("daily-tarot", {
-            body,
-          });
-          if (error) throw error;
-          text = data?.interpretation || "";
-        }
-        if (!text) text = picked.description || ""; // 폴백
-        setInterpretation(text);
-
+        text = buildDailyTarotReading(picked, { language: isKo ? "ko" : "en", date });
+      } catch (_) {
+        text = "";
+      }
+      if (!text) text = picked.description || "";
+      setInterpretation(text);
+      try {
         localStorage.setItem(
           STORAGE_KEY,
-          JSON.stringify({
-            date: getKoreanDate(),
-            cardId: picked.id,
-            interpretation: text,
-          })
+          JSON.stringify({ date, cardId: picked.id, interpretation: text })
         );
       } catch (_) {
-        setInterpretation(picked.description || "");
-      } finally {
-        setLoading(false);
+        // 저장 실패는 무시 (오늘 1회 제한만 영향)
       }
     },
     [isKo]
@@ -159,7 +146,7 @@ function DailyTarot() {
     setCard(picked);
     setFlipped(true);
     setAlreadyDrawn(true);
-    fetchInterpretation(picked);
+    buildInterpretation(picked);
   };
 
   const cardName = card ? (isKo ? card.nameKo : card.nameEn) : "";
@@ -290,25 +277,13 @@ function DailyTarot() {
           )}
         </div>
 
-        {/* AI 해석 */}
+        {/* 오늘의 흐름 힌트 (룰 기반, 즉시 표시) */}
         {flipped && (
           <div className="mb-8">
             <div className="rounded-xl border border-slate-700 bg-[#0F0F2B]/60 p-5 sm:p-6">
-              {loading ? (
-                <div className="flex flex-col items-center py-6">
-                  <div
-                    className="animate-spin rounded-full h-8 w-8 border-b-2 mb-4"
-                    style={{ borderColor: colors.primary }}
-                  ></div>
-                  <p className="text-slate-400 text-sm">
-                    {t("daily_tarot.generating")}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-slate-100 text-[15px] sm:text-base leading-[1.9] whitespace-pre-line">
-                  {interpretation}
-                </p>
-              )}
+              <p className="text-slate-100 text-[15px] sm:text-base leading-[1.9] whitespace-pre-line">
+                {interpretation}
+              </p>
             </div>
           </div>
         )}

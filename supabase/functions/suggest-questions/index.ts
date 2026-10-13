@@ -16,11 +16,13 @@ declare global {
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getVertexAccessToken, buildVertexUrl } from "../_shared/vertex.ts";
+import { generateContentWithFallback, getUtilityModelChain } from "../_shared/vertex.ts";
 
-const SUGGEST_MODEL = "gemini-2.5-flash-lite"; // 판단용 호출은 최저가 모델
+// 판단용 호출. gemini-2.5-flash-lite 는 2026-10-20 은퇴 → 유틸 모델 체인 (기본 gemini-3.8-flash, 429/5xx 면 재시도 후
+// gemini-3.5-flash. 시크릿 GEMINI_UTILITY_MODEL 로 기본 모델 교체 가능, get-fortune 분류기·타로와 공유)
+const SUGGEST_MODELS = getUtilityModelChain();
 const MAX_QUESTIONS = 3;
-const MODEL_TIMEOUT_MS = 8000;
+const MODEL_TIMEOUT_MS = 12000; // 재시도·폴백까지 포함한 상한 (실패해도 빈 배열이라 페이지를 막지 않는다)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,38 +131,27 @@ async function generateSuggestions(
     questions.map((q, i) => `${i + 1}. ${q}`).join("\n") +
     (latestAnswerGist ? `\n\n[마지막 답변 요지]\n${latestAnswerGist}` : "");
 
-  const accessToken = await getVertexAccessToken();
-  const call = fetch(buildVertexUrl(SUGGEST_MODEL, "generateContent"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: userText }] }],
-      systemInstruction: { parts: [{ text: buildSystemPrompt(language) }] },
-      generationConfig: {
-        temperature: 0.8,
-        topP: 0.95,
-        maxOutputTokens: 300,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            questions: { type: "ARRAY", items: { type: "STRING" } },
-          },
-          required: ["questions"],
+  const requestBody = {
+    contents: [{ role: "user", parts: [{ text: userText }] }],
+    systemInstruction: { parts: [{ text: buildSystemPrompt(language) }] },
+    generationConfig: {
+      temperature: 0.8,
+      topP: 0.95,
+      maxOutputTokens: 1024, // 질문 2~3개 JSON 이면 충분하지만, 사고 토큰이 상한에 포함될 수 있어 여유를 둔다
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          questions: { type: "ARRAY", items: { type: "STRING" } },
         },
+        required: ["questions"],
       },
-    }),
-  }).then(async (res) => {
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    return res.json();
+    },
+  };
+  const { data } = await generateContentWithFallback(SUGGEST_MODELS, requestBody, {
+    timeoutMs: MODEL_TIMEOUT_MS,
+    label: "suggest-questions",
   });
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error("suggest timeout")), MODEL_TIMEOUT_MS)
-  );
-  const data = await Promise.race([call, timeout]);
   const text: string = (data?.candidates?.[0]?.content?.parts ?? [])
     .map((p: { text?: string }) => p?.text ?? "")
     .join("");
