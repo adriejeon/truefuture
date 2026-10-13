@@ -124,7 +124,7 @@ Deno.test("스트림 정상: 본문·사용량·비용 기록", async () => {
     assertEquals(s.finalProvider, "openai");
     assertEquals(s.fellBack, false);
     const a = s.attempts[0];
-    assertEquals(a.usage, { inputTokens: 1000, cachedInputTokens: 200, outputTokens: 500, reasoningTokens: 300 });
+    assertEquals(a.usage, { inputTokens: 1000, cachedInputTokens: 200, cacheWriteTokens: 0, outputTokens: 500, reasoningTokens: 300 });
     // (800*2 + 200*0.1 + 500*10) / 1e6
     assertEquals(a.costUsd, 0.00662);
     assertEquals(a.serviceTier, "default");
@@ -329,6 +329,61 @@ Deno.test("OpenAI tier: 가벼운 호출 gpt-6-luna(low) / 심층 호출 gpt-6.1
   const u = { inputTokens: 1_000_000, cachedInputTokens: 0, outputTokens: 1_000_000, reasoningTokens: 0 };
   assertEquals(estimateCostUsd("gpt-6-luna", u).usd, 0.6);
   assertEquals(estimateCostUsd("gpt-6.1-sol", u).usd, 12);
+});
+
+Deno.test("OpenAI 요청: 명시적 캐시 모드 — 고정 지침은 developer 블록 + breakpoint, 아니면 breakpoint 없음", async () => {
+  const calls = mockFetch(() =>
+    new Response(
+      JSON.stringify({
+        status: "completed",
+        usage,
+        output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }],
+      }),
+      { status: 200 },
+    )
+  );
+  try {
+    await textWithFallback(new LlmRun("daily"), {
+      provider: "openai",
+      model: "gpt-6.1-sol",
+      call: (a) => callOpenAIText({ ...baseOpts, cacheStaticInstructions: true }, a),
+    }, null);
+    await textWithFallback(new LlmRun("premium_report_section"), {
+      provider: "openai",
+      model: "gpt-6.1-sol",
+      call: (a) => callOpenAIText(baseOpts, a),
+    }, null);
+    const [b1, b2] = calls();
+    // 고정 지침 캐시: 최상위 instructions 대신 developer 블록 + breakpoint
+    assertEquals(b1.prompt_cache_options, { mode: "explicit" });
+    assertEquals(b1.instructions, undefined);
+    assertEquals(b1.input, [
+      {
+        role: "developer",
+        content: [{ type: "input_text", text: "sys", prompt_cache_breakpoint: { mode: "explicit" } }],
+      },
+      { role: "user", content: "hi" },
+    ]);
+    // 기본: 최상위 instructions, breakpoint 없음 → 캐시 쓰기(1.25배) 없음
+    assertEquals(b2.prompt_cache_options, { mode: "explicit" });
+    assertEquals(b2.instructions, "sys");
+    assertEquals(b2.input, [{ role: "user", content: "hi" }]);
+    assert(!JSON.stringify(b2).includes("prompt_cache_breakpoint"), "breakpoint 없음");
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("비용: 캐시 쓰기 토큰은 쓰기 단가(Sol $2.5) — 10/13 실제 호출 $0.11 재현, 적중 시 절감", () => {
+  // 암시적 캐시 모드였던 실제 호출: 입력 35,234 전부 캐시 쓰기 → 대시보드 $0.11
+  const first = { inputTokens: 35234, cachedInputTokens: 0, cacheWriteTokens: 35234, outputTokens: 2355, reasoningTokens: 341 };
+  assertEquals(estimateCostUsd("gpt-6.1-sol", first).usd, 0.111635);
+  // 명시적 모드 + 고정 지침(9,500) 적중: 지침은 캐시 단가, 나머지는 일반 입력 단가
+  const hit = { inputTokens: 35234, cachedInputTokens: 9500, cacheWriteTokens: 0, outputTokens: 2355, reasoningTokens: 341 };
+  assertEquals(estimateCostUsd("gpt-6.1-sol", hit).usd, 0.075968);
+  // 명시적 모드 + breakpoint 없음(리포트): 전부 일반 입력 단가
+  const plain = { inputTokens: 35234, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 2355, reasoningTokens: 341 };
+  assertEquals(estimateCostUsd("gpt-6.1-sol", plain).usd, 0.094018);
 });
 
 Deno.test("기록/요약에 API 키가 남지 않는다", async () => {

@@ -113,9 +113,11 @@ export function sanitizeErrorMessage(msg: string): string {
 // ========== 사용량 / 비용 ==========
 
 export interface NormalizedUsage {
-  /** 입력 토큰 전체 (캐시 적중분 포함) */
+  /** 입력 토큰 전체 (캐시 적중분·캐시 쓰기분 포함) */
   inputTokens: number;
   cachedInputTokens: number;
+  /** 이번 요청에서 캐시에 새로 쓴 입력 토큰 (OpenAI: 입력 단가의 1.25배로 과금) */
+  cacheWriteTokens?: number;
   /** 출력 토큰 전체 (추론 토큰 포함 — 둘 다 출력 단가로 과금) */
   outputTokens: number;
   reasoningTokens: number;
@@ -126,6 +128,7 @@ export function usageFromOpenAI(u: any): NormalizedUsage | null {
   return {
     inputTokens: Number(u.input_tokens ?? 0),
     cachedInputTokens: Number(u.input_tokens_details?.cached_tokens ?? 0),
+    cacheWriteTokens: Number(u.input_tokens_details?.cache_write_tokens ?? 0),
     outputTokens: Number(u.output_tokens ?? 0),
     reasoningTokens: Number(u.output_tokens_details?.reasoning_tokens ?? 0),
   };
@@ -147,6 +150,8 @@ interface PriceEntry {
   /** USD / 1M tokens */
   input: number;
   cachedInput: number;
+  /** 캐시 쓰기 단가 (없으면 입력 단가로 계산) */
+  cacheWrite?: number;
   output: number;
   /** "official": 공식 문서 확인 / "unverified": 2차 출처 — 공식 단가표로 확인 필요 / "env": LLM_PRICING_JSON */
   source: "official" | "unverified" | "env";
@@ -164,9 +169,9 @@ interface PriceEntry {
 function defaultPrice(model: string, at: Date, vertexLocation: string): PriceEntry | null {
   switch (model) {
     case "gpt-6.1-sol":
-      return { input: 2, cachedInput: 0.1, output: 10, source: "official" };
+      return { input: 2, cachedInput: 0.1, cacheWrite: 2.5, output: 10, source: "official" };
     case "gpt-6-luna":
-      return { input: 0.1, cachedInput: 0.01, output: 0.5, source: "official" };
+      return { input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5, source: "official" };
     case "gemini-3.8-flash": {
       const promo = at.getTime() < Date.UTC(2027, 0, 1) && vertexLocation === "global";
       return promo
@@ -203,6 +208,7 @@ function getPrice(model: string, at: Date): PriceEntry | null {
     return {
       input: o.input,
       cachedInput: typeof o.cachedInput === "number" ? o.cachedInput : o.input,
+      cacheWrite: typeof o.cacheWrite === "number" ? o.cacheWrite : undefined,
       output: o.output,
       source: "env",
     };
@@ -219,9 +225,13 @@ export function estimateCostUsd(
   const p = getPrice(model, at);
   if (!p) return { usd: null, priceSource: "unknown" };
   const cached = Math.min(usage.cachedInputTokens, usage.inputTokens);
+  // 캐시에 새로 쓴 토큰은 쓰기 단가(단가표에 없으면 입력 단가), 나머지는 일반 입력 단가
+  const written = Math.min(Math.max(usage.cacheWriteTokens ?? 0, 0), usage.inputTokens - cached);
+  const ordinary = usage.inputTokens - cached - written;
   const usd =
-    ((usage.inputTokens - cached) * p.input +
+    (ordinary * p.input +
       cached * p.cachedInput +
+      written * (p.cacheWrite ?? p.input) +
       usage.outputTokens * p.output) /
     1_000_000;
   return { usd: Math.round(usd * 1_000_000) / 1_000_000, priceSource: p.source };
@@ -578,8 +588,14 @@ export interface OpenAICallOptions {
   firstTokenTimeoutMs?: number;
   /** 구조화 출력이 필요한 경우 */
   jsonSchema?: { name: string; schema: Record<string, unknown> };
-  /** 프롬프트 캐시 적중률을 높이기 위한 키 (기능 단위) */
+  /** 프롬프트 캐시 키 (기능 단위) — 같은 키끼리만 캐시를 공유한다 */
   promptCacheKey?: string;
+  /**
+   * 시스템 지침이 사용자와 무관한 고정 문구일 때 true.
+   * 지침을 developer 메시지 + explicit breakpoint 로 보내 30분 안의 같은 지침 요청이 캐시 단가로 읽게 한다.
+   * 지침에 사용자별 데이터가 섞여 있으면(궁합·리포트) false — 매번 캐시에 쓰기만 하고 적중이 없어 손해.
+   */
+  cacheStaticInstructions?: boolean;
   /** 사용자 식별용 해시 (원본 user id 는 보내지 않는다) */
   safetyIdentifier?: string;
 }
@@ -591,12 +607,33 @@ function getOpenAIKey(): string {
 }
 
 function buildOpenAIBody(opts: OpenAICallOptions, stream: boolean): Record<string, unknown> {
+  // 프롬프트 캐시는 명시적(explicit) 모드만 쓴다.
+  //  - 기본(암시적) 모드는 요청 전체(차트 데이터까지)를 매번 캐시에 쓰면서 입력 단가의 1.25배를 받는데,
+  //    사용자별 데이터는 재사용될 일이 거의 없어 할증만 낸다.
+  //  - 명시적 모드는 breakpoint 를 둔 블록까지만 캐시에 쓰고, 그 뒤는 할증 없는 일반 입력 단가다.
+  //    breakpoint 가 하나도 없으면 캐시 쓰기 자체가 없다.
+  //  - 최상위 instructions 에는 breakpoint 를 둘 수 없어, 고정 지침은 developer 메시지 블록으로 보낸다.
+  const cacheStatic = !!opts.cacheStaticInstructions && opts.prompt.instructions.length > 0;
+  const input: unknown[] = cacheStatic
+    ? [
+      {
+        role: "developer",
+        content: [{
+          type: "input_text",
+          text: opts.prompt.instructions,
+          prompt_cache_breakpoint: { mode: "explicit" },
+        }],
+      },
+      ...opts.prompt.input,
+    ]
+    : opts.prompt.input;
   const body: Record<string, unknown> = {
     model: opts.model,
-    instructions: opts.prompt.instructions,
-    input: opts.prompt.input,
+    ...(cacheStatic ? {} : { instructions: opts.prompt.instructions }),
+    input,
     reasoning: { effort: opts.effort },
     max_output_tokens: opts.maxOutputTokens,
+    prompt_cache_options: { mode: "explicit" },
     // 일반 Standard 처리
     service_tier: "default",
     // 응답을 OpenAI 측에 저장하지 않는다 (개인정보 최소화)
