@@ -14,7 +14,7 @@
 
 | llmProvider | 가벼운 호출 (데일리·궁합·후속 상담) | 심층 호출 (종합운·첫 상담·리포트 본문) |
 |---|---|---|
-| `openai` | gpt-6.1-sol, effort low → 실패 시 gemini-3.8-flash | gpt-6.1-sol, effort medium → 실패 시 gemini-3.1-pro-preview |
+| `openai` | gpt-6-luna, effort low → 실패 시 gemini-3.8-flash | gpt-6.1-sol, effort medium → 실패 시 gemini-3.1-pro-preview |
 | `gemini` | 현재 운영 (gemini-3.5-flash) | 현재 운영 (gemini-3.1-pro-preview) |
 | `gemini-3.8` | gemini-3.8-flash | gemini-3.1-pro-preview |
 
