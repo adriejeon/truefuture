@@ -87,7 +87,7 @@ import {
 } from "./utils/neo4jContext.ts";
 import { resolveTimezoneOffsetHours } from "./utils/timezoneUtils.ts";
 // 해석 지식베이스 (차트 맞춤 규칙 룩업 → 프롬프트 주입, KO 전용)
-import { buildKnowledgeContext } from "./utils/knowledgeBase.ts";
+import { buildKnowledgeContext, resolveKnowledgeScope } from "./utils/knowledgeBase.ts";
 // Vertex AI 인증/엔드포인트 헬퍼 (서비스 계정 OAuth2 Bearer)
 import {
   getVertexAccessToken,
@@ -3305,11 +3305,23 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
       }`;
 
       // 해석 지식베이스 주입 (KO 전용)
+      //  범위: 카테고리별(topic, 기본) / 전체(full). 운영 기본값은 CONSULTATION_KB_SCOPE 시크릿,
+      //  관리자 테스트 요청은 kbScope 로 바꿔 전후 비교할 수 있다.
       if (!requestLanguage.toLowerCase().startsWith("en")) {
+        const kbScope = resolveKnowledgeScope(
+          llmSession?.routing.isTest ? requestData.kbScope : undefined,
+        );
+        console.log(
+          JSON.stringify({
+            logType: "CONSULTATION_KB_SCOPE",
+            scope: kbScope,
+            topic: requestData.consultationTopic ?? null,
+          }),
+        );
         const knowledgeContext = buildKnowledgeContext(
           chartData,
           FortuneType.CONSULTATION,
-          { consultationTopic: requestData.consultationTopic ?? null },
+          { consultationTopic: requestData.consultationTopic ?? null, kbScope },
         );
         if (knowledgeContext) {
           userPrompt = userPrompt + "\n\n" + knowledgeContext;

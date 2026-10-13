@@ -88,6 +88,25 @@ order by created_at desc limit 100;
 테스트 결과를 보고 결정한 뒤 `LLM_DEFAULT_PROVIDER=openai` 시크릿만 설정하면 전체 사용자가 GPT(+Gemini 폴백)로 바뀐다.
 되돌릴 때는 시크릿을 지우면 된다. 코드 배포는 필요 없다.
 
+## 6. 상담 지식베이스 범위 비교 (topic vs full)
+
+자유상담 프롬프트의 "해석 지식베이스"(약 30,000자)는 종전에 질문 카테고리와 무관하게 전체가 들어갔다.
+`topic` 범위는 카테고리(LOVE·MONEY·WORK·HEALTH·EXAM·MOVE)에 관련된 하우스·규칙만 넣어 입력 토큰을 줄인다
+(WEEKLY·MONTHLY·YEARLY·OTHER·미지정은 전체 범위 그대로).
+
+| 설정 | 값 | 비고 |
+|---|---|---|
+| 운영 기본값 | 시크릿 `CONSULTATION_KB_SCOPE` = `topic`(기본) / `full` | 코드 배포 없이 되돌릴 수 있다 |
+| 테스트 요청 | `request.kbScope: "full" \| "topic"` | 관리자 계정만 적용 (`cases.example.json` 의 `consult-love-kb-*` 참고) |
+
+```bash
+deno run --allow-net --allow-env --allow-read --allow-write \
+  scripts/llm-compare/compare.ts --variants openai --only consult-love-kb-full,consult-love-kb-topic
+```
+
+report.md 의 토큰 열에서 입력 토큰 차이를, 블라인드 원고에서 답변 품질(차트 근거·구체성)을 비교한다.
+함수 로그에는 `CONSULTATION_KB_SCOPE` 로 실제 적용된 범위가 남는다.
+
 ## 폴백 규칙 요약
 
 - 폴백 조건: 타임아웃 · API 오류(429/5xx 는 1회 재시도 후) · 빈 응답 · 본문 없이 출력 한도 소진 · 필수 형식 검증 실패
