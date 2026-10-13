@@ -94,11 +94,12 @@ import {
 } from "./utils/knowledgeBase.ts";
 import {
   AUTO_TOPIC_VALUES,
-  CONSULTATION_TOPIC_IDS,
-  type ConsultationTopicId,
-  detectSubjectTopics,
-  TOPIC_KEYWORDS,
-  TOPIC_PRIORITY,
+  buildConsultationPlan,
+  type ConsultationPlan,
+  planCategory,
+  planLabel,
+  SUBJECT_TOPIC_IDS,
+  type SubjectTopicId,
 } from "./utils/consultationTopics.ts";
 // Vertex AI 인증/엔드포인트 헬퍼 (서비스 계정 OAuth2 Bearer)
 import {
@@ -241,7 +242,8 @@ const GEMINI_PRO_MODEL = "gemini-3.1-pro-preview"; // 플래그십 심층 리딩
 const GEMINI_FALLBACK_MODEL = "gemini-3.5-flash"; // 503/과부하 시 폴백
 const GEMINI_CONSULTATION_FIRST_MODEL = "gemini-3.1-pro-preview"; // 자유 상담소 첫 질문 전용
 const GEMINI_CONSULTATION_FOLLOWUP_MODEL = "gemini-3.5-flash"; // 자유 상담소 후속 질문
-const GEMINI_UTILITY_MODEL = "gemini-2.5-flash-lite"; // 분류·판단 등 유틸 호출 전용 (최저가)
+// 분류·판단 등 유틸 호출 전용. gemini-2.5-flash-lite 는 2026-10-20 은퇴 → 3.8-flash (시크릿 GEMINI_UTILITY_MODEL 로 교체 가능)
+const GEMINI_UTILITY_MODEL = Deno.env.get("GEMINI_UTILITY_MODEL")?.trim() || "gemini-3.8-flash";
 // 엔드포인트는 Vertex AI 헬퍼(buildVertexUrl)가 프로젝트/리전 기반으로 구성한다.
 
 /** 503 또는 Overloaded 관련 에러인지 판별 (폴백 트리거용) */
@@ -613,23 +615,28 @@ type StarCurrency = "PAID" | "BONUS" | "PROBE";
  *   - lifetime("종합운세 조회")       → PROBE (탐사선)
  *   - 그 외(compatibility/consultation) → PAID  (망원경)
  */
-// ───────────────────────── 상담소 카테고리 자동 판단 ─────────────────────────
-// 사용자가 카테고리를 고르지 않아도(AUTO/OTHER/GENERAL/미지정) 질문 내용으로 카테고리를 추론해
-// 해당 카테고리의 해석 규칙·계산(연애/직업/재물 분석, 솔라리턴 가이드)을 적용한다.
-// 1차: 키워드 휴리스틱(단일 후보면 확정) → 2차: 플래시 모델 JSON 분류(6초 상한) → 3차: 우선순위 폴백.
-// 카테고리 ID·키워드 표는 utils/consultationTopics.ts (지식베이스 주입 범위와 공유).
+// ───────────────────────── 상담소 주제 판단 (분류 모델) ─────────────────────────
+// 사용자는 카테고리를 고르지 않는다(AUTO). 주제 계획(주주제·부주제·시간 프레임)은 utils/consultationTopics.ts 의
+// buildConsultationPlan 이 세우고, 이 함수는 키워드만으로 주주제가 모호할 때(강 키워드 0개 또는 2개 이상)만 불린다.
+// 시간 프레임(WEEKLY/MONTHLY/YEARLY)은 정규식으로 따로 판단하므로 여기서는 주제만 고른다. 6초 상한.
 
-async function classifyTopicWithGemini(question: string): Promise<ConsultationTopicId | null> {
+async function classifyTopicWithGemini(
+  question: string,
+  candidates: SubjectTopicId[],
+): Promise<SubjectTopicId | null> {
   const systemText =
-    "You classify a user's astrology consultation question into exactly one category id. " +
+    "You classify a user's astrology consultation question into exactly one subject category id. " +
     "Categories: LOVE(연애·결혼·이별·인연), MONEY(재물·투자·수입·빚), WORK(직장·이직·사업·커리어·매출), " +
-    "HEALTH(건강·치료), EXAM(시험·합격·자격), MOVE(이사·이동·유학·이민·해외), WEEKLY(이번 주 흐름), " +
-    "MONTHLY(특정 달·이번 달 흐름), YEARLY(올해·내년·연간 흐름), OTHER(그 외). " +
+    "HEALTH(건강·치료), EXAM(시험·합격·자격), MOVE(이사·이동·유학·이민·해외), OTHER(그 외). " +
+    "Ignore the time frame (this week/month/year); pick the subject the user mainly wants answered. " +
+    (candidates.length
+      ? `Keyword scan found these candidates: ${candidates.join(", ")}. Prefer one of them unless clearly wrong. `
+      : "") +
     'Answer with JSON only: {"category":"<ID>"}';
   const body = {
     contents: [{ role: "user", parts: [{ text: `Question: \"\"\"${question.slice(0, 600)}\"\"\"` }] }],
     systemInstruction: { parts: [{ text: systemText }] },
-    generationConfig: { temperature: 0, maxOutputTokens: 40, responseMimeType: "application/json" },
+    generationConfig: { temperature: 0, maxOutputTokens: 256, responseMimeType: "application/json" },
   };
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
   const call = (async () => {
@@ -642,26 +649,14 @@ async function classifyTopicWithGemini(question: string): Promise<ConsultationTo
   })();
   try {
     const out = await Promise.race([call, timeout]);
-    if (out && (CONSULTATION_TOPIC_IDS as readonly string[]).includes(out)) {
-      return out as ConsultationTopicId;
+    if (out && (SUBJECT_TOPIC_IDS as readonly string[]).includes(out)) {
+      return out as SubjectTopicId;
     }
-    return null; // OTHER 또는 파싱 실패
+    return null; // OTHER 또는 파싱 실패·타임아웃
   } catch (e) {
-    console.warn("⚠️ 카테고리 자동 판단(모델) 실패 — 휴리스틱으로 폴백:", (e as Error)?.message);
+    console.warn("⚠️ 주제 분류(모델) 실패 — 키워드 폴백:", (e as Error)?.message);
     return null;
   }
-}
-
-async function resolveConsultationTopic(question: string): Promise<ConsultationTopicId | null> {
-  const q = String(question ?? "");
-  const hits = CONSULTATION_TOPIC_IDS.filter((t) => TOPIC_KEYWORDS[t].test(q));
-  if (hits.length === 1) return hits[0];
-  const byModel = await classifyTopicWithGemini(q);
-  if (byModel) return byModel;
-  if (hits.length > 1) {
-    return TOPIC_PRIORITY.find((t) => hits.includes(t)) ?? hits[0];
-  }
-  return null; // 판단 불가 → 기존 값(OTHER/General) 유지
 }
 
 function getCurrencyForFortuneType(fortuneType: FortuneType | string): StarCurrency {
@@ -2688,6 +2683,20 @@ serve(async (req) => {
         timezone: (requestData as { timezone?: string }).timezone,
       };
 
+      // 0. 주제 계획 (주주제·부주제·시간 프레임) — 차트 계산과 병렬로 시작해 분류 모델 지연을 숨긴다.
+      //    첫 질문: 키워드 → (모호하면) 분류 모델. 후속 질문: 첫 질문 때 저장된 카테고리 + 질문들의 키워드만 (모델 호출 없음).
+      const previousQuestions: string[] = Array.isArray(requestData.previousConversation)
+        ? (requestData.previousConversation as Array<{ question?: unknown }>)
+          .map((p) => (typeof p?.question === "string" ? p.question : ""))
+          .filter((q) => q.trim())
+        : [];
+      const storedTopicRaw = String(consultationTopic ?? "").trim().toUpperCase();
+      const planPromise: Promise<ConsultationPlan> = buildConsultationPlan({
+        storedCategory: !storedTopicRaw || AUTO_TOPIC_VALUES.has(storedTopicRaw) ? null : storedTopicRaw,
+        questions: [...previousQuestions, userQuestion],
+        classify: previousQuestions.length === 0 ? classifyTopicWithGemini : undefined,
+      });
+
       // 1. Natal 차트 (출생 시점 기준 오프셋)
       const natalTzOffsetConsult = await resolveTimezoneOffsetHours(
         consultationTzOpts,
@@ -2709,39 +2718,35 @@ serve(async (req) => {
         ));
       }
 
-      // 카테고리 자동 판단: 미선택/AUTO/OTHER/GENERAL 이고 첫 질문이면 질문 내용으로 추론
-      {
-        const requestedTopic = String(consultationTopic ?? "").trim().toUpperCase();
-        const isFollowUpRequest =
-          Array.isArray(requestData.previousConversation) &&
-          requestData.previousConversation.length > 0;
-        if (!isFollowUpRequest && (!requestedTopic || AUTO_TOPIC_VALUES.has(requestedTopic))) {
-          const inferred = await resolveConsultationTopic(userQuestion);
-          if (inferred) {
-            console.log(
-              JSON.stringify({
-                logType: "CONSULTATION_TOPIC_AUTO",
-                requested: requestedTopic || "(none)",
-                inferred,
-              }),
-            );
-            consultationTopic = inferred;
-            requestData.consultationTopic = inferred;
-          }
-        }
-      }
+      // 주제 계획 확정. 종전 형식의 카테고리 하나(주주제 > 시간 프레임 > OTHER)는 저장·후속 요청·[Category] 표기에 쓴다.
+      const plan = await planPromise;
+      consultationTopic = planCategory(plan);
+      requestData.consultationTopic = consultationTopic;
+      /** 분석 블록·지식베이스 대상 주제 (주주제 + 부주제) */
+      const planSubjects: SubjectTopicId[] = [
+        ...(plan.primary ? [plan.primary] : []),
+        ...plan.secondary,
+      ];
+      console.log(
+        JSON.stringify({
+          logType: "CONSULTATION_TOPIC_PLAN",
+          requested: storedTopicRaw || "(none)",
+          isFollowUp: previousQuestions.length > 0,
+          primary: plan.primary,
+          secondary: plan.secondary,
+          timeFrame: plan.timeFrame,
+          source: plan.source,
+          category: consultationTopic,
+        }),
+      );
 
-      // Neo4j 상담 컨텍스트: 주간/월간 운세에서는 Gemini 인풋에 넣지 않음
-      const topic = (requestData.consultationTopic || "GENERAL").toUpperCase();
+      // Neo4j 상담 컨텍스트: 주주제 기준. 주제 없이 주간/월간 흐름만 묻는 경우에는 넣지 않음
       const skipNeo4jForConsultation =
-        topic === "WEEKLY" || topic === "MONTHLY";
+        !plan.primary && (plan.timeFrame === "WEEKLY" || plan.timeFrame === "MONTHLY");
       const graphKnowledgePromise = skipNeo4jForConsultation
         ? Promise.resolve("")
         : Promise.resolve(
-            fetchConsultationContext(
-              requestData.consultationTopic || "GENERAL",
-              chartData,
-            ),
+            fetchConsultationContext(plan.primary ?? "GENERAL", chartData),
           );
 
       // 2. Firdaria
@@ -2846,18 +2851,13 @@ serve(async (req) => {
         // 무시
       }
 
-      // 5c. Career/Wealth/Love 분석 (consultationTopic에 따라)
-      const consultationTopicUpper = (requestData.consultationTopic || "")
-        .trim()
-        .toUpperCase();
-      const careerAnalysis =
-        consultationTopicUpper === "WORK"
-          ? analyzeCareerPotential(chartData)
-          : null;
-      const wealthAnalysis =
-        consultationTopicUpper === "MONEY"
-          ? analyzeWealthPotential(chartData)
-          : null;
+      // 5c. Career/Wealth/Love 분석 (주제 계획의 주주제·부주제에 따라 — 부주제도 블록이 붙는다)
+      const careerAnalysis = planSubjects.includes("WORK")
+        ? analyzeCareerPotential(chartData)
+        : null;
+      const wealthAnalysis = planSubjects.includes("MONEY")
+        ? analyzeWealthPotential(chartData)
+        : null;
 
       let loveAnalysis: {
         lotOfMarriage: { sign: string; longitude: number };
@@ -2866,7 +2866,7 @@ serve(async (req) => {
         loveTiming: ReturnType<typeof analyzeLoveTiming>;
         profectionSign: string;
       } | null = null;
-      if (consultationTopicUpper === "LOVE") {
+      if (planSubjects.includes("LOVE")) {
         const gender =
           requestData.gender === "F" ||
           requestData.gender === "female" ||
@@ -2917,6 +2917,7 @@ serve(async (req) => {
         solarReturnChartData,
         solarReturnOverlay,
         consultationTransitChart,
+        plan.secondary,
       );
 
       // 6a. CONSULTATION: 향후 6개월 단기 이벤트 스캔 (타임로드 역행·항성·역행/정지) → 프롬프트에 주입
@@ -2932,11 +2933,12 @@ serve(async (req) => {
       }
 
       // 6b. CONSULTATION: 연주 트랜짓 각도·섹트·역행 + 연주–항성 회합
-      // 주간/월간/연간에 따라 기간별 트랜짓 스캔 + 프로펙션/솔라리턴 전환 시점 계산
+      // 주간/월간/연간 시간 프레임에 따라 기간별 트랜짓 스캔 + 프로펙션/솔라리턴 전환 시점 계산
+      // (주제와 무관 — "올해 이직" 처럼 주제 + 시간 프레임이 섞인 질문도 연간 스캔을 받는다)
       try {
         const lordName = profectionData.lordOfTheYear;
         const lordKey = getLordKeyFromName(lordName);
-        const topicUpper = topic.toUpperCase();
+        const topicUpper = plan.timeFrame ?? "";
 
         // 기간 판단
         let scanDays = 0;
@@ -3254,9 +3256,10 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
         contextBlock = `[이전 대화 맥락 (동일 주제에 대한 선행 질문과 답변입니다. 이 맥락을 유지한 채 후속 질문에만 답하세요.)]\n${lines.join("\n\n")}\n\n`;
       }
 
-      // 첫 질문과 동일한 카테고리별 해석·추운 규칙을 항상 포함
+      // 첫 질문과 동일한 카테고리별 해석·추운 규칙을 항상 포함 (부주제가 있으면 복합 질문 지침 한 줄 추가)
       let consultationSystemText = consultPrompts.getConsultationSystemPrompt(
         requestData.consultationTopic || "General",
+        plan.secondary,
       );
       // 후속 질문일 때: 위 규칙 위에 후속 전용 스키마·액션 지침 추가
       if (hasPreviousContext) {
@@ -3267,11 +3270,8 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
             requestData.consultationTopic || "General",
           );
       }
-      // 월간/연간 운세 카테고리 선택 시: 솔라리턴 해석 방법 가이드 추가
-      const topicUpper = (requestData.consultationTopic || "")
-        .trim()
-        .toUpperCase();
-      if (topicUpper === "MONTHLY" || topicUpper === "YEARLY") {
+      // 월간/연간 시간 프레임: 솔라리턴 해석 방법 가이드 추가 (주제와 무관하게 붙는다 — "올해 이직" 도 포함)
+      if (plan.timeFrame === "MONTHLY" || plan.timeFrame === "YEARLY") {
         consultationSystemText =
           consultationSystemText + "\n\n" + consultPrompts.getSolarReturnPrompt();
       }
@@ -3293,7 +3293,7 @@ ${periodLabel} 기간(${scanDays}일) 동안 연주 행성의 트랜짓 상태 �
       let userPrompt = `${systemContext}
 
 ${contextBlock}[User Question]: ${userQuestion.trim()}
-[Category]: ${consultationTopic || "General"}${
+[Category]: ${planLabel(plan) || "General"}${
         genderForPrompt ? `\n[Gender]: ${genderForPrompt}` : ""
       }`;
 
@@ -3304,23 +3304,17 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
         const kbScope = resolveKnowledgeScope(
           llmSession?.routing.isTest ? requestData.kbScope : undefined,
         );
-        // 선택 카테고리와 다른 주제가 질문에 섞여 있으면(예: 연애 카테고리에서 이직 시기) 그 주제의
-        // 하우스·규칙도 함께 넣는다. 후속 질문은 앞선 질문들의 주제도 유지한다.
-        const questionTopics = detectSubjectTopics(
-          [
-            ...(hasPreviousContext ? previousConversation!.map((p) => p.question) : []),
-            userQuestion,
-          ].join("\n"),
-        );
+        // 범위 = 주주제 + 부주제의 하우스·규칙 합집합 (주주제가 없으면 전체). 솔라리턴 규칙은 시간 프레임 기준.
         const kbTopics = kbScope === "full"
           ? null
-          : consultationKbTopics(requestData.consultationTopic, questionTopics);
+          : consultationKbTopics(plan.primary, plan.secondary);
         console.log(
           JSON.stringify({
             logType: "CONSULTATION_KB_SCOPE",
             scope: kbScope,
-            topic: requestData.consultationTopic ?? null,
-            questionTopics,
+            primary: plan.primary,
+            secondary: plan.secondary,
+            timeFrame: plan.timeFrame,
             kbTopics: kbTopics ?? "full",
           }),
         );
@@ -3328,9 +3322,10 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           chartData,
           FortuneType.CONSULTATION,
           {
-            consultationTopic: requestData.consultationTopic ?? null,
+            consultationTopic: plan.primary ?? consultationTopic,
             kbScope,
-            questionTopics,
+            questionTopics: plan.secondary,
+            timeFrame: plan.timeFrame,
           },
         );
         if (knowledgeContext) {
@@ -3400,6 +3395,8 @@ ${contextBlock}[User Question]: ${userQuestion.trim()}
           metadata: {
             userQuestion,
             consultationTopic,
+            // 주제 계획 (주주제·부주제·시간 프레임·판단 근거). 화면 표기("연애·직업 관점") 등에 쓸 수 있다
+            consultationPlan: plan,
             birthDate,
             lat,
             lng,

@@ -9,11 +9,12 @@ import { FortuneType } from "../types.ts";
 
 // 가상 인물 (1990-05-15 10:30 KST, 서울)
 const chart = await calculateChart(new Date("1990-05-15T01:30:00Z"), { lat: 37.5665, lng: 126.978 }, 9);
-const kb = (topic: string | null, kbScope?: "topic" | "full", question?: string) =>
+const kb = (topic: string | null, kbScope?: "topic" | "full", question?: string, timeFrame?: string | null) =>
   buildKnowledgeContext(chart, FortuneType.CONSULTATION, {
     consultationTopic: topic,
     kbScope,
     questionTopics: detectSubjectTopics(question),
+    timeFrame,
   });
 
 Deno.test("full 범위는 종전과 같다 — 카테고리와 무관하게 동일, 1·2·7·10 하우스 + 직업·연애·재물 규칙", () => {
@@ -105,6 +106,17 @@ Deno.test("질문에 다른 주제가 섞이면 그 주제의 하우스·규칙�
   assertEquals(consultationKbTopics("YEARLY", ["WORK"]), null);
   assertEquals(kb("YEARLY", undefined, q), kb("YEARLY", "full"));
   assertEquals(kb("LOVE", "full", q), kb("WORK", "full"));
+});
+
+Deno.test("시간 프레임이 MONTHLY·YEARLY 면 주제 범위를 유지한 채 솔라리턴 규칙만 더한다", () => {
+  const work = kb("WORK");
+  assert(!work.includes("■ 솔라리턴 해석 기준"), "직업 단독: 솔라리턴 규칙 없음");
+  const workYear = kb("WORK", undefined, undefined, "YEARLY");
+  assertStringIncludes(workYear, "■ 솔라리턴 해석 기준");
+  assertStringIncludes(workYear, "· 10하우스");
+  assert(!workYear.includes("· 7하우스"), "직업+연간: 여전히 직업 범위");
+  assert(workYear.length < kb("WORK", "full").length, "전체 범위보다 작다");
+  assert(!kb("WORK", undefined, undefined, "WEEKLY").includes("■ 솔라리턴 해석 기준"), "주간은 솔라리턴 없음");
 });
 
 Deno.test("resolveKnowledgeScope: 요청값 > 환경변수 CONSULTATION_KB_SCOPE > 기본 topic", () => {

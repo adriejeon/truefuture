@@ -217,8 +217,10 @@ export interface KnowledgeContextOptions {
   consultationTopic?: string | null;
   /** CONSULTATION: 주입 범위 (기본 "topic") */
   kbScope?: KnowledgeScope;
-  /** CONSULTATION: 질문 본문에서 감지된 주제 (detectSubjectTopics) — 선택 카테고리와 합쳐 범위를 넓힌다 */
+  /** CONSULTATION: 부주제 (주제 계획의 secondary) — 주주제와 합쳐 범위를 넓힌다 */
   questionTopics?: readonly string[] | null;
+  /** CONSULTATION: 시간 프레임 (WEEKLY/MONTHLY/YEARLY). MONTHLY·YEARLY 면 주제와 무관하게 솔라리턴 규칙을 넣는다 */
+  timeFrame?: string | null;
 }
 
 const PLANET_KO_TO_EN: Record<string, string> = {
@@ -401,11 +403,13 @@ export function buildKnowledgeContext(
     sections.push("■ 시기 해석 기준\n" + dedup(timingLines).join("\n"));
   }
 
-  // ── 5b. 솔라리턴 해석 기준 (상담소 월간·연간 카테고리에만) ──
+  // ── 5b. 솔라리턴 해석 기준 (상담소 월간·연간 — 카테고리 또는 시간 프레임) ──
   const topicUpper = String(opts?.consultationTopic ?? "").trim().toUpperCase();
+  const timeFrameUpper = String(opts?.timeFrame ?? "").trim().toUpperCase();
+  const wantsSolarReturn = [topicUpper, timeFrameUpper].some((v) => v === "MONTHLY" || v === "YEARLY");
   if (
     fortuneType === FortuneType.CONSULTATION &&
-    (topicUpper === "MONTHLY" || topicUpper === "YEARLY") &&
+    wantsSolarReturn &&
     TIMING_KB.solarReturn?.length
   ) {
     sections.push(

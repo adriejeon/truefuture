@@ -111,7 +111,7 @@
   {
     "id": "consult-love-crosstopic",
     "type": "consultation",
-    "note": "카테고리(LOVE)와 질문 주제(이직)가 어긋난 경우 — topic 범위에서도 질문에서 감지한 직업 하우스·규칙이 함께 들어가는지 확인 (함수 로그 CONSULTATION_KB_SCOPE.kbTopics = [LOVE, WORK])",
+    "note": "카테고리를 명시(LOVE)한 복합 질문 — 주주제 LOVE(stored) + 부주제 WORK. 로그 CONSULTATION_TOPIC_PLAN, 지표성 합집합·직업 분석 블록·지식베이스 합집합 확인",
     "request": {
       "birthDate": "1992-03-14T08:30:00",
       "lat": 37.5665,
@@ -121,6 +121,32 @@
       "userQuestion": "이직을 언제 할지 몰라서 연애 시작하기가 어려운데, 이직은 어떻게 될까요?",
       "consultationTopic": "LOVE",
       "kbScope": "topic"
+    }
+  },
+  {
+    "id": "consult-auto-crosstopic",
+    "type": "consultation",
+    "note": "카테고리 없이(운영과 동일, AUTO) 같은 복합 질문 — 강 키워드 LOVE·WORK 2개라 분류 모델이 주주제를 고르고 나머지가 부주제 (source=model, 실패 시 fallback)",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "이직을 언제 할지 몰라서 연애 시작하기가 어려운데, 이직은 어떻게 될까요?"
+    }
+  },
+  {
+    "id": "consult-yearly-work",
+    "type": "consultation",
+    "note": "주제 + 시간 프레임 — 주주제 WORK(keyword) 에 timeFrame YEARLY. 종전에는 YEARLY 하나로 판정돼 직업 지표성·분석이 빠지거나, WORK 로 판정돼 솔라리턴 지침이 빠졌다",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "올해 안에 이직할 수 있을까요? 지금 회사는 2년째예요."
     }
   }
 ]

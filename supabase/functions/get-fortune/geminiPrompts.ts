@@ -895,10 +895,21 @@ function getConsultationCategoryGuidelines(category: string): string {
  * **결정형 상담 결과 화면(Decision Reading UI)을 위해 구조화된 JSON 응답을 강제합니다.**
  * @param category - EXAM | MOVE | LOVE | MONEY | WORK | General 등 (대소문자 무관)
  */
-export function getConsultationSystemPrompt(category: string): string {
-  const categoryGuidelines = getConsultationCategoryGuidelines(
-    category || "General",
-  );
+/** 복합 질문(부주제 있음) 지침: 모든 주제를 다루되 score·keywords·timeline 은 주 주제 기준 */
+function getMultiTopicGuideline(primary: string, secondaryTopics: readonly string[]): string {
+  const extras = secondaryTopics.map((t) => String(t ?? "").trim().toUpperCase()).filter(Boolean);
+  if (extras.length === 0) return "";
+  const all = [primary.toUpperCase(), ...extras].join(" · ");
+  return `\n- **복합 질문**: 이 질문은 ${all} 주제에 걸쳐 있습니다. analysis 의 general·timing·advice 에서 각 주제를 모두 다루되, score·keywords·timeline 은 주 주제(${primary.toUpperCase()}) 기준으로 작성하세요. 부주제의 시기는 timing 안에서 별도 문장으로 제시하세요.`;
+}
+
+export function getConsultationSystemPrompt(
+  category: string,
+  secondaryTopics: readonly string[] = [],
+): string {
+  const categoryGuidelines =
+    getConsultationCategoryGuidelines(category || "General") +
+    getMultiTopicGuideline(category || "General", secondaryTopics);
 
   return `당신은 20년 경력의 신뢰받는 점성술 멘토입니다. 
 수많은 내담자들의 인생 전환점을 함께해온 경험으로, 차트 데이터를 통해 **미래를 정확히 예측**하는 능력을 인정받았습니다.

@@ -1230,6 +1230,8 @@ export function generatePredictionPrompt(
   solarReturnChartData?: ChartData,
   solarReturnOverlay?: SolarReturnOverlay,
   consultationTransitChart?: ChartData,
+  /** 주제 계획의 부주제 (지표성·타임라인 합집합, 타이밍 지시문 표기) */
+  secondaryTopics: readonly string[] = [],
 ): string {
   const sections: string[] = [];
 
@@ -1490,7 +1492,7 @@ ${srOverlayInfo}`);
   }
 
   // --- [TIMING FILTER] 카테고리별 시기 예측용 지표성 및 강제 규칙 ---
-  const significators = getCategorySignificators(chartData, consultationTopic, {
+  const significators = getPlanSignificators(chartData, consultationTopic, secondaryTopics, {
     loveAnalysis,
     wealthAnalysis,
     careerAnalysis,
@@ -2102,6 +2104,54 @@ export function getCategorySignificators(
 }
 
 /**
+ * 주제 계획(주주제 + 부주제)의 지표성.
+ * 주주제의 지표성에 부주제의 지표성을 합치고, 타이밍 필터 지시문에 부주제를 표시한다.
+ * 부주제가 없으면 getCategorySignificators 와 동일. 10년 타임라인은 합집합으로 걸러져
+ * "연애 질문에 섞인 이직" 같은 경우에도 직업 지표성 사건이 빠지지 않는다.
+ */
+export function getPlanSignificators(
+  chartData: ChartData,
+  category: string,
+  secondaryTopics: readonly string[] = [],
+  options?: {
+    loveAnalysis?: LoveAnalysisData | null;
+    wealthAnalysis?: WealthAnalysisResult | null;
+    careerAnalysis?: CareerAnalysisResult | null;
+  },
+): CategorySignificatorsResult {
+  const main = getCategorySignificators(chartData, category, options);
+  const extras = secondaryTopics
+    .map((t) => String(t ?? "").trim().toUpperCase())
+    .filter((t) => t && t !== String(category ?? "").trim().toUpperCase());
+  if (extras.length === 0) return main;
+
+  const primary = [...main.primary];
+  const secondary = [...(main.secondary ?? [])];
+  const lords: string[] = main.houseLordsBlock ? [main.houseLordsBlock] : [];
+  const pushUnique = (list: string[], name: string) => {
+    if (name && !list.some((x) => x.toLowerCase() === name.toLowerCase())) list.push(name);
+  };
+  for (const topic of extras) {
+    const s = getCategorySignificators(chartData, topic, options);
+    s.primary.forEach((n) => pushUnique(primary, n));
+    (s.secondary ?? []).forEach((n) => {
+      if (!primary.some((x) => x.toLowerCase() === n.toLowerCase())) pushUnique(secondary, n);
+    });
+    if (s.houseLordsBlock) lords.push(`(${topic})\n${s.houseLordsBlock}`);
+  }
+  return {
+    primary,
+    secondary: secondary.length ? secondary : undefined,
+    houseLordsBlock: lords.length ? lords.join("\n") : undefined,
+    timingFilterInstruction: buildTimingFilterInstruction(
+      category,
+      { primary, secondary: secondary.length ? secondary : undefined },
+      extras,
+    ),
+  };
+}
+
+/**
  * 10년 타임라인 데이터를 지표성(Significators)으로 필터링하여 연도별(Chronological) 텍스트로 병합.
  */
 function buildTimelineAnalysisSection(
@@ -2165,15 +2215,20 @@ function buildTimelineAnalysisSection(
 function buildTimingFilterInstruction(
   category: string,
   sig: { primary: string[]; secondary?: string[] },
+  secondaryTopics: readonly string[] = [],
 ): string {
   const primaryList = sig.primary.join(", ");
   const secondaryList =
     sig.secondary && sig.secondary.length > 0
       ? ` (Secondary: ${sig.secondary.join(", ")})`
       : "";
+  const secondaryTopicLine =
+    secondaryTopics.length > 0
+      ? `\nSecondary Topics: **${secondaryTopics.map((t) => t.toUpperCase()).join(", ")}** — the question also touches these topics. Their significators are merged into the list below; cover them in the analysis, but score and timeline follow the primary category.`
+      : "";
 
   const baseInstruction = `[CRITICAL INSTRUCTION FOR TIMING ANALYSIS]
-Current Category: **${category.toUpperCase()}**
+Current Category: **${category.toUpperCase()}**${secondaryTopicLine}
 
 **Significators for this question:**
 - ${primaryList}${secondaryList}
