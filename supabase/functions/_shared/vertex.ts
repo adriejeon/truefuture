@@ -254,3 +254,100 @@ export function logVertexRequestShape(
     }),
   );
 }
+
+// ---------- 가벼운 유틸 호출(분류·추천 질문·타로 해석)용 모델 체인 + 재시도/폴백 ----------
+//
+// gemini-2.5-flash-lite 는 2026-10-20 은퇴. 기본은 gemini-3.8-flash 인데 global 엔드포인트에서 429(Resource exhausted)가
+// 간헐적으로 나므로(2026-10-13 측정: 7회 중 3회), 같은 모델에서 짧게 재시도한 뒤 gemini-3.5-flash 로 넘어간다.
+// 시크릿 GEMINI_UTILITY_MODEL 로 기본 모델을 바꿀 수 있다.
+
+export const DEFAULT_UTILITY_MODEL = "gemini-3.8-flash";
+export const UTILITY_FALLBACK_MODEL = "gemini-3.5-flash";
+
+/** 유틸 호출 모델 체인: [GEMINI_UTILITY_MODEL 또는 기본] → gemini-3.5-flash (같은 모델이면 1개) */
+export function getUtilityModelChain(): string[] {
+  const primary = Deno.env.get("GEMINI_UTILITY_MODEL")?.trim() || DEFAULT_UTILITY_MODEL;
+  return primary === UTILITY_FALLBACK_MODEL ? [primary] : [primary, UTILITY_FALLBACK_MODEL];
+}
+
+export interface GenerateWithFallbackOptions {
+  /** 체인 전체의 시간 상한 (기본 20초) */
+  timeoutMs?: number;
+  /** 모델당 429/5xx 재시도 횟수 (기본 1회, 600ms 뒤) */
+  retriesPerModel?: number;
+  /** 로그 표기용 */
+  label?: string;
+}
+
+export interface GenerateWithFallbackResult {
+  /** generateContent 응답 JSON */
+  data: any;
+  /** 실제로 답한 모델 */
+  model: string;
+  /** 총 시도 횟수 */
+  attempts: number;
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * generateContent 를 모델 체인으로 호출한다.
+ *  - 429 / 5xx / 네트워크 오류: 같은 모델에서 retriesPerModel 만큼 재시도한 뒤 다음 모델로
+ *  - 그 외 4xx(400·403·404 등): 재시도 없이 다음 모델로
+ *  - timeoutMs 를 넘기면 마지막 오류로 throw
+ * 로그에는 모델·상태 코드만 남기고 프롬프트·응답 본문은 남기지 않는다.
+ */
+export async function generateContentWithFallback(
+  models: readonly string[],
+  requestBody: unknown,
+  opts: GenerateWithFallbackOptions = {},
+): Promise<GenerateWithFallbackResult> {
+  const deadline = Date.now() + (opts.timeoutMs ?? 20000);
+  const retries = opts.retriesPerModel ?? 1;
+  const label = opts.label ?? "utility";
+  const accessToken = await getVertexAccessToken();
+  const payload = JSON.stringify(requestBody);
+  let lastErr: Error | null = null;
+  let attempts = 0;
+
+  for (const model of models) {
+    for (let i = 0; i <= retries; i++) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw lastErr ?? new Error(`[${label}] vertex timeout`);
+      attempts++;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), remaining);
+      try {
+        const res = await fetch(buildVertexUrl(model, "generateContent"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+          },
+          body: payload,
+          signal: ctrl.signal,
+        });
+        if (res.ok) {
+          if (attempts > 1) {
+            console.log(JSON.stringify({ logType: "VERTEX_UTILITY_RECOVERED", label, model, attempts }));
+          }
+          return { data: await res.json(), model, attempts };
+        }
+        const text = (await res.text()).slice(0, 300);
+        lastErr = new Error(`Gemini ${model} ${res.status}: ${text}`);
+        const retryable = res.status === 429 || res.status >= 500;
+        console.warn(JSON.stringify({ logType: "VERTEX_UTILITY_ERROR", label, model, status: res.status, attempt: attempts, retryable }));
+        if (!retryable) break; // 다음 모델로
+        if (i < retries) await sleep(600 * (i + 1));
+      } catch (e) {
+        lastErr = e as Error;
+        if (ctrl.signal.aborted) throw new Error(`[${label}] vertex timeout (${model})`);
+        console.warn(JSON.stringify({ logType: "VERTEX_UTILITY_ERROR", label, model, attempt: attempts, error: String(lastErr?.message ?? e).slice(0, 120) }));
+        if (i < retries) await sleep(600 * (i + 1));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+  throw lastErr ?? new Error(`[${label}] no model succeeded`);
+}

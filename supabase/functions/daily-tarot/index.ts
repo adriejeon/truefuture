@@ -1,5 +1,7 @@
 // daily-tarot Edge Function
-// 타로/오라클 카드 키워드를 받아 Gemini 2.5 Flash-Lite로 그날의 AI 해석을 생성
+// ⚠️ 2026-10-13부터 웹은 이 함수를 호출하지 않는다 — 데일리 타로 해석은 프론트의 룰 기반 생성으로 바뀜
+//    (frontend/src/utils/dailyTarotReading.js). 남은 호출처가 없으면 삭제 대상.
+// 타로/오라클 카드 키워드를 받아 Gemini Flash(기본 gemini-3.8-flash)로 그날의 AI 해석을 생성
 // 인증 불필요 (무료 기능)
 // AI 호출은 Vertex AI(서비스 계정 OAuth2)로 처리한다.
 
@@ -10,9 +12,11 @@ declare global {
 }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { getVertexAccessToken, buildVertexUrl } from "../_shared/vertex.ts";
+import { generateContentWithFallback, getUtilityModelChain } from "../_shared/vertex.ts";
 
-const TAROT_MODEL = "gemini-2.5-flash-lite";
+// gemini-2.5-flash-lite 는 2026-10-20 은퇴 → 유틸 모델 체인 (기본 gemini-3.8-flash, 429/5xx 면 재시도 후 gemini-3.5-flash.
+// 시크릿 GEMINI_UTILITY_MODEL 로 기본 모델 교체 가능, 다른 유틸 호출과 공유)
+const TAROT_MODELS = getUtilityModelChain();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,44 +71,41 @@ serve(async (req: Request) => {
       ? buildKoreanPrompt(cardName, keywords, cardType, energyLabel)
       : buildEnglishPrompt(cardName, keywords, cardType, energyLabel);
 
-    const accessToken = await getVertexAccessToken();
-    const geminiRes = await fetch(
-      buildVertexUrl(TAROT_MODEL, "generateContent"),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        // Vertex는 contents[].role 이 "user"|"model" 이어야 함 (role 누락 시 400)
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.9,
-            maxOutputTokens: 320,
-            topP: 0.95,
-          },
-          systemInstruction: {
-            parts: [{ text: getSystemInstruction(language) }],
-          },
-        }),
-      }
-    );
+    // Vertex는 contents[].role 이 "user"|"model" 이어야 함 (role 누락 시 400)
+    const requestBody = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.9,
+        maxOutputTokens: 1024, // 해석 본문은 300토큰 안팎이지만, 사고 토큰이 상한에 포함될 수 있어 여유를 둔다
+        topP: 0.95,
+      },
+      systemInstruction: {
+        parts: [{ text: getSystemInstruction(language) }],
+      },
+    };
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
+    let geminiData: any;
+    let usedModel = TAROT_MODELS[0];
+    try {
+      const out = await generateContentWithFallback(TAROT_MODELS, requestBody, {
+        timeoutMs: 25000,
+        label: "daily-tarot",
+      });
+      geminiData = out.data;
+      usedModel = out.model;
+    } catch (e) {
       return new Response(
-        JSON.stringify({ error: `Gemini error: ${errText}` }),
+        JSON.stringify({ error: `Gemini error: ${String((e as Error)?.message ?? e).slice(0, 300)}` }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const geminiData = await geminiRes.json();
-    const interpretation =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const interpretation: string = (geminiData?.candidates?.[0]?.content?.parts ?? [])
+      .map((p: { text?: string }) => p?.text ?? "")
+      .join("");
 
     return new Response(
-      JSON.stringify({ interpretation: interpretation.trim() }),
+      JSON.stringify({ interpretation: interpretation.trim(), model: usedModel }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }

@@ -1265,10 +1265,10 @@ async function handleGenerate(
 
 // ===== 비교 테스트 액션 (admin_users 전용, 결제·리포트 행과 무관한 무상태 호출) =====
 
-/** 질문 나누기 비교 대상 (운영 기본은 GEMINI_FLASH_MODEL 그대로) */
+/** 질문 나누기 비교 대상 (운영 기본은 GEMINI_FLASH_MODEL 그대로). gemini-2.5-flash-lite 는 2026-10-20 은퇴로 제외 */
 const DECOMPOSE_TEST_MODELS = new Set([
   "gemini-3.5-flash",
-  "gemini-2.5-flash-lite",
+  "gemini-3.8-flash",
   "gemini-3.1-flash-lite",
 ]);
 
@@ -1428,7 +1428,7 @@ async function handleTestDecompose(supabaseAdmin: any, userId: string, body: any
   if (!routing) return json(403, { success: false, error: "테스트 권한이 없습니다." });
   const question = typeof body.question === "string" ? body.question.trim().substring(0, QUESTION_MAX_LENGTH) : "";
   if (!question) return json(400, { success: false, error: "question 이 필요합니다." });
-  const models: string[] = (Array.isArray(body.models) ? body.models : ["gemini-3.5-flash", "gemini-2.5-flash-lite"])
+  const models: string[] = (Array.isArray(body.models) ? body.models : ["gemini-3.5-flash", "gemini-3.8-flash"])
     .filter((m: unknown) => typeof m === "string" && DECOMPOSE_TEST_MODELS.has(m));
 
   const session = new LlmSession(routing, userId);
