@@ -293,7 +293,7 @@ function llmLine(llm: any): {
   const reasons = [...new Set(runs.filter((r) => r.fellBack || r.fallbackReason).map((r) => r.fallbackReason))].filter(Boolean);
   let cost = 0;
   let costKnown = false;
-  let inT = 0, cT = 0, outT = 0, rT = 0;
+  let inT = 0, cT = 0, wT = 0, outT = 0, rT = 0;
   let serverMs = 0;
   for (const r of runs) {
     if (typeof r.totalCostUsd === "number") {
@@ -304,6 +304,7 @@ function llmLine(llm: any): {
     for (const a of r.attempts ?? []) {
       inT += a.usage?.inputTokens ?? 0;
       cT += a.usage?.cachedInputTokens ?? 0;
+      wT += a.usage?.cacheWriteTokens ?? 0;
       outT += a.usage?.outputTokens ?? 0;
       rT += a.usage?.reasoningTokens ?? 0;
     }
@@ -312,7 +313,7 @@ function llmLine(llm: any): {
     label: finals.join(" + ") + (fellBack ? ` ⚠️ 폴백(${reasons.join(",")})` : ""),
     fellBack,
     costUsd: costKnown ? Math.round(cost * 1e6) / 1e6 : null,
-    tokens: `in ${inT} (cache ${cT}) / out ${outT} (reasoning ${rT})`,
+    tokens: `in ${inT} (cache hit ${cT} / write ${wT}) / out ${outT} (reasoning ${rT})`,
     serverMs: serverMs || null,
   };
 }

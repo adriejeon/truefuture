@@ -1348,6 +1348,8 @@ async function openaiOptionsFor(
     effort: OPENAI_TIER_CONFIG[tier].effort,
     maxOutputTokens: OPENAI_MAX_OUTPUT_TOKENS[feature] ?? 24000,
     promptCacheKey: `truefuture:${feature}`,
+    // 시스템 지침이 고정 문구인 기능만 캐시 (궁합은 지침 안에 두 사람의 차트가 들어가 매번 다르다)
+    cacheStaticInstructions: feature !== "compatibility",
     safetyIdentifier: llm.userId ? (await sha256Hex(`tf:${llm.userId}`)).substring(0, 32) : undefined,
   };
 }
