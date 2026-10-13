@@ -40,6 +40,7 @@ import { PAGE_SEO } from "../constants/siteSeo";
 import { REPORT_PRICE } from "../constants/pricing";
 import { REPORT_FAQ_KEYS } from "../constants/faqItems";
 import { buildReportGraph, REPORT_REVIEW_PAGE_SIZE } from "../utils/pageJsonLd";
+import { withLlmTestProvider } from "../utils/llmTestProvider";
 
 const QUESTION_MAX = 300;
 const CHECKOUT_STORAGE_KEY = "premium_report_checkout";
@@ -340,7 +341,7 @@ function PremiumReport() {
 
           const { data, error: fnError } = await supabase.functions.invoke(
             "premium-report",
-            { body: { action: "generate", report_id: reportId } }
+            { body: withLlmTestProvider({ action: "generate", report_id: reportId }) }
           );
           if (!alive()) return;
 

@@ -39,6 +39,21 @@ import {
 import type { SubQuestion } from "./premiumPrompts.ts";
 import { validateSection } from "./reportValidation.ts";
 import type { SectionValidationContext } from "./reportValidation.ts";
+import {
+  OPENAI_MODEL,
+  OPENAI_TIER_CONFIG,
+  LlmError,
+  LlmSession,
+  resolveLlmRouting,
+  isLlmVariant,
+  groundingGuard,
+  hashGeminiBody,
+  sha256Hex,
+  usageFromGemini,
+  callOpenAIText,
+  sanitizeErrorMessage,
+} from "../_shared/llm.ts";
+import type { LlmRouting, LlmRun, LlmErrorKind } from "../_shared/llm.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,6 +75,14 @@ const QUESTION_MAX_LENGTH = 500;
 const GEMINI_PRO_MODEL = "gemini-3.1-pro-preview";
 // 질문 분해(구조화 출력) 등 보조 작업용 경량 모델
 const GEMINI_FLASH_MODEL = "gemini-3.5-flash";
+
+/** premium_reports.llm_state */
+interface ReportLlmState {
+  variant?: string;
+  isTest?: boolean;
+  fallbackSection?: number;
+  fallbackReason?: LlmErrorKind;
+}
 
 // 생성 중복 방지 락 유효 시간 (이 시간이 지나면 죽은 락으로 간주하고 재시도 허용)
 const GENERATION_LOCK_TTL_MS = 4 * 60 * 1000;
@@ -213,45 +236,59 @@ async function callGemini(
         }),
       );
     }
-    return { text: parseGeminiResponse(data), usage };
+    try {
+      return { text: parseGeminiResponse(data), usage };
+    } catch (e) {
+      // 파싱 실패(MAX_TOKENS·차단 등)에도 과금된 사용량을 기록할 수 있게 붙여 보낸다
+      if (e && typeof e === "object") (e as { usage?: GeminiUsage | null }).usage = usage;
+      throw e;
+    }
   }
 }
 
 // ===== 질문 분해 (구조화 출력) =====
 
-async function decomposeQuestion(question: string): Promise<SubQuestion[]> {
-  try {
-    const requestBody = {
-      contents: [{ role: "user", parts: [{ text: `신청서 질문 원문:\n"""\n${question}\n"""` }] }],
-      systemInstruction: { parts: [{ text: QUESTION_DECOMPOSE_SYSTEM }] },
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 2000,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            sub_questions: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: { text: { type: "string" } },
-                required: ["text"],
-              },
+/** 질문 분해 요청 body (운영·비교 테스트 공용) */
+function buildDecomposeBody(question: string) {
+  return {
+    contents: [{ role: "user", parts: [{ text: `신청서 질문 원문:\n"""\n${question}\n"""` }] }],
+    systemInstruction: { parts: [{ text: QUESTION_DECOMPOSE_SYSTEM }] },
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 2000,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "object",
+        properties: {
+          sub_questions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { text: { type: "string" } },
+              required: ["text"],
             },
           },
-          required: ["sub_questions"],
         },
+        required: ["sub_questions"],
       },
-    };
-    const { text } = await callGemini(GEMINI_FLASH_MODEL, requestBody);
-    const parsed = JSON.parse(text);
-    const items = Array.isArray(parsed?.sub_questions) ? parsed.sub_questions : [];
-    const subs: SubQuestion[] = items
-      .map((it: any) => (typeof it?.text === "string" ? it.text.trim() : ""))
-      .filter((t: string) => t.length > 0)
-      .slice(0, 5)
-      .map((t: string, i: number) => ({ id: i + 1, text: t }));
+    },
+  };
+}
+
+function parseSubQuestions(text: string): SubQuestion[] {
+  const parsed = JSON.parse(text);
+  const items = Array.isArray(parsed?.sub_questions) ? parsed.sub_questions : [];
+  return items
+    .map((it: any) => (typeof it?.text === "string" ? it.text.trim() : ""))
+    .filter((t: string) => t.length > 0)
+    .slice(0, 5)
+    .map((t: string, i: number) => ({ id: i + 1, text: t }));
+}
+
+async function decomposeQuestion(question: string): Promise<SubQuestion[]> {
+  try {
+    const { text } = await callGemini(GEMINI_FLASH_MODEL, buildDecomposeBody(question));
+    const subs = parseSubQuestions(text);
     if (subs.length > 0) return subs;
   } catch (e) {
     console.warn("⚠️ 질문 분해 실패 — 원문 단일 질문으로 처리:", e);
@@ -260,40 +297,167 @@ async function decomposeQuestion(question: string): Promise<SubQuestion[]> {
 }
 
 // ===== 섹션 생성 =====
-// 한 HTTP 요청은 Gemini 호출을 1번만 수행한다 (엣지 워커 리소스 한도 회피).
+// 한 HTTP 요청은 LLM 본문 생성을 1번만 수행하는 것이 원칙이다 (엣지 워커 리소스 한도 회피).
 // 검증 실패 시 문제 목록을 VALIDATION: 접두 에러로 던지고, 호출부(handleGenerate)가
 // pending_fix 로 저장 → 다음 generate 요청이 교정 지시를 붙여 재생성한다.
+// (예외: OpenAI 가 빨리 실패하면 같은 요청 안에서 Gemini 로 1회 폴백한다 — 아래 generateSectionText)
 
-async function generateValidated(
-  systemText: string,
-  userPrompt: string,
-  ctx: SectionValidationContext,
-  correctiveProblems: string[] | null,
-): Promise<{ text: string; usage: GeminiUsage | null }> {
-  let sys = systemText;
-  if (correctiveProblems && correctiveProblems.length > 0) {
-    sys +=
-      "\n\n### [재생성 교정 지시 — 반드시 반영]\n" +
-      "직전 원고가 아래 검증에 실패했습니다. 전체 원고를 처음부터 다시 작성하되, 아래 문제를 모두 해결하십시오:\n" +
-      correctiveProblems.map((p) => `- ${p}`).join("\n");
-  }
+interface SectionPrompt {
+  systemText: string;
+  userPrompt: string;
+  ctx: SectionValidationContext;
+}
 
-  const result = await callGemini(GEMINI_PRO_MODEL, {
-    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-    systemInstruction: { parts: [{ text: sys }] },
+function withCorrective(systemText: string, correctiveProblems: string[] | null): string {
+  if (!correctiveProblems || correctiveProblems.length === 0) return systemText;
+  return (
+    systemText +
+    "\n\n### [재생성 교정 지시 — 반드시 반영]\n" +
+    "직전 원고가 아래 검증에 실패했습니다. 전체 원고를 처음부터 다시 작성하되, 아래 문제를 모두 해결하십시오:\n" +
+    correctiveProblems.map((p) => `- ${p}`).join("\n")
+  );
+}
+
+function buildSectionGeminiBody(prompt: SectionPrompt, extraSystem = "") {
+  return {
+    contents: [{ role: "user", parts: [{ text: prompt.userPrompt }] }],
+    systemInstruction: { parts: [{ text: prompt.systemText + extraSystem }] },
     generationConfig: {
       temperature: 0.7,
       topK: 50,
       topP: 0.95,
       maxOutputTokens: 32768,
     },
-  });
+  };
+}
 
-  const verdict = validateSection(result.text, ctx);
-  if (!verdict.ok) {
-    throw new Error(`VALIDATION:${JSON.stringify(verdict.problems.slice(0, 12))}`);
+/** OpenAI 리포트 섹션: 출력 상한 = 기존 본문 상한 32k + medium 추론 여유분 */
+const OPENAI_REPORT_MAX_OUTPUT_TOKENS = 64000;
+/** 비스트리밍 응답이라 게이트웨이 유휴 한도(약 150초)와 생성 락 TTL(4분)보다 짧게 잡는다 */
+const OPENAI_REPORT_TIMEOUT_MS = 140_000;
+/** 이 시간 안에 OpenAI 가 실패하면 같은 요청에서 Gemini 로 폴백, 넘으면 다음 요청으로 넘긴다 */
+const REPORT_INLINE_FALLBACK_WINDOW_MS = 30_000;
+
+/** 기록용 오류 문구: 검증 문제 목록(사용자 질문 일부 포함 가능)은 개수만 남긴다 */
+function recordableGeminiError(message: string): string {
+  if (message.startsWith("VALIDATION:")) {
+    try {
+      return `형식 검증 실패 ${JSON.parse(message.substring("VALIDATION:".length)).length}건`;
+    } catch {
+      return "형식 검증 실패";
+    }
   }
-  return result;
+  return message.substring(0, 300);
+}
+
+/** 에러 메시지 접두사 → 기록용 오류 종류 */
+function kindFromGeminiError(message: string): LlmErrorKind {
+  if (message.startsWith("FATAL:")) return "refusal";
+  if (message.startsWith("VALIDATION:")) return message.includes("최대 길이") ? "incomplete" : "validation";
+  return "api";
+}
+
+/**
+ * 섹션 본문 생성.
+ * - run 이 없으면(운영 기본 Gemini) 기존과 동일하게 Gemini Pro 1회 + 검증.
+ * - run 이 있으면 공급자 라우팅·기록:
+ *     openai: gpt-6.1-sol(medium) → 검증 → 실패 시 Gemini Pro 폴백
+ *             (빨리 실패한 경우만 같은 요청에서, 아니면 PROVIDER_FALLBACK: 으로 다음 요청에 넘김)
+ *     gemini / gemini-3.8: 심층 호출이라 둘 다 Gemini Pro
+ * - 안전상 거절은 폴백하지 않고 FATAL: 로 기존 차단 흐름에 태운다.
+ */
+async function generateSectionText(
+  prompt: SectionPrompt,
+  llm: { session: LlmSession; run: LlmRun; forceGemini: boolean } | null,
+  language = "ko",
+): Promise<{ text: string; usage: GeminiUsage | null }> {
+  if (!llm) {
+    const result = await callGemini(GEMINI_PRO_MODEL, buildSectionGeminiBody(prompt));
+    const verdict = validateSection(result.text, prompt.ctx);
+    if (!verdict.ok) {
+      throw new Error(`VALIDATION:${JSON.stringify(verdict.problems.slice(0, 12))}`);
+    }
+    return result;
+  }
+
+  const { session, run } = llm;
+  const guard = groundingGuard(language);
+  const body = buildSectionGeminiBody(prompt, guard);
+  run.promptHash = await hashGeminiBody(body);
+  const startedAt = Date.now();
+
+  if (session.routing.variant === "openai" && !llm.forceGemini) {
+    const attempt = run.begin("openai", OPENAI_MODEL, OPENAI_TIER_CONFIG.deep.effort);
+    try {
+      const text = await callOpenAIText(
+        {
+          model: OPENAI_MODEL,
+          prompt: { instructions: prompt.systemText + guard, input: [{ role: "user", content: prompt.userPrompt }] },
+          effort: OPENAI_TIER_CONFIG.deep.effort,
+          maxOutputTokens: OPENAI_REPORT_MAX_OUTPUT_TOKENS,
+          timeoutMs: OPENAI_REPORT_TIMEOUT_MS,
+          promptCacheKey: `truefuture:premium_report:${prompt.ctx.sectionIndex}`,
+          safetyIdentifier: session.userId
+            ? (await sha256Hex(`tf:${session.userId}`)).substring(0, 32)
+            : undefined,
+        },
+        attempt,
+      );
+      const verdict = validateSection(text, prompt.ctx);
+      if (!verdict.ok) {
+        // 문제 문구에 사용자 질문 일부가 들어갈 수 있어 기록에는 개수만 남긴다
+        throw new LlmError("validation", `형식 검증 실패 ${verdict.problems.length}건`);
+      }
+      attempt.succeed();
+      run.finish(text);
+      return { text, usage: null };
+    } catch (e) {
+      const err = e instanceof LlmError
+        ? e
+        : new LlmError("api", sanitizeErrorMessage((e as Error)?.message ?? String(e)));
+      attempt.fail(err);
+      if (err.kind === "refusal") {
+        run.finish(null);
+        throw new Error(`FATAL: OpenAI ${err.message}`);
+      }
+      run.fallbackReason = err.kind;
+      if (Date.now() - startedAt > REPORT_INLINE_FALLBACK_WINDOW_MS) {
+        // 워커 실행 한도 보호: 이번 요청은 여기서 끝내고 다음 요청이 Gemini 로 생성
+        run.finish(null);
+        throw new Error(`PROVIDER_FALLBACK:${err.kind}`);
+      }
+      console.warn(
+        JSON.stringify({
+          logType: "LLM_FALLBACK",
+          feature: run.feature,
+          part: run.part,
+          from: `openai:${OPENAI_MODEL}`,
+          to: `gemini:${GEMINI_PRO_MODEL}`,
+          reason: err.kind,
+        }),
+      );
+    }
+  }
+
+  const g = run.begin("gemini", GEMINI_PRO_MODEL);
+  try {
+    const result = await callGemini(GEMINI_PRO_MODEL, body);
+    g.setUsage(usageFromGemini(result.usage));
+    const verdict = validateSection(result.text, prompt.ctx);
+    if (!verdict.ok) {
+      throw new Error(`VALIDATION:${JSON.stringify(verdict.problems.slice(0, 12))}`);
+    }
+    g.succeed();
+    run.finish(result.text);
+    return result;
+  } catch (e) {
+    const message = (e as Error)?.message ?? String(e);
+    const usage = (e as { usage?: GeminiUsage | null })?.usage;
+    if (usage) g.setUsage(usageFromGemini(usage));
+    g.fail(new LlmError(kindFromGeminiError(message), recordableGeminiError(message)));
+    run.finish(null);
+    throw e;
+  }
 }
 
 /** 연도 제목 문자열: "2026년 (9월~12월, 만 34~35세)" */
@@ -303,7 +467,7 @@ function yearHeading(l: { year: number; partial: string | null; ages: string }):
     : `${l.year}년 (${l.ages})`;
 }
 
-async function generateSection(
+async function buildSectionPrompt(
   sectionIndex: number,
   snapshot: ProfileSnapshot,
   question: string | null,
@@ -311,7 +475,7 @@ async function generateSection(
   baseDate: Date,
   priorContent: string,
   correctiveProblems: string[] | null,
-): Promise<{ text: string; usage: GeminiUsage | null }> {
+): Promise<SectionPrompt> {
   const base = await buildBaseData(snapshot);
   const questionTopic = question ? question.substring(0, 120) : null;
   // 연애·결혼 질문이면 에로스 랏 방출(애정 궤도)을 시기 데이터에 추가 주입
@@ -334,7 +498,7 @@ async function generateSection(
       subQuestions,
       expectedYears: [],
     };
-    return await generateValidated(systemText, userPrompt, ctx, correctiveProblems);
+    return { systemText: withCorrective(systemText, correctiveProblems), userPrompt, ctx };
   }
 
   // 파트 2·3: 10년 시기 데이터
@@ -359,7 +523,7 @@ async function generateSection(
       subQuestions,
       expectedYears: part2Labels.map((l) => l.year),
     };
-    return await generateValidated(systemText, userPrompt, ctx, correctiveProblems);
+    return { systemText: withCorrective(systemText, correctiveProblems), userPrompt, ctx };
   }
 
   // 파트 3: 앞 파트의 전체 흐름 요약을 발췌해 모순 없이 이어가게 함
@@ -388,7 +552,7 @@ async function generateSection(
     subQuestions,
     expectedYears: part3Labels.map((l) => l.year),
   };
-  return await generateValidated(systemText, userPrompt, ctx, correctiveProblems);
+  return { systemText: withCorrective(systemText, correctiveProblems), userPrompt, ctx };
 }
 
 // ===== 액션 핸들러 =====
@@ -695,13 +859,22 @@ async function handleGenerate(
     return json(400, { success: false, error: "report_id는 필수입니다." });
   }
 
-  const { data: report, error: fetchError } = await supabaseAdmin
+  const REPORT_COLUMNS =
+    "id, user_id, status, sections_total, sections_done, content, question, question_breakdown, profile_snapshot, generation_lock_at, created_at, generation_attempts, pending_fix";
+  let { data: report, error: fetchError } = await supabaseAdmin
     .from("premium_reports")
-    .select(
-      "id, user_id, status, sections_total, sections_done, content, question, question_breakdown, profile_snapshot, generation_lock_at, created_at, generation_attempts, pending_fix",
-    )
+    .select(`${REPORT_COLUMNS}, llm_state`)
     .eq("id", reportId)
     .maybeSingle();
+  // llm_state 컬럼 마이그레이션(20261013) 적용 전에 배포된 경우에도 기존 생성은 계속 동작해야 한다
+  if (fetchError && /llm_state/.test(String(fetchError.message ?? ""))) {
+    console.warn("⚠️ premium_reports.llm_state 컬럼 없음 — 마이그레이션 적용 전, LLM 라우팅 없이 진행");
+    ({ data: report, error: fetchError } = await supabaseAdmin
+      .from("premium_reports")
+      .select(REPORT_COLUMNS)
+      .eq("id", reportId)
+      .maybeSingle());
+  }
 
   if (fetchError || !report) {
     return json(404, { success: false, error: "리포트를 찾을 수 없습니다." });
@@ -795,6 +968,28 @@ async function handleGenerate(
     });
   }
 
+  // ── LLM 공급자: 리포트 단위로 고정 (섹션마다 공급자가 섞이지 않게) ──
+  const llmState: ReportLlmState = (report.llm_state && typeof report.llm_state === "object")
+    ? report.llm_state as ReportLlmState
+    : {};
+  let routing: LlmRouting;
+  if (isLlmVariant(llmState.variant)) {
+    routing = { variant: llmState.variant, isTest: !!llmState.isTest };
+  } else {
+    routing = await resolveLlmRouting(supabaseAdmin, userId, body.llmProvider);
+    if (routing.isTest || routing.variant !== "gemini") {
+      llmState.variant = routing.variant;
+      llmState.isTest = routing.isTest;
+      await supabaseAdmin.from("premium_reports").update({ llm_state: llmState }).eq("id", reportId);
+    }
+  }
+  const routed = routing.isTest || routing.variant !== "gemini";
+  const llmSession = routed ? new LlmSession(routing, userId) : null;
+  const llmRun = llmSession ? llmSession.newRun("premium_report_section", `section_${sectionIndex}`) : null;
+  // 직전 요청에서 OpenAI 가 실패해 이 섹션을 Gemini 로 넘기기로 한 경우
+  const deferredFallback = llmState.fallbackSection === sectionIndex;
+  if (llmRun && deferredFallback) llmRun.fallbackReason = llmState.fallbackReason ?? "api";
+
   try {
     const snapshot = report.profile_snapshot as ProfileSnapshot;
     const question: string | null = report.question ?? null;
@@ -827,7 +1022,7 @@ async function handleGenerate(
       ? (report.pending_fix as string[])
       : null;
 
-    const { text: sectionText, usage } = await generateSection(
+    const sectionPrompt = await buildSectionPrompt(
       sectionIndex,
       snapshot,
       question,
@@ -835,6 +1030,10 @@ async function handleGenerate(
       baseDate,
       report.content ?? "",
       correctiveProblems,
+    );
+    const { text: sectionText, usage } = await generateSectionText(
+      sectionPrompt,
+      llmSession && llmRun ? { session: llmSession, run: llmRun, forceGemini: deferredFallback } : null,
     );
 
     const newContent = report.content
@@ -854,6 +1053,10 @@ async function handleGenerate(
         error_message: null,
         pending_fix: null,
         generation_lock_at: null,
+        // 폴백 지시는 해당 섹션이 끝나면 지운다 (variant 는 유지)
+        ...(routed && deferredFallback
+          ? { llm_state: { variant: llmState.variant, isTest: llmState.isTest } }
+          : {}),
       })
       .eq("id", reportId)
       .eq("generation_lock_at", nowIso)
@@ -873,6 +1076,11 @@ async function handleGenerate(
           note: "락이 이미 다른 요청에 넘어가 이번 결과는 저장하지 않음",
         }),
       );
+      await llmSession?.persist(supabaseAdmin, {
+        premiumReportId: reportId,
+        sectionIndex,
+        outcome: "failed",
+      });
       return json(200, {
         success: true,
         done: false,
@@ -893,15 +1101,50 @@ async function handleGenerate(
       }),
     );
 
+    await llmSession?.persist(supabaseAdmin, {
+      premiumReportId: reportId,
+      sectionIndex,
+      outcome: "saved",
+    });
+    const llmMeta = llmSession?.publicSummary() ?? null;
+
     return json(200, {
       success: true,
       done: isDone,
       sectionsDone: newSectionsDone,
       sectionsTotal: report.sections_total,
       usage,
+      ...(llmMeta ? { llm: llmMeta } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "알 수 없는 오류";
+    await llmSession?.persist(supabaseAdmin, {
+      premiumReportId: reportId,
+      sectionIndex,
+      outcome: "failed",
+    });
+
+    // ⓪ OpenAI 가 늦게 실패: 이번 요청은 끝내고, 다음 요청이 이 섹션을 Gemini 로 생성한다
+    if (message.startsWith("PROVIDER_FALLBACK:")) {
+      const reason = message.substring("PROVIDER_FALLBACK:".length) as LlmErrorKind;
+      await supabaseAdmin
+        .from("premium_reports")
+        .update({
+          status: "GENERATING",
+          generation_lock_at: null,
+          llm_state: { ...llmState, fallbackSection: sectionIndex, fallbackReason: reason },
+        })
+        .eq("id", reportId)
+        // 내 락이 그대로일 때만 (그사이 다른 요청이 락을 이어받았다면 건드리지 않는다)
+        .eq("generation_lock_at", nowIso);
+      return json(200, {
+        success: true,
+        done: false,
+        revalidate: true,
+        sectionsDone: sectionIndex,
+        sectionsTotal: report.sections_total,
+      });
+    }
 
     /** FAILED 로 마킹 (무료 재시도가 다시 2회 기회를 갖도록 pending_fix 는 비운다) */
     const markFailed = async () => {
@@ -1015,6 +1258,197 @@ async function handleGenerate(
   }
 }
 
+// ===== 비교 테스트 액션 (admin_users 전용, 결제·리포트 행과 무관한 무상태 호출) =====
+
+/** 질문 나누기 비교 대상 (운영 기본은 GEMINI_FLASH_MODEL 그대로) */
+const DECOMPOSE_TEST_MODELS = new Set([
+  "gemini-3.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-3.1-flash-lite",
+]);
+
+async function requireTestRouting(
+  supabaseAdmin: any,
+  userId: string,
+  requested: unknown,
+): Promise<LlmRouting | null> {
+  const routing = await resolveLlmRouting(supabaseAdmin, userId, requested ?? "gemini");
+  return routing.isTest ? routing : null;
+}
+
+/**
+ * test_section: 본인 프로필로 리포트 섹션 1개를 생성해 원고·검증 결과·사용량을 돌려준다.
+ * premium_reports 에 저장하지 않으며, 폴백 없이 선택한 공급자의 결과만 돌려준다
+ * (allow_fallback: true 면 운영과 같은 폴백 규칙 적용 — 결과의 llm.runs[].finalProvider 로 구분).
+ * body: { profile_id, section_index(0~2), llmProvider, question?, sub_questions?, prior_content?, base_date?, allow_fallback? }
+ */
+async function handleTestSection(supabaseAdmin: any, userId: string, body: any): Promise<Response> {
+  const routing = await requireTestRouting(supabaseAdmin, userId, body.llmProvider);
+  if (!routing) return json(403, { success: false, error: "테스트 권한이 없습니다." });
+
+  const sectionIndex = Number(body.section_index);
+  if (!Number.isInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= SECTIONS_TOTAL) {
+    return json(400, { success: false, error: "section_index 는 0~2 입니다." });
+  }
+  const profileId = typeof body.profile_id === "string" ? body.profile_id.trim() : "";
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, birth_date, birth_time, gender, city_name, lat, lng, timezone")
+    .eq("id", profileId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!profile?.birth_date || profile.lat == null || profile.lng == null) {
+    return json(404, { success: false, error: "본인 소유의 완전한 프로필이 필요합니다." });
+  }
+  const snapshot: ProfileSnapshot = {
+    name: profile.name,
+    birth_date: String(profile.birth_date).substring(0, 19),
+    birth_time: profile.birth_time,
+    gender: profile.gender,
+    city_name: profile.city_name,
+    lat: profile.lat,
+    lng: profile.lng,
+    timezone: profile.timezone,
+  };
+  const question = typeof body.question === "string" && body.question.trim()
+    ? body.question.trim().substring(0, QUESTION_MAX_LENGTH).replace(/"""/g, '"')
+    : null;
+  const subQuestions: SubQuestion[] | null = question
+    ? (Array.isArray(body.sub_questions) && body.sub_questions.length > 0
+      ? body.sub_questions
+      : [{ id: 1, text: question }])
+    : null;
+  const baseDate = typeof body.base_date === "string" && !isNaN(Date.parse(body.base_date))
+    ? new Date(body.base_date)
+    : new Date();
+
+  const prompt = await buildSectionPrompt(
+    sectionIndex,
+    snapshot,
+    question,
+    subQuestions,
+    baseDate,
+    typeof body.prior_content === "string" ? body.prior_content : "",
+    null,
+  );
+
+  const session = new LlmSession(routing, userId);
+  const run = session.newRun("premium_report_section", `section_${sectionIndex}`);
+  const allowFallback = body.allow_fallback === true;
+  let text: string | null = null;
+  let error: string | null = null;
+  try {
+    if (allowFallback) {
+      text = (await generateSectionText(prompt, { session, run, forceGemini: false })).text;
+    } else {
+      // 폴백·검증 예외 없이 선택한 공급자의 원고를 그대로 받는다 (검증 결과는 따로 반환)
+      text = await generateSectionRaw(prompt, session, run);
+    }
+  } catch (e) {
+    error = sanitizeErrorMessage((e as Error)?.message ?? String(e));
+  }
+  const validation = text ? validateSection(text, prompt.ctx) : null;
+  await session.persist(supabaseAdmin, { sectionIndex, outcome: "test" });
+
+  // 차트 일치 검사용: 출생 차트의 행성 사인만 돌려준다 (본인 프로필)
+  const base = await buildBaseData(snapshot);
+  const natalSigns: Record<string, string> = {};
+  for (const [k, v] of Object.entries(base.chartData?.planets ?? {})) {
+    if (v && typeof (v as { sign?: string }).sign === "string") natalSigns[k] = (v as { sign: string }).sign;
+  }
+
+  return json(200, {
+    success: !!text,
+    sectionIndex,
+    text,
+    error,
+    validation,
+    natalSigns,
+    llm: session.publicSummary(),
+  });
+}
+
+/** 테스트용: 선택한 공급자 1회 호출 (폴백·검증 없음) */
+async function generateSectionRaw(prompt: SectionPrompt, session: LlmSession, run: LlmRun): Promise<string> {
+  const guard = groundingGuard("ko");
+  const body = buildSectionGeminiBody(prompt, guard);
+  run.promptHash = await hashGeminiBody(body);
+  if (session.routing.variant === "openai") {
+    const attempt = run.begin("openai", OPENAI_MODEL, OPENAI_TIER_CONFIG.deep.effort);
+    try {
+      const text = await callOpenAIText(
+        {
+          model: OPENAI_MODEL,
+          prompt: { instructions: prompt.systemText + guard, input: [{ role: "user", content: prompt.userPrompt }] },
+          effort: OPENAI_TIER_CONFIG.deep.effort,
+          maxOutputTokens: OPENAI_REPORT_MAX_OUTPUT_TOKENS,
+          timeoutMs: OPENAI_REPORT_TIMEOUT_MS,
+          promptCacheKey: `truefuture:premium_report:${prompt.ctx.sectionIndex}`,
+        },
+        attempt,
+      );
+      attempt.succeed();
+      run.finish(text);
+      return text;
+    } catch (e) {
+      const err = e instanceof LlmError ? e : new LlmError("api", String((e as Error)?.message ?? e));
+      attempt.fail(err);
+      run.finish(null);
+      throw err;
+    }
+  }
+  const g = run.begin("gemini", GEMINI_PRO_MODEL);
+  try {
+    const result = await callGemini(GEMINI_PRO_MODEL, body);
+    g.setUsage(usageFromGemini(result.usage));
+    g.succeed();
+    run.finish(result.text);
+    return result.text;
+  } catch (e) {
+    const message = (e as Error)?.message ?? String(e);
+    const usage = (e as { usage?: GeminiUsage | null })?.usage;
+    if (usage) g.setUsage(usageFromGemini(usage));
+    g.fail(new LlmError(kindFromGeminiError(message), recordableGeminiError(message)));
+    run.finish(null);
+    throw e;
+  }
+}
+
+/**
+ * test_decompose: 같은 질문을 여러 모델로 나눠 보고 결과·시간·사용량·비용을 비교한다.
+ * body: { question, models?: string[] }
+ */
+async function handleTestDecompose(supabaseAdmin: any, userId: string, body: any): Promise<Response> {
+  const routing = await requireTestRouting(supabaseAdmin, userId, "gemini");
+  if (!routing) return json(403, { success: false, error: "테스트 권한이 없습니다." });
+  const question = typeof body.question === "string" ? body.question.trim().substring(0, QUESTION_MAX_LENGTH) : "";
+  if (!question) return json(400, { success: false, error: "question 이 필요합니다." });
+  const models: string[] = (Array.isArray(body.models) ? body.models : ["gemini-3.5-flash", "gemini-2.5-flash-lite"])
+    .filter((m: unknown) => typeof m === "string" && DECOMPOSE_TEST_MODELS.has(m));
+
+  const session = new LlmSession(routing, userId);
+  const results = [];
+  for (const model of models) {
+    const run = session.newRun("premium_report_decompose", model);
+    const a = run.begin("gemini", model);
+    try {
+      const { text, usage } = await callGemini(model, buildDecomposeBody(question));
+      a.setUsage(usageFromGemini(usage));
+      const subQuestions = parseSubQuestions(text);
+      a.succeed();
+      run.finish(text);
+      results.push({ model, subQuestions, ...run.summary() });
+    } catch (e) {
+      const message = sanitizeErrorMessage((e as Error)?.message ?? String(e));
+      a.fail(new LlmError("api", message));
+      run.finish(null);
+      results.push({ model, error: message, ...run.summary() });
+    }
+  }
+  await session.persist(supabaseAdmin, { outcome: "test" });
+  return json(200, { success: true, results });
+}
+
 // ===== 서버 =====
 
 serve(async (req) => {
@@ -1057,6 +1491,12 @@ serve(async (req) => {
     }
     if (action === "generate") {
       return await handleGenerate(supabaseAdmin, user.id, body);
+    }
+    if (action === "test_section") {
+      return await handleTestSection(supabaseAdmin, user.id, body);
+    }
+    if (action === "test_decompose") {
+      return await handleTestDecompose(supabaseAdmin, user.id, body);
     }
     return json(400, { success: false, error: `알 수 없는 action: ${action}` });
   } catch (error) {
