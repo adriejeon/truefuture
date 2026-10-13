@@ -734,8 +734,21 @@ function getConsultationCategoryGuidelines(category: string): string {
 - **analysis.general**: Synthesize chart data to deliver a clear, specific answer with timing.`;
 }
 
-export function getConsultationSystemPrompt(category: string): string {
-  const categoryGuidelines = getConsultationCategoryGuidelines(category || "General");
+/** Multi-topic guideline (secondary topics present): cover every topic, but score/keywords/timeline follow the primary */
+function getMultiTopicGuideline(primary: string, secondaryTopics: readonly string[]): string {
+  const extras = secondaryTopics.map((t) => String(t ?? "").trim().toUpperCase()).filter(Boolean);
+  if (extras.length === 0) return "";
+  const all = [primary.toUpperCase(), ...extras].join(" · ");
+  return `\n- **Multi-topic question**: this question spans ${all}. Cover every topic in analysis.general/timing/advice, but base score, keywords and timeline on the primary topic (${primary.toUpperCase()}). Give the secondary topics' timing as separate sentences inside timing.`;
+}
+
+export function getConsultationSystemPrompt(
+  category: string,
+  secondaryTopics: readonly string[] = [],
+): string {
+  const categoryGuidelines =
+    getConsultationCategoryGuidelines(category || "General") +
+    getMultiTopicGuideline(category || "General", secondaryTopics);
 
   return `You are a trusted astrology mentor with 20 years of experience.
 You've guided countless people through life's turning points. Using the chart data in User Prompt —

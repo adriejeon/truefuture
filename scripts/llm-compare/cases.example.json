@@ -33,8 +33,18 @@
     "type": "compatibility",
     "note": "궁합 (가상 인물 2명)",
     "request": {
-      "user1": { "birthDate": "1993-06-21T14:00:00", "lat": 37.5665, "lng": 126.978, "gender": "F" },
-      "user2": { "birthDate": "1991-01-09T06:45:00", "lat": 35.8714, "lng": 128.6014, "gender": "M" },
+      "user1": {
+        "birthDate": "1993-06-21T14:00:00",
+        "lat": 37.5665,
+        "lng": 126.978,
+        "gender": "F"
+      },
+      "user2": {
+        "birthDate": "1991-01-09T06:45:00",
+        "lat": 35.8714,
+        "lng": 128.6014,
+        "gender": "M"
+      },
       "relationshipType": "연인",
       "language": "ko"
     }
@@ -57,7 +67,86 @@
     "note": "장문 리포트 — profileId 는 테스트 계정 본인 프로필 ID 로 바꾸세요",
     "profileId": "00000000-0000-0000-0000-000000000000",
     "question": "앞으로 3년 안에 독립해서 제 사업을 해도 될지, 그리고 결혼 시기는 언제쯤일지 궁금합니다.",
-    "sections": [0, 1, 2],
-    "decomposeModels": ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
+    "sections": [
+      0,
+      1,
+      2
+    ],
+    "decomposeModels": [
+      "gemini-3.5-flash",
+      "gemini-3.8-flash",
+      "gemini-3.1-flash-lite"
+    ]
+  },
+  {
+    "id": "consult-love-kb-full",
+    "type": "consultation",
+    "note": "지식베이스 범위 비교 — full (종전 전체 범위). 같은 질문으로 두 케이스를 함께 돌려 블라인드 비교",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "요즘 만나는 사람과 결혼까지 갈 수 있을까요? 서로 성격이 많이 달라서 자주 다퉈요.",
+      "consultationTopic": "LOVE",
+      "kbScope": "full"
+    }
+  },
+  {
+    "id": "consult-love-kb-topic",
+    "type": "consultation",
+    "note": "지식베이스 범위 비교 — topic (카테고리 관련 규칙만). 같은 질문으로 두 케이스를 함께 돌려 블라인드 비교",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "요즘 만나는 사람과 결혼까지 갈 수 있을까요? 서로 성격이 많이 달라서 자주 다퉈요.",
+      "consultationTopic": "LOVE",
+      "kbScope": "topic"
+    }
+  },
+  {
+    "id": "consult-love-crosstopic",
+    "type": "consultation",
+    "note": "카테고리를 명시(LOVE)한 복합 질문 — 주주제 LOVE(stored) + 부주제 WORK. 로그 CONSULTATION_TOPIC_PLAN, 지표성 합집합·직업 분석 블록·지식베이스 합집합 확인",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "이직을 언제 할지 몰라서 연애 시작하기가 어려운데, 이직은 어떻게 될까요?",
+      "consultationTopic": "LOVE",
+      "kbScope": "topic"
+    }
+  },
+  {
+    "id": "consult-auto-crosstopic",
+    "type": "consultation",
+    "note": "카테고리 없이(운영과 동일, AUTO) 같은 복합 질문 — 강 키워드 LOVE·WORK 2개라 분류 모델이 주주제를 고르고 나머지가 부주제 (source=model, 실패 시 fallback)",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "이직을 언제 할지 몰라서 연애 시작하기가 어려운데, 이직은 어떻게 될까요?"
+    }
+  },
+  {
+    "id": "consult-yearly-work",
+    "type": "consultation",
+    "note": "주제 + 시간 프레임 — 주주제 WORK(keyword) 에 timeFrame YEARLY. 종전에는 YEARLY 하나로 판정돼 직업 지표성·분석이 빠지거나, WORK 로 판정돼 솔라리턴 지침이 빠졌다",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "올해 안에 이직할 수 있을까요? 지금 회사는 2년째예요."
+    }
   }
 ]
