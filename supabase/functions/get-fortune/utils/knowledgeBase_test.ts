@@ -3,13 +3,18 @@
 //   (--no-check: astrologyCalculator.ts 의 기존 타입 오류 TS7053 때문. 이 파일·knowledgeBase.ts 자체는 타입 오류 없음)
 import { assert, assertEquals, assertStringIncludes } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import { calculateChart } from "./astrologyCalculator.ts";
-import { buildKnowledgeContext, resolveKnowledgeScope } from "./knowledgeBase.ts";
+import { buildKnowledgeContext, consultationKbTopics, resolveKnowledgeScope } from "./knowledgeBase.ts";
+import { detectSubjectTopics } from "./consultationTopics.ts";
 import { FortuneType } from "../types.ts";
 
 // 가상 인물 (1990-05-15 10:30 KST, 서울)
 const chart = await calculateChart(new Date("1990-05-15T01:30:00Z"), { lat: 37.5665, lng: 126.978 }, 9);
-const kb = (topic: string | null, kbScope?: "topic" | "full") =>
-  buildKnowledgeContext(chart, FortuneType.CONSULTATION, { consultationTopic: topic, kbScope });
+const kb = (topic: string | null, kbScope?: "topic" | "full", question?: string) =>
+  buildKnowledgeContext(chart, FortuneType.CONSULTATION, {
+    consultationTopic: topic,
+    kbScope,
+    questionTopics: detectSubjectTopics(question),
+  });
 
 Deno.test("full 범위는 종전과 같다 — 카테고리와 무관하게 동일, 1·2·7·10 하우스 + 직업·연애·재물 규칙", () => {
   const full = kb("WORK", "full");
@@ -66,6 +71,40 @@ Deno.test("topic 모드: 카테고리 관련 하우스·규칙만 들어가고 �
     assertStringIncludes(s, "■ 시기 해석 기준");
     assertStringIncludes(s, "■ 세외3행성·달의 교점 판단");
   }
+});
+
+Deno.test("질문에 다른 주제가 섞이면 그 주제의 하우스·규칙도 합쳐 넣는다 (선택 카테고리는 유지)", () => {
+  // 연애 카테고리를 골랐지만 실제로는 이직을 묻는 질문
+  const q = "이직을 언제 할지 몰라서 연애 시작하기가 어려운데, 이직은 어떻게 될까요?";
+  assertEquals(detectSubjectTopics(q), ["LOVE", "WORK"]);
+  assertEquals(consultationKbTopics("LOVE", detectSubjectTopics(q)), ["LOVE", "WORK"]);
+
+  const mixed = kb("LOVE", undefined, q);
+  for (const h of ["1하우스", "2하우스", "5하우스", "6하우스", "7하우스", "10하우스"]) {
+    assertStringIncludes(mixed, `· ${h}`, `연애+직업: ${h} 포함`);
+  }
+  assertStringIncludes(mixed, "〔직업기질:");
+  assert(!mixed.includes("재물경로:"), "연애+직업: 재물 경로는 여전히 제외");
+  assert(mixed.length > kb("LOVE").length, "연애 단독보다 커진다");
+
+  // 질문에 연애 키워드가 없어도 선택한 카테고리 범위는 유지된다
+  const workOnly = kb("LOVE", undefined, "이직은 언제가 좋을까요?");
+  assertStringIncludes(workOnly, "· 5하우스");
+  assertStringIncludes(workOnly, "· 10하우스");
+
+  // 선택 카테고리와 같은 주제만 언급하면 변화 없음
+  assertEquals(kb("LOVE", undefined, "올해 결혼할 수 있을까요?"), kb("LOVE"));
+  assertEquals(detectSubjectTopics("올해 흐름이 궁금해요"), []);
+
+  // 주제가 3개 이상 섞이면 전체 범위
+  const three = "연애도 이직도 돈 문제도 다 걱정이에요";
+  assertEquals(consultationKbTopics("LOVE", detectSubjectTopics(three)), null);
+  assertEquals(kb("LOVE", undefined, three), kb("LOVE", "full"));
+
+  // 시간 프레임·기타 카테고리는 질문 주제와 무관하게 전체, full 모드도 질문 주제를 무시
+  assertEquals(consultationKbTopics("YEARLY", ["WORK"]), null);
+  assertEquals(kb("YEARLY", undefined, q), kb("YEARLY", "full"));
+  assertEquals(kb("LOVE", "full", q), kb("WORK", "full"));
 });
 
 Deno.test("resolveKnowledgeScope: 요청값 > 환경변수 CONSULTATION_KB_SCOPE > 기본 topic", () => {

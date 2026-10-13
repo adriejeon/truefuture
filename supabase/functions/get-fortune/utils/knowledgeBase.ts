@@ -21,6 +21,7 @@ import { PLANETS_KB } from "../knowledge/planets.ts";
 import { PLANET_COMBOS } from "../knowledge/planetCombos.ts";
 import { GOLDEN_RULES } from "../knowledge/goldenRules.ts";
 import { TIMING_KB } from "../knowledge/timing.ts";
+import { SUBJECT_TOPIC_IDS, type SubjectTopicId } from "./consultationTopics.ts";
 import {
   OUTER_PLANET_NATURES,
   OUTER_PLANETS_RULES,
@@ -50,8 +51,8 @@ type GoldenKey = keyof typeof GOLDEN_RULES;
  */
 export type KnowledgeScope = "topic" | "full";
 
-/** 자유상담 카테고리 → 주입할 하우스·규칙 (여기 없는 카테고리·미지정은 전체 범위) */
-const CONSULTATION_TOPIC_SCOPES: Record<string, { houses: string[]; golden: GoldenKey[] }> = {
+/** 자유상담 카테고리 → 주입할 하우스·규칙 (주제 카테고리가 아닌 값·미지정은 전체 범위) */
+const CONSULTATION_TOPIC_SCOPES: Record<SubjectTopicId, { houses: string[]; golden: GoldenKey[] }> = {
   // 연애·결혼: 5(연애) 7(결혼·배우자)
   LOVE: { houses: ["1", "5", "7"], golden: ["personality", "timing", "love", "general"] },
   // 재물: 2(소득) 8(타인의 재물·빚) 11(후원·소망)
@@ -69,12 +70,47 @@ const CONSULTATION_TOPIC_SCOPES: Record<string, { houses: string[]; golden: Gold
 
 const CONSULTATION_FULL_HOUSES = ["1", "2", "7", "10"];
 const CONSULTATION_FULL_GOLDEN: GoldenKey[] = ["personality", "timing", "career", "love", "wealth", "general"];
+/** 여러 주제를 합칠 때 규칙 출력 순서 */
+const GOLDEN_ORDER: GoldenKey[] = ["personality", "timing", "love", "career", "wealth", "health", "general"];
+/** 질문이 이 수 이상의 주제에 걸치면 합집합 대신 전체 범위 */
+const MAX_TOPICS_BEFORE_FULL = 3;
 
-/** 자유상담의 카테고리 범위 (topic 모드이고 카테고리가 표에 있을 때만), 아니면 null = 전체 */
-function consultationScope(opts?: KnowledgeContextOptions) {
+/**
+ * 자유상담에서 지식베이스에 반영할 주제 집합.
+ *  - 선택(또는 자동 판단)된 카테고리 + 질문 본문에서 감지된 다른 주제(questionTopics, consultationTopics.ts 의
+ *    detectSubjectTopics). "연애 카테고리에서 이직 시기를 묻는" 식의 혼합 질문에 그 주제의 하우스·규칙도 넣기 위함.
+ *  - 선택 카테고리가 주제가 아니면(WEEKLY·MONTHLY·YEARLY·OTHER·미지정) null = 전체 범위.
+ *  - 주제가 MAX_TOPICS_BEFORE_FULL 개 이상 섞이면 null = 전체 범위.
+ */
+export function consultationKbTopics(
+  consultationTopic: string | null | undefined,
+  questionTopics?: readonly string[] | null,
+): SubjectTopicId[] | null {
+  const selected = String(consultationTopic ?? "").trim().toUpperCase();
+  if (!(SUBJECT_TOPIC_IDS as readonly string[]).includes(selected)) return null;
+  const wanted = new Set<string>([selected, ...(questionTopics ?? [])]);
+  const topics = SUBJECT_TOPIC_IDS.filter((t) => wanted.has(t));
+  return topics.length >= MAX_TOPICS_BEFORE_FULL ? null : topics;
+}
+
+/** 자유상담의 주입 범위 (topic 모드이고 주제가 정해질 때만), 아니면 null = 전체 */
+function consultationScope(
+  opts?: KnowledgeContextOptions,
+): { houses: string[]; golden: GoldenKey[] } | null {
   if ((opts?.kbScope ?? "topic") === "full") return null;
-  const topic = String(opts?.consultationTopic ?? "").trim().toUpperCase();
-  return CONSULTATION_TOPIC_SCOPES[topic] ?? null;
+  const topics = consultationKbTopics(opts?.consultationTopic, opts?.questionTopics);
+  if (!topics) return null;
+  if (topics.length === 1) return CONSULTATION_TOPIC_SCOPES[topics[0]];
+  const houses = new Set<string>();
+  const golden = new Set<GoldenKey>();
+  for (const t of topics) {
+    CONSULTATION_TOPIC_SCOPES[t].houses.forEach((h) => houses.add(h));
+    CONSULTATION_TOPIC_SCOPES[t].golden.forEach((g) => golden.add(g));
+  }
+  return {
+    houses: [...houses].sort((a, b) => Number(a) - Number(b)),
+    golden: GOLDEN_ORDER.filter((g) => golden.has(g)),
+  };
 }
 
 /**
@@ -181,6 +217,8 @@ export interface KnowledgeContextOptions {
   consultationTopic?: string | null;
   /** CONSULTATION: 주입 범위 (기본 "topic") */
   kbScope?: KnowledgeScope;
+  /** CONSULTATION: 질문 본문에서 감지된 주제 (detectSubjectTopics) — 선택 카테고리와 합쳐 범위를 넓힌다 */
+  questionTopics?: readonly string[] | null;
 }
 
 const PLANET_KO_TO_EN: Record<string, string> = {

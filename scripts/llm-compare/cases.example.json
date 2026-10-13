@@ -107,5 +107,20 @@
       "consultationTopic": "LOVE",
       "kbScope": "topic"
     }
+  },
+  {
+    "id": "consult-love-crosstopic",
+    "type": "consultation",
+    "note": "카테고리(LOVE)와 질문 주제(이직)가 어긋난 경우 — topic 범위에서도 질문에서 감지한 직업 하우스·규칙이 함께 들어가는지 확인 (함수 로그 CONSULTATION_KB_SCOPE.kbTopics = [LOVE, WORK])",
+    "request": {
+      "birthDate": "1992-03-14T08:30:00",
+      "lat": 37.5665,
+      "lng": 126.978,
+      "gender": "F",
+      "language": "ko",
+      "userQuestion": "이직을 언제 할지 몰라서 연애 시작하기가 어려운데, 이직은 어떻게 될까요?",
+      "consultationTopic": "LOVE",
+      "kbScope": "topic"
+    }
   }
 ]

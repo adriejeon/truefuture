@@ -94,6 +94,12 @@ order by created_at desc limit 100;
 `topic` 범위는 카테고리(LOVE·MONEY·WORK·HEALTH·EXAM·MOVE)에 관련된 하우스·규칙만 넣어 입력 토큰을 줄인다
 (WEEKLY·MONTHLY·YEARLY·OTHER·미지정은 전체 범위 그대로).
 
+선택한 카테고리와 질문 주제가 어긋나는 경우(예: 연애 카테고리에서 "이직은 어떻게 될까요?")는 질문 본문의
+키워드로 다른 주제를 감지해 그 주제의 하우스·규칙을 **합쳐** 넣는다 (선택 카테고리 범위는 항상 유지, 후속 질문은
+앞선 질문들의 주제도 유지). 주제가 3개 이상 섞이면 전체 범위로 간다. 키워드 표는
+`get-fortune/utils/consultationTopics.ts` (카테고리 자동 판단과 같은 표).
+`consult-love-crosstopic` 케이스로 확인할 수 있다.
+
 | 설정 | 값 | 비고 |
 |---|---|---|
 | 운영 기본값 | 시크릿 `CONSULTATION_KB_SCOPE` = `topic`(기본) / `full` | 코드 배포 없이 되돌릴 수 있다 |
@@ -105,7 +111,8 @@ deno run --allow-net --allow-env --allow-read --allow-write \
 ```
 
 report.md 의 토큰 열에서 입력 토큰 차이를, 블라인드 원고에서 답변 품질(차트 근거·구체성)을 비교한다.
-함수 로그에는 `CONSULTATION_KB_SCOPE` 로 실제 적용된 범위가 남는다.
+함수 로그에는 `CONSULTATION_KB_SCOPE` 로 실제 적용된 범위(`scope`, 선택 `topic`, 질문에서 감지한 `questionTopics`,
+최종 `kbTopics`)가 남는다.
 
 ## 폴백 규칙 요약
 
