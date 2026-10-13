@@ -88,6 +88,51 @@ order by created_at desc limit 100;
 테스트 결과를 보고 결정한 뒤 `LLM_DEFAULT_PROVIDER=openai` 시크릿만 설정하면 전체 사용자가 GPT(+Gemini 폴백)로 바뀐다.
 되돌릴 때는 시크릿을 지우면 된다. 코드 배포는 필요 없다.
 
+## 6. 상담 주제 계획과 지식베이스 범위
+
+사용자는 카테고리를 고르지 않는다(웹·앱 모두 `AUTO`). 서버가 질문을 읽어 **주제 계획**을 세우고, 그 계획이
+상담 프롬프트의 모든 카테고리 의존 블록을 결정한다 (`get-fortune/utils/consultationTopics.ts`).
+
+| 축 | 값 | 판단 | 결정하는 것 |
+|---|---|---|---|
+| 주주제 `primary` | LOVE·MONEY·WORK·HEALTH·EXAM·MOVE / 없음 | 강 키워드 1개면 확정 → 약 키워드 1개 → 모호하면(0개·2개 이상) 분류 모델(`GEMINI_UTILITY_MODEL`) → 우선순위 폴백 | score·keywords·timeline 가이드, 그래프 지식, 지표성 추가 지침, 저장되는 카테고리 |
+| 부주제 `secondary` | 최대 2개 | 강 키워드로 확인된 다른 주제 (회사·업무·아프·돈독 같은 스쳐 가는 단어는 제외) | 지표성·10년 타임라인 합집합, 직업·재물·연애 분석 블록 추가, 지식베이스 합집합, 시스템 지침에 "복합 질문" 한 줄 |
+| 시간 프레임 `timeFrame` | WEEKLY·MONTHLY·YEARLY / 없음 | 정규식만 | 솔라리턴 지침·규칙, 기간별 트랜짓 스캔 ("올해 이직" 도 받는다) |
+
+- 후속 질문은 첫 질문 때 저장된 카테고리를 주주제로 쓰고(모델 호출 없음), 앞선 질문들과 새 질문의 강 키워드로 부주제를 더한다.
+- 분류 모델 호출은 차트 계산과 병렬로 돌아 지연이 숨겨진다 (6초 상한).
+- 계획은 결과의 `chart_data.metadata.consultationPlan` 에 저장된다 (주주제·부주제·시간 프레임·판단 근거 `source`).
+- 함수 로그 `CONSULTATION_TOPIC_PLAN` 에 요청 카테고리·판단 결과·근거가 남는다.
+
+**지식베이스 범위.** "해석 지식베이스"(약 30,000자)는 종전에 카테고리와 무관하게 전체가 들어갔다. `topic` 범위는
+주주제 + 부주제에 관련된 하우스·규칙만 넣는다 (주주제가 없거나 주제가 3개 이상이면 전체 범위, 시간 프레임이
+MONTHLY·YEARLY 면 솔라리턴 규칙 추가). 샘플 차트 기준 단일 주제는 18~38% 감소, 주제가 둘 섞이면 전체와 비슷해진다.
+
+| 설정 | 값 | 비고 |
+|---|---|---|
+| 운영 기본값 | 시크릿 `CONSULTATION_KB_SCOPE` = `topic`(기본) / `full` | 코드 배포 없이 되돌릴 수 있다 |
+| 테스트 요청 | `request.kbScope: "full" \| "topic"` | 관리자 계정만 적용 (`cases.example.json` 의 `consult-love-kb-*` 참고) |
+| 분류 모델 | 시크릿 `GEMINI_UTILITY_MODEL` (기본 `gemini-3.8-flash`) | `gemini-2.5-flash-lite` 는 2026-10-20 은퇴 |
+
+```bash
+deno run --allow-net --allow-env --allow-read --allow-write \
+  scripts/llm-compare/compare.ts --variants openai --only consult-love-kb-full,consult-love-kb-topic
+# 복합 질문·시간 프레임 확인
+deno run --allow-net --allow-env --allow-read --allow-write \
+  scripts/llm-compare/compare.ts --variants openai --only consult-love-crosstopic,consult-auto-crosstopic,consult-yearly-work
+```
+
+report.md 의 토큰 열에서 입력 토큰 차이를, 블라인드 원고에서 답변 품질(차트 근거·구체성)을 비교한다.
+함수 로그 `CONSULTATION_KB_SCOPE` 에 실제 적용된 범위(`scope`, `primary`, `secondary`, `timeFrame`, 최종 `kbTopics`)가 남는다.
+
+테스트:
+```bash
+deno test supabase/functions/get-fortune/utils/consultationTopics_test.ts
+deno test --no-check --allow-read --allow-env --allow-net \
+  supabase/functions/get-fortune/utils/knowledgeBase_test.ts \
+  supabase/functions/get-fortune/utils/consultationPlan_prompt_test.ts
+```
+
 ## 폴백 규칙 요약
 
 - 폴백 조건: 타임아웃 · API 오류(429/5xx 는 1회 재시도 후) · 빈 응답 · 본문 없이 출력 한도 소진 · 필수 형식 검증 실패

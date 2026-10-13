@@ -21,6 +21,7 @@ import { PLANETS_KB } from "../knowledge/planets.ts";
 import { PLANET_COMBOS } from "../knowledge/planetCombos.ts";
 import { GOLDEN_RULES } from "../knowledge/goldenRules.ts";
 import { TIMING_KB } from "../knowledge/timing.ts";
+import { SUBJECT_TOPIC_IDS, type SubjectTopicId } from "./consultationTopics.ts";
 import {
   OUTER_PLANET_NATURES,
   OUTER_PLANETS_RULES,
@@ -42,15 +43,96 @@ const PKEY_TO_NAME: Record<string, string> = {
 
 type GoldenKey = keyof typeof GOLDEN_RULES;
 
+/**
+ * 자유상담 지식베이스 주입 범위
+ *  - "topic": 질문 카테고리와 관련된 하우스·규칙만 (기본). 적용 규칙(goldenRules)이 지식베이스의 58%를
+ *             차지하는데, 연애 질문에도 직업·재물 규칙까지 전부 실리던 것을 줄여 입력 토큰을 아낀다.
+ *  - "full" : 종전과 같은 전체 범위
+ */
+export type KnowledgeScope = "topic" | "full";
+
+/** 자유상담 카테고리 → 주입할 하우스·규칙 (주제 카테고리가 아닌 값·미지정은 전체 범위) */
+const CONSULTATION_TOPIC_SCOPES: Record<SubjectTopicId, { houses: string[]; golden: GoldenKey[] }> = {
+  // 연애·결혼: 5(연애) 7(결혼·배우자)
+  LOVE: { houses: ["1", "5", "7"], golden: ["personality", "timing", "love", "general"] },
+  // 재물: 2(소득) 8(타인의 재물·빚) 11(후원·소망)
+  MONEY: { houses: ["1", "2", "8", "11"], golden: ["personality", "timing", "wealth", "general"] },
+  // 직업·사업: 2(소득) 6(노동·고용) 10(직업·지위)
+  WORK: { houses: ["1", "2", "6", "10"], golden: ["personality", "timing", "career", "general"] },
+  // 건강: 6(질병) 8(위기)
+  HEALTH: { houses: ["1", "6", "8"], golden: ["personality", "timing", "health", "general"] },
+  // 시험·합격: 3(학습) 9(학문·고등교육) 10(성취)
+  EXAM: { houses: ["1", "3", "9", "10"], golden: ["personality", "timing", "career", "general"] },
+  // 이사·이동·해외: 3(근거리 이동) 4(집·부동산) 9(해외·장거리)
+  MOVE: { houses: ["1", "3", "4", "9"], golden: ["personality", "timing", "general"] },
+  // WEEKLY · MONTHLY · YEARLY · OTHER 는 전 영역을 다루므로 전체 범위 유지
+};
+
+const CONSULTATION_FULL_HOUSES = ["1", "2", "7", "10"];
+const CONSULTATION_FULL_GOLDEN: GoldenKey[] = ["personality", "timing", "career", "love", "wealth", "general"];
+/** 여러 주제를 합칠 때 규칙 출력 순서 */
+const GOLDEN_ORDER: GoldenKey[] = ["personality", "timing", "love", "career", "wealth", "health", "general"];
+/** 질문이 이 수 이상의 주제에 걸치면 합집합 대신 전체 범위 */
+const MAX_TOPICS_BEFORE_FULL = 3;
+
+/**
+ * 자유상담에서 지식베이스에 반영할 주제 집합.
+ *  - 선택(또는 자동 판단)된 카테고리 + 질문 본문에서 감지된 다른 주제(questionTopics, consultationTopics.ts 의
+ *    detectSubjectTopics). "연애 카테고리에서 이직 시기를 묻는" 식의 혼합 질문에 그 주제의 하우스·규칙도 넣기 위함.
+ *  - 선택 카테고리가 주제가 아니면(WEEKLY·MONTHLY·YEARLY·OTHER·미지정) null = 전체 범위.
+ *  - 주제가 MAX_TOPICS_BEFORE_FULL 개 이상 섞이면 null = 전체 범위.
+ */
+export function consultationKbTopics(
+  consultationTopic: string | null | undefined,
+  questionTopics?: readonly string[] | null,
+): SubjectTopicId[] | null {
+  const selected = String(consultationTopic ?? "").trim().toUpperCase();
+  if (!(SUBJECT_TOPIC_IDS as readonly string[]).includes(selected)) return null;
+  const wanted = new Set<string>([selected, ...(questionTopics ?? [])]);
+  const topics = SUBJECT_TOPIC_IDS.filter((t) => wanted.has(t));
+  return topics.length >= MAX_TOPICS_BEFORE_FULL ? null : topics;
+}
+
+/** 자유상담의 주입 범위 (topic 모드이고 주제가 정해질 때만), 아니면 null = 전체 */
+function consultationScope(
+  opts?: KnowledgeContextOptions,
+): { houses: string[]; golden: GoldenKey[] } | null {
+  if ((opts?.kbScope ?? "topic") === "full") return null;
+  const topics = consultationKbTopics(opts?.consultationTopic, opts?.questionTopics);
+  if (!topics) return null;
+  if (topics.length === 1) return CONSULTATION_TOPIC_SCOPES[topics[0]];
+  const houses = new Set<string>();
+  const golden = new Set<GoldenKey>();
+  for (const t of topics) {
+    CONSULTATION_TOPIC_SCOPES[t].houses.forEach((h) => houses.add(h));
+    CONSULTATION_TOPIC_SCOPES[t].golden.forEach((g) => golden.add(g));
+  }
+  return {
+    houses: [...houses].sort((a, b) => Number(a) - Number(b)),
+    golden: GOLDEN_ORDER.filter((g) => golden.has(g)),
+  };
+}
+
+/**
+ * 지식베이스 범위 결정.
+ *  - 요청값(관리자 테스트 전용, 비교용) > 환경변수 CONSULTATION_KB_SCOPE > 기본 "topic"
+ *  - 환경변수를 "full" 로 두면 코드 배포 없이 종전 범위로 되돌릴 수 있다.
+ */
+export function resolveKnowledgeScope(requested?: unknown): KnowledgeScope {
+  const pick = (v: unknown): KnowledgeScope | null =>
+    v === "topic" || v === "full" ? v : null;
+  return pick(requested) ?? pick((Deno.env.get("CONSULTATION_KB_SCOPE") ?? "").trim().toLowerCase()) ?? "topic";
+}
+
 /** FortuneType → 주입할 하우스 번호 (타입별 관심 영역) */
-function relevantHousesByType(ft: FortuneType): string[] {
+function relevantHousesByType(ft: FortuneType, opts?: KnowledgeContextOptions): string[] {
   switch (ft) {
     case FortuneType.LIFETIME:
       return ["1", "2", "5", "6", "7", "10"];
     case FortuneType.COMPATIBILITY:
       return ["1", "5", "7", "11"];
     case FortuneType.CONSULTATION:
-      return ["1", "2", "7", "10"];
+      return consultationScope(opts)?.houses ?? CONSULTATION_FULL_HOUSES;
     case FortuneType.DAILY:
     default:
       return [];
@@ -58,7 +140,7 @@ function relevantHousesByType(ft: FortuneType): string[] {
 }
 
 /** FortuneType → 주입할 goldenRules 키 */
-function goldenKeysByType(ft: FortuneType): GoldenKey[] {
+function goldenKeysByType(ft: FortuneType, opts?: KnowledgeContextOptions): GoldenKey[] {
   switch (ft) {
     case FortuneType.LIFETIME:
       return ["personality", "love", "career", "wealth", "health", "general"];
@@ -66,7 +148,7 @@ function goldenKeysByType(ft: FortuneType): GoldenKey[] {
       // personality(기질) = 두 사람 기질 비교 섹션의 기본 베이스
       return ["personality", "synastry", "general"];
     case FortuneType.CONSULTATION:
-      return ["personality", "timing", "career", "love", "wealth", "general"];
+      return consultationScope(opts)?.golden ?? CONSULTATION_FULL_GOLDEN;
     case FortuneType.DAILY:
     default:
       // 데일리는 연 단위 timing 규칙 대신 TIMING_KB.dailyTransit(하루 단위 규칙)만 별도 주입
@@ -131,8 +213,14 @@ export interface KnowledgeContextOptions {
     lordAspectDescriptions: string[];
     lordStarText?: string | null;
   };
-  /** CONSULTATION: 선택(또는 자동 판단)된 카테고리 — MONTHLY/YEARLY 면 솔라리턴 규칙 주입 */
+  /** CONSULTATION: 선택(또는 자동 판단)된 카테고리 — 주입 범위 선택, MONTHLY/YEARLY 면 솔라리턴 규칙 주입 */
   consultationTopic?: string | null;
+  /** CONSULTATION: 주입 범위 (기본 "topic") */
+  kbScope?: KnowledgeScope;
+  /** CONSULTATION: 부주제 (주제 계획의 secondary) — 주주제와 합쳐 범위를 넓힌다 */
+  questionTopics?: readonly string[] | null;
+  /** CONSULTATION: 시간 프레임 (WEEKLY/MONTHLY/YEARLY). MONTHLY·YEARLY 면 주제와 무관하게 솔라리턴 규칙을 넣는다 */
+  timeFrame?: string | null;
 }
 
 const PLANET_KO_TO_EN: Record<string, string> = {
@@ -209,12 +297,12 @@ export function buildKnowledgeContext(
   if (!chartData?.planets) return "";
 
   const sections: string[] = [];
-  const goldenKeys = goldenKeysByType(fortuneType);
+  const goldenKeys = goldenKeysByType(fortuneType, opts);
 
   // ── 1. 관련 하우스 (타입 관심영역 ∪ 점유 하우스) ──
   // 점유 하우스는 심층 리딩(LIFETIME)에만 합쳐 분량을 통제. 그 외 타입은 관심영역만.
   const houseNums = dedup([
-    ...relevantHousesByType(fortuneType),
+    ...relevantHousesByType(fortuneType, opts),
     ...(fortuneType === FortuneType.LIFETIME
       ? getOccupiedHouses(chartData)
       : []),
@@ -315,11 +403,13 @@ export function buildKnowledgeContext(
     sections.push("■ 시기 해석 기준\n" + dedup(timingLines).join("\n"));
   }
 
-  // ── 5b. 솔라리턴 해석 기준 (상담소 월간·연간 카테고리에만) ──
+  // ── 5b. 솔라리턴 해석 기준 (상담소 월간·연간 — 카테고리 또는 시간 프레임) ──
   const topicUpper = String(opts?.consultationTopic ?? "").trim().toUpperCase();
+  const timeFrameUpper = String(opts?.timeFrame ?? "").trim().toUpperCase();
+  const wantsSolarReturn = [topicUpper, timeFrameUpper].some((v) => v === "MONTHLY" || v === "YEARLY");
   if (
     fortuneType === FortuneType.CONSULTATION &&
-    (topicUpper === "MONTHLY" || topicUpper === "YEARLY") &&
+    wantsSolarReturn &&
     TIMING_KB.solarReturn?.length
   ) {
     sections.push(

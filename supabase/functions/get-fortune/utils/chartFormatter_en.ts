@@ -886,6 +886,53 @@ export function getCategorySignificators(
   };
 }
 
+/**
+ * Significators for a topic plan (primary + secondary topics).
+ * Merges the secondary topics' significators into the primary category's and marks them in the timing instruction.
+ * Identical to getCategorySignificators when there are no secondary topics.
+ */
+export function getPlanSignificators(
+  chartData: ChartData,
+  category: string,
+  secondaryTopics: readonly string[] = [],
+  options?: {
+    loveAnalysis?: import("./chartFormatter.ts").LoveAnalysisData | null;
+    wealthAnalysis?: WealthAnalysisResult | null;
+    careerAnalysis?: CareerAnalysisResult | null;
+  },
+): CategorySignificatorsResult {
+  const main = getCategorySignificators(chartData, category, options);
+  const extras = secondaryTopics
+    .map((t) => String(t ?? "").trim().toUpperCase())
+    .filter((t) => t && t !== String(category ?? "").trim().toUpperCase());
+  if (extras.length === 0) return main;
+
+  const primary = [...main.primary];
+  const secondary = [...(main.secondary ?? [])];
+  const lords: string[] = main.houseLordsBlock ? [main.houseLordsBlock] : [];
+  const pushUnique = (list: string[], name: string) => {
+    if (name && !list.some((x) => x.toLowerCase() === name.toLowerCase())) list.push(name);
+  };
+  for (const topic of extras) {
+    const s = getCategorySignificators(chartData, topic, options);
+    s.primary.forEach((n) => pushUnique(primary, n));
+    (s.secondary ?? []).forEach((n) => {
+      if (!primary.some((x) => x.toLowerCase() === n.toLowerCase())) pushUnique(secondary, n);
+    });
+    if (s.houseLordsBlock) lords.push(`(${topic})\n${s.houseLordsBlock}`);
+  }
+  return {
+    primary,
+    secondary: secondary.length ? secondary : undefined,
+    houseLordsBlock: lords.length ? lords.join("\n") : undefined,
+    timingFilterInstruction: buildTimingFilterInstruction(
+      category,
+      { primary, secondary: secondary.length ? secondary : undefined },
+      extras,
+    ),
+  };
+}
+
 function buildTimelineAnalysisSection(
   significators: string[],
   directionResult: PrimaryDirectionHit[],
@@ -933,12 +980,17 @@ function buildTimelineAnalysisSection(
 function buildTimingFilterInstruction(
   category: string,
   sig: { primary: string[]; secondary?: string[] },
+  secondaryTopics: readonly string[] = [],
 ): string {
   const primaryList = sig.primary.join(", ");
   const secondaryList = sig.secondary && sig.secondary.length > 0 ? ` (Secondary: ${sig.secondary.join(", ")})` : "";
+  const secondaryTopicLine =
+    secondaryTopics.length > 0
+      ? `\nSecondary Topics: **${secondaryTopics.map((t) => t.toUpperCase()).join(", ")}** — the question also touches these topics. Their significators are merged into the list below; cover them in the analysis, but score and timeline follow the primary category.`
+      : "";
 
   const base = `[CRITICAL INSTRUCTION FOR TIMING ANALYSIS]
-Current Category: **${category.toUpperCase()}**
+Current Category: **${category.toUpperCase()}**${secondaryTopicLine}
 
 **Significators for this question:**
 - ${primaryList}${secondaryList}
@@ -993,6 +1045,8 @@ export function generatePredictionPrompt(
   solarReturnChartData?: ChartData,
   solarReturnOverlay?: SolarReturnOverlay,
   consultationTransitChart?: ChartData,
+  /** Secondary topics of the topic plan (merged significators/timeline, noted in the timing instruction) */
+  secondaryTopics: readonly string[] = [],
 ): string {
   const sections: string[] = [];
 
@@ -1171,7 +1225,7 @@ SR Planet Placements in Natal Houses:
   }
 
   // [TIMING FILTER]
-  const significators = getCategorySignificators(chartData, consultationTopic, {
+  const significators = getPlanSignificators(chartData, consultationTopic, secondaryTopics, {
     loveAnalysis,
     wealthAnalysis,
     careerAnalysis,
